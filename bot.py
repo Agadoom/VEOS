@@ -12,7 +12,7 @@ if not TOKEN:
 else:
     print("✅ TOKEN loaded successfully")
 
-# 🔹 Commande /veo
+# 🔹 Commande /veos
 async def veo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "VEO is a community-driven meme crypto.\n"
@@ -45,7 +45,7 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TOKEN).build()
 
 # 🔹 Ajout des handlers
-app.add_handler(CommandHandler("veo", veo))
+app.add_handler(CommandHandler("veos", veos))
 app.add_handler(CommandHandler("links", links))
 app.add_handler(CommandHandler("invite", invite))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
