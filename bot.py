@@ -2,13 +2,7 @@ import os
 import re
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
@@ -35,7 +29,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚀 *VEO*\n\n"
@@ -43,7 +36,6 @@ async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Built for the One World Peace Coins ecosystem 🌍",
         parse_mode="Markdown"
     )
-
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -61,12 +53,8 @@ async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
-
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📢 Invite friends and grow the VEO community 🚀"
-    )
-
+    await update.message.reply_text("📢 Invite friends and grow the VEO community 🚀")
 
 # ---------------- WELCOME ----------------
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -81,7 +69,6 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-
 # ---------------- AUTO CA RESPONSE ----------------
 async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
@@ -92,10 +79,8 @@ async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Blum:\nEQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
         )
 
-
 # ---------------- ANTI SPAM ----------------
 user_messages = defaultdict(list)
-
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
@@ -117,32 +102,25 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         user_messages[user_id].clear()
 
-
 # ---------------- BOT ----------------
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+app = ApplicationBuilder().token(TOKEN).build()
 
-    # Command handlers
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("veos", veos))
-    app.add_handler(CommandHandler("links", links))
-    app.add_handler(CommandHandler("invite", invite))
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("veos", veos))
+app.add_handler(CommandHandler("links", links))
+app.add_handler(CommandHandler("invite", invite))
 
-    # Message handlers
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
+app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
-    # Set bot commands (Telegram menu)
-    await app.bot.set_my_commands([
-        BotCommand("start", "Start the bot"),
-        BotCommand("veos", "About VEO"),
-        BotCommand("links", "Official links"),
-        BotCommand("invite", "Invite people"),
-    ])
+# ⚡ Command menu
+app.bot.set_my_commands([
+    BotCommand("start", "Start the bot"),
+    BotCommand("veos", "About VEO"),
+    BotCommand("links", "Official links"),
+    BotCommand("invite", "Invite people"),
+])
 
-    print("🚀 Bot démarré")
-    await app.run_polling()
-
-import asyncio
-asyncio.run(main())
+print("🚀 Bot démarré")
+app.run_polling()
