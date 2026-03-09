@@ -46,3 +46,4 @@ app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
 # 🔹 Lancer le bot avec polling
 app.run_polling()
+print("Bot is now running and polling for updates...")
