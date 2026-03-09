@@ -1,5 +1,5 @@
 import os
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # 🔹 Récupère le token depuis les variables d'environnement Railway
@@ -12,45 +12,41 @@ if not TOKEN:
 else:
     print("✅ TOKEN loaded successfully")
 
-# 🔹 Supprime tout webhook résiduel (pour éviter conflit polling)
-bot = Bot(TOKEN)
-try:
-    bot.delete_webhook()
-    print("✅ Old webhook cleared")
-except Exception as e:
-    print("⚠️ No webhook to delete or error:", e)
-
 # 🔹 Commande /veos
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"DEBUG: /veos received from {update.effective_user.first_name}")
+    thread_id = getattr(update.message, "message_thread_id", None)
     await update.message.reply_text(
         "VEO is a community-driven meme crypto.\n"
-        "Part of the One World Peace Coins ecosystem."
+        "Part of the One World Peace Coins ecosystem.",
+        message_thread_id=thread_id
     )
 
 # 🔹 Commande /links
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"DEBUG: /links received from {update.effective_user.first_name}")
+    thread_id = getattr(update.message, "message_thread_id", None)
     await update.message.reply_text(
-        "Official links:\nhttps://deeptrade.bio.link"
+        "Official links:\nhttps://deeptrade.bio.link",
+        message_thread_id=thread_id
     )
 
 # 🔹 Commande /invite
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"DEBUG: /invite received from {update.effective_user.first_name}")
+    thread_id = getattr(update.message, "message_thread_id", None)
     await update.message.reply_text(
-        "Invite friends and grow the VEO community 🚀"
+        "Invite friends and grow the VEO community 🚀",
+        message_thread_id=thread_id
     )
 
-# 🔹 Message de bienvenue automatique pour nouveaux membres
+# 🔹 Message de bienvenue automatique
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    thread_id = getattr(update.message, "message_thread_id", None)
     for member in update.message.new_chat_members:
-        print(f"DEBUG: New member joined -> {member.first_name}")
         await update.message.reply_text(
             f"Welcome {member.first_name}! 🚀\n"
             "You joined the VEO community.\n"
             "Part of One World Peace Coins 🌍\n"
-            "Start here 👉 https://deeptrade.bio.link"
+            "Start here 👉 https://deeptrade.bio.link",
+            message_thread_id=thread_id
         )
 
 # 🔹 Création de l'application
@@ -62,8 +58,8 @@ app.add_handler(CommandHandler("links", links))
 app.add_handler(CommandHandler("invite", invite))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-# 🔹 Message de debug pour savoir que le bot démarre
+# 🔹 Debug message
 print("⚡ Bot is starting... polling for updates.")
 
-# 🔹 Lancer le bot avec polling (une seule instance !)
+# 🔹 Lancer le bot avec polling
 app.run_polling()
