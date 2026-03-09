@@ -10,14 +10,12 @@ from telegram.ext import (
     filters,
 )
 
-# 🔹 TOKEN depuis Railway
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     print("❌ TOKEN manquant")
     exit()
 
 # ---------------- COMMANDES ----------------
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
@@ -29,7 +27,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
     await update.message.reply_text(
         "👋 Welcome to the VEO community!\n\n"
         "🚀 Community-driven meme crypto\n"
@@ -55,7 +52,6 @@ async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
     text = (
         "🔗 *VEO Official Links*\n\n"
         "💠 Coinbase / Base CA:\n"
@@ -63,7 +59,6 @@ async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💎 Blum CA:\n"
         "`EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt`"
     )
-
     await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 
@@ -73,30 +68,7 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "💰 Buy VEO here:\n"
-        "🌐 Website: https://deeptrade.bio.link\n"
-        "🚀 Base Rewards: https://base.app/rewards"
-    )
-
-
-async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📈 VEO Price Chart:\n"
-        "You can check live price charts on: https://deeptrade.bio.link"
-    )
-
-
-async def rewards(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🎁 Claim Base Rewards:\n"
-        "https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00"
-    )
-
-
 # ---------------- WELCOME ----------------
-
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         try:
@@ -111,7 +83,6 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ---------------- AUTO CA RESPONSE ----------------
-
 async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
     if "ca" in text or "contract" in text:
@@ -123,16 +94,13 @@ async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ---------------- ANTI SPAM ----------------
-
 user_messages = defaultdict(list)
 
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
-
     text = update.message.text or ""
     allowed_links = ["deeptrade.bio.link", "base.app", "t.me/blum"]
-
     if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
         if not any(link in text for link in allowed_links):
             try:
@@ -140,7 +108,6 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
             return
-
     user_id = update.message.from_user.id
     user_messages[user_id].append(update.message.date)
     if len(user_messages[user_id]) > 5:
@@ -152,36 +119,30 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ---------------- BOT ----------------
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
 
-app = ApplicationBuilder().token(TOKEN).build()
+    # Command handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("veos", veos))
+    app.add_handler(CommandHandler("links", links))
+    app.add_handler(CommandHandler("invite", invite))
 
-# Handlers
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("veos", veos))
-app.add_handler(CommandHandler("links", links))
-app.add_handler(CommandHandler("invite", invite))
-app.add_handler(CommandHandler("buy", buy))
-app.add_handler(CommandHandler("chart", chart))
-app.add_handler(CommandHandler("rewards", rewards))
+    # Message handlers
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
-app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
-
-# Set bot commands (Telegram menu)
-async def set_commands(app):
+    # Set bot commands (Telegram menu)
     await app.bot.set_my_commands([
         BotCommand("start", "Start the bot"),
         BotCommand("veos", "About VEO"),
         BotCommand("links", "Official links"),
         BotCommand("invite", "Invite people"),
-        BotCommand("buy", "Buy VEO"),
-        BotCommand("chart", "VEO price chart"),
-        BotCommand("rewards", "Claim Base Rewards"),
     ])
 
-import asyncio
-asyncio.run(set_commands(app))
+    print("🚀 Bot démarré")
+    await app.run_polling()
 
-print("🚀 Bot démarré")
-app.run_polling()
+import asyncio
+asyncio.run(main())
