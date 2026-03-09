@@ -17,7 +17,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
             InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link"),
-            InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR"),
+            InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")
         ],
         [
             InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")
@@ -38,25 +38,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
-        "🚀 *VEO*\n\n"
+        "🚀 VEO\n\n"
         "Community driven meme crypto\n"
-        "Built for the One World Peace Coins ecosystem 🌍",
-        parse_mode="Markdown"
+        "Built for the One World Peace Coins ecosystem 🌍"
     )
 
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
-        [
-            InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link")
-        ],
-        [
-            InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")
-        ],
-        [
-            InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")
-        ]
+        [InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link")],
+        [InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")],
+        [InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -79,7 +72,7 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ---------------- WELCOME ----------------
+# ---------------- WELCOME NEW MEMBERS ----------------
 
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -100,7 +93,10 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    text = update.message.text.lower()
+    if not update.message:
+        return
+
+    text = (update.message.text or "").lower()
 
     if "ca" in text or "contract" in text:
 
@@ -119,6 +115,9 @@ user_messages = defaultdict(list)
 
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    if not update.message:
+        return
+
     if update.message.from_user.is_bot:
         return
 
@@ -130,7 +129,9 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "t.me/blum"
     ]
 
+    # suppression liens externes
     if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
+
         if not any(link in text for link in allowed_links):
 
             try:
@@ -140,6 +141,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             return
 
+    # spam rapide
     user_id = update.message.from_user.id
     user_messages[user_id].append(update.message.date)
 
@@ -155,17 +157,23 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- BOT ----------------
 
-app = ApplicationBuilder().token(TOKEN).build()
+def main():
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("veos", veos))
-app.add_handler(CommandHandler("links", links))
-app.add_handler(CommandHandler("invite", invite))
+    app = ApplicationBuilder().token(TOKEN).build()
 
-app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("veos", veos))
+    app.add_handler(CommandHandler("links", links))
+    app.add_handler(CommandHandler("invite", invite))
 
-print("🚀 Bot démarré")
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
-app.run_polling()
+    print("🚀 Bot démarré")
+
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
