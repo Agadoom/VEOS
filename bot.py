@@ -56,8 +56,6 @@ EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt
     await update.message.reply_text(text)
     )
 
-    await update.message.reply_text(text)
-
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
