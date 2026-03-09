@@ -35,6 +35,7 @@ async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+
     text = """
 🔗 *VEO Official Links*
 
