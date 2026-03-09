@@ -1,11 +1,15 @@
 import os
 import re
+import openai
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# ⚠️ Assurez-vous d'avoir mis votre TOKEN
+# ---------------- CONFIG ----------------
 TOKEN = os.getenv("TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Assurez-vous de mettre votre clé OpenAI
+openai.api_key = OPENAI_API_KEY
+
 if not TOKEN:
     print("❌ TOKEN manquant")
     exit()
@@ -64,19 +68,28 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- AI RESPONSE ----------------
 
 async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.lower()
+    if update.message.from_user.is_bot:
+        return
 
-    # Réponses simples d'AI pour exemple, à remplacer par intégration réelle d'OpenAI si voulu
-    ai_dict = {
-        "ca": "💠 VEO Contract Address:\nBase: 0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\nBlum: EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt",
-        "unity": "🚀 UNITY is live! Invest early and HODL strong: https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA",
-        "ai": "🤖 Our bot will soon integrate AI to improve your investment experience in OWPC ecosystem!"
-    }
+    user_text = update.message.text
+    if not user_text:
+        return
 
-    for key, response in ai_dict.items():
-        if key in text:
-            await update.message.reply_text(response)
-            return
+    try:
+        # ⚡ Appel à OpenAI GPT
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant for crypto investors in the OWPC ecosystem."},
+                {"role": "user", "content": user_text}
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+        reply_text = response.choices[0].message['content']
+        await update.message.reply_text(reply_text)
+    except Exception as e:
+        print("AI Response Error:", e)
 
 # ---------------- ANTI SPAM ----------------
 
@@ -110,14 +123,16 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 app = ApplicationBuilder().token(TOKEN).build()
 
+# Command handlers
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("veos", veos))
 app.add_handler(CommandHandler("links", links))
 app.add_handler(CommandHandler("invite", invite))
 
+# Message handlers
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_response))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
-print("🚀 Bot started and ready!")
+print("🚀 Bot with AI started and ready!")
 app.run_polling()
