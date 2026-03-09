@@ -1,13 +1,28 @@
 import os
 import re
+import logging
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+)
 
+# ---------------- CONFIG ----------------
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     print("❌ TOKEN manquant")
     exit()
+
+# Logging pour suivre les erreurs et actions
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# ---------------- VARIABLES ----------------
+user_messages = defaultdict(list)
+allowed_links = ["deeptrade.bio.link", "base.app", "t.me/blum"]
 
 # ---------------- COMMANDES ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -66,8 +81,8 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🌍 One World Peace Coins ecosystem\n\n"
                 "Use /links to get official links"
             )
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Erreur welcome: {e}")
 
 # ---------------- AUTO CA RESPONSE ----------------
 async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -80,24 +95,28 @@ async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # ---------------- ANTI SPAM ----------------
-user_messages = defaultdict(list)
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
     text = update.message.text or ""
-    allowed_links = ["deeptrade.bio.link", "base.app", "t.me/blum"]
+    user_id = update.message.from_user.id
+
+    # Blocage liens interdits
     if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
         if not any(link in text for link in allowed_links):
             try:
                 await update.message.delete()
+                logger.info(f"Message supprimé pour spam: {text}")
             except:
                 pass
             return
-    user_id = update.message.from_user.id
+
+    # Anti-flood
     user_messages[user_id].append(update.message.date)
     if len(user_messages[user_id]) > 5:
         try:
             await update.message.delete()
+            logger.info(f"Message flood supprimé de {user_id}")
         except:
             pass
         user_messages[user_id].clear()
@@ -105,16 +124,16 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- BOT ----------------
 app = ApplicationBuilder().token(TOKEN).build()
 
+# Handlers
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("veos", veos))
 app.add_handler(CommandHandler("links", links))
 app.add_handler(CommandHandler("invite", invite))
-
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
-# ⚡ Command menu
+# Commandes visibles
 app.bot.set_my_commands([
     BotCommand("start", "Start the bot"),
     BotCommand("veos", "About VEO"),
@@ -122,5 +141,6 @@ app.bot.set_my_commands([
     BotCommand("invite", "Invite people"),
 ])
 
+# ---------------- LANCEMENT ----------------
 print("🚀 Bot démarré")
 app.run_polling()
