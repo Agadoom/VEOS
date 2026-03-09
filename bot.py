@@ -1,5 +1,5 @@
 import os
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # 🔹 Récupère le token depuis les variables d'environnement Railway
@@ -12,8 +12,17 @@ if not TOKEN:
 else:
     print("✅ TOKEN loaded successfully")
 
+# 🔹 Supprime tout webhook résiduel (pour éviter conflit polling)
+bot = Bot(TOKEN)
+try:
+    bot.delete_webhook()
+    print("✅ Old webhook cleared")
+except Exception as e:
+    print("⚠️ No webhook to delete or error:", e)
+
 # 🔹 Commande /veos
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"DEBUG: /veos received from {update.effective_user.first_name}")
     await update.message.reply_text(
         "VEO is a community-driven meme crypto.\n"
         "Part of the One World Peace Coins ecosystem."
@@ -21,19 +30,22 @@ async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # 🔹 Commande /links
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"DEBUG: /links received from {update.effective_user.first_name}")
     await update.message.reply_text(
         "Official links:\nhttps://deeptrade.bio.link"
     )
 
 # 🔹 Commande /invite
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"DEBUG: /invite received from {update.effective_user.first_name}")
     await update.message.reply_text(
         "Invite friends and grow the VEO community 🚀"
     )
 
-# 🔹 Message de bienvenue automatique
+# 🔹 Message de bienvenue automatique pour nouveaux membres
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
+        print(f"DEBUG: New member joined -> {member.first_name}")
         await update.message.reply_text(
             f"Welcome {member.first_name}! 🚀\n"
             "You joined the VEO community.\n"
