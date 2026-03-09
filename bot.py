@@ -16,11 +16,11 @@ if not TOKEN:
     print("❌ TOKEN manquant")
     exit()
 
-# --------- COMMANDES ---------
+# ---------------- COMMANDES ----------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Welcome to VEO community!\n\n"
+        "👋 Welcome to the VEO community!\n\n"
         "Use /veos to learn about VEO\n"
         "Use /links for official links"
     )
@@ -28,53 +28,58 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "VEO is a community-driven meme crypto 🚀\n"
-        "Part of the One World Peace Coins ecosystem 🌍"
+        "🚀 VEO is a community-driven meme crypto\n"
+        "🌍 Part of the One World Peace Coins ecosystem"
     )
 
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    text = (
+        "🔗 *VEO Official Links*\n\n"
 
-    text = """
-🔗 *VEO Official Links*
+        "🌐 Website\n"
+        "https://deeptrade.bio.link\n\n"
 
-🌐 Website  
-https://deeptrade.bio.link
+        "🚀 Base Rewards\n"
+        "https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR\n\n"
 
-🚀 Base Rewards  
-https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR
+        "💠 Coinbase / Base CA\n"
+        "`0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191`\n\n"
 
-💠 Coinbase / Base CA  
-`0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191`
+        "🌸 Blum Mini App\n"
+        "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA\n\n"
 
-🌸 Blum Mini App  
-https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA
-
-💎 Blum CA  
-`EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt`
-"""
+        "💎 Blum CA\n"
+        "`EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt`"
+    )
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
+
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📢 Invite friends and grow the VEO community 🚀"
+        "📢 Invite your friends and grow the VEO community 🚀"
     )
 
 
-# --------- WELCOME ---------
+# ---------------- WELCOME ----------------
 
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     for member in update.message.new_chat_members:
-        await update.message.reply_text(
-            f"Welcome {member.first_name}! 🚀\n"
-            "You joined the VEO community.\n\n"
-            "Start here 👉 https://deeptrade.bio.link"
-        )
+        try:
+            await update.message.reply_text(
+                f"👋 Welcome {member.first_name}!\n\n"
+                "🚀 Welcome to the VEO community\n"
+                "🌍 One World Peace Coins ecosystem\n\n"
+                "Start here 👉 https://deeptrade.bio.link"
+            )
+        except:
+            pass
 
 
-# --------- ANTI SPAM ---------
+# ---------------- ANTI SPAM ----------------
 
 user_messages = defaultdict(list)
 
@@ -85,15 +90,20 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text or ""
 
-    # 🔹 blocage liens
-    if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
-        try:
-            await update.message.delete()
-        except:
-            pass
-        return
+    allowed_links = [
+        "deeptrade.bio.link",
+        "base.app",
+        "t.me/blum"
+    ]
 
-    # 🔹 anti flood
+    if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
+        if not any(link in text for link in allowed_links):
+            try:
+                await update.message.delete()
+            except:
+                pass
+            return
+
     user_id = update.message.from_user.id
     user_messages[user_id].append(update.message.date)
 
@@ -105,7 +115,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_messages[user_id].clear()
 
 
-# --------- BOT ---------
+# ---------------- BOT ----------------
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -119,7 +129,7 @@ app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
 
-# --------- COMMANDES TELEGRAM ---------
+# ---------------- COMMANDES TELEGRAM ----------------
 
 async def set_commands(app):
     await app.bot.set_my_commands([
