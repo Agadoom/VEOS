@@ -13,7 +13,7 @@ else:
     print("✅ TOKEN loaded successfully")
 
 # 🔹 Commande /veos
-async def veo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "VEO is a community-driven meme crypto.\n"
         "Part of the One World Peace Coins ecosystem."
