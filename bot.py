@@ -35,6 +35,7 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # Création de l'application
+print("TOKEN:", TOKEN)
 app = ApplicationBuilder().token(TOKEN).build()
 
 # Ajout des handlers
