@@ -33,11 +33,13 @@ async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def links(update, context):
+async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     text = """
 🔗 *VEO Official Links*
-  
-https:deeptrade.bio.link
+
+🌐 Website  
+https://deeptrade.bio.link
 
 🚀 Base Rewards  
 https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR
@@ -53,7 +55,6 @@ https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA
 """
 
     await update.message.reply_text(text, parse_mode="Markdown")
-
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
