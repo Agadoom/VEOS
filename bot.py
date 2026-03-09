@@ -4,6 +4,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 
 # Récupère le token depuis les variables d'environnement Railway
 TOKEN = os.getenv("TOKEN")
+PORT = int(os.getenv("PORT", "8443"))  # Railway fournit souvent un port via variable d'environnement
+RAILWAY_URL = os.getenv("RAILWAY_STATIC_URL")  # URL de ton projet Railway (ou ton custom domain)
 
 # Commande /veo
 async def veo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,5 +45,12 @@ app.add_handler(CommandHandler("links", links))
 app.add_handler(CommandHandler("invite", invite))
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-# Lancer le bot
-app.run_polling()
+# ------------------------------
+# 🔹 Lancer le bot en webhook
+# ------------------------------
+app.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    url_path=TOKEN,
+    webhook_url=f"{RAILWAY_URL}/{TOKEN}"
+)
