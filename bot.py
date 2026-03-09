@@ -1,11 +1,17 @@
 import os
 import re
 from collections import defaultdict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
+# 🔹 TOKEN depuis Railway
 TOKEN = os.getenv("TOKEN")
-
 if not TOKEN:
     print("❌ TOKEN manquant")
     exit()
@@ -13,17 +19,15 @@ if not TOKEN:
 # ---------------- COMMANDES ----------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     keyboard = [
         [
             InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link"),
-            InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")
+            InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR"),
         ],
         [
             InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")
         ]
     ]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
@@ -36,48 +40,65 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     await update.message.reply_text(
-        "🚀 VEO\n\n"
-        "Community driven meme crypto\n"
-        "Built for the One World Peace Coins ecosystem 🌍"
+        "🚀 *VEO*\n\n"
+        "Community-driven meme crypto\n"
+        "Built for the One World Peace Coins ecosystem 🌍",
+        parse_mode="Markdown"
     )
 
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     keyboard = [
         [InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link")],
         [InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")],
         [InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")]
     ]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     text = (
-        "🔗 VEO Official Links\n\n"
-        "💠 Coinbase / Base CA\n"
-        "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n\n"
-        "💎 Blum CA\n"
-        "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
+        "🔗 *VEO Official Links*\n\n"
+        "💠 Coinbase / Base CA:\n"
+        "`0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191`\n\n"
+        "💎 Blum CA:\n"
+        "`EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt`"
     )
 
-    await update.message.reply_text(text, reply_markup=reply_markup)
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     await update.message.reply_text(
         "📢 Invite friends and grow the VEO community 🚀"
     )
 
 
-# ---------------- WELCOME NEW MEMBERS ----------------
+async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "💰 Buy VEO here:\n"
+        "🌐 Website: https://deeptrade.bio.link\n"
+        "🚀 Base Rewards: https://base.app/rewards"
+    )
+
+
+async def chart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📈 VEO Price Chart:\n"
+        "You can check live price charts on: https://deeptrade.bio.link"
+    )
+
+
+async def rewards(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🎁 Claim Base Rewards:\n"
+        "https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00"
+    )
+
+
+# ---------------- WELCOME ----------------
 
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     for member in update.message.new_chat_members:
-
         try:
             await update.message.reply_text(
                 f"👋 Welcome {member.first_name}!\n\n"
@@ -92,20 +113,12 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- AUTO CA RESPONSE ----------------
 
 async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if not update.message:
-        return
-
-    text = (update.message.text or "").lower()
-
+    text = update.message.text.lower()
     if "ca" in text or "contract" in text:
-
         await update.message.reply_text(
             "💠 VEO Contract Address\n\n"
-            "Base:\n"
-            "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n\n"
-            "Blum:\n"
-            "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
+            "Base:\n0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n\n"
+            "Blum:\nEQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
         )
 
 
@@ -114,66 +127,61 @@ async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
 user_messages = defaultdict(list)
 
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if not update.message:
-        return
-
     if update.message.from_user.is_bot:
         return
 
     text = update.message.text or ""
+    allowed_links = ["deeptrade.bio.link", "base.app", "t.me/blum"]
 
-    allowed_links = [
-        "deeptrade.bio.link",
-        "base.app",
-        "t.me/blum"
-    ]
-
-    # suppression liens externes
     if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
-
         if not any(link in text for link in allowed_links):
-
             try:
                 await update.message.delete()
             except:
                 pass
-
             return
 
-    # spam rapide
     user_id = update.message.from_user.id
     user_messages[user_id].append(update.message.date)
-
     if len(user_messages[user_id]) > 5:
-
         try:
             await update.message.delete()
         except:
             pass
-
         user_messages[user_id].clear()
 
 
 # ---------------- BOT ----------------
 
-def main():
+app = ApplicationBuilder().token(TOKEN).build()
 
-    app = ApplicationBuilder().token(TOKEN).build()
+# Handlers
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("veos", veos))
+app.add_handler(CommandHandler("links", links))
+app.add_handler(CommandHandler("invite", invite))
+app.add_handler(CommandHandler("buy", buy))
+app.add_handler(CommandHandler("chart", chart))
+app.add_handler(CommandHandler("rewards", rewards))
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("veos", veos))
-    app.add_handler(CommandHandler("links", links))
-    app.add_handler(CommandHandler("invite", invite))
+app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
+# Set bot commands (Telegram menu)
+async def set_commands(app):
+    await app.bot.set_my_commands([
+        BotCommand("start", "Start the bot"),
+        BotCommand("veos", "About VEO"),
+        BotCommand("links", "Official links"),
+        BotCommand("invite", "Invite people"),
+        BotCommand("buy", "Buy VEO"),
+        BotCommand("chart", "VEO price chart"),
+        BotCommand("rewards", "Claim Base Rewards"),
+    ])
 
-    print("🚀 Bot démarré")
+import asyncio
+asyncio.run(set_commands(app))
 
-    app.run_polling()
-
-
-if __name__ == "__main__":
-    main()
+print("🚀 Bot démarré")
+app.run_polling()
