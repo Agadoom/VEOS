@@ -1,3 +1,5 @@
 python-telegram-bot==20.7
 openai==0.28
 nest_asyncio
+web3
+requests
