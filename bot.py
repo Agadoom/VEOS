@@ -18,8 +18,13 @@ nest_asyncio.apply()
 
 # ----------- VARIABLES D'ENVIRONNEMENT -----------
 TOKEN = os.getenv("TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+resp = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Hello, are you working?"}]
+)
+print(resp.choices[0].message.content)
 
 if not TOKEN or not OPENAI_API_KEY:
     print("❌ TOKEN ou OPENAI_API_KEY manquant")
