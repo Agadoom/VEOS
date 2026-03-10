@@ -1,18 +1,19 @@
 import os
 import re
-import asyncio
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+import nest_asyncio
+import asyncio
 
-# Optional: AI integration
-try:
-    import openai
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    openai.api_key = OPENAI_API_KEY
-    AI_ENABLED = True if OPENAI_API_KEY else False
-except ModuleNotFoundError:
-    AI_ENABLED = False
+# Permet de réutiliser la boucle existante (Railway / Jupyter)
+nest_asyncio.apply()
 
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
@@ -20,99 +21,79 @@ if not TOKEN:
     exit()
 
 # ---------------- COMMANDES ----------------
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [
-            InlineKeyboardButton("🌐 VEO Website", url="https://deeptrade.bio.link"),
-            InlineKeyboardButton("🚀 Base Rewards VEO", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR"),
-        ],
-        [
-            InlineKeyboardButton("🌸 Blum Mini App VEO", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")
-        ],
-        [
-            InlineKeyboardButton("🚀 UNITY Mini App", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA")
-        ]
+        [InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link")],
+        [InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")],
+        [InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")],
+        [InlineKeyboardButton("🕊️ UNITY Mini App", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
         "👋 Welcome to the VEO & UNITY crypto hub!\n\n"
         "🚀 Community-driven meme cryptos\n"
-        "🌍 Part of One World Peace Coins (OWPC)\n\n"
-        "Use /links to see all official links and contracts.",
+        "🌍 Part of the One World Peace Coins ecosystem\n\n"
+        "Use /links to see all official links",
         reply_markup=reply_markup
     )
 
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🚀 *VEO*\nCommunity-driven meme crypto\n🌍 Part of One World Peace Coins ecosystem",
+        "🚀 *VEO*\nCommunity-driven meme crypto\nBuilt for One World Peace Coins 🌍",
         parse_mode="Markdown"
     )
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("🌐 VEO Website", url="https://deeptrade.bio.link")],
-        [InlineKeyboardButton("🚀 Base Rewards VEO", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")],
-        [InlineKeyboardButton("🌸 Blum Mini App VEO", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")],
-        [InlineKeyboardButton("🚀 UNITY Mini App", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA")]
+        [InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link")],
+        [InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")],
+        [InlineKeyboardButton("🌸 Blum VEO Mini App", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")],
+        [InlineKeyboardButton("🕊️ UNITY Mini App", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+
     text = (
-        "🔗 Official Links & Contract Addresses\n\n"
-        "💠 VEO Base CAD:\n0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n\n"
-        "💎 VEO Blum CAD:\nEQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt\n\n"
-        "💠 UNITY CAD:\nEQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+        "🔗 *Official Links & Contracts*\n\n"
+        "💠 VEO CAD: 0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n"
+        "💎 Blum UNITY CAD: EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
     )
-    await update.message.reply_text(text, reply_markup=reply_markup)
+
+    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📢 Invite friends and grow the VEO & UNITY community 🚀")
 
 # ---------------- WELCOME ----------------
+
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         try:
             await update.message.reply_text(
-                f"👋 Welcome {member.first_name}!\n"
+                f"👋 Welcome {member.first_name}!\n\n"
                 "🚀 Welcome to the VEO & UNITY crypto hub\n"
                 "🌍 Part of One World Peace Coins ecosystem\n\n"
-                "Use /links to get official links and CADs."
+                "Use /links to get official links"
             )
         except:
             pass
 
 # ---------------- AUTO CAD RESPONSE ----------------
+
 async def auto_ca(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.lower()
+    text = (update.message.text or "").lower()
     if "ca" in text or "contract" in text:
         await update.message.reply_text(
-            "💠 VEO Contract Address\n"
-            "Base: 0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n"
-            "Blum: EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt\n\n"
-            "💠 UNITY Contract Address\nEQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+            "💠 *Contract Addresses*\n\n"
+            "VEO Base:\n0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n\n"
+            "UNITY Blum:\nEQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx",
+            parse_mode="Markdown"
         )
 
-# ---------------- AI RESPONSE ----------------
-async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not AI_ENABLED:
-        return
-    text = update.message.text
-    if len(text.strip()) < 2:
-        return
-    try:
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt=f"Answer this question in the context of VEO & UNITY crypto: {text}",
-            temperature=0.7,
-            max_tokens=150
-        )
-        answer = response.choices[0].text.strip()
-        if answer:
-            await update.message.reply_text(answer)
-    except Exception as e:
-        print("AI error:", e)
+# ---------------- ANTI SPAM ----------------
 
-# ---------------- ANTI-SPAM ----------------
 user_messages = defaultdict(list)
+
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
@@ -120,51 +101,47 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     allowed_links = ["deeptrade.bio.link", "base.app", "t.me/blum"]
     if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
         if not any(link in text for link in allowed_links):
-            try:
-                await update.message.delete()
-            except:
-                pass
+            try: await update.message.delete()
+            except: pass
             return
+    # Anti-flood
     user_id = update.message.from_user.id
     user_messages[user_id].append(update.message.date)
     if len(user_messages[user_id]) > 5:
-        try:
-            await update.message.delete()
-        except:
-            pass
+        try: await update.message.delete()
+        except: pass
         user_messages[user_id].clear()
 
-# ---------------- BOT ----------------
-async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+# ---------------- BOT SETUP ----------------
 
-    # Commands
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("veos", veos))
-    app.add_handler(CommandHandler("links", links))
-    app.add_handler(CommandHandler("invite", invite))
+app = ApplicationBuilder().token(TOKEN).build()
 
-    # Welcome
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("veos", veos))
+app.add_handler(CommandHandler("links", links))
+app.add_handler(CommandHandler("invite", invite))
 
-    # Auto CA + AI
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_response))
+app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_ca))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
 
-    # Anti-spam
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
-
-    # Telegram bot commands
+# Définir commandes Telegram
+async def set_commands(app):
     await app.bot.set_my_commands([
         BotCommand("start", "Start the bot"),
         BotCommand("veos", "About VEO"),
-        BotCommand("links", "Official links & CAD"),
+        BotCommand("links", "Official links"),
         BotCommand("invite", "Invite people"),
     ])
 
-    print("🚀 Bot démarré")
-    await app.run_polling(drop_pending_updates=True)  # fix conflict
+# ---------------- MAIN ----------------
 
-# ---------------- RUN ----------------
-if __name__ == "__main__":
-    asyncio.run(main())
+async def main():
+    await set_commands(app)
+    print("🚀 Bot VEO & UNITY démarré")
+    await app.run_polling(drop_pending_updates=True)
+
+# Lancer le bot (Railway compatible)
+loop = asyncio.get_event_loop()
+loop.create_task(main())
+loop.run_forever()
