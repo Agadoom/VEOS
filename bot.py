@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 # ---------------- ENV ----------------
-TOKEN = os.getenv("TOKEN")  # ${{shared.TOKEN}}
+TOKEN = os.getenv("TOKEN") = "${{shared.TOKEN}}"
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] = "${{shared.OPENAI_API_KEY}}"
 
 if not TOKEN or not OPENAI_API_KEY:
