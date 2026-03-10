@@ -95,3 +95,11 @@ def monitor_buys():
 if __name__ == "__main__":
     print("OWPC UNITY Buy Bot for Blum STARTED")
     monitor_buys()
+if __name__ == "__main__":
+    print("TEST Buy Message")
+    # Message de test vers Telegram
+    test_message = format_buy("0xTEST123", "0xYourWallet", 0.01)
+    send_telegram(test_message)
+    
+    # Démarrer le monitoring réel après le test
+    monitor_buys()
