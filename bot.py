@@ -103,6 +103,47 @@ async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply = await ask_ai(user_text)
     await update.message.reply_text(f"🤖 {reply}")
 
+
+import random
+import datetime
+
+# ---------------- AI ANNOUNCEMENTS ----------------
+last_announcement_time = datetime.datetime.min
+announcement_cooldown = datetime.timedelta(minutes=30)  # 1 message max toutes les 30 min
+
+async def ai_announcement(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global last_announcement_time
+
+    text = update.message.text.lower()
+    triggers = ["invest", "unity", "veo", "hodl", "crypto"]
+
+    # Ignore si aucun trigger
+    if not any(word in text for word in triggers):
+        return
+
+    now = datetime.datetime.utcnow()
+    if now - last_announcement_time < announcement_cooldown:
+        return  # Cooldown actif
+
+    # Générer un message d'annonce persuasif via OpenAI
+    prompt = (
+        "You are a friendly crypto community assistant. "
+        "Write a short, enthusiastic Telegram message encouraging members to invest in the UNITY token and hold it. "
+        "Mention it's part of One World Peace Coins ecosystem and emphasize early support benefits."
+    )
+    reply = await ask_ai(prompt)
+
+    # Ajouter un petit emoji et style
+    possible_emojis = ["🚀", "💎", "🌍", "🔥", "🕊️"]
+    emoji = random.choice(possible_emojis)
+    final_message = f"{emoji} {reply}"
+
+    await update.message.reply_text(final_message)
+    last_announcement_time = now
+
+
+
+
 # ---------------- ANTI SPAM ----------------
 user_messages = defaultdict(list)
 
@@ -135,6 +176,8 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("veos", veos))
 app.add_handler(CommandHandler("links", links))
 app.add_handler(CommandHandler("invite", invite))
+# AI announcements trigger
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_announcement))
 
 # Welcome
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
