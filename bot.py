@@ -15,7 +15,14 @@ if not TOKEN or not OPENAI_API_KEY:
     print("❌ Missing TOKEN or OPENAI_API_KEY")
     exit()
 
-openai.api_key = OPENAI_API_KEY
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+async def ask_ai(question):
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": question}]
+    )
+    return response.choices[0].message.content
 
 # ---------------- COMMANDES ----------------
 
