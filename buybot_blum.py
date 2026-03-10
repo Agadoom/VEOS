@@ -1,101 +1,56 @@
 import os
-import time
-import requests
 from web3 import Web3
+import requests
 
-# ==============================
-# CONFIGURATION
-# ==============================
+# 🔹 Variables d'environnement
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-
 RPC_URL = os.getenv("RPC_URL")
-TOKEN_CONTRACT = os.getenv("TOKEN_CONTRACT")
+TOKEN_CONTRACT = os.getenv("TOKEN_CONTRACT")  # contrat BLUM
+PUBLIC_ADDRESS = os.getenv("PUBLIC_ADDRESS")  # adresse à checker
 
-SLEEP_TIME = 5  # secondes entre vérifications
+# 🔹 Vérification des variables
+if not all([BOT_TOKEN, CHAT_ID, RPC_URL, TOKEN_CONTRACT, PUBLIC_ADDRESS]):
+    raise Exception("Une ou plusieurs variables d'environnement manquantes !")
 
-# ==============================
-# CONNECT TO BLUM RPC
-# ==============================
+# 🔹 Connexion Web3
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
-
 if not w3.is_connected():
-    raise Exception("Web3 connection failed")
-print("Connected to Blum blockchain RPC")
+    raise Exception(f"Impossible de se connecter au RPC : {RPC_URL}")
 
-# ==============================
-# TELEGRAM FUNCTION
-# ==============================
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True
-    }
-    try:
-        requests.post(url, data=payload)
-    except Exception as e:
-        print("Telegram error:", e)
+print(f"Connecté à Web3 : {w3.clientVersion}")
 
-# ==============================
-# FORMAT WALLET
-# ==============================
-def short_wallet(addr):
-    return addr[:6] + "..." + addr[-4:]
+# 🔹 ABI minimal pour ERC20 (balanceOf et decimals)
+ERC20_ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function",
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [{"name": "", "type": "uint8"}],
+        "type": "function",
+    },
+]
 
-# ==============================
-# FORMAT BUY MESSAGE
-# ==============================
-def format_buy(tx_hash, buyer, value):
-    message = f"""
-🟢 <b>UNITY BUY</b>
+token = w3.eth.contract(address=TOKEN_CONTRACT, abi=ERC20_ABI)
 
-👤 Wallet: {short_wallet(buyer)}
+# 🔹 Récupérer balance
+balance_raw = token.functions.balanceOf(PUBLIC_ADDRESS).call()
+decimals = token.functions.decimals().call()
+balance = balance_raw / (10 ** decimals)
 
-💰 Value: {value} BLM
+# 🔹 Envoyer message Telegram
+msg = f"Balance de {PUBLIC_ADDRESS} : {balance} BLUM"
 
-🔗 Tx: https://blumscan.io/tx/{tx_hash}
+requests.get(
+    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+    params={"chat_id": CHAT_ID, "text": msg}
+)
 
-🚀 <b>Powering the OWPC ecosystem</b>
-"""
-    return message
-
-# ==============================
-# MONITOR TRANSACTIONS
-# ==============================
-def monitor_buys():
-    last_block = w3.eth.block_number
-    print("Starting at block:", last_block)
-
-    while True:
-        try:
-            current_block = w3.eth.block_number
-            if current_block > last_block:
-                for block_num in range(last_block + 1, current_block + 1):
-                    block = w3.eth.get_block(block_num, full_transactions=True)
-                    for tx in block.transactions:
-                        if tx.to is None:
-                            continue
-                        if tx.to.lower() == TOKEN_CONTRACT.lower():
-                            buyer = tx['from']
-                            value = w3.from_wei(tx['value'], 'ether')
-                            message = format_buy(tx.hash.hex(), buyer, value)
-                            send_telegram(message)
-                            print("BUY detected:", tx.hash.hex())
-                last_block = current_block
-        except Exception as e:
-            print("Error:", e)
-        time.sleep(SLEEP_TIME)
-
-# ==============================
-# MAIN
-# ==============================
-if __name__ == "__main__":
-    print("OWPC UNITY Buy Bot for Blum STARTED")
-    monitor_buys()
-if __name__ == "__main__":
-    test_message = format_buy("0xTEST123", "0xYourWallet", 0.01)
-    send_telegram(test_message)
-    monitor_buys()
+print("Message envoyé :", msg)
