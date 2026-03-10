@@ -1,2 +1,3 @@
-python-telegram-bot==20.7
-openai
+python-telegram-bot==20.3
+openai==1.7.0
+nest_asyncio==1.5.7
