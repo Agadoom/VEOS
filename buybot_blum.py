@@ -1,56 +1,32 @@
 import os
-from web3 import Web3
-import requests
+from telegram import Bot
+from telegram.ext import CommandHandler, Updater
 
-# Variables d'environnement
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-CHAT_ID = os.environ.get("CHAT_ID")
-RPC_URL = os.environ.get("RPC_URL")
-TOKEN_CONTRACT = os.environ.get("TOKEN_CONTRACT")
+# Variables d'environnement (tu peux les mettre dans ton fichier .env ou directement ici)
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8628687876:AAGb596ry7ZaYgsM9j-Y6dU2aNhXfS7AsBg")
+CHAT_ID = os.getenv("CHAT_ID", "-1003564334773")
 
-# Vérification des variables
-if not all([BOT_TOKEN, CHAT_ID, RPC_URL, TOKEN_CONTRACT]):
-    raise Exception("Une ou plusieurs variables d'environnement manquantes !")
+# Initialisation du bot
+bot = Bot(token=BOT_TOKEN)
+updater = Updater(token=BOT_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
 
-# Connexion Web3
-w3 = Web3(Web3.HTTPProvider(RPC_URL))
-if not w3.is_connected():
-    raise Exception("Web3 connection failed")
+# Commande /start
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id,
+                             text="Salut ! Le bot fonctionne sans blockchain pour l'instant 🚀")
 
-# ABI minimal pour lire la balance
-ERC20_ABI = [
-    {
-        "constant": True,
-        "inputs": [{"name": "_owner", "type": "address"}],
-        "name": "balanceOf",
-        "outputs": [{"name": "balance", "type": "uint256"}],
-        "type": "function",
-    },
-    {
-        "constant": True,
-        "inputs": [],
-        "name": "decimals",
-        "outputs": [{"name": "", "type": "uint8"}],
-        "type": "function",
-    }
-]
+# Commande /buy simulée
+def buy(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id,
+                             text="💰 Achat simulé ! Ici, tu pourrais intégrer la blockchain plus tard.")
 
-# Création du contrat
-token_contract = w3.eth.contract(address=TOKEN_CONTRACT, abi=ERC20_ABI)
+# Ajout des commandes
+dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("buy", buy))
 
-# Ici on définit l'adresse à surveiller automatiquement
-# => Pour un bot lecture seule, on peut utiliser une adresse publique "monitor"
-# Exemple générique (peut être remplacée par ton adresse publique)
-PUBLIC_ADDRESS = TOKEN_CONTRACT  
-
-# Récupération balance
-decimals = token_contract.functions.decimals().call()
-balance_raw = token_contract.functions.balanceOf(PUBLIC_ADDRESS).call()
-balance = balance_raw / (10 ** decimals)
-
-# Envoi sur Telegram
-message = f"Balance actuelle du token : {balance} BLUM"
-url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-requests.post(url, data={"chat_id": CHAT_ID, "text": message})
-
-print(message)
+# Lancement du bot
+if __name__ == "__main__":
+    print("Bot lancé ! Envoie /start dans Telegram pour tester.")
+    updater.start_polling()
+    updater.idle()
