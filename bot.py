@@ -2,162 +2,192 @@ import os
 import re
 import asyncio
 import nest_asyncio
-from collections import defaultdict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters
-)
 import openai
+from collections import defaultdict
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# ----------- ASYNCIO FIX FOR SERVERS -----------
 nest_asyncio.apply()
 
-# ----------- VARIABLES D'ENVIRONNEMENT -----------
+# -------- ENV --------
 TOKEN = os.getenv("TOKEN")
-openai.api_key = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-resp = openai.ChatCompletion.create(
-    model="gpt-3.5-turbo",
-    messages=[{"role": "user", "content": "Hello, are you working?"}]
-)
-print(resp.choices[0].message.content)
+openai.api_key = OPENAI_API_KEY
 
 if not TOKEN or not OPENAI_API_KEY:
     print("❌ TOKEN ou OPENAI_API_KEY manquant")
     exit()
 
-# ----------- ANTI SPAM -----------
+# -------- DATA --------
 user_messages = defaultdict(list)
+
+CA_BASE = "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191"
+CA_BLUM = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+
 allowed_links = [
     "deeptrade.bio.link",
     "base.app",
     "t.me/blum"
 ]
 
-# ----------- COMMANDES -----------
+# -------- COMMANDS --------
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link"),
-         InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")],
-        [InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text(
-        "👋 Welcome to the VEO & UNITY community!\n\n"
-        "🚀 Community-driven meme crypto\n"
-        "🌍 Part of One World Peace Coins ecosystem\n\n"
-        "Use /links to see all official links",
-        reply_markup=reply_markup
-    )
-
-async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🚀 *VEO*\n\n"
-        "Community-driven meme crypto\n"
-        "Built for the One World Peace Coins ecosystem 🌍",
-        parse_mode="Markdown"
-    )
-
-async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🌐 Website", url="https://deeptrade.bio.link")],
-        [InlineKeyboardButton("🚀 Base Rewards", url="https://base.app/rewards/post/0xf3db9c0c76155134fbb42a772d2563ff8cdb6576/2026-03-09-15-00?wa=0xf3db9c0c76155134fbb42a772d2563ff8cdb6576&n=networks%2Fbase-mainnet&ca=0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191&c=EUR")],
-        [InlineKeyboardButton("🌸 Blum Mini App", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
 
     text = (
-        "🔗 VEO & UNITY Official Links\n\n"
-        "💠 Base / Coinbase CAD:\n0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n\n"
-        "💎 Blum CAD:\nEQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+        "👋 Welcome to VEO & UNITY\n\n"
+        "🚀 Community driven crypto\n"
+        "🌍 One World Peace Coins ecosystem\n\n"
+        "Use /links for official links"
     )
 
-    await update.message.reply_text(text, reply_markup=reply_markup)
+    await update.message.reply_text(text)
+
+
+async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    text = (
+        "🔗 Official Links\n\n"
+        f"💠 Base CA\n{CA_BASE}\n\n"
+        f"💎 Blum CA\n{CA_BLUM}\n\n"
+        "🌐 Website\nhttps://deeptrade.bio.link"
+    )
+
+    await update.message.reply_text(text)
+
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📢 Invite friends and grow the VEO & UNITY community 🚀")
 
-# ----------- WELCOME NOUVEAUX MEMBRES -----------
+    await update.message.reply_text(
+        "📢 Invite friends and grow the VEO & UNITY community 🚀"
+    )
+
+
+# -------- WELCOME --------
+
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     for member in update.message.new_chat_members:
+
         await update.message.reply_text(
-            f"👋 Welcome {member.first_name}!\n\n"
-            "🚀 Welcome to the VEO & UNITY community\n"
-            "🌍 One World Peace Coins ecosystem\n\n"
-            "Use /links to get official links"
+            f"👋 Welcome {member.first_name}\n\n"
+            "🚀 Welcome to VEO & UNITY\n"
+            "Use /links to see official links"
         )
 
-# ----------- AUTO CAD / AI RESPONSE -----------
-async def auto_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (update.message.text or "").lower()
-    user_id = update.message.from_user.id
 
-    # CAD quick reply
-    if "ca" in text or "contract" in text:
-        await update.message.reply_text(
-            "💠 VEO & UNITY Contract Addresses\n\n"
-            "Base/Coinbase: 0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191\n"
-            "Blum: EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
-        )
-        return
+# -------- AI CHAT --------
 
-    # AI reply
+async def ask_ai(prompt):
+
     try:
-        resp = await openai.ChatCompletion.acreate(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": text}],
-            temperature=0.7,
-            max_tokens=200
-        )
-        answer = resp.choices[0].message.content
-        await update.message.reply_text(f"🤖 {answer}")
-    except Exception as e:
-        await update.message.reply_text("🤖 Sorry, AI is temporarily unavailable.")
 
-# ----------- ANTI SPAM -----------
-async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful crypto community assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+
+        return response["choices"][0]["message"]["content"]
+
+    except Exception as e:
+
+        print("AI error:", e)
+        return "🤖 AI temporarily unavailable."
+
+
+# -------- MESSAGE HANDLER --------
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     if update.message.from_user.is_bot:
         return
 
+    text = (update.message.text or "").lower()
     user_id = update.message.from_user.id
+
+    # -------- QUICK CRYPTO ANSWERS --------
+
+    if "ca" in text or "contract" in text:
+
+        await update.message.reply_text(
+            f"💠 Contract Address\n\nBase:\n{CA_BASE}\n\nBlum:\n{CA_BLUM}"
+        )
+        return
+
+    if "buy" in text:
+
+        await update.message.reply_text(
+            "🚀 Buy VEO / UNITY\n\n"
+            "https://base.app\n"
+            "or use Blum Mini App"
+        )
+        return
+
+    if "price" in text:
+
+        await update.message.reply_text(
+            "📈 Price tracking coming soon.\nStay tuned 🚀"
+        )
+        return
+
+    # -------- ANTI SPAM --------
+
     user_messages[user_id].append(update.message.date)
 
-    if len(user_messages[user_id]) > 5:
+    if len(user_messages[user_id]) > 6:
+
         try:
             await update.message.delete()
         except:
             pass
-        user_messages[user_id].clear()
 
-    # blocage liens non-officiels
-    text = update.message.text or ""
-    if re.search(r"http|t\.me|\.com|\.xyz", text.lower()):
+        user_messages[user_id].clear()
+        return
+
+    # -------- ANTI SCAM LINKS --------
+
+    if re.search(r"http|t\.me|\.com|\.xyz", text):
+
         if not any(link in text for link in allowed_links):
+
             try:
                 await update.message.delete()
             except:
                 pass
 
-# ----------- BOT INIT -----------
+            return
+
+    # -------- AI RESPONSE --------
+
+    reply = await ask_ai(text)
+
+    await update.message.reply_text(f"🤖 {reply}")
+
+
+# -------- MAIN --------
+
 async def main():
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("veos", veos))
     app.add_handler(CommandHandler("links", links))
     app.add_handler(CommandHandler("invite", invite))
 
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_response))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
+
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("🚀 Bot démarré")
+
     await app.run_polling(drop_pending_updates=True)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
