@@ -1,13 +1,23 @@
+import os
+import re
+from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import openai
+import nest_asyncio
 
-import os
-from collections import defaultdict
+# Permet de gérer le loop asyncio dans certains environnements (Replit/Railway)
+nest_asyncio.apply()
 
+# ---------------- CONFIG ----------------
 TOKEN = os.getenv("TOKEN")
-if not TOKEN:
-    print("❌ TOKEN manquant")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # Ta clé OpenAI
+
+if not TOKEN or not OPENAI_API_KEY:
+    print("❌ TOKEN ou OPENAI_API_KEY manquant")
     exit()
+
+openai.api_key = OPENAI_API_KEY
 
 # ---------------- COMMANDES ----------------
 
@@ -31,12 +41,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-
 async def veos(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚀 VEO\n\nCommunity-driven meme crypto\nBuilt for the One World Peace Coins ecosystem 🌍"
     )
-
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -52,7 +60,6 @@ async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💎 Blum CA:\nEQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
     )
     await update.message.reply_text(text, reply_markup=reply_markup)
-
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📢 Invite friends and grow the VEO community 🚀")
@@ -105,6 +112,32 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_messages[user_id].clear()
 
 
+# ---------------- AI AUTO RESPONSE ----------------
+
+async def ai_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+    if not user_text:
+        return
+
+    # On cible certains mots clés pour l'AI
+    keywords = ["veo", "unity", "owpc", "crypto", "token", "investment"]
+    if any(k.lower() in user_text.lower() for k in keywords):
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a friendly crypto assistant. Give concise, helpful answers about VEO, UNITY, and OWPC."},
+                    {"role": "user", "content": user_text}
+                ],
+                max_tokens=200,
+                temperature=0.7,
+            )
+            answer = response['choices'][0]['message']['content']
+            await update.message.reply_text(answer)
+        except Exception as e:
+            await update.message.reply_text("🤖 Sorry, AI is temporarily unavailable.")
+
+
 # ---------------- BOT ----------------
 
 app = ApplicationBuilder().token(TOKEN).build()
@@ -116,6 +149,7 @@ app.add_handler(CommandHandler("invite", invite))
 
 app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, anti_spam))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_response))
 
 print("🚀 Bot démarré")
 app.run_polling()
