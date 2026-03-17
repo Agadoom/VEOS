@@ -3,20 +3,20 @@ import asyncio
 import sqlite3
 import nest_asyncio
 from datetime import datetime
+from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
-import openai
+from openai import OpenAI
 
 nest_asyncio.apply()
 
-# -------- RAILWAY CONFIGURATION --------
+# -------- ENV --------
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID", 0))
-BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfo_bot")
-openai.api_key = OPENAI_API_KEY
+BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfobot")
 
-# -------- DATABASE --------
+# -------- DATABASE (Persistence) --------
 DB_PATH = "data/owpc_data.db"
 os.makedirs("data", exist_ok=True)
 
@@ -47,13 +47,21 @@ def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False):
 
 init_db()
 
-# -------- OFFICIAL LINKS --------
+# -------- DATA & CONFIG --------
+user_messages = defaultdict(list)
+ai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ---- Links & Media ----
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 LINK_X = "https://x.com/DeepTradeX"
-LINK_TELEGRAM_CHANNEL = "https://t.me/+SQhKj-gWWmcyODY0" # Your Official Channel
-LOGO_PATH = "media/owpc_logo.png"
+LINK_CHANNEL = "https://t.me/+SQhKj-gWWmcyODY0"
+
+LOGO = "media/owpc_logo.png"
+GIF_LAUNCH = "media/gif.gif"
+
+allowed_links = ["deeptrade.bio.link", "base.app", "t.me/blum", "youtube.com/@deeptradex", "t.me/+SQhKj-gWWmcyODY0"]
 
 def get_title(score):
     if score >= 1000: return "👑 Alpha Legend"
@@ -67,109 +75,114 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     score_res = update_user(user.id, user.first_name)
     
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS),
-         InlineKeyboardButton("💎 UNITY", url=LINK_UNITY),
-         InlineKeyboardButton("⚡ VEO", url=LINK_VEO)],
-        [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_leaderboard"),
-         InlineKeyboardButton("🚀 Quest Center", callback_data="open_quests")],
-        [InlineKeyboardButton("📅 Daily Points", callback_data="daily_claim"),
-         InlineKeyboardButton("📍 Roadmap", callback_data="view_roadmap")]
-    ])
+    keyboard = [
+        [InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS), InlineKeyboardButton("💎 UNITY", url=LINK_UNITY), InlineKeyboardButton("⚡ VEO", url=LINK_VEO)],
+        [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🚀 Quest Center", callback_data="open_q")],
+        [InlineKeyboardButton("📅 Daily Points", callback_data="daily"), InlineKeyboardButton("📍 Roadmap", callback_data="roadmap")]
+    ]
     
-    caption = (f"🕊️ **OWPC Core v3.3**\n\n"
-               f"Welcome, {user.first_name}!\n"
-               f"Rank: {get_title(score_res[0])}\n"
-               f"Balance: {score_res[0]} pts\n\n"
-               f"Unity is strength. The hive is growing. 🐝")
-               
-    if update.effective_chat.type == "private":
-        await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=caption, reply_markup=keyboard, parse_mode="Markdown")
-
-async def roadmap_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "📍 **OWPC STRATEGIC ROADMAP**\n\n"
-        "🟢 **Phase 1: Genesis** (Complete)\n"
-        "Initial bot deployment and community foundation.\n\n"
-        "🟡 **Phase 2: Hive Growth** (Current)\n"
-        "Referral systems, daily engagement, and social missions. Strengthening the $OWPC core.\n\n"
-        "🔴 **Phase 3: The Awakening** (Upcoming)\n"
-        "DEX Listing (Uniswap/Raydium), Token Airdrop based on Points/Ranks, and Unity Governance."
+    await update.message.reply_photo(
+        photo=open(LOGO, "rb"),
+        caption=f"🕊️ **OWPC Ecosystem v3.4**\n\nRank: {get_title(score_res[0])}\nPoints: {score_res[0]}\n\nPhase 2 is LIVE! Build the future. 🚀",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
+
+async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 10")
+    rows = c.fetchall(); conn.close()
+    text = "🏆 **GLOBAL LEADERBOARD**\n\n"
+    for i, (n, s) in enumerate(rows, 1):
+        text += f"{i}. {n} — {s} pts ({get_title(s)})\n"
     await update.message.reply_text(text, parse_mode="Markdown")
 
-# -------- CALLBACK HANDLERS --------
+async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (f"💰 **Buy OWPC Tokens**\n\n🧬 [GENESIS]({LINK_GENESIS})\n💎 [UNITY]({LINK_UNITY})\n⚡ [VEO]({LINK_VEO})")
+    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+
+async def links_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (f"🔗 **Official Links**\n\n🌐 [Website](https://deeptrade.bio.link)\n📺 [YouTube](https://youtube.com/@deeptradex)\n💬 [Channel]({LINK_CHANNEL})")
+    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+
+# -------- CALLBACKS --------
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     uid, name = query.from_user.id, query.from_user.first_name
     await query.answer()
 
-    if query.data == "view_leaderboard":
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 10")
-        rows = c.fetchall(); conn.close()
-        txt = "🏆 **GLOBAL LEADERBOARD**\n\n" + "\n".join([f"{i+1}. {r[0]} — {r[1]} pts" for i, r in enumerate(rows)])
-        await query.message.reply_text(txt)
-
-    elif query.data == "open_quests":
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Join Channel", url=LINK_TELEGRAM_CHANNEL)],
-            [InlineKeyboardButton("🐦 Follow on X", url=LINK_X)],
-            [InlineKeyboardButton("💰 Claim Quest Reward (+100)", callback_data="claim_quests")]
-        ])
-        await query.message.reply_text("🚀 **SOCIAL MISSIONS**\nSupport the ecosystem to earn +100 PTS!", reply_markup=keyboard)
-
-    elif query.data == "claim_quests":
-        score, _, done = update_user(uid, name)
-        if done: await query.message.reply_text("⏳ Mission already completed!")
+    if query.data == "view_lb":
+        await leaderboard(update, context)
+    elif query.data == "open_q":
+        kb = [[InlineKeyboardButton("📢 Join Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("🐦 Follow X", url=LINK_X)], [InlineKeyboardButton("💰 Claim +100 PTS", callback_data="claim_q")]]
+        await query.message.reply_text("🚀 **SOCIAL MISSIONS**\nJoin our social hubs to earn rewards!", reply_markup=InlineKeyboardMarkup(kb))
+    elif query.data == "claim_q":
+        res = update_user(uid, name)
+        if res[2]: await query.message.reply_text("⏳ Quest already done!")
         else:
             update_user(uid, name, score_inc=100, complete_quest=True)
-            await query.message.reply_text("🔥 **REWARD SECURED!**\n+100 pts added. Your influence grows.")
-
-    elif query.data == "view_roadmap":
-        await roadmap_command(update, context)
-
-    elif query.data == "daily_claim":
+            await query.message.reply_text("🔥 **REWARD CLAIMED!** +100 PTS.")
+    elif query.data == "roadmap":
+        await update.message.reply_text("📍 **ROADMAP**\nPhase 1: Genesis\nPhase 2: Hive Growth (Now)\nPhase 3: DEX Listing & Airdrop")
+    elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
-        _, last_d, _ = update_user(uid, name)
-        if last_d == today: await query.message.reply_text("⏳ Already claimed today!")
+        res = update_user(uid, name)
+        if res[1] == today: await query.message.reply_text("⏳ Come back tomorrow!")
         else:
             update_user(uid, name, score_inc=10, daily=today)
-            await query.message.reply_text("✅ **DAILY CHECK-IN!** +10 pts.")
+            await query.message.reply_text("✅ +10 PTS Daily Reward!")
 
-    elif query.data == "get_invite":
-        await query.message.reply_text(f"🔗 **INVITE LINK:**\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`", parse_mode="Markdown")
-
-# -------- MESSAGE HANDLER --------
+# -------- HANDLERS --------
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text: return
-    chat, user, text = update.effective_chat, update.effective_user, update.message.text
+    if not update.message or not update.message.from_user or update.message.from_user.is_bot: return
+    user_id, chat_id, text = update.message.from_user.id, update.effective_chat.id, (update.message.text or "").lower()
 
-    if chat.id == GROUP_CHAT_ID:
-        old_s = update_user(user.id, user.first_name)[0]
-        new_s = update_user(user.id, user.first_name, score_inc=1)[0]
-        if get_title(old_s) != get_title(new_s):
-            await update.message.reply_text(f"🎊 **LEVEL UP {user.first_name}!** You are now a **{get_title(new_s)}**!")
+    # 1. Anti-Spam
+    user_messages[user_id].append(update.message.date)
+    if len(user_messages[user_id]) > 6:
+        await update.message.delete()
+        return
 
-    if chat.type == "private" or f"@{context.bot.username}" in text:
+    # 2. Anti-Scam Links
+    if any(x in text for x in ["http", ".com", ".xyz", "t.me"]):
+        if not any(x in text for x in allowed_links):
+            await update.message.delete()
+            return
+
+    # 3. Group Activity Points
+    if chat_id == GROUP_CHAT_ID:
+        update_user(user_id, update.message.from_user.first_name, score_inc=1)
+
+    # 4. AI Chat (If Private or Mentioned)
+    if update.effective_chat.type == "private" or f"@{context.bot.username}" in text:
         try:
-            res = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": "You are OWPC AI Alpha."}, {"role": "user", "content": text}],
+            response = ai_client.chat.completions.create(
+                model="gpt-3.5-turbo", # Adjusted to stable model
+                messages=[{"role": "system", "content": "You are OWPC Alpha AI."}, {"role": "user", "content": text}],
                 max_tokens=150
             )
-            await update.message.reply_text(res.choices[0].message["content"])
+            await update.message.reply_text(response.choices[0].message.content)
         except: pass
+
+async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for m in update.message.new_chat_members:
+        await update.message.reply_text(f"👋 Welcome {m.first_name}! Use /start and check /buy 🚀")
 
 # -------- MAIN --------
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("roadmap", roadmap_command))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("links", links_cmd))
+    app.add_handler(CommandHandler("leaderboard", leaderboard))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print("🚀 OWPC Bot v3.4 LIVE...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
