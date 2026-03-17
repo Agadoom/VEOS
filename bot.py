@@ -18,6 +18,11 @@ if not TOKEN:
 # -------- DATA --------
 user_messages = defaultdict(list)
 
+# ---- Paths fixes media ----
+MEDIA_PATH = os.path.join(os.path.dirname(__file__), "media")
+LOGO = os.path.join(MEDIA_PATH, "owpc_logo.png")
+GIF_LAUNCH = os.path.join(MEDIA_PATH, "gif.gif")
+
 # ---- Contract Addresses ----
 CA_GENESIS = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
 CA_UNITY = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
@@ -27,10 +32,6 @@ CA_VEO = "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
-
-# ---- Media ----
-LOGO = "owpc_logo.png"
-GIF_LAUNCH = "gif.gif"
 
 # ---- Allowed links ----
 allowed_links = [
@@ -42,15 +43,17 @@ allowed_links = [
 
 # -------- COMMANDS --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🕊️ **Welcome to OWPC Ecosystem**\n\n"
-        "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
-        "🚀 Phase 2 is LIVE!\n"
-        "Use /buy to get started\n\n"
-        "🌐 Stay connected and grow with us!"
-    )
-    await update.message.reply_photo(photo=open(LOGO, "rb"), caption=text, parse_mode="Markdown")
-    await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
+    try:
+        await update.message.reply_photo(photo=open(LOGO, "rb"),
+                                       caption="🕊️ **Welcome to OWPC Ecosystem**\n\n"
+                                               "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
+                                               "🚀 Phase 2 is LIVE!\n"
+                                               "Use /buy to get started\n\n"
+                                               "🌐 Stay connected and grow with us!",
+                                       parse_mode="Markdown")
+        await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
+    except FileNotFoundError as e:
+        await update.message.reply_text(f"🚨 Media missing: {e}")
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
