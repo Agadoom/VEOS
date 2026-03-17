@@ -1,5 +1,5 @@
-python-telegram-bot[job-queue]==20.7
-openai==0.28
+python-telegram-bot==20.8
+openai==0.28.1
 requests
 web3
 nest_asyncio
