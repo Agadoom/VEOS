@@ -5,11 +5,13 @@ import nest_asyncio
 import openai
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
+)
 
 nest_asyncio.apply()
 
-# -------- CONFIG / ENV --------
+# -------- ENV --------
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -22,17 +24,10 @@ if not TOKEN or not OPENAI_API_KEY:
 # -------- DATA --------
 user_messages = defaultdict(list)
 
-CA = {
-    "GENESIS": "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS",
-    "UNITY": "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx",
-    "VEO": "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
-}
-
-BUY_LINKS = {
-    "GENESIS": "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA",
-    "UNITY": "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA",
-    "VEO": "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
-}
+CA_BASE = "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191"
+CA_BLUM_GENESIS = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
+CA_BLUM_UNITY = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+CA_BLUM_VEO = "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
 
 ALLOWED_LINKS = [
     "deeptrade.bio.link",
@@ -40,68 +35,76 @@ ALLOWED_LINKS = [
     "t.me/blum"
 ]
 
-OFFICIAL_LINKS = {
-    "Website": "https://deeptrade.bio.link",
-    "YouTube": "https://youtube.com/@deeptradex",
-    "Telegram": "https://t.me/+SQhKj-gWWmcyODY0"
-}
+# -------- MENU BUTTONS --------
+def main_menu():
+    keyboard = [
+        [InlineKeyboardButton("🧬 GENESIS", callback_data="genesis")],
+        [InlineKeyboardButton("💎 UNITY", callback_data="unity")],
+        [InlineKeyboardButton("⚡ VEO", callback_data="veo")],
+        [InlineKeyboardButton("🌐 Links", callback_data="links")],
+        [InlineKeyboardButton("📢 Invite", callback_data="invite")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-# -------- AI FUNCTION --------
+# -------- COMMANDS --------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "🌍 Welcome to OWPC Ecosystem\n"
+        "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n"
+        "🚀 Phase 2 is LIVE\n\n"
+        "Use the menu below to explore 👇"
+    )
+    await update.message.reply_text(text, reply_markup=main_menu())
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Use the menu or type your question for AI support 🤖")
+
+# -------- CALLBACKS --------
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "genesis":
+        await query.edit_message_text(
+            "🧬 GENESIS Token\nBuy here:\nhttps://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
+        )
+    elif data == "unity":
+        await query.edit_message_text(
+            "💎 UNITY Token\nBuy here:\nhttps://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
+        )
+    elif data == "veo":
+        await query.edit_message_text(
+            "⚡ VEO Token\nBuy here:\nhttps://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
+        )
+    elif data == "links":
+        await query.edit_message_text(
+            "🌐 Official Links:\n\n"
+            "Website: https://deeptrade.bio.link\n"
+            "YouTube: @deeptradex\n"
+            "Community Telegram: https://t.me/+SQhKj-gWWmcyODY0"
+        )
+    elif data == "invite":
+        await query.edit_message_text(
+            "📢 Invite friends and grow the OWPC community 🚀"
+        )
+
+# -------- AI CHAT --------
 async def ask_ai(prompt):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a professional crypto community assistant."},
+                {"role": "system", "content": "You are a helpful OWPC crypto assistant."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=200,
+            max_tokens=150,
             temperature=0.7
         )
         return response["choices"][0]["message"]["content"]
     except Exception as e:
         print("AI error:", e)
         return "🤖 AI temporarily unavailable."
-
-# -------- COMMANDS --------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("GENESIS", callback_data="buy_GENESIS"),
-         InlineKeyboardButton("UNITY", callback_data="buy_UNITY"),
-         InlineKeyboardButton("VEO", callback_data="buy_VEO")],
-        [InlineKeyboardButton("Official Links", callback_data="links"),
-         InlineKeyboardButton("Invite", callback_data="invite")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    text = "🌍 Welcome to OWPC Ecosystem\n\n🚀 Phase 2 is LIVE!\nUse the buttons below to navigate."
-    await update.message.reply_text(text, reply_markup=reply_markup)
-
-async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "🔗 Official Links:\n"
-    for name, url in OFFICIAL_LINKS.items():
-        text += f"{name}: {url}\n"
-    await update.message.reply_text(text)
-
-async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "📢 Invite your friends to OWPC Ecosystem 🚀\n\n" \
-           "https://t.me/+SQhKj-gWWmcyODY0"
-    await update.message.reply_text(text)
-
-# -------- INLINE BUTTON CALLBACK --------
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data.startswith("buy_"):
-        token = data.split("_")[1]
-        link = BUY_LINKS.get(token)
-        if link:
-            await query.edit_message_text(f"💰 Buy {token} here:\n{link}")
-    elif data == "links":
-        await links(update, context)
-    elif data == "invite":
-        await invite(update, context)
 
 # -------- MESSAGE HANDLER --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -111,7 +114,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").lower()
     user_id = update.message.from_user.id
 
-    # Anti spam
+    # -------- QUICK COMMANDS --------
+    if "buy" in text:
+        await update.message.reply_text(
+            "🚀 Buy OWPC Tokens\n🧬 GENESIS | 💎 UNITY | ⚡ VEO\nUse the menu 👇",
+            reply_markup=main_menu()
+        )
+        return
+
+    # -------- ANTI-SPAM --------
     user_messages[user_id].append(update.message.date)
     if len(user_messages[user_id]) > 6:
         try:
@@ -121,7 +132,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_messages[user_id].clear()
         return
 
-    # Anti scam
+    # -------- ANTI-SCAM LINKS --------
     if re.search(r"http|t\.me|\.com|\.xyz", text):
         if not any(link in text for link in ALLOWED_LINKS):
             try:
@@ -130,41 +141,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-    # Quick commands
-    if "buy" in text:
-        text_links = "\n".join([f"{k}: {v}" for k, v in BUY_LINKS.items()])
-        await update.message.reply_text(f"💰 Buy OWPC Tokens:\n{text_links}")
-        return
-
-    if "links" in text:
-        await links(update, context)
-        return
-
-    # AI response
+    # -------- AI RESPONSE --------
     reply = await ask_ai(text)
     await update.message.reply_text(f"🤖 {reply}")
-
-# -------- WELCOME --------
-async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for member in update.message.new_chat_members:
-        await update.message.reply_text(f"👋 Welcome {member.first_name}!\nUse /start to explore OWPC Ecosystem.")
 
 # -------- MAIN --------
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Commands
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("links", links))
-    app.add_handler(CommandHandler("invite", invite))
-
-    # Inline buttons
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    # Welcome new members
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
-
-    # Messages
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("🚀 OWPC Pro Bot started")
