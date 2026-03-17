@@ -19,7 +19,7 @@ GROUP_ID = os.getenv("GROUP_ID")
 
 if not TOKEN or not OPENAI_API_KEY:
     print("❌ TOKEN ou OPENAI_API_KEY manquant")
-    exit()
+    exit(1)
 
 openai.api_key = OPENAI_API_KEY
 
