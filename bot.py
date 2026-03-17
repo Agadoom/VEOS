@@ -28,8 +28,8 @@ LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 
-LOGO = "owpc_logo.png"
-GIF_LAUNCH = "gif.gif"
+LOGO = "media/owpc_logo.png"
+GIF_LAUNCH = "media/gif.gif"
 
 # -------- COMMANDS --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
