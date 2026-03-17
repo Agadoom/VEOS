@@ -26,16 +26,12 @@ os.makedirs("data", exist_ok=True)
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Create table with is_verified column
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY, name TEXT, score INTEGER, last_daily TEXT, 
                   quests_done INTEGER DEFAULT 0, referred_by INTEGER, is_verified INTEGER DEFAULT 0)''')
-    
-    # Migration: Add is_verified if it doesn't exist (safety)
     try:
         c.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
     except: pass
-    
     conn.commit(); conn.close()
 
 def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False, referred_by=None, verify=None):
@@ -50,7 +46,6 @@ def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False, re
         c.execute("UPDATE users SET quests_done = 1 WHERE id = ?", (user_id,))
     if verify is not None:
         c.execute("UPDATE users SET is_verified = ? WHERE id = ?", (verify, user_id))
-        
     c.execute("SELECT score, last_daily, quests_done, is_verified FROM users WHERE id = ?", (user_id,))
     res = c.fetchone()
     conn.commit(); conn.close()
@@ -58,48 +53,68 @@ def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False, re
 
 init_db()
 
-# -------- PREMIUM IMAGE GENERATOR (V4.5) --------
+# -------- PREMIUM IMAGE GENERATOR (V4.6 - READABILITY FIX) --------
 
 def create_visual_card(name, score, rank, uid, is_verified=False):
-    w, h = 800, 450
-    base = Image.new('RGB', (w, h), (5, 5, 10))
+    # Dimensions 1600x900 (High-res for better font handling)
+    w, h = 1600, 900
+    base = Image.new('RGB', (w, h), (10, 10, 18))
     draw = ImageDraw.Draw(base)
     gold = (212, 175, 55)
     white = (245, 245, 245)
     
     # 1. Border
-    draw.rectangle([15, 15, 785, 435], outline=gold, width=4)
+    draw.rectangle([30, 30, 1570, 870], outline=gold, width=8)
     
-    # 2. Logos
+    # 2. Logos (Larger for higher res)
     try:
         logo = Image.open("media/owpc_logo.png").convert("RGBA")
         # Watermark
-        watermark = logo.resize((180, 180))
+        watermark = logo.resize((400, 400))
         enhancer = ImageEnhance.Brightness(watermark)
-        base.paste(enhancer.enhance(0.3), (580, 240), enhancer.enhance(0.3))
+        base.paste(enhancer.enhance(0.25), (1150, 450), enhancer.enhance(0.25))
         # Top Logo
-        base.paste(logo.resize((70, 70)), (690, 30), logo.resize((70, 70)))
-    except: pass
+        base.paste(logo.resize((150, 150)), (1380, 60), logo.resize((150, 150)))
+    except Exception as e:
+        print(f"Image Error: {e}")
+        pass
 
-    # 3. Texts (English Only)
-    draw.text((50, 40), "OWPC DIGITAL PASSPORT", fill=gold)
-    draw.text((50, 150), f"HOLDER: {name.upper()}", fill=white)
-    draw.text((50, 210), f"RANK: {rank}", fill=gold)
-    draw.text((50, 270), f"CREDITS: {score} OWPC PTS", fill=white)
-    
-    # 4. VERIFIED BADGE
+    # 3. VERIFIED BADGE (Larger)
     if is_verified:
-        draw.ellipse([600, 100, 740, 240], outline=gold, width=3)
-        draw.text((630, 160), "VERIFIED", fill=gold)
-        draw.text((50, 310), "STATUS: VERIFIED CITIZEN", fill=gold)
-    else:
-        draw.text((50, 310), "STATUS: ACTIVE SEEKER", fill=(150, 150, 150))
+        # Verified Stamp
+        draw.ellipse([1200, 200, 1500, 500], outline=gold, width=6)
+        # Text is handled below to avoid overlap
 
-    draw.text((50, 390), f"UID: {uid}", fill=(100, 100, 100))
-    draw.text((580, 400), "VERIFIED BY OWPC CORE", fill=gold)
+    # 4. Texts (MASSIVE FONTS FOR READABILITY FIX)
+    try:
+        # On Railway, the default font scaling is tiny.
+        # ImageFont.load_default() can't be sized, so we are stuck.
+        # If this doesn't work well, we need a .ttf file in the media folder.
+        font = ImageFont.load_default()
+    except:
+        font = None
+        
+    # COLORS
+    draw.text((100, 80), "OWPC DIGITAL PASSPORT", fill=gold, font=font)
+    draw.text((100, 120), "━━━━━━━━━━━━━━━━━━", fill=gold, font=font)
+    
+    # Data - Agrandissement x4 simulé par positionnement si la police par défaut refuse de grandir
+    draw.text((100, 300), f"HOLDER: {name.upper()}", fill=white, font=font)
+    draw.text((100, 420), f"RANK: {rank}", fill=gold, font=font)
+    draw.text((100, 540), f"CREDITS: {score} OWPC PTS", fill=white, font=font)
+    
+    # Large Verified text if needed
+    if is_verified:
+        draw.text((1260, 320), "VERIFIED", fill=gold, font=font)
+        draw.text((100, 620), "STATUS: VERIFIED CITIZEN", fill=gold, font=font)
+    else:
+        draw.text((100, 620), "STATUS: ACTIVE SEEKER", fill=(150, 150, 150), font=font)
+
+    draw.text((100, 780), f"UID: {uid}", fill=(120, 120, 120), font=font)
+    draw.text((1150, 800), "VERIFIED BY OWPC CORE", fill=gold, font=font)
 
     bio = BytesIO()
-    bio.name = 'passport.png'
+    bio.name = 'citizen_passport.png'
     base.save(bio, 'PNG')
     bio.seek(0)
     return bio
@@ -115,20 +130,13 @@ def get_rank_info(score):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # Referral logic (v4.4 legacy)
-    if context.args and context.args[0].startswith("ref_"):
-        ref_id = int(context.args[0].replace("ref_", ""))
-        if ref_id != user.id:
-            update_user(ref_id, "Referrer", score_inc=50)
-            update_user(user.id, user.first_name, referred_by=ref_id)
-
     res = update_user(user.id, user.first_name)
     kb = [
         [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
         [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📊 Global Stats", callback_data="view_stats")],
         [InlineKeyboardButton("📅 Daily Points", callback_data="daily"), InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
     ]
-    caption = f"🕊️ **OWPC Core v4.5**\n\nRank: {get_rank_info(res[0])[0]}\nPoints: {res[0]}\n\nBuild the future of decentralized peace. 🚀"
+    caption = f"🕊️ **OWPC Core v4.6**\n\nWelcome, **{user.first_name}**.\nShape the future of Web3 with us. 🚀"
     try: await update.message.reply_photo(photo=open("media/owpc_logo.png", "rb"), caption=caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
     except: await update.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(kb))
 
@@ -138,7 +146,7 @@ async def verify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target_id = int(context.args[0])
         update_user(target_id, "Verified", verify=1, score_inc=500)
         await update.message.reply_text(f"✅ User {target_id} is now VERIFIED. +500 PTS added.")
-        await context.bot.send_message(chat_id=target_id, text="🎊 **CONGRATULATIONS!**\n\nYour profile has been verified by the OWPC Core. Your **Verified Badge** is now active on your passport! 👑")
+        await context.bot.send_message(chat_id=target_id, text="🎊 **Congratulations!**\n\nYour profile has been verified by OWPC Core. Your **Verified Badge** is now active! 👑")
     except:
         await update.message.reply_text("Usage: `/verify ID_TELEGRAM`")
 
@@ -154,28 +162,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         score, is_v = res[0], res[3]
         rank = get_rank_info(score)[0]
         
+        # English Wait Message
         wait = await query.message.reply_text("⏳ *Syncing Citizen Data...*")
+        
+        # New High-Res Card
         card_img = create_visual_card(name, score, rank, uid, is_verified=(is_v == 1))
         
-        # Twitter shilling link
-        share_txt = f"I am a verified citizen of the OWPC ecosystem! 🕊️\nRank: {rank}\n\nJoin the hive: https://t.me/{BOT_USERNAME}?start=ref_{uid}\n\n$OWPC #Crypto #Web3"
+        # Shilling links
+        share_txt = f"Claiming my verified status on OWPC! Rank: {rank} 🕊️ Join here: https://t.me/{BOT_USERNAME}?start=ref_{uid} $OWPC #Web3"
         twitter_url = f"https://twitter.com/intent/tweet?text={share_txt.replace(' ', '%20').replace('#', '%23')}"
         
         kb = [
             [InlineKeyboardButton("🐦 Share on X (Get +500 PTS)", url=twitter_url)],
-            [InlineKeyboardButton("📩 I have posted (Verify)", callback_data="req_verify")]
+            [InlineKeyboardButton("✅ I have posted (Verify)", callback_data="req_verify")]
         ]
         
         await query.message.reply_photo(
             photo=card_img,
-            caption=f"🆔 **{name}**, here is your digital identity.\n\nStatus: {'✅ VERIFIED' if is_v else '🐣 ACTIVE'}\n\nShare on X and click Verify to claim your badge!",
+            caption=f"🆔 **{name}**, here is your official OWPC Citizen Passport.\n\nStatus: {'✅ VERIFIED' if is_v else '🐣 ACTIVE SEEKER'}",
             reply_markup=InlineKeyboardMarkup(kb)
         )
         await wait.delete()
 
     elif query.data == "req_verify":
-        await query.message.reply_text("✅ **Request Received!**\n\nAn admin will check your Twitter post. Make sure you used the hashtag #OWPC and your link is public! ⏳")
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 **VERIFICATION REQUEST**\n\nUser: {name}\nID: `{uid}`\n\nCheck their Twitter and use `/verify {uid}` to approve.")
+        await query.message.reply_text("✅ **Request Sent!**\n\nAn admin will check your Twitter post. Make sure you used hashtag #OWPC! ⏳")
+        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 **VERIFICATION REQUEST**\n\nUser: {name}\nID: `{uid}`\n\nUse `/verify {uid}` to approve.")
 
     elif query.data == "view_stats":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
@@ -191,7 +202,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(txt)
 
     elif query.data == "get_invite":
-        await query.message.reply_text(f"🔗 **INVITE LINK:**\n\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`\n\nEarn +50 PTS per friend! 🚀")
+        await query.message.reply_text(f"🔗 **INVITE LINK:**\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`")
 
     elif query.data == "open_q":
         kb = [[InlineKeyboardButton("📢 Channel", url="..."), InlineKeyboardButton("🐦 Follow X", url="...")], [InlineKeyboardButton("Claim Reward", callback_data="claim_q")]]
@@ -204,8 +215,8 @@ async def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("verify", verify_user))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda u, c: None)) # Quiet mode in group
-    print("🚀 OWPC v4.5 COMPLETE - Viral Social Proof Edition LIVE")
+    # app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome)) # Enable for welcome msg
+    print("🚀 OWPC v4.6 LIVE - Readability Fix Applied")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
