@@ -14,7 +14,7 @@ nest_asyncio.apply()
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID", 0))
-BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfo_bot")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfobot")
 ADMIN_ID = 123456789  # ⚠️ Replace with your real Telegram ID
 
 openai.api_key = OPENAI_API_KEY
