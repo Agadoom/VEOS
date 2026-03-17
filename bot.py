@@ -14,8 +14,8 @@ nest_asyncio.apply()
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID", 0))
-BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfobot")
-ADMIN_ID = 123456789  # ⚠️ Replace with your real Telegram ID
+BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfo_bot")
+ADMIN_ID = 123456789 # Replace with your ID
 
 openai.api_key = OPENAI_API_KEY
 
@@ -49,7 +49,7 @@ def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False, re
 
 init_db()
 
-# -------- LINKS & MEDIA --------
+# -------- MEDIA & LINKS --------
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
@@ -72,52 +72,62 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     
     if args and args[0].startswith("ref_"):
-        referrer_id = int(args[0].replace("ref_", ""))
-        if referrer_id != user.id:
+        ref_id = int(args[0].replace("ref_", ""))
+        if ref_id != user.id:
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
             c.execute("SELECT id FROM users WHERE id = ?", (user.id,))
             if not c.fetchone():
-                update_user(referrer_id, "Referrer", score_inc=50)
-                update_user(user.id, user.first_name, referred_by=referrer_id)
-                try: await context.bot.send_message(chat_id=referrer_id, text=f"🎉 **New Referral!** {user.first_name} joined via your link. You earned +50 PTS!")
+                update_user(ref_id, "Referrer", score_inc=50)
+                update_user(user.id, user.first_name, referred_by=ref_id)
+                try: await context.bot.send_message(chat_id=ref_id, text=f"🎉 **New Referral!** {user.first_name} joined. You earned +50 PTS!")
                 except: pass
 
     score_res = update_user(user.id, user.first_name)
-    keyboard = [
+    kb = [
         [InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS), InlineKeyboardButton("💎 UNITY", url=LINK_UNITY), InlineKeyboardButton("⚡ VEO", url=LINK_VEO)],
         [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🚀 Quest Center", callback_data="open_q")],
         [InlineKeyboardButton("📅 Daily Points", callback_data="daily"), InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
     ]
-    caption = f"🕊️ **OWPC Core v3.7**\n\nRank: {get_title(score_res[0])}\nPoints: {score_res[0]}\n\nGrow the hive. Build the future. 🚀"
+    caption = f"🕊️ **OWPC Core v3.8**\n\nRank: {get_title(score_res[0])}\nPoints: {score_res[0]}\n\nGrow the hive. Build the future. 🚀"
     
     try:
-        await update.message.reply_photo(photo=open(LOGO, "rb"), caption=caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-        await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
+        await update.message.reply_photo(photo=open(LOGO, "rb"), caption=caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
     except:
-        await update.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(kb))
 
-async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 10")
-    rows = c.fetchall(); conn.close()
-    text = "🏆 **GLOBAL LEADERBOARD**\n\n" + "\n".join([f"{i+1}. {r[0]} - {r[1]} pts" for i, r in enumerate(rows)])
-    await update.message.reply_text(text)
+# -------- AI CORE (FIXED) --------
 
-# -------- NEW WELCOME HANDLER --------
+async def get_ai_response(text):
+    try:
+        # Try Modern OpenAI Version (1.0+)
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": "You are OWPC Alpha AI. Professional and visionary."},
+                      {"role": "user", "content": text}],
+            max_tokens=150
+        )
+        return response.choices[0].message.content
+    except ImportError:
+        # Fallback for Old OpenAI Version (<1.0)
+        import openai
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": "You are OWPC Alpha AI."},
+                      {"role": "user", "content": text}],
+            max_tokens=150
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"AI Error: {e}")
+        return None
+
+# -------- HANDLERS --------
 
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for member in update.message.new_chat_members:
-        welcome_text = (
-            f"👋 **Welcome {member.first_name} to the OWPC Ecosystem!** 🕊️\n\n"
-            "We are thrilled to have you in the hive. Join the movement now:\n\n"
-            "1️⃣ Open our Bot: @OWPCinfo_bot\n"
-            "2️⃣ Click /start to check your Points.\n"
-            "3️⃣ Get your Invite Link and earn **+50 PTS** per referral! 💰\n\n"
-            "Build the legacy. Shape the future. 🐝"
-        )
-        await update.message.reply_text(welcome_text, parse_mode="Markdown")
-
-# -------- CALLBACKS --------
+    for m in update.message.new_chat_members:
+        await update.message.reply_text(f"👋 Welcome {m.first_name} to OWPC! Open @{BOT_USERNAME} to start earning! 🕊️")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -125,34 +135,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     if query.data == "view_lb":
-        await leaderboard(update, context)
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 10")
+        rows = c.fetchall(); conn.close()
+        text = "🏆 **GLOBAL LEADERBOARD**\n\n" + "\n".join([f"{i+1}. {r[0]} - {r[1]} pts" for i, r in enumerate(rows)])
+        await query.message.reply_text(text)
     elif query.data == "get_invite":
-        link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
-        await query.message.reply_text(f"🔗 **YOUR PERSONAL INVITE LINK**\n\n`{link}`\n\nShare this! Earn **+50 PTS** for every friend. 🚀", parse_mode="Markdown")
+        await query.message.reply_text(f"🔗 **INVITE LINK:**\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`", parse_mode="Markdown")
     elif query.data == "open_q":
-        kb = [[InlineKeyboardButton("📢 Join Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("🐦 Follow X", url=LINK_X)], [InlineKeyboardButton("💰 Claim +100 PTS", callback_data="claim_q")]]
-        await query.message.reply_text("🚀 **SOCIAL MISSIONS**", reply_markup=InlineKeyboardMarkup(kb))
+        kb = [[InlineKeyboardButton("📢 Join Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("🐦 Follow X", url=LINK_X)], [InlineKeyboardButton("💰 Claim Reward", callback_data="claim_q")]]
+        await query.message.reply_text("🚀 **QUEST CENTER**", reply_markup=InlineKeyboardMarkup(kb))
     elif query.data == "claim_q":
         res = update_user(uid, name)
-        if res[2]: await query.message.reply_text("⏳ Already done!")
+        if res[2]: await query.message.reply_text("⏳ Done!")
         else:
             update_user(uid, name, score_inc=100, complete_quest=True)
-            await query.message.reply_text("🔥 **SUCCESS!** +100 PTS.")
+            await query.message.reply_text("🔥 +100 PTS!")
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
         res = update_user(uid, name)
-        if res[1] == today: await query.message.reply_text("⏳ Come back tomorrow!")
+        if res[1] == today: await query.message.reply_text("⏳ Tomorrow!")
         else:
             update_user(uid, name, score_inc=10, daily=today)
-            await query.message.reply_text("✅ +10 PTS Daily Reward!")
-
-# -------- MESSAGE HANDLERS --------
+            await query.message.reply_text("✅ +10 PTS!")
 
 user_messages = defaultdict(list)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.from_user or update.message.from_user.is_bot: return
-    user_id, chat_id, text = update.message.from_user.id, update.effective_chat.id, (update.message.text or "").lower()
+    user_id, chat_id, text = update.message.from_user.id, update.effective_chat.id, (update.message.text or "")
 
     # Anti-Spam
     user_messages[user_id].append(update.message.date)
@@ -162,37 +173,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Anti-Scam
-    if any(x in text for x in ["http", ".com", ".xyz", "t.me"]):
-        if not any(x in text for x in allowed_links):
+    if any(x in text.lower() for x in ["http", ".com", ".xyz", "t.me"]):
+        if not any(x in text.lower() for x in allowed_links):
             try: await update.message.delete()
             except: pass
             return
 
-    # Group Points
+    # Points
     if chat_id == GROUP_CHAT_ID:
         update_user(user_id, update.message.from_user.first_name, score_inc=1)
 
-    # AI Chat
+    # IA Response
     if update.effective_chat.type == "private" or f"@{context.bot.username}" in text:
-        try:
-            from openai import ChatCompletion
-            response = ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": "You are OWPC Alpha AI."}, {"role": "user", "content": text}],
-                max_tokens=150
-            )
-            await update.message.reply_text(response.choices[0].message.content)
-        except: pass
+        answer = await get_ai_response(text)
+        if answer: await update.message.reply_text(answer)
 
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("leaderboard", leaderboard))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    print("🚀 OWPC Bot v3.7 COMPLETE LIVE...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
