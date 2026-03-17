@@ -3,8 +3,9 @@ import re
 import asyncio
 import nest_asyncio
 import openai
+from datetime import datetime, timedelta
 from collections import defaultdict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 )
@@ -14,20 +15,15 @@ nest_asyncio.apply()
 # -------- ENV --------
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROUP_ID = os.getenv("GROUP_ID")  # ID du groupe Telegram pour auto-posting
 
 openai.api_key = OPENAI_API_KEY
-
-if not TOKEN or not OPENAI_API_KEY:
-    print("❌ TOKEN ou OPENAI_API_KEY manquant")
-    exit()
+if not TOKEN or not OPENAI_API_KEY or not GROUP_ID:
+    exit("❌ TOKEN, OPENAI_API_KEY ou GROUP_ID manquant")
 
 # -------- DATA --------
 user_messages = defaultdict(list)
-
-CA_BASE = "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191"
-CA_BLUM_GENESIS = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
-CA_BLUM_UNITY = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
-CA_BLUM_VEO = "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
+user_activity = defaultdict(int)  # Pour leaderboard
 
 ALLOWED_LINKS = [
     "deeptrade.bio.link",
@@ -35,115 +31,132 @@ ALLOWED_LINKS = [
     "t.me/blum"
 ]
 
-# -------- MENU BUTTONS --------
+BUY_LINKS = {
+    "GENESIS": "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA",
+    "UNITY": "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA",
+    "VEO": "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
+}
+
+OFFICIAL_LINKS = {
+    "Website": "https://deeptrade.bio.link",
+    "YouTube": "https://youtube.com/@deeptradex",
+    "Telegram": "https://t.me/+SQhKj-gWWmcyODY0"
+}
+
+# -------- MENU INLINE --------
 def main_menu():
     keyboard = [
-        [InlineKeyboardButton("🧬 GENESIS", callback_data="genesis")],
-        [InlineKeyboardButton("💎 UNITY", callback_data="unity")],
-        [InlineKeyboardButton("⚡ VEO", callback_data="veo")],
-        [InlineKeyboardButton("🌐 Links", callback_data="links")],
-        [InlineKeyboardButton("📢 Invite", callback_data="invite")]
+        [InlineKeyboardButton("🧬 GENESIS", callback_data="genesis"),
+         InlineKeyboardButton("💎 UNITY", callback_data="unity"),
+         InlineKeyboardButton("⚡ VEO", callback_data="veo")],
+        [InlineKeyboardButton("🌐 Links", callback_data="links"),
+         InlineKeyboardButton("📢 Invite", callback_data="invite")],
+        [InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# -------- COMMANDS --------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🌍 Welcome to OWPC Ecosystem\n"
-        "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n"
-        "🚀 Phase 2 is LIVE\n\n"
-        "Use the menu below to explore 👇"
-    )
-    await update.message.reply_text(text, reply_markup=main_menu())
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Use the menu or type your question for AI support 🤖")
-
-# -------- CALLBACKS --------
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data == "genesis":
-        await query.edit_message_text(
-            "🧬 GENESIS Token\nBuy here:\nhttps://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
-        )
-    elif data == "unity":
-        await query.edit_message_text(
-            "💎 UNITY Token\nBuy here:\nhttps://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
-        )
-    elif data == "veo":
-        await query.edit_message_text(
-            "⚡ VEO Token\nBuy here:\nhttps://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
-        )
-    elif data == "links":
-        await query.edit_message_text(
-            "🌐 Official Links:\n\n"
-            "Website: https://deeptrade.bio.link\n"
-            "YouTube: @deeptradex\n"
-            "Community Telegram: https://t.me/+SQhKj-gWWmcyODY0"
-        )
-    elif data == "invite":
-        await query.edit_message_text(
-            "📢 Invite friends and grow the OWPC community 🚀"
-        )
-
-# -------- AI CHAT --------
+# -------- AI FUNCTION --------
 async def ask_ai(prompt):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful OWPC crypto assistant."},
+                {"role": "system", "content": "You are a professional OWPC crypto assistant."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=150,
             temperature=0.7
         )
         return response["choices"][0]["message"]["content"]
-    except Exception as e:
-        print("AI error:", e)
+    except:
         return "🤖 AI temporarily unavailable."
+
+# -------- COMMANDS --------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = "🌍 Welcome to OWPC Ecosystem\n🧬 GENESIS | 💎 UNITY | ⚡ VEO\n🚀 Phase 2 is LIVE\nUse the menu below 👇"
+    await update.message.reply_text(text, reply_markup=main_menu())
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Use the menu or type your question for AI support 🤖")
+
+# -------- CALLBACK HANDLER --------
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data in BUY_LINKS:
+        text = f"💰 {data} Token\nBuy here:\n{BUY_LINKS[data]}"
+    elif data == "links":
+        text = "🌐 Official Links:\n" + "\n".join([f"{k}: {v}" for k, v in OFFICIAL_LINKS.items()])
+    elif data == "invite":
+        text = "📢 Invite friends and grow the OWPC community 🚀\nhttps://t.me/+SQhKj-gWWmcyODY0"
+    elif data == "leaderboard":
+        leaderboard = sorted(user_activity.items(), key=lambda x: x[1], reverse=True)[:5]
+        text = "🏆 Top Active Members:\n"
+        for i, (user, score) in enumerate(leaderboard, start=1):
+            text += f"{i}. User {user} - {score} pts\n"
+    else:
+        text = "🌍 OWPC Menu"
+
+    await query.edit_message_text(text=text, reply_markup=main_menu())
 
 # -------- MESSAGE HANDLER --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
 
-    text = (update.message.text or "").lower()
+    text = (update.message.text or "").strip().lower()
     user_id = update.message.from_user.id
+    user_activity[user_id] += 1  # tracker activité pour leaderboard
 
-    # -------- QUICK COMMANDS --------
-    if "buy" in text:
-        await update.message.reply_text(
-            "🚀 Buy OWPC Tokens\n🧬 GENESIS | 💎 UNITY | ⚡ VEO\nUse the menu 👇",
-            reply_markup=main_menu()
-        )
-        return
-
-    # -------- ANTI-SPAM --------
+    # Anti-spam
     user_messages[user_id].append(update.message.date)
     if len(user_messages[user_id]) > 6:
-        try:
-            await update.message.delete()
-        except:
-            pass
+        try: await update.message.delete()
+        except: pass
         user_messages[user_id].clear()
         return
 
-    # -------- ANTI-SCAM LINKS --------
+    # Anti-scam
     if re.search(r"http|t\.me|\.com|\.xyz", text):
         if not any(link in text for link in ALLOWED_LINKS):
-            try:
-                await update.message.delete()
-            except:
-                pass
+            try: await update.message.delete()
+            except: pass
             return
 
-    # -------- AI RESPONSE --------
+    # Quick buy command
+    if "buy" in text:
+        await update.message.reply_text("🚀 Buy OWPC Tokens 👇", reply_markup=main_menu())
+        return
+
+    if "links" in text:
+        await update.message.reply_text("🌐 Official Links:", reply_markup=main_menu())
+        return
+
+    # AI response
     reply = await ask_ai(text)
     await update.message.reply_text(f"🤖 {reply}")
+
+# -------- WELCOME NEW MEMBERS --------
+async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for member in update.message.new_chat_members:
+        text = f"👋 Welcome {member.first_name}!\n🚀 Welcome to OWPC Ecosystem!\nUse /start to explore tokens and links."
+        await update.message.reply_text(text, reply_markup=main_menu())
+
+# -------- AUTO-HYPE --------
+async def auto_hype(app):
+    while True:
+        text = (
+            "🚀 Phase 2 Hype Message!\n"
+            "Check GENESIS, UNITY, VEO and stay active in the community.\n"
+            "🌐 Links in menu below."
+        )
+        try:
+            await app.bot.send_message(chat_id=GROUP_ID, text=text, reply_markup=main_menu())
+        except Exception as e:
+            print("Auto-hype error:", e)
+        await asyncio.sleep(60*60)  # toutes les 60 minutes
 
 # -------- MAIN --------
 async def main():
@@ -153,8 +166,12 @@ async def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    print("🚀 OWPC Pro Bot started")
+    # Lancer auto-hype en arrière-plan
+    asyncio.create_task(auto_hype(app))
+
+    print("🚀 OWPC Ultimate Pro Bot started")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
