@@ -1,17 +1,5 @@
-# Telegram Bot
-python-telegram-bot[job-queue]==21.12.0
-
-# OpenAI API
-openai==0.28.0
-
-# Async utilities
-nest_asyncio==1.5.6
-
-# Blockchain interaction
-web3==6.10.0
-
-# HTTP requests
-requests==2.31.0
-
-# Optional: dotenv pour variables d'environnement locales (facultatif)
-python-dotenv==1.0.0
+python-telegram-bot[job-queue]==21.9
+openai==0.28
+requests
+web3
+nest_asyncio
