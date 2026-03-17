@@ -14,6 +14,7 @@ nest_asyncio.apply()
 TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 1414016840 
 BOT_USERNAME = "OwpcInfoBot"
+LOGO_PATH = "media/owpc_logo.png"
 
 # -------- LIENS & ASSETS --------
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
@@ -48,22 +49,27 @@ def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False, re
 
 init_db()
 
-# -------- GENERATION D'IMAGE (AVEC LOGO) --------
+# -------- GÉNÉRATION D'IMAGE (V5.4 FIX) --------
 def create_visual_card(name, score, rank, uid, is_verified=False):
     w, h = 1600, 900
     base = Image.new('RGB', (w, h), (10, 10, 18))
     draw = ImageDraw.Draw(base)
     gold, white = (212, 175, 55), (245, 245, 245)
+    
+    # Bordure
     draw.rectangle([30, 30, 1570, 870], outline=gold, width=8)
     
-    # Tentative chargement Logo
-    try:
-        logo = Image.open("media/owpc_logo.png").convert("RGBA")
-        base.paste(logo.resize((150, 150)), (1380, 60), logo.resize((150, 150)))
-        # Watermark
-        wm = logo.resize((450, 450))
-        base.paste(ImageEnhance.Brightness(wm).enhance(0.15), (1100, 400), ImageEnhance.Brightness(wm).enhance(0.15))
-    except: pass
+    # Chargement Logo (Correction chemin et transparence)
+    if os.path.exists(LOGO_PATH):
+        try:
+            logo = Image.open(LOGO_PATH).convert("RGBA")
+            # Logo en haut à droite
+            base.paste(logo.resize((200, 200)), (1300, 70), logo.resize((200, 200)))
+            # Watermark au centre
+            wm = logo.resize((500, 500))
+            base.paste(ImageEnhance.Brightness(wm).enhance(0.15), (1000, 350), ImageEnhance.Brightness(wm).enhance(0.15))
+        except Exception as e:
+            print(f"Logo error: {e}")
 
     draw.text((100, 80), "OWPC DIGITAL PASSPORT", fill=gold)
     draw.text((100, 300), f"HOLDER: {name.upper()}", fill=white)
@@ -71,8 +77,8 @@ def create_visual_card(name, score, rank, uid, is_verified=False):
     draw.text((100, 540), f"CREDITS: {score} OWPC PTS", fill=white)
     
     if is_verified:
-        draw.ellipse([1200, 150, 1550, 500], outline=gold, width=6)
-        draw.text((1270, 300), "VERIFIED", fill=gold)
+        draw.ellipse([1200, 150, 1500, 450], outline=gold, width=6)
+        draw.text((1250, 280), "VERIFIED", fill=gold)
     
     draw.text((100, 780), f"UID: {uid}", fill=(120, 120, 120))
     bio = BytesIO(); bio.name = 'passport.png'; base.save(bio, 'PNG'); bio.seek(0)
@@ -86,37 +92,36 @@ def get_rank_info(score):
 
 # -------- FONCTIONS DE RÉPONSE --------
 
-async def invest_hub_function(update: Update):
-    txt = (
-        "💰 **OWPC INVESTOR CENTER**\n\n"
-        "🧬 **GENESIS**: The core utility token.\n"
-        "💎 **UNITY**: Governance & Rewards.\n"
-        "⚡ **VEO**: Transactional speed.\n\n"
-        "Buy your assets on Blum Memepad below:"
-    )
-    kb = [[InlineKeyboardButton("🧬 Buy GENESIS", url=LINK_GENESIS)],
-          [InlineKeyboardButton("💎 Buy UNITY", url=LINK_UNITY)],
-          [InlineKeyboardButton("⚡ Buy VEO", url=LINK_VEO)]]
-    if update.callback_query: await update.callback_query.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb))
-    else: await update.message.reply_text(txt, reply_markup=InlineKeyboardMarkup(kb))
-
-async def passport_function(update: Update):
-    user = update.effective_user
-    res = update_user(user.id, user.first_name)
-    rank = get_rank_info(res[0])
-    card = create_visual_card(user.first_name, res[0], rank, user.id, is_verified=(res[3] == 1))
-    if update.callback_query: await update.callback_query.message.reply_photo(photo=card, caption=f"🆔 Passport for {user.first_name}")
-    else: await update.message.reply_photo(photo=card, caption=f"🆔 Passport for {user.first_name}")
-
-# -------- HANDLERS & CALLBACKS --------
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     res = update_user(user.id, user.first_name)
     kb = [[InlineKeyboardButton("💰 Invest in OWPC", callback_data="invest_hub")],
           [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
           [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📊 Global Stats", callback_data="view_stats")]]
-    await update.message.reply_text(f"🕊️ **OWPC Core v5.3**\n\nRank: {get_rank_info(res[0])}", reply_markup=InlineKeyboardMarkup(kb))
+    
+    cap = f"🕊️ **OWPC Core v5.4**\n\nRank: {get_rank_info(res[0])}\nPoints: {res[0]}\n\nWelcome back to the hive. 🚀"
+    
+    # On renvoie la photo de bienvenue (le logo)
+    if os.path.exists(LOGO_PATH):
+        await update.effective_message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+    else:
+        await update.effective_message.reply_text(cap, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+
+async def invest_hub_function(update: Update):
+    txt = "💰 **OWPC INVESTOR CENTER**\n\n🧬 **GENESIS**: The core utility token.\n💎 **UNITY**: Governance & Rewards.\n⚡ **VEO**: Transactional speed.\n\nBuy on Blum Memepad:"
+    kb = [[InlineKeyboardButton("🧬 Buy GENESIS", url=LINK_GENESIS)],
+          [InlineKeyboardButton("💎 Buy UNITY", url=LINK_UNITY)],
+          [InlineKeyboardButton("⚡ Buy VEO", url=LINK_VEO)]]
+    await update.effective_message.reply_text(txt, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+
+async def passport_function(update: Update):
+    user = update.effective_user
+    res = update_user(user.id, user.first_name)
+    rank = get_rank_info(res[0])
+    card = create_visual_card(user.first_name, res[0], rank, user.id, is_verified=(res[3] == 1))
+    await update.effective_message.reply_photo(photo=card, caption=f"🆔 Passport for {user.first_name}")
+
+# -------- CALLBACKS --------
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer()
@@ -143,10 +148,10 @@ async def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("invest", lambda u, c: invest_hub_function(u)))
     app.add_handler(CommandHandler("passport", lambda u, c: passport_function(u)))
-    app.add_handler(CommandHandler("stats", lambda u, c: start(u, c))) # Stats renvoie au menu ou stats_function
-    app.add_handler(CommandHandler("leaderboard", lambda u, c: start(u, c)))
+    app.add_handler(CommandHandler("stats", start))
+    app.add_handler(CommandHandler("leaderboard", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("🚀 OWPC v5.3 LIVE - All Fixed")
+    print("🚀 OWPC v5.4 LIVE - Logo Fix")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
