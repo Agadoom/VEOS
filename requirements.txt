@@ -1,4 +1,4 @@
-python-telegram-bot[job-queue]==21.9
+python-telegram-bot==20.7
 openai==0.28
 requests
 web3
