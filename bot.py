@@ -3,7 +3,7 @@ import re
 import asyncio
 import nest_asyncio
 import openai
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -19,18 +19,10 @@ GROUP_ID = os.getenv("GROUP_ID")  # Pour auto-hype
 
 openai.api_key = OPENAI_API_KEY
 
-print("DEBUG: TOKEN =", TOKEN)
-print("DEBUG: OPENAI_API_KEY =", OPENAI_API_KEY)
-print("DEBUG: GROUP_ID =", GROUP_ID)
-
 if not TOKEN or not OPENAI_API_KEY:
-    exit("❌ TOKEN ou OPENAI_API_KEY manquant. Vérifie tes variables Railway.")
+    exit("❌ TOKEN ou OPENAI_API_KEY manquant")
 
-if not GROUP_ID:
-    print("⚠ GROUP_ID manquant ou incorrect. Auto-hype désactivé.")
-    AUTO_HYPE_ENABLED = False
-else:
-    AUTO_HYPE_ENABLED = True
+AUTO_HYPE_ENABLED = bool(GROUP_ID)
 
 # -------- DATA --------
 user_messages = defaultdict(list)
@@ -57,9 +49,9 @@ OFFICIAL_LINKS = {
 # -------- MENU INLINE --------
 def main_menu():
     keyboard = [
-        [InlineKeyboardButton("🧬 GENESIS", callback_data="genesis"),
-         InlineKeyboardButton("💎 UNITY", callback_data="unity"),
-         InlineKeyboardButton("⚡ VEO", callback_data="veo")],
+        [InlineKeyboardButton("🧬 GENESIS", url=BUY_LINKS["GENESIS"]),
+         InlineKeyboardButton("💎 UNITY", url=BUY_LINKS["UNITY"]),
+         InlineKeyboardButton("⚡ VEO", url=BUY_LINKS["VEO"])],
         [InlineKeyboardButton("🌐 Links", callback_data="links"),
          InlineKeyboardButton("📢 Invite", callback_data="invite")],
         [InlineKeyboardButton("🏆 Leaderboard", callback_data="leaderboard")]
@@ -96,9 +88,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    if data in BUY_LINKS:
-        text = f"💰 {data} Token\nBuy here:\n{BUY_LINKS[data]}"
-    elif data == "links":
+    if data == "links":
         text = "🌐 Official Links:\n" + "\n".join([f"{k}: {v}" for k, v in OFFICIAL_LINKS.items()])
     elif data == "invite":
         text = "📢 Invite friends and grow the OWPC community 🚀\nhttps://t.me/+SQhKj-gWWmcyODY0"
@@ -158,7 +148,7 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # -------- AUTO-HYPE --------
 async def auto_hype(app):
     if not AUTO_HYPE_ENABLED:
-        return  # Désactive auto-hype si GROUP_ID manquant
+        return
     while True:
         text = (
             "🚀 Phase 2 Hype Message!\n"
@@ -169,7 +159,7 @@ async def auto_hype(app):
             await app.bot.send_message(chat_id=int(GROUP_ID), text=text, reply_markup=main_menu())
         except Exception as e:
             print("Auto-hype error:", e)
-        await asyncio.sleep(60*60)  # toutes les 60 minutes
+        await asyncio.sleep(60*60)
 
 # -------- MAIN --------
 async def main():
@@ -181,9 +171,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    # Lancer auto-hype en arrière-plan si GROUP_ID défini
     asyncio.create_task(auto_hype(app))
-
     print("🚀 OWPC Ultimate Pro Bot started")
     await app.run_polling(drop_pending_updates=True)
 
