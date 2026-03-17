@@ -50,6 +50,14 @@ def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False, re
 init_db()
 
 # -------- TOOLS --------
+LOGO_PATH = "media/owpc_logo.png"
+LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
+LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
+LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
+LINK_CHANNEL = "https://t.me/+SQhKj-gWWmcyODY0"
+LINK_X = "https://x.com/DeepTradeX"
+allowed_links = ["deeptrade.bio.link", "t.me/blum", "youtube.com/@deeptradex", "t.me/+SQhKj-gWWmcyODY0"]
+
 def get_rank_info(score):
     if score >= 1000: return "👑 Alpha Legend", "MAX", "Infinity power unlocked."
     if score >= 500:  return "💎 Unity Guardian", 1000, "Progress to Legend"
@@ -62,22 +70,50 @@ def generate_progress_bar(score, next_level_score):
     filled = int(percent / 10)
     return f"{'█' * filled}{'░' * (10 - filled)} {percent}%"
 
+async def get_ai_response(text):
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": "You are OWPC AI. Be professional."},
+                      {"role": "user", "content": text}],
+            max_tokens=150
+        )
+        return response.choices[0].message.content
+    except: return None
+
 # -------- HANDLERS --------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # ... (Referral logic kept from v4.0) ...
-    score_res = update_user(user.id, user.first_name)
+    args = context.args
     
+    # Referral Logic
+    if args and args[0].startswith("ref_"):
+        ref_id = int(args[0].replace("ref_", ""))
+        if ref_id != user.id:
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute("SELECT id FROM users WHERE id = ?", (user.id,))
+            if not c.fetchone():
+                update_user(ref_id, "Referrer", score_inc=50)
+                update_user(user.id, user.first_name, referred_by=ref_id)
+                try: await context.bot.send_message(chat_id=ref_id, text="🎉 **Referral Bonus!** +50 PTS added.")
+                except: pass
+
+    score_res = update_user(user.id, user.first_name)
     kb = [
-        [InlineKeyboardButton("🧬 GENESIS", url="..."), InlineKeyboardButton("💎 UNITY", url="..."), InlineKeyboardButton("⚡ VEO", url="...")],
+        [InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS), InlineKeyboardButton("💎 UNITY", url=LINK_UNITY), InlineKeyboardButton("⚡ VEO", url=LINK_VEO)],
         [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
         [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📅 Daily", callback_data="daily")],
         [InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
     ]
-    caption = f"🕊️ **OWPC Core v4.1**\n\nWelcome to the hive, **{user.first_name}**.\nShape the future of Web3 with us. 🚀"
-    try: await update.message.reply_photo(photo=open("media/owpc_logo.png", "rb"), caption=caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
-    except: await update.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(kb))
+    caption = f"🕊️ **OWPC Core v4.1**\n\nWelcome back, **{user.first_name}**.\n\nPoints: {score_res[0]}\nRank: {get_rank_info(score_res[0])[0]}\n\nShape the future of Web3 with us. 🚀"
+    
+    try:
+        await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=caption, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+    except:
+        await update.message.reply_text(caption, reply_markup=InlineKeyboardMarkup(kb))
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -88,7 +124,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         score = update_user(uid, name)[0]
         rank, next_val, msg = get_rank_info(score)
         bar = generate_progress_bar(score, next_val)
-        
         card = (
             f"💳 **OWPC DIGITAL PASSPORT**\n"
             f"━━━━━━━━━━━━━━━━━━\n"
@@ -104,31 +139,69 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(card, parse_mode="Markdown")
 
     elif query.data == "view_lb":
-        # ... (Leaderboard logic) ...
-        pass
-    # ... (Other callbacks: quests, daily, invite) ...
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 10")
+        rows = c.fetchall(); conn.close()
+        txt = "🏆 **GLOBAL TOP 10**\n\n" + "\n".join([f"{i+1}. {r[0]} - {r[1]} pts" for i, r in enumerate(rows)])
+        await query.message.reply_text(txt)
 
-# -------- MESSAGE HANDLER (IA & AUTO-RESPONDER) --------
+    elif query.data == "get_invite":
+        link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
+        await query.message.reply_text(f"🔗 **INVITE LINK:**\n`{link}`\n\nEarn +50 PTS for every referral! 🚀", parse_mode="Markdown")
+
+    elif query.data == "open_q":
+        kb = [[InlineKeyboardButton("📢 Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("🐦 Follow X", url=LINK_X)], [InlineKeyboardButton("💰 Claim +100", callback_data="claim_q")]]
+        await query.message.reply_text("🚀 **QUEST CENTER**", reply_markup=InlineKeyboardMarkup(kb))
+
+    elif query.data == "claim_q":
+        res = update_user(uid, name)
+        if res[2]: await query.message.reply_text("⏳ Mission already completed!")
+        else:
+            update_user(uid, name, score_inc=100, complete_quest=True)
+            await query.message.reply_text("🔥 **MISSION SUCCESS!** +100 PTS added to your passport.")
+
+    elif query.data == "daily":
+        today = datetime.now().strftime("%Y-%m-%d")
+        res = update_user(uid, name)
+        if res[1] == today: await query.message.reply_text("⏳ Come back tomorrow for more points!")
+        else:
+            update_user(uid, name, score_inc=10, daily=today)
+            await query.message.reply_text("✅ +10 PTS Daily Reward claimed!")
+
+user_messages = defaultdict(list)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.from_user or update.message.from_user.is_bot: return
-    chat_id, text = update.effective_chat.id, (update.message.text or "").lower()
+    user_id, chat_id, text = update.message.from_user.id, update.effective_chat.id, (update.message.text or "").lower()
 
+    # ANTI-SPAM & ANTI-SCAM
+    user_messages[user_id].append(update.message.date)
+    if len(user_messages[user_id]) > 6:
+        try: await update.message.delete()
+        except: pass
+        return
+    if any(x in text for x in ["http", ".com", ".xyz", "t.me"]) and not any(x in text for x in allowed_links):
+        try: await update.message.delete()
+        except: pass
+        return
+
+    # GROUP LOGIC
     if chat_id == GROUP_CHAT_ID:
-        update_user(update.message.from_user.id, update.message.from_user.first_name, score_inc=1)
-        # Smart Responder
+        update_user(user_id, update.message.from_user.first_name, score_inc=1)
         if "card" in text or "passport" in text or "status" in text:
-            await update.message.reply_text("🆔 Pour voir ton Passeport Digital et tes points, va parler au bot en privé : @OWPCinfobot")
+            await update.message.reply_text(f"🆔 Hey {update.message.from_user.first_name}, to see your Passport, go to private: @{BOT_USERNAME}")
 
+    # PRIVATE AI LOGIC
     if update.effective_chat.type == "private":
-        # IA Response...
-        pass
+        answer = await get_ai_response(text)
+        if answer: await update.message.reply_text(answer)
 
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    print(f"🚀 OWPC Bot v4.1 LIVE (Admin: {ADMIN_ID})")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
