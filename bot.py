@@ -14,6 +14,7 @@ TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
 BOT_USERNAME = "OwpcInfoBot" # L'ID de parrainage en dépend
+GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))  # convertir en int
 
 # -------- STOCKAGE EN MÉMOIRE --------
 user_scores = defaultdict(int) 
