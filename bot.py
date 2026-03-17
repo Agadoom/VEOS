@@ -4,11 +4,13 @@ import nest_asyncio
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    ContextTypes, CallbackQueryHandler, filters
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters
 )
-# Optionnel pour web3
-from web3 import Web3
 
 nest_asyncio.apply()
 
@@ -16,7 +18,7 @@ nest_asyncio.apply()
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     print("❌ TOKEN manquant")
-    exit(1)
+    exit()
 
 # -------- DATA --------
 user_messages = defaultdict(list)
@@ -58,7 +60,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Ecosystem 🌍", callback_data="ecosystem")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_photo(photo=LOGO, caption=text, parse_mode="Markdown", reply_markup=reply_markup)
+
+    if update.message:
+        await update.message.reply_photo(
+            photo=LOGO,
+            caption=text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+    elif update.callback_query:
+        await update.callback_query.message.reply_photo(
+            photo=LOGO,
+            caption=text,
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
@@ -68,7 +84,7 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"⚡ VEO: [Buy Here]({LINK_VEO})\n\n"
         "🚀 Early holders build the future!"
     )
-    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+    await update.callback_query.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
@@ -77,10 +93,10 @@ async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📺 YouTube: [Deeptradex](https://youtube.com/@deeptradex)\n"
         f"💬 Community Telegram: [Join Here](https://t.me/+SQhKj-gWWmcyODY0)"
     )
-    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+    await update.callback_query.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+    await update.callback_query.message.reply_text(
         "📢 Invite friends and grow the OWPC community 🚀\n"
         "Use the links above and build the legacy!"
     )
@@ -93,7 +109,7 @@ async def ecosystem(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚡ VEO → Fast utility token\n\n"
         "🚀 Together they form a unified world crypto ecosystem!"
     )
-    await update.message.reply_text(text, parse_mode="Markdown")
+    await update.callback_query.message.reply_text(text, parse_mode="Markdown")
 
 # -------- WELCOME NEW MEMBERS --------
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -107,6 +123,7 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
+
     user_id = update.message.from_user.id
     text = (update.message.text or "").lower()
 
@@ -133,36 +150,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if query.data == "buy":
+    data = query.data
+
+    if data == "buy":
         await buy(update, context)
-    elif query.data == "links":
+    elif data == "links":
         await links(update, context)
-    elif query.data == "invite":
+    elif data == "invite":
         await invite(update, context)
-    elif query.data == "ecosystem":
+    elif data == "ecosystem":
         await ecosystem(update, context)
 
 # -------- MAIN --------
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Command handlers
+    # Commands
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("buy", buy))
-    app.add_handler(CommandHandler("links", links))
-    app.add_handler(CommandHandler("invite", invite))
-    app.add_handler(CommandHandler("ecosystem", ecosystem))
+    app.add_handler(CommandHandler("buy", lambda u, c: asyncio.create_task(buy(u, c))))
+
+    # Button callback
+    app.add_handler(CallbackQueryHandler(button_handler))
 
     # Welcome new members
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    # Anti-spam
+    # Anti-spam handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # CallbackQueryHandler for buttons
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    print("🚀 OWPC Bot Ultra-PRO running...")
+    print("🚀 OWPC Bot Ultra-Pro running...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
