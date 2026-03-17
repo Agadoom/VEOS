@@ -35,7 +35,7 @@ LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZ
 
 # ---- Media ----
 LOGO = "owpc_logo.png"
-GIF_LAUNCH = "Iv_O_20260310200554.gif"
+GIF_LAUNCH = "gif.gif"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send GIF if exists, otherwise send logo, with welcome text."""
