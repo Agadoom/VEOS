@@ -4,6 +4,7 @@ import asyncio
 import nest_asyncio
 import openai
 from collections import defaultdict
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 
@@ -21,18 +22,17 @@ if not TOKEN or not OPENAI_API_KEY:
 
 # -------- DATA --------
 user_messages = defaultdict(list)
-user_activity = defaultdict(int)  # pour leaderboard / quiz
+user_activity = defaultdict(int)  # messages + quiz
+quiz_active = {}  # user_id: {question, answer}
+last_active = {}  # user_id: datetime
 
 CA_BASE = "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191"
 CA_BLUM = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
-
 allowed_links = [
     "deeptrade.bio.link",
     "base.app",
     "t.me/blum"
 ]
-
-# GIF leaderboard
 GIF_PATH = "lv_0_20260310200554.gif"
 
 # -------- COMMANDS --------
@@ -44,15 +44,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("VEO", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA")],
         [InlineKeyboardButton("Links", callback_data="links")],
         [InlineKeyboardButton("Invite", callback_data="invite")],
-        [InlineKeyboardButton("Leaderboard", callback_data="leaderboard")]
+        [InlineKeyboardButton("Leaderboard", callback_data="leaderboard")],
+        [InlineKeyboardButton("Quiz", callback_data="quiz")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("🌍 Welcome to OWPC!\nChoose an option:", reply_markup=reply_markup)
+
+# -------- CALLBACK BUTTONS --------
 
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
+    user_id = query.from_user.id
 
     if data == "links":
         text = f"💠 Contract Addresses:\n\nBase:\n{CA_BASE}\nBlum:\n{CA_BLUM}\n\n🌐 Website:\nhttps://deeptrade.bio.link"
@@ -61,7 +65,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "📢 Invite friends and grow the OWPC community 🚀\nhttps://t.me/+SQhKj-gWWmcyODY0"
         await query.edit_message_text(text)
     elif data == "leaderboard":
-        # Génère leaderboard simple
         leaderboard = sorted(user_activity.items(), key=lambda x: x[1], reverse=True)[:5]
         text = "🏆 Top Active Members:\n"
         for i, (uid, pts) in enumerate(leaderboard, 1):
@@ -72,11 +75,25 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 name = str(uid)
             text += f"{i}. {name} - {pts} pts\n"
         await query.edit_message_text(text)
-        # Envoie GIF
         try:
             await context.bot.send_animation(chat_id=query.message.chat_id, animation=open(GIF_PATH, "rb"))
         except:
             pass
+    elif data == "quiz":
+        question, answer, options = "Which OWPC token has the Golden Pigeon logo?", "GENESIS", ["GENESIS", "UNITY", "VEO"]
+        quiz_active[user_id] = {"answer": answer}
+        keyboard = [[InlineKeyboardButton(opt, callback_data=f"quiz_{opt}")] for opt in options]
+        await query.edit_message_text(question, reply_markup=InlineKeyboardMarkup(keyboard))
+    elif data.startswith("quiz_"):
+        choice = data.split("_")[1]
+        correct = quiz_active.get(user_id, {}).get("answer")
+        if correct:
+            if choice == correct:
+                user_activity[user_id] += 5
+                await query.edit_message_text(f"✅ Correct! +5 pts 🎉")
+            else:
+                await query.edit_message_text(f"❌ Wrong! The correct answer was {correct}.")
+            quiz_active.pop(user_id, None)
 
 # -------- AI CHAT --------
 
@@ -105,6 +122,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     text = (update.message.text or "").lower()
 
+    last_active[user_id] = datetime.now()
     user_activity[user_id] += 1
     user_messages[user_id].append(update.message.date)
     if len(user_messages[user_id]) > 6:
@@ -146,18 +164,25 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👋 Welcome {member.first_name}!\nUse /start to see the menu 🌍"
         )
 
+# -------- STATS --------
+
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    pts = user_activity.get(user_id, 0)
+    await update.message.reply_text(f"📊 You have {pts} points 🌟")
+
 # -------- MAIN --------
 
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_buttons))
 
-    print("🚀 Bot OWPC démarré")
-
+    print("🚀 Bot OWPC Pro avec Quiz démarré")
     # JobQueue temporairement désactivé
     # app.job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
 
