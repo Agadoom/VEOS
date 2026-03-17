@@ -71,14 +71,15 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(text, parse_mode="Markdown")
 
-    elif query.data == "show_links":
+       elif query.data == "show_links":
         links_text = (
             "🌐 **OWPC OFFICIAL LINKS**\n\n"
-            "🔹 Website: [owpc.io](https://owpc.io)\n"
+            "🔹 Website: [deeptrade.bio.link](https://deeptrade.bio.link)\n"
             "🔹 YouTube: [@deeptradex](https://youtube.com/@deeptradex)\n"
-            "🔹 X (Twitter): [OWPC_Official](https://x.com/OWPC_Official)"
+            "🔹 X (Twitter): [DeepTradeX](https://x.com/DeepTradeX)"
         )
         await query.message.reply_text(links_text, parse_mode="Markdown", disable_web_page_preview=True)
+
 
 # -------- AI & ACTIVITY --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
