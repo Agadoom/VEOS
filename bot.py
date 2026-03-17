@@ -1,7 +1,19 @@
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+import openai
 
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+# ===== VARIABLES DYNAMIQUES VIA RAILWAY =====
+TOKEN = os.environ.get("TOKEN")  # Telegram Bot Token
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+GROUP_ID = os.environ.get("GROUP_ID")  # Groupe Telegram pour signaux
+OWPC_PRICE = os.environ.get("OWPC_PRICE", "0.0001")
+OWPC_HOLDERS = os.environ.get("OWPC_HOLDERS", "12")
+OWPC_VOLUME = os.environ.get("OWPC_VOLUME", "907")
+OWPC_SIGNAL = os.environ.get("OWPC_SIGNAL", "Early Whale Activity Detected!")
+TELEGRAM_LINK = os.environ.get("TELEGRAM_LINK", "https://t.me/OWPC_early")
+
+openai.api_key = OPENAI_API_KEY
 
 # ===== MENU PRINCIPAL =====
 def main_menu():
@@ -31,89 +43,72 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     data = query.data
 
     if data == "market":
         text = (
-            "📊 OWPC Market Overview\n\n"
-            "💰 Price: $0.0001\n"
-            "📈 Market Cap: $890K\n"
-            "👥 Holders: 120\n"
-            "🔄 Volume: $907\n\n"
-            "📊 Trend: Bullish 🟢"
+            f"📊 OWPC Market (Pre-Launch)\n\n"
+            f"💰 Price: ${OWPC_PRICE}\n"
+            f"👥 Holders: {OWPC_HOLDERS}\n"
+            f"🔄 Volume: {OWPC_VOLUME}\n"
+            f"📈 Trend: Bullish 🟢\n\n"
+            f"Stay early. Early whales are positioning."
         )
 
     elif data == "ai":
-        text = (
-            "🧠 AI Crypto Assistant\n\n"
-            "Ask me anything about OWPC or crypto.\n\n"
-            "💬 Type your question below..."
-        )
+        text = "🧠 AI Crypto Assistant\n\nAsk me anything about OWPC or crypto.\n💬 Type your question below..."
 
     elif data == "signals":
-        text = (
-            "📢 Early Signals\n\n"
-            "🚀 OWPC Momentum Detected\n"
-            "📊 Volume increasing\n"
-            "👥 New holders rising\n\n"
-            "🔥 Potential early entry zone"
-        )
+        text = f"📢 Early Signals\n\n{OWPC_SIGNAL}\n🚀 Limited spots for early positioning\n👥 Smart money accumulating"
 
     elif data == "buy":
-        text = (
-            "🔥 Buy OWPC Now\n\n"
-            "👉 https://your-link-here.com\n\n"
-            "⚠️ Always DYOR"
-        )
+        text = f"🔥 Early Access to OWPC\n\nToken not publicly listed yet.\n📩 Contact team for allocation: {TELEGRAM_LINK}\n⚠️ Only limited positions available"
 
     elif data == "wallet":
-        text = (
-            "💰 Wallet Dashboard\n\n"
-            "Coming soon...\n"
-            "🔐 Track assets\n"
-            "📊 Portfolio insights"
-        )
+        text = "💰 Wallet Dashboard\n\nComing soon...\n🔐 Track assets\n📊 Portfolio insights"
 
     elif data == "settings":
-        text = (
-            "⚙️ Settings\n\n"
-            "🔔 Notifications: ON\n"
-            "🌍 Language: EN"
-        )
+        text = "⚙️ Settings\n\n🔔 Notifications: ON\n🌍 Language: EN"
 
     else:
         text = "Unknown option."
 
     await query.edit_message_text(text=text, reply_markup=main_menu())
 
-# ===== AI RESPONSE (FAKE INTELLIGENCE POUR L’INSTANT) =====
+# ===== AI RESPONSE =====
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text.lower()
+    user_text = update.message.text
 
-    if "owpc" in user_text:
-        response = (
-            "📊 AI Insight:\n\n"
-            "OWPC is an early-stage project with growth potential.\n"
-            "Low market cap + increasing activity = opportunity.\n\n"
-            "⚠️ High risk, high reward."
+    try:
+        # Requête OpenAI
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt=f"Give a short crypto market insight based on: {user_text}",
+            max_tokens=100,
+            temperature=0.7
         )
-    else:
-        response = (
-            "🤖 AI Response:\n\n"
-            "Crypto market is volatile.\n"
-            "Always do your own research."
-        )
+        answer = response.choices[0].text.strip()
+    except Exception:
+        answer = "🤖 AI Response:\nCrypto market is volatile. Always do your own research."
 
-    await update.message.reply_text(response)
+    await update.message.reply_text(answer)
+
+# ===== SEND SIGNAL AUTOMATIQUE =====
+async def send_signal(context: ContextTypes.DEFAULT_TYPE):
+    signal_text = f"📢 WHALE SIGNAL\n\n{OWPC_SIGNAL}\n🚀 Limited early positions!"
+    await context.bot.send_message(chat_id=GROUP_ID, text=signal_text)
 
 # ===== MAIN =====
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
+    # Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Timer automatique pour signals (ex: toutes les 6h)
+    app.job_queue.run_repeating(send_signal, interval=21600, first=10)
 
     print("Bot is running...")
     app.run_polling()
