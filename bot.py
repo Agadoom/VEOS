@@ -4,12 +4,8 @@ import nest_asyncio
 from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    ContextTypes,
-    filters
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    ContextTypes, CallbackQueryHandler, filters
 )
 
 nest_asyncio.apply()
@@ -37,8 +33,16 @@ LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZ
 LOGO = "owpc_logo.png"
 GIF_LAUNCH = "gif.gif"
 
+# ---- Allowed links ----
+allowed_links = [
+    "deeptrade.bio.link",
+    "base.app",
+    "t.me/blum",
+    "youtube.com/@deeptradex"
+]
+
+# -------- START COMMAND --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send GIF if exists, otherwise send logo, with welcome text."""
     text = (
         "🕊️ **Welcome to OWPC Ecosystem**\n\n"
         "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
@@ -47,117 +51,90 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🌐 Stay connected and grow with us!"
     )
 
-    # Vérifie si le GIF existe
     if os.path.exists(GIF_LAUNCH):
-        try:
-            await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"), caption=text, parse_mode="Markdown")
-            return
-        except Exception as e:
-            print("❌ Impossible d'envoyer le GIF:", e)
-
-    # Sinon, envoie le logo
-    if os.path.exists(LOGO):
-        try:
-            await update.message.reply_photo(photo=open(LOGO, "rb"), caption=text, parse_mode="Markdown")
-        except Exception as e:
-            print("❌ Impossible d'envoyer le logo:", e)
+        await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"), caption=text)
+    elif os.path.exists(LOGO):
+        await update.message.reply_photo(photo=open(LOGO, "rb"), caption=text)
     else:
-        # Si rien n'existe, envoie juste le texte
-        await update.message.reply_text(text, parse_mode="Markdown")
+        await update.message.reply_text(text)
 
-# -------- COMMANDS --------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🕊️ **Welcome to OWPC Ecosystem**\n\n"
-        "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
-        "🚀 Phase 2 is LIVE!\n"
-        "Use the buttons below to explore and /buy to get started!\n\n"
-        "🌐 Stay connected and grow with us!"
-    )
+# -------- BUY COMMAND --------
+async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
-        [InlineKeyboardButton("Buy Tokens 💰", callback_data="buy")],
-        [InlineKeyboardButton("Official Links 🔗", callback_data="links")],
-        [InlineKeyboardButton("Invite Friends 📢", callback_data="invite")],
-        [InlineKeyboardButton("Ecosystem 🌍", callback_data="ecosystem")]
+        [InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS)],
+        [InlineKeyboardButton("💎 UNITY", url=LINK_UNITY)],
+        [InlineKeyboardButton("⚡ VEO", url=LINK_VEO)]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("💰 **Buy OWPC Tokens**", reply_markup=reply_markup, parse_mode="Markdown")
 
-    # Envoie GIF puis logo
-    if update.message:
-        await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
-        await update.message.reply_photo(
-            photo=open(LOGO, "rb"),
-            caption=text,
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-
-# -------- BUTTON HANDLER --------
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()  # ferme le chargement
-
-    if query.data == "buy":
-        await query.message.reply_text(
-            f"💰 Buy OWPC Tokens:\n🧬 GENESIS: {LINK_GENESIS}\n💎 UNITY: {LINK_UNITY}\n⚡ VEO: {LINK_VEO}",
-            disable_web_page_preview=True
-        )
-    elif query.data == "links":
-        await query.message.reply_text(
-            "🔗 Official Links:\n🌐 Website: https://deeptrade.bio.link\n📺 YouTube: https://youtube.com/@deeptradex\n💬 Telegram: https://t.me/+SQhKj-gWWmcyODY0",
-            disable_web_page_preview=True
-        )
-    elif query.data == "invite":
-        await query.message.reply_text(
-            "📢 Invite friends and grow the OWPC community!"
-        )
-    elif query.data == "ecosystem":
-        await query.message.reply_text(
-            "🌍 OWPC Ecosystem Overview:\n🧬 GENESIS → Foundation\n💎 UNITY → Liquidity & staking\n⚡ VEO → Utility token"
-        )
+# -------- LINKS COMMAND --------
+async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "🔗 **Official Links**\n\n"
+        "🌐 Website: [Deeptrade.bio.link](https://deeptrade.bio.link)\n"
+        "📺 YouTube: [Deeptradex](https://youtube.com/@deeptradex)\n"
+        "💬 Community Telegram: [Join Here](https://t.me/+SQhKj-gWWmcyODY0)"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
 
 # -------- WELCOME NEW MEMBERS --------
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         await update.message.reply_text(
-            f"👋 Welcome {member.first_name}!\nUse /start to see the OWPC ecosystem 🚀"
+            f"👋 Welcome {member.first_name}!\nUse /start to see the OWPC ecosystem and /buy to get started 🚀"
         )
 
 # -------- ANTI-SPAM --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
+
     user_id = update.message.from_user.id
     text = (update.message.text or "").lower()
 
+    # anti spam: max 5 messages par 30 sec
     user_messages[user_id].append(update.message.date)
     if len(user_messages[user_id]) > 6:
-        try: await update.message.delete()
-        except: pass
+        try:
+            await update.message.delete()
+        except:
+            pass
         user_messages[user_id].clear()
         return
 
+    # anti scam links
     if any(link in text for link in ["http", ".com", ".xyz", "t.me"]):
         if not any(link in text for link in allowed_links):
-            try: await update.message.delete()
-            except: pass
+            try:
+                await update.message.delete()
+            except:
+                pass
             return
+
+# -------- CALLBACK QUERY (if needed for buttons) --------
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if query:
+        await query.answer("Button clicked!")
 
 # -------- MAIN --------
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Commandes
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("links", links))
 
-    # Inline buttons
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    # Nouveaux membres
+    # Welcome new members
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    # Anti-spam
+    # Anti-spam handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # CallbackQuery handler
+    app.add_handler(CallbackQueryHandler(button_handler))
 
     print("🚀 OWPC Bot running with GIF + logo + inline buttons...")
     await app.run_polling(drop_pending_updates=True)
