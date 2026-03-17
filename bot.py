@@ -24,7 +24,7 @@ LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKy
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 
 LOGO_PATH = "media/owpc_logo.png"
-GIF_PATH = "media/gif.gif"
+# GIF_PATH = "media/gif.gif"
 ROADMAP_PATH = "media/roadmap.png" # Assure-toi d'avoir cette image
 
 # -------- HELPERS --------
