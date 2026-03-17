@@ -33,17 +33,37 @@ LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 
-# ---- Media Locaux ----
+# ---- Media ----
 LOGO = "owpc_logo.png"
 GIF_LAUNCH = "Iv_O_20260310200554.gif"
 
-# ---- Allowed links ----
-allowed_links = [
-    "deeptrade.bio.link",
-    "base.app",
-    "t.me/blum",
-    "youtube.com/@deeptradex"
-]
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send GIF if exists, otherwise send logo, with welcome text."""
+    text = (
+        "🕊️ **Welcome to OWPC Ecosystem**\n\n"
+        "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
+        "🚀 Phase 2 is LIVE!\n"
+        "Use /buy to get started\n\n"
+        "🌐 Stay connected and grow with us!"
+    )
+
+    # Vérifie si le GIF existe
+    if os.path.exists(GIF_LAUNCH):
+        try:
+            await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"), caption=text, parse_mode="Markdown")
+            return
+        except Exception as e:
+            print("❌ Impossible d'envoyer le GIF:", e)
+
+    # Sinon, envoie le logo
+    if os.path.exists(LOGO):
+        try:
+            await update.message.reply_photo(photo=open(LOGO, "rb"), caption=text, parse_mode="Markdown")
+        except Exception as e:
+            print("❌ Impossible d'envoyer le logo:", e)
+    else:
+        # Si rien n'existe, envoie juste le texte
+        await update.message.reply_text(text, parse_mode="Markdown")
 
 # -------- COMMANDS --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
