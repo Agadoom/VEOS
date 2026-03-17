@@ -33,8 +33,9 @@ LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 
-# ---- Media ----
-LOGO = "https://i.ibb.co/2nQ0F2P/OWPC-golden-pigeon.png"
+# ---- Media Locaux ----
+LOGO = "owpc_logo.png"       # ton logo local
+GIF_LAUNCH = "Iv_O_20260310200554.gif" # ton GIF local
 
 # ---- Allowed links ----
 allowed_links = [
@@ -61,124 +62,44 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
+    # On envoie le GIF puis le logo avec texte
     if update.message:
+        await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
         await update.message.reply_photo(
-            photo=LOGO,
+            photo=open(LOGO, "rb"),
             caption=text,
             parse_mode="Markdown",
             reply_markup=reply_markup
         )
     elif update.callback_query:
         await update.callback_query.message.reply_photo(
-            photo=LOGO,
+            photo=open(LOGO, "rb"),
             caption=text,
             parse_mode="Markdown",
             reply_markup=reply_markup
         )
 
-async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "💰 **Buy OWPC Tokens**\n\n"
-        f"🧬 GENESIS: [Buy Here]({LINK_GENESIS})\n"
-        f"💎 UNITY: [Buy Here]({LINK_UNITY})\n"
-        f"⚡ VEO: [Buy Here]({LINK_VEO})\n\n"
-        "🚀 Early holders build the future!"
-    )
-    await update.callback_query.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
-
-async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🔗 **Official Links**\n\n"
-        f"🌐 Website: [Deeptrade.bio.link](https://deeptrade.bio.link)\n"
-        f"📺 YouTube: [Deeptradex](https://youtube.com/@deeptradex)\n"
-        f"💬 Community Telegram: [Join Here](https://t.me/+SQhKj-gWWmcyODY0)"
-    )
-    await update.callback_query.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
-
-async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.message.reply_text(
-        "📢 Invite friends and grow the OWPC community 🚀\n"
-        "Use the links above and build the legacy!"
-    )
-
-async def ecosystem(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "🌍 **OWPC Ecosystem Overview**\n\n"
-        "🧬 GENESIS → Foundation & long-term growth\n"
-        "💎 UNITY → Main liquidity & staking\n"
-        "⚡ VEO → Fast utility token\n\n"
-        "🚀 Together they form a unified world crypto ecosystem!"
-    )
-    await update.callback_query.message.reply_text(text, parse_mode="Markdown")
-
-# -------- WELCOME NEW MEMBERS --------
-async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    for member in update.message.new_chat_members:
-        await update.message.reply_text(
-            f"👋 Welcome {member.first_name}!\n"
-            "Use /start to see the OWPC ecosystem and /buy to get started 🚀"
-        )
-
-# -------- ANTI-SPAM --------
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.is_bot:
-        return
-
-    user_id = update.message.from_user.id
-    text = (update.message.text or "").lower()
-
-    # anti spam: max 5 messages par 30 sec
-    user_messages[user_id].append(update.message.date)
-    if len(user_messages[user_id]) > 6:
-        try:
-            await update.message.delete()
-        except:
-            pass
-        user_messages[user_id].clear()
-        return
-
-    # anti scam links
-    if any(link in text for link in ["http", ".com", ".xyz", "t.me"]):
-        if not any(link in text for link in allowed_links):
-            try:
-                await update.message.delete()
-            except:
-                pass
-            return
-
-# -------- BUTTON HANDLER --------
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data == "buy":
-        await buy(update, context)
-    elif data == "links":
-        await links(update, context)
-    elif data == "invite":
-        await invite(update, context)
-    elif data == "ecosystem":
-        await ecosystem(update, context)
+# -------- Les autres fonctions (buy, links, invite, ecosystem, welcome, handle_message, button_handler) restent identiques --------
+# (tu peux copier la version précédente pour ces fonctions)
 
 # -------- MAIN --------
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Commands
+    # Commandes
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("buy", lambda u, c: asyncio.create_task(buy(u, c))))
 
-    # Button callback
+    # Boutons inline
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    # Welcome new members
+    # Nouveaux membres
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    # Anti-spam handler
+    # Anti-spam
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🚀 OWPC Bot Ultra-Pro running...")
+    print("🚀 OWPC Bot Ultra-Pro running with local media...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
