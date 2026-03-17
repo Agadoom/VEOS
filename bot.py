@@ -1,17 +1,14 @@
 import os
-import re
 import asyncio
-import random
 import nest_asyncio
 from collections import defaultdict
-from telegram import Update
+from telegram import Update, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
 nest_asyncio.apply()
 
 # -------- ENV --------
 TOKEN = os.getenv("TOKEN")
-
 if not TOKEN:
     print("❌ TOKEN manquant")
     exit()
@@ -19,142 +16,91 @@ if not TOKEN:
 # -------- DATA --------
 user_messages = defaultdict(list)
 
-# Contracts
-GENESIS_CA = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
-UNITY_CA = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
-VEO_CA = "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
+# ---- Contract Addresses ----
+CA_GENESIS = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
+CA_UNITY = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+CA_VEO = "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
 
-# Links
-GENESIS_LINK = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
-UNITY_LINK = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
-VEO_LINK = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
+# ---- Buy Links ----
+LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
+LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
+LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 
-WEBSITE = "https://deeptrade.bio.link"
-YOUTUBE = "https://youtube.com/@deeptradex"
-TELEGRAM = "https://t.me/+SQhKj-gWWmcyODY0"
+# ---- Media ----
+LOGO = "https://i.ibb.co/2nQ0F2P/OWPC-golden-pigeon.png"  # ton logo doré en ligne ou local
 
+# ---- Allowed links ----
 allowed_links = [
     "deeptrade.bio.link",
+    "base.app",
     "t.me/blum",
-    "youtube.com"
+    "youtube.com/@deeptradex"
 ]
 
 # -------- COMMANDS --------
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🌍 Welcome to OWPC Ecosystem\n\n"
+    text = (
+        "🕊️ **Welcome to OWPC Ecosystem**\n\n"
         "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
-        "🚀 Phase 2 is LIVE\n"
-        "Use /buy to get started"
+        "🚀 Phase 2 is LIVE!\n"
+        "Use /buy to get started\n\n"
+        "🌐 Stay connected and grow with us!"
     )
-
-async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🔗 OFFICIAL LINKS\n\n"
-        f"🌐 Website:\n{WEBSITE}\n\n"
-        f"📺 YouTube:\n{YOUTUBE}\n\n"
-        f"💬 Community:\n{TELEGRAM}"
-    )
+    await update.message.reply_photo(photo=LOGO, caption=text, parse_mode="Markdown")
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🚀 BUY OWPC ECOSYSTEM\n\n"
-
-        "🧬 GENESIS\n"
-        f"{GENESIS_CA}\n{GENESIS_LINK}\n\n"
-
-        "💎 UNITY\n"
-        f"{UNITY_CA}\n{UNITY_LINK}\n\n"
-
-        "⚡ VEO\n"
-        f"{VEO_CA}\n{VEO_LINK}\n\n"
-
-        "🌍 You are still early.\n"
-        "Strong holders build the future 💎"
+    text = (
+        "💰 **Buy OWPC Tokens**\n\n"
+        f"🧬 GENESIS: [Buy Here]({LINK_GENESIS})\n"
+        f"💎 UNITY: [Buy Here]({LINK_UNITY})\n"
+        f"⚡ VEO: [Buy Here]({LINK_VEO})\n\n"
+        "🚀 Early holders build the future!"
     )
+    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
 
-async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "🔗 **Official Links**\n\n"
+        f"🌐 Website: [Deeptrade.bio.link](https://deeptrade.bio.link)\n"
+        f"📺 YouTube: [Deeptradex](https://youtube.com/@deeptradex)\n"
+        f"💬 Community Telegram: [Join Here](https://t.me/+SQhKj-gWWmcyODY0)"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+
+async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "⚠️ SELLING NOW?\n\n"
-        "Most people sell before growth.\n"
-        "Smart investors hold during quiet phases.\n\n"
-        "🚀 Phase 2 just started.\n"
-        "The real move hasn't begun."
+        "📢 Invite friends and grow the OWPC community 🚀\n"
+        "Use the links above and build the legacy!"
     )
 
 async def ecosystem(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🌍 OWPC ECOSYSTEM\n\n"
-        "🧬 GENESIS → Foundation\n"
-        "💎 UNITY → Community\n"
-        "⚡ VEO → Expansion\n\n"
-        "One vision. One future."
+    text = (
+        "🌍 **OWPC Ecosystem Overview**\n\n"
+        "🧬 GENESIS → Foundation & long-term growth\n"
+        "💎 UNITY → Main liquidity & staking\n"
+        "⚡ VEO → Fast utility token\n\n"
+        "🚀 Together they form a unified world crypto ecosystem!"
     )
+    await update.message.reply_text(text, parse_mode="Markdown")
 
-async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🚀 OWPC STATUS\n\n"
-        "Phase: 2\n"
-        "Development: Active\n"
-        "Community: Growing\n\n"
-        "We are building long-term 🌍"
-    )
+# -------- WELCOME NEW MEMBERS --------
+async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for member in update.message.new_chat_members:
+        await update.message.reply_text(
+            f"👋 Welcome {member.first_name}!\n"
+            "Use /start to see the OWPC ecosystem and /buy to get started 🚀"
+        )
 
-# -------- AUTO ACTIVITY --------
-
-async def auto_hype(app):
-
-    messages = [
-        "🌍 OWPC is building silently...",
-        "💎 Strong holders are accumulating...",
-        "🚀 Phase 2 energy is rising...",
-        "⚡ Big move can happen anytime 👀"
-    ]
-
-    while True:
-        await asyncio.sleep(1800)
-
-        try:
-            await app.bot.send_message(
-                chat_id=-1003564334773,  # ⚠️ METS TON CHAT ID
-                text=random.choice(messages)
-            )
-        except:
-            pass
-
-# -------- MESSAGE HANDLER --------
-
+# -------- ANTI-SPAM --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     if update.message.from_user.is_bot:
         return
 
-    text = (update.message.text or "").lower()
     user_id = update.message.from_user.id
+    text = (update.message.text or "").lower()
 
-    # -------- QUICK TRIGGERS --------
-
-    if "buy" in text:
-        await buy(update, context)
-        return
-
-    if "sell" in text:
-        await sell(update, context)
-        return
-
-    if "ca" in text:
-        await update.message.reply_text(
-            f"🧬 GENESIS:\n{GENESIS_CA}\n\n"
-            f"💎 UNITY:\n{UNITY_CA}\n\n"
-            f"⚡ VEO:\n{VEO_CA}"
-        )
-        return
-
-    # -------- ANTI SPAM --------
-
+    # anti spam: max 5 messages par 30 sec
     user_messages[user_id].append(update.message.date)
-
     if len(user_messages[user_id]) > 6:
         try:
             await update.message.delete()
@@ -163,9 +109,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_messages[user_id].clear()
         return
 
-    # -------- ANTI SCAM --------
-
-    if re.search(r"http|t\.me|\.com|\.xyz", text):
+    # anti scam links
+    if any(link in text for link in ["http", ".com", ".xyz", "t.me"]):
         if not any(link in text for link in allowed_links):
             try:
                 await update.message.delete()
@@ -174,25 +119,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
 # -------- MAIN --------
-
 async def main():
-
     app = ApplicationBuilder().token(TOKEN).build()
 
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("links", links))
     app.add_handler(CommandHandler("buy", buy))
-    app.add_handler(CommandHandler("sell", sell))
+    app.add_handler(CommandHandler("links", links))
+    app.add_handler(CommandHandler("invite", invite))
     app.add_handler(CommandHandler("ecosystem", ecosystem))
-    app.add_handler(CommandHandler("status", status))
 
+    # Welcome new members
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+
+    # Anti-spam handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🚀 OWPC Bot Running")
-
-    asyncio.create_task(auto_hype(app))
-
-    await app.run_polling()
+    print("🚀 OWPC Bot Mini App running...")
+    await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
