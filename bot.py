@@ -1,117 +1,151 @@
 import os
+import asyncio
+import nest_asyncio
+from collections import defaultdict
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-import openai
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-# ===== VARIABLES DYNAMIQUES VIA RAILWAY =====
-TOKEN = os.environ.get("TOKEN")  # Telegram Bot Token
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-GROUP_ID = os.environ.get("GROUP_ID")  # Groupe Telegram pour signaux
-OWPC_PRICE = os.environ.get("OWPC_PRICE", "0.0001")
-OWPC_HOLDERS = os.environ.get("OWPC_HOLDERS", "12")
-OWPC_VOLUME = os.environ.get("OWPC_VOLUME", "907")
-OWPC_SIGNAL = os.environ.get("OWPC_SIGNAL", "Early Whale Activity Detected!")
-TELEGRAM_LINK = os.environ.get("TELEGRAM_LINK", "https://t.me/OWPC_early")
+nest_asyncio.apply()
 
-openai.api_key = OPENAI_API_KEY
+# -------- ENV --------
+TOKEN = os.getenv("TOKEN")
+if not TOKEN:
+    print("❌ TOKEN manquant")
+    exit()
 
-# ===== MENU PRINCIPAL =====
-def main_menu():
-    keyboard = [
-        [InlineKeyboardButton("📊 Market", callback_data="market")],
-        [InlineKeyboardButton("🧠 AI Analyse", callback_data="ai")],
-        [InlineKeyboardButton("📢 Signals", callback_data="signals")],
-        [InlineKeyboardButton("🔥 Buy OWPC", callback_data="buy")],
-        [InlineKeyboardButton("💰 Wallet", callback_data="wallet")],
-        [InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+# -------- DATA --------
+user_messages = defaultdict(list)
 
-# ===== START =====
+# ---- Contract Addresses & Buy Links ----
+TOKENS = {
+    "GENESIS": {
+        "contract": "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS",
+        "link": "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
+    },
+    "UNITY": {
+        "contract": "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx",
+        "link": "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
+    },
+    "VEO": {
+        "contract": "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt",
+        "link": "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
+    }
+}
+
+# ---- Media ----
+LOGO = "https://i.ibb.co/2nQ0F2P/OWPC-golden-pigeon.png"
+
+# ---- Allowed links ----
+allowed_links = [
+    "deeptrade.bio.link",
+    "base.app",
+    "t.me/blum",
+    "youtube.com/@deeptradex"
+]
+
+# -------- COMMANDS --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("🧬 GENESIS", url=TOKENS["GENESIS"]["link"])],
+        [InlineKeyboardButton("💎 UNITY", url=TOKENS["UNITY"]["link"])],
+        [InlineKeyboardButton("⚡ VEO", url=TOKENS["VEO"]["link"])],
+        [InlineKeyboardButton("🌐 Links", callback_data="links")],
+        [InlineKeyboardButton("📢 Invite", callback_data="invite")],
+        [InlineKeyboardButton("🌍 Ecosystem", callback_data="ecosystem")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     text = (
-        "🚀 Welcome to VEO Crypto Bot\n\n"
-        "The smart gateway to the OWPC ecosystem 🌍\n\n"
-        "📊 Live Market Data\n"
-        "🧠 AI Crypto Analysis\n"
-        "📢 Early Signals & Opportunities\n\n"
-        "Start exploring now 👇"
+        "🕊️ **Welcome to OWPC Ecosystem**\n\n"
+        "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
+        "🚀 Phase 2 is LIVE!\n"
+        "Use the buttons below to explore and get started!"
     )
-    await update.message.reply_text(text, reply_markup=main_menu())
+    await update.message.reply_photo(photo=LOGO, caption=text, parse_mode="Markdown", reply_markup=reply_markup)
 
-# ===== CALLBACK HANDLER =====
+# Callback handler for buttons
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    data = query.data
 
-    if data == "market":
+    if query.data == "links":
         text = (
-            f"📊 OWPC Market (Pre-Launch)\n\n"
-            f"💰 Price: ${OWPC_PRICE}\n"
-            f"👥 Holders: {OWPC_HOLDERS}\n"
-            f"🔄 Volume: {OWPC_VOLUME}\n"
-            f"📈 Trend: Bullish 🟢\n\n"
-            f"Stay early. Early whales are positioning."
+            "🔗 **Official Links**\n\n"
+            "🌐 Website: [Deeptrade.bio.link](https://deeptrade.bio.link)\n"
+            "📺 YouTube: [Deeptradex](https://youtube.com/@deeptradex)\n"
+            "💬 Community Telegram: [Join Here](https://t.me/+SQhKj-gWWmcyODY0)"
+        )
+        await query.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+
+    elif query.data == "invite":
+        await query.message.reply_text(
+            "📢 Invite friends and grow the OWPC community 🚀\n"
+            "Use the links above and build the legacy!"
         )
 
-    elif data == "ai":
-        text = "🧠 AI Crypto Assistant\n\nAsk me anything about OWPC or crypto.\n💬 Type your question below..."
+    elif query.data == "ecosystem":
+        text = (
+            "🌍 **OWPC Ecosystem Overview**\n\n"
+            "🧬 GENESIS → Foundation & long-term growth\n"
+            "💎 UNITY → Main liquidity & staking\n"
+            "⚡ VEO → Fast utility token\n\n"
+            "🚀 Together they form a unified world crypto ecosystem!"
+        )
+        await query.message.reply_text(text, parse_mode="Markdown")
 
-    elif data == "signals":
-        text = f"📢 Early Signals\n\n{OWPC_SIGNAL}\n🚀 Limited spots for early positioning\n👥 Smart money accumulating"
+# -------- WELCOME NEW MEMBERS --------
+async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for member in update.message.new_chat_members:
+        await update.message.reply_photo(
+            photo=LOGO,
+            caption=f"👋 Welcome {member.first_name}!\nUse /start to explore OWPC 🚀",
+            parse_mode="Markdown"
+        )
 
-    elif data == "buy":
-        text = f"🔥 Early Access to OWPC\n\nToken not publicly listed yet.\n📩 Contact team for allocation: {TELEGRAM_LINK}\n⚠️ Only limited positions available"
-
-    elif data == "wallet":
-        text = "💰 Wallet Dashboard\n\nComing soon...\n🔐 Track assets\n📊 Portfolio insights"
-
-    elif data == "settings":
-        text = "⚙️ Settings\n\n🔔 Notifications: ON\n🌍 Language: EN"
-
-    else:
-        text = "Unknown option."
-
-    await query.edit_message_text(text=text, reply_markup=main_menu())
-
-# ===== AI RESPONSE =====
+# -------- ANTI-SPAM --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
+    if update.message.from_user.is_bot:
+        return
 
-    try:
-        # Requête OpenAI
-        response = openai.Completion.create(
-            model="text-davinci-003",
-            prompt=f"Give a short crypto market insight based on: {user_text}",
-            max_tokens=100,
-            temperature=0.7
-        )
-        answer = response.choices[0].text.strip()
-    except Exception:
-        answer = "🤖 AI Response:\nCrypto market is volatile. Always do your own research."
+    user_id = update.message.from_user.id
+    text = (update.message.text or "").lower()
 
-    await update.message.reply_text(answer)
+    # Anti-spam: max 5 messages per 30 sec
+    user_messages[user_id].append(update.message.date)
+    if len(user_messages[user_id]) > 6:
+        try:
+            await update.message.delete()
+        except:
+            pass
+        user_messages[user_id].clear()
+        return
 
-# ===== SEND SIGNAL AUTOMATIQUE =====
-async def send_signal(context: ContextTypes.DEFAULT_TYPE):
-    signal_text = f"📢 WHALE SIGNAL\n\n{OWPC_SIGNAL}\n🚀 Limited early positions!"
-    await context.bot.send_message(chat_id=GROUP_ID, text=signal_text)
+    # Anti-scam links
+    if any(link in text for link in ["http", ".com", ".xyz", "t.me"]):
+        if not any(link in text for link in allowed_links):
+            try:
+                await update.message.delete()
+            except:
+                pass
+            return
 
-# ===== MAIN =====
-def main():
+# -------- MAIN --------
+async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Handlers
+    # Command handlers
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_handler))
+
+    # Callback query handler for buttons
+    app.add_handler(MessageHandler(filters.CallbackQuery.ALL, button_handler))
+
+    # Welcome new members
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+
+    # Anti-spam handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Timer automatique pour signals (ex: toutes les 6h)
-    app.job_queue.run_repeating(send_signal, interval=21600, first=10)
-
-    print("Bot is running...")
-    app.run_polling()
+    print("🚀 OWPC Bot PRO running...")
+    await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
