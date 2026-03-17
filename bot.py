@@ -2,26 +2,25 @@ import os
 import asyncio
 import nest_asyncio
 from collections import defaultdict
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-)
+from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from openai import OpenAI
 
 nest_asyncio.apply()
 
 # -------- ENV --------
 TOKEN = os.getenv("TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 if not TOKEN:
-    print("❌ TOKEN manquant")
+    print("❌ TOKEN Telegram manquant")
+    exit()
+if not OPENAI_API_KEY:
+    print("❌ OPENAI_API_KEY manquant")
     exit()
 
 # -------- DATA --------
 user_messages = defaultdict(list)
-
-# ---- Paths fixes media ----
-MEDIA_PATH = os.path.join(os.path.dirname(__file__), "media")
-LOGO = os.path.join(MEDIA_PATH, "owpc_logo.png")
-GIF_LAUNCH = os.path.join(MEDIA_PATH, "gif.gif")
 
 # ---- Contract Addresses ----
 CA_GENESIS = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
@@ -33,6 +32,10 @@ LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 
+# ---- Media ----
+LOGO = "owpc_logo.png"
+GIF_LAUNCH = "gif.gif"
+
 # ---- Allowed links ----
 allowed_links = [
     "deeptrade.bio.link",
@@ -41,19 +44,28 @@ allowed_links = [
     "youtube.com/@deeptradex"
 ]
 
+# -------- AI Client --------
+ai_client = OpenAI(api_key=OPENAI_API_KEY)
+
 # -------- COMMANDS --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        await update.message.reply_photo(photo=open(LOGO, "rb"),
-                                       caption="🕊️ **Welcome to OWPC Ecosystem**\n\n"
-                                               "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
-                                               "🚀 Phase 2 is LIVE!\n"
-                                               "Use /buy to get started\n\n"
-                                               "🌐 Stay connected and grow with us!",
-                                       parse_mode="Markdown")
-        await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
-    except FileNotFoundError as e:
-        await update.message.reply_text(f"🚨 Media missing: {e}")
+    # Inline buttons pour les achats
+    keyboard = [
+        [InlineKeyboardButton("GENESIS 🧬", url=LINK_GENESIS)],
+        [InlineKeyboardButton("UNITY 💎", url=LINK_UNITY)],
+        [InlineKeyboardButton("VEO ⚡", url=LINK_VEO)]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_photo(
+        photo=open(LOGO, "rb"),
+        caption="🕊️ **Welcome to OWPC Ecosystem**\nPhase 2 is LIVE!\nUse the buttons below to buy tokens 🚀",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
+
+    # Animation GIF de lancement
+    await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
@@ -76,8 +88,7 @@ async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📢 Invite friends and grow the OWPC community 🚀\n"
-        "Use the links above and build the legacy!"
+        "📢 Invite friends and grow the OWPC community 🚀\nUse the links above and build the legacy!"
     )
 
 async def ecosystem(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -94,8 +105,7 @@ async def ecosystem(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         await update.message.reply_text(
-            f"👋 Welcome {member.first_name}!\n"
-            "Use /start to see the OWPC ecosystem and /buy to get started 🚀"
+            f"👋 Welcome {member.first_name}!\nUse /start to see the OWPC ecosystem and /buy to get started 🚀"
         )
 
 # -------- ANTI-SPAM --------
@@ -125,11 +135,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
+# -------- AI CHAT HANDLER --------
+async def ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
+    try:
+        response = ai_client.chat.completions.create(
+            model="gpt-5-mini",
+            messages=[{"role": "user", "content": user_message}],
+            max_tokens=300
+        )
+        answer = response.choices[0].message.content
+        await update.message.reply_text(answer)
+    except Exception as e:
+        await update.message.reply_text(f"⚠️ AI error: {e}")
+
 # -------- MAIN --------
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # Command handlers
+    # Commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("buy", buy))
     app.add_handler(CommandHandler("links", links))
@@ -139,10 +163,13 @@ async def main():
     # Welcome new members
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    # Anti-spam handler
+    # Anti-spam
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🚀 OWPC Bot running with GIF + logo + inline buttons...")
+    # AI chat
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_chat))
+
+    print("🚀 OWPC Bot running with GIF + logo + inline buttons + AI...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
