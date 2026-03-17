@@ -7,6 +7,8 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     ContextTypes, CallbackQueryHandler, filters
 )
+# Optionnel pour web3
+from web3 import Web3
 
 nest_asyncio.apply()
 
@@ -49,7 +51,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Use the buttons below to explore and /buy to get started!\n\n"
         "🌐 Stay connected and grow with us!"
     )
-
     keyboard = [
         [InlineKeyboardButton("Buy Tokens 💰", callback_data="buy")],
         [InlineKeyboardButton("Official Links 🔗", callback_data="links")],
@@ -57,10 +58,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Ecosystem 🌍", callback_data="ecosystem")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_photo(
-        photo=LOGO, caption=text, parse_mode="Markdown", reply_markup=reply_markup
-    )
+    await update.message.reply_photo(photo=LOGO, caption=text, parse_mode="Markdown", reply_markup=reply_markup)
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
@@ -109,7 +107,6 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.is_bot:
         return
-
     user_id = update.message.from_user.id
     text = (update.message.text or "").lower()
 
@@ -136,11 +133,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     if query.data == "buy":
-        await query.message.reply_text(
-            f"🧬 GENESIS: {LINK_GENESIS}\n💎 UNITY: {LINK_UNITY}\n⚡ VEO: {LINK_VEO}"
-        )
+        await buy(update, context)
     elif query.data == "links":
         await links(update, context)
     elif query.data == "invite":
@@ -162,13 +156,13 @@ async def main():
     # Welcome new members
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    # Anti-spam handler
+    # Anti-spam
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # CallbackQuery handler for inline buttons
+    # CallbackQueryHandler for buttons
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    print("🚀 OWPC Bot PRO running...")
+    print("🚀 OWPC Bot Ultra-PRO running...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
