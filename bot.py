@@ -196,7 +196,7 @@ async def main():
 
     print("🚀 OWPC Ultra Pro Bot démarré")
     # Auto-hype JobQueue temporairement désactivé
-    # app.job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
+     app.job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
 
     await app.run_polling(drop_pending_updates=True)
 
