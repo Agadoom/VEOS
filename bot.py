@@ -145,21 +145,25 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = f"👋 Welcome {member.first_name}!\n🚀 Welcome to OWPC Ecosystem!\nUse /start to explore tokens and links."
         await update.message.reply_text(text, reply_markup=main_menu())
 
-# -------- AUTO-HYPE --------
+# -------- AUTO-HYPE IMAGE --------
 async def auto_hype(app):
     if not AUTO_HYPE_ENABLED:
         return
     while True:
-        text = (
-            "🚀 Phase 2 Hype Message!\n"
-            "Check GENESIS, UNITY, VEO and stay active in the community.\n"
-            "🌐 Links in menu below."
-        )
         try:
-            await app.bot.send_message(chat_id=int(GROUP_ID), text=text, reply_markup=main_menu())
+            await app.bot.send_photo(
+                chat_id=int(GROUP_ID),
+                photo=open("lv_0_20260310200554.gif", "rb"),  # Ton logo doré
+                caption=(
+                    "🚀 Phase 2 Hype!\n"
+                    "Check GENESIS, UNITY, VEO and stay active in the community.\n"
+                    "🌐 Use the menu below 👇"
+                ),
+                reply_markup=main_menu()
+            )
         except Exception as e:
             print("Auto-hype error:", e)
-        await asyncio.sleep(60*60)
+        await asyncio.sleep(60*60)  # toutes les 60 minutes
 
 # -------- MAIN --------
 async def main():
@@ -172,6 +176,7 @@ async def main():
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
     asyncio.create_task(auto_hype(app))
+
     print("🚀 OWPC Ultimate Pro Bot started")
     await app.run_polling(drop_pending_updates=True)
 
