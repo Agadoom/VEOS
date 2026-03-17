@@ -162,7 +162,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Auto-hype every 4 hours
-    app.job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
+   # app.job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
 
     print("🚀 OWPC Ultimate Hub Pro Bot démarré")
     await app.run_polling(drop_pending_updates=True)
