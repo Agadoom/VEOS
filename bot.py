@@ -16,7 +16,7 @@ GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID", 0))
 BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfo_bot")
 openai.api_key = OPENAI_API_KEY
 
-# -------- DATABASE (PERSISTENCE) --------
+# -------- DATABASE --------
 DB_PATH = "data/owpc_data.db"
 os.makedirs("data", exist_ok=True)
 
@@ -52,7 +52,7 @@ LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 LINK_X = "https://x.com/DeepTradeX"
-LINK_TELEGRAM = "https://t.me/ton_canal" # Replace with your real channel link
+LINK_TELEGRAM_CHANNEL = "https://t.me/+SQhKj-gWWmcyODY0" # Your Official Channel
 LOGO_PATH = "media/owpc_logo.png"
 
 def get_title(score):
@@ -74,24 +74,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_leaderboard"),
          InlineKeyboardButton("🚀 Quest Center", callback_data="open_quests")],
         [InlineKeyboardButton("📅 Daily Points", callback_data="daily_claim"),
-         InlineKeyboardButton("🔗 Invite Link", callback_data="get_invite")]
+         InlineKeyboardButton("📍 Roadmap", callback_data="view_roadmap")]
     ])
     
-    caption = (f"🕊️ **OWPC Core v3.2**\n\n"
+    caption = (f"🕊️ **OWPC Core v3.3**\n\n"
                f"Welcome, {user.first_name}!\n"
                f"Rank: {get_title(score_res[0])}\n"
                f"Balance: {score_res[0]} pts\n\n"
-               f"Build the hive. Shape the future. 🐝")
+               f"Unity is strength. The hive is growing. 🐝")
                
     if update.effective_chat.type == "private":
         await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=caption, reply_markup=keyboard, parse_mode="Markdown")
 
-async def veos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚡ **VEO ENGINE**\nInnovation and speed. Powering the OWPC ecosystem through Web3 excellence.", parse_mode="Markdown")
-
-async def links_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (f"🌐 **OFFICIAL CHANNELS**\n\n🔹 [Website](https://deeptrade.bio.link)\n🔹 [Twitter]({LINK_X})\n🔹 [YouTube](https://youtube.com/@deeptradex)")
-    await update.message.reply_text(text, parse_mode="Markdown", disable_web_page_preview=True)
+async def roadmap_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        "📍 **OWPC STRATEGIC ROADMAP**\n\n"
+        "🟢 **Phase 1: Genesis** (Complete)\n"
+        "Initial bot deployment and community foundation.\n\n"
+        "🟡 **Phase 2: Hive Growth** (Current)\n"
+        "Referral systems, daily engagement, and social missions. Strengthening the $OWPC core.\n\n"
+        "🔴 **Phase 3: The Awakening** (Upcoming)\n"
+        "DEX Listing (Uniswap/Raydium), Token Airdrop based on Points/Ranks, and Unity Governance."
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
 
 # -------- CALLBACK HANDLERS --------
 
@@ -109,18 +114,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "open_quests":
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Join Telegram Channel", url=LINK_TELEGRAM)],
-            [InlineKeyboardButton("🐦 Follow on X (Twitter)", url=LINK_X)],
-            [InlineKeyboardButton("💰 Claim Reward (+100 PTS)", callback_data="claim_quests")]
+            [InlineKeyboardButton("📢 Join Channel", url=LINK_TELEGRAM_CHANNEL)],
+            [InlineKeyboardButton("🐦 Follow on X", url=LINK_X)],
+            [InlineKeyboardButton("💰 Claim Quest Reward (+100)", callback_data="claim_quests")]
         ])
-        await query.message.reply_text("🚀 **SOCIAL MISSIONS**\nFollow us on both platforms to claim your reward!", reply_markup=keyboard)
+        await query.message.reply_text("🚀 **SOCIAL MISSIONS**\nSupport the ecosystem to earn +100 PTS!", reply_markup=keyboard)
 
     elif query.data == "claim_quests":
         score, _, done = update_user(uid, name)
         if done: await query.message.reply_text("⏳ Mission already completed!")
         else:
             update_user(uid, name, score_inc=100, complete_quest=True)
-            await query.message.reply_text("🔥 **SUCCESS!** +100 pts added to your balance. Rank up!")
+            await query.message.reply_text("🔥 **REWARD SECURED!**\n+100 pts added. Your influence grows.")
+
+    elif query.data == "view_roadmap":
+        await roadmap_command(update, context)
 
     elif query.data == "daily_claim":
         today = datetime.now().strftime("%Y-%m-%d")
@@ -131,7 +139,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text("✅ **DAILY CHECK-IN!** +10 pts.")
 
     elif query.data == "get_invite":
-        await query.message.reply_text(f"🔗 **YOUR INVITE LINK:**\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`", parse_mode="Markdown")
+        await query.message.reply_text(f"🔗 **INVITE LINK:**\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`", parse_mode="Markdown")
 
 # -------- MESSAGE HANDLER --------
 
@@ -143,13 +151,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         old_s = update_user(user.id, user.first_name)[0]
         new_s = update_user(user.id, user.first_name, score_inc=1)[0]
         if get_title(old_s) != get_title(new_s):
-            await update.message.reply_text(f"🎊 **LEVEL UP {user.first_name}!** Rank: **{get_title(new_s)}**!")
+            await update.message.reply_text(f"🎊 **LEVEL UP {user.first_name}!** You are now a **{get_title(new_s)}**!")
 
     if chat.type == "private" or f"@{context.bot.username}" in text:
         try:
             res = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": "You are OWPC Alpha AI. Be visionary."}, {"role": "user", "content": text}],
+                messages=[{"role": "system", "content": "You are OWPC AI Alpha."}, {"role": "user", "content": text}],
                 max_tokens=150
             )
             await update.message.reply_text(res.choices[0].message["content"])
@@ -159,8 +167,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("veos", veos_command))
-    app.add_handler(CommandHandler("links", links_command))
+    app.add_handler(CommandHandler("roadmap", roadmap_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     await app.run_polling(drop_pending_updates=True)
