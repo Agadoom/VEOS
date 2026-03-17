@@ -13,7 +13,7 @@ nest_asyncio.apply()
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 openai.api_key = OPENAI_API_KEY
-BOT_USERNAME = "OWPCinfo_bot" # L'ID de parrainage en dépend
+BOT_USERNAME = "OwpcInfoBot" # L'ID de parrainage en dépend
 
 # -------- STOCKAGE EN MÉMOIRE --------
 user_scores = defaultdict(int) 
