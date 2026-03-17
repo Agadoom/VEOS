@@ -12,8 +12,9 @@ nest_asyncio.apply()
 # -------- CONFIGURATION --------
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID"))
-BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfobot")
+# On utilise .get() pour éviter que le bot plante si la variable est vide
+GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID", 0))
+BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCinfo_bot")
 openai.api_key = OPENAI_API_KEY
 
 # -------- BASE DE DONNÉES --------
@@ -45,9 +46,6 @@ def update_user(user_id, name, score_inc=0, daily=None):
 
 init_db()
 
-# -------- TITRES & LOGO --------
-LOGO_PATH = "media/owpc_logo.png"
-
 def get_title(score):
     if score >= 1000: return "👑 Alpha Legend"
     if score >= 500:  return "💎 Unity Guardian"
@@ -58,45 +56,33 @@ def get_title(score):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # En privé, on affiche le menu
     if update.effective_chat.type == "private":
-        score, _ = update_user(user.id, user.first_name)
+        score_res = update_user(user.id, user.first_name)
+        score = score_res[0]
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_leaderboard")],
-            [InlineKeyboardButton("📅 Daily Points", callback_data="daily_claim")],
-            [InlineKeyboardButton("🔗 YOUR INVITE LINK", callback_data="get_invite")]
+            [InlineKeyboardButton("🔗 Invite Link", callback_data="get_invite")]
         ])
-        await update.message.reply_photo(
-            photo=open(LOGO_PATH, "rb"),
-            caption=f"🕊️ **OWPC Core v2.8**\n\nRank: {get_title(score)}\nPoints: {score}\n\nBuild the hive. 🐝",
-            reply_markup=keyboard
+        await update.message.reply_text(
+            f"🕊️ **OWPC CORE**\n\nGrade: {get_title(score)}\nPoints: {score}",
+            reply_markup=keyboard, parse_mode="Markdown"
         )
 
 async def score_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     res = update_user(user.id, user.first_name)
-    score = res[0]
-    await update.message.reply_text(
-        f"📊 **PROFIL DE {user.first_name.upper()}**\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"⭐ Grade : {get_title(score)}\n"
-        f"📈 Points : {score}\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"Continue d'être actif pour monter en grade ! 🔥"
-    )
+    await update.message.reply_text(f"📊 {user.first_name}, ton score : {res[0]} pts ({get_title(res[0])})")
 
 async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 10")
-    rows = c.fetchall()
-    conn.close()
-    text = "🏆 **OWPC TOP 10 LEADERS**\n\n"
+    rows = c.fetchall(); conn.close()
+    text = "🏆 **TOP 10 OWPC**\n\n"
     for i, (n, s) in enumerate(rows, 1):
-        text += f"{i}. {n} — {s} pts ({get_title(s)})\n"
+        text += f"{i}. {n} — {s} pts\n"
     await update.message.reply_text(text)
 
-# -------- GESTION DES MESSAGES --------
+# -------- LOGIQUE DE MESSAGES --------
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
@@ -105,66 +91,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text
 
-    # LOGS POUR VERIFIER L'ID (A regarder sur Railway)
-    print(f"MESSAGE REÇU - Chat ID: {chat.id} | User: {user.first_name}")
-
-    # --- Points d'activité ---
+    # 1. COMPTAGE DES POINTS (Si dans le groupe officiel)
     if chat.id == GROUP_CHAT_ID:
         old_res = update_user(user.id, user.first_name)
         new_res = update_user(user.id, user.first_name, score_inc=1)
         if get_title(old_res[0]) != get_title(new_res[0]):
-            await update.message.reply_text(f"🎊 **LEVEL UP {user.first_name}!**\nNouveau Grade : **{get_title(new_res[0])}**")
+            await update.message.reply_text(f"🎊 **LEVEL UP {user.first_name}!** -> {get_title(new_res[0])}")
 
-    # --- IA (Privé ou Mention/Reply) ---
+    # 2. RÉPONSE IA (Privé OU Mention (@bot) OU Réponse (Reply))
     is_private = chat.type == "private"
     is_mentioned = f"@{context.bot.username}" in text
     is_reply = update.message.reply_to_message and update.message.reply_to_message.from_user.id == context.bot.id
 
     if is_private or is_mentioned or is_reply:
         try:
-            clean_text = text.replace(f"@{context.bot.username}", "").strip()
             res = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": "Tu es l'IA Alpha OWPC. Visionnaire."},
-                          {"role": "user", "content": clean_text}],
+                messages=[{"role": "system", "content": "Tu es l'IA Alpha OWPC."},
+                          {"role": "user", "content": text}],
                 max_tokens=150
             )
             await update.message.reply_text(res.choices[0].message["content"])
         except: pass
 
-# -------- BOUTONS --------
+# -------- BOUTONS & MAIN --------
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    uid = query.from_user.id
-    name = query.from_user.first_name
     await query.answer()
-
     if query.data == "view_leaderboard":
-        # On appelle la fonction de texte du leaderboard ici
         await leaderboard_command(update, context)
     elif query.data == "get_invite":
-        await query.message.reply_text(f"🔗 `https://t.me/{BOT_USERNAME}?start=ref_{uid}`")
-    elif query.data == "daily_claim":
-        today = datetime.now().strftime("%Y-%m-%d")
-        score, last_d = update_user(uid, name)
-        if last_d == today:
-            await query.message.reply_text("⏳ Déjà réclamé !")
-        else:
-            update_user(uid, name, score_inc=10, daily=today)
-            await query.message.reply_text("✅ +10 pts !")
+        await query.message.reply_text(f"https://t.me/{BOT_USERNAME}?start=ref_{query.from_user.id}")
 
-# -------- LANCEMENT --------
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
-    
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("score", score_command))
     app.add_handler(CommandHandler("leaderboard", leaderboard_command))
-    
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    print("🚀 OWPC Bot v2.8 Running...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
