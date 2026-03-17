@@ -91,6 +91,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard()
         )
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f"DEBUG: Message reçu du chat ID: {update.effective_chat.id}") # <-- AJOUTE ÇA
+    if not update.message or not update.message.text: return
+
+
+
 # -------- HANDLER DE MESSAGES (OPTIMISÉ GROUPE) --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text: return
