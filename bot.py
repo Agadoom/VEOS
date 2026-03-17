@@ -1,8 +1,8 @@
 import os
 import re
 import asyncio
+import random
 import nest_asyncio
-import openai
 from collections import defaultdict
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
@@ -11,95 +11,117 @@ nest_asyncio.apply()
 
 # -------- ENV --------
 TOKEN = os.getenv("TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-openai.api_key = OPENAI_API_KEY
-
-if not TOKEN or not OPENAI_API_KEY:
-    print("❌ TOKEN ou OPENAI_API_KEY manquant")
+if not TOKEN:
+    print("❌ TOKEN manquant")
     exit()
 
 # -------- DATA --------
 user_messages = defaultdict(list)
 
-CA_BASE = "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191"
-CA_BLUM = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+# Contracts
+GENESIS_CA = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
+UNITY_CA = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
+VEO_CA = "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
+
+# Links
+GENESIS_LINK = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
+UNITY_LINK = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
+VEO_LINK = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
+
+WEBSITE = "https://deeptrade.bio.link"
+YOUTUBE = "https://youtube.com/@deeptradex"
+TELEGRAM = "https://t.me/+SQhKj-gWWmcyODY0"
 
 allowed_links = [
     "deeptrade.bio.link",
-    "base.app",
-    "t.me/blum"
+    "t.me/blum",
+    "youtube.com"
 ]
 
 # -------- COMMANDS --------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    text = (
-        "👋 Welcome to VEO & UNITY\n\n"
-        "🚀 Community driven crypto\n"
-        "🌍 One World Peace Coins ecosystem\n\n"
-        "Use /links for official links"
+    await update.message.reply_text(
+        "🌍 Welcome to OWPC Ecosystem\n\n"
+        "🧬 GENESIS | 💎 UNITY | ⚡ VEO\n\n"
+        "🚀 Phase 2 is LIVE\n"
+        "Use /buy to get started"
     )
-
-    await update.message.reply_text(text)
-
 
 async def links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    text = (
-        "🔗 Official Links\n\n"
-        f"💠 Base CA\n{CA_BASE}\n\n"
-        f"💎 Blum CA\n{CA_BLUM}\n\n"
-        "🌐 Website\nhttps://deeptrade.bio.link"
-    )
-
-    await update.message.reply_text(text)
-
-
-async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     await update.message.reply_text(
-        "📢 Invite friends and grow the VEO & UNITY community 🚀"
+        "🔗 OFFICIAL LINKS\n\n"
+        f"🌐 Website:\n{WEBSITE}\n\n"
+        f"📺 YouTube:\n{YOUTUBE}\n\n"
+        f"💬 Community:\n{TELEGRAM}"
     )
 
+async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🚀 BUY OWPC ECOSYSTEM\n\n"
 
-# -------- WELCOME --------
+        "🧬 GENESIS\n"
+        f"{GENESIS_CA}\n{GENESIS_LINK}\n\n"
 
-async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        "💎 UNITY\n"
+        f"{UNITY_CA}\n{UNITY_LINK}\n\n"
 
-    for member in update.message.new_chat_members:
+        "⚡ VEO\n"
+        f"{VEO_CA}\n{VEO_LINK}\n\n"
 
-        await update.message.reply_text(
-            f"👋 Welcome {member.first_name}\n\n"
-            "🚀 Welcome to VEO & UNITY\n"
-            "Use /links to see official links"
-        )
+        "🌍 You are still early.\n"
+        "Strong holders build the future 💎"
+    )
 
+async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "⚠️ SELLING NOW?\n\n"
+        "Most people sell before growth.\n"
+        "Smart investors hold during quiet phases.\n\n"
+        "🚀 Phase 2 just started.\n"
+        "The real move hasn't begun."
+    )
 
-# -------- AI CHAT --------
+async def ecosystem(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🌍 OWPC ECOSYSTEM\n\n"
+        "🧬 GENESIS → Foundation\n"
+        "💎 UNITY → Community\n"
+        "⚡ VEO → Expansion\n\n"
+        "One vision. One future."
+    )
 
-async def ask_ai(prompt):
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🚀 OWPC STATUS\n\n"
+        "Phase: 2\n"
+        "Development: Active\n"
+        "Community: Growing\n\n"
+        "We are building long-term 🌍"
+    )
 
-    try:
+# -------- AUTO ACTIVITY --------
 
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful crypto community assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=150,
-            temperature=0.7
-        )
+async def auto_hype(app):
 
-        return response["choices"][0]["message"]["content"]
+    messages = [
+        "🌍 OWPC is building silently...",
+        "💎 Strong holders are accumulating...",
+        "🚀 Phase 2 energy is rising...",
+        "⚡ Big move can happen anytime 👀"
+    ]
 
-    except Exception as e:
+    while True:
+        await asyncio.sleep(1800)
 
-        print("AI error:", e)
-        return "🤖 AI temporarily unavailable."
-
+        try:
+            await app.bot.send_message(
+                chat_id=-100XXXXXXXXXX,  # ⚠️ METS TON CHAT ID
+                text=random.choice(messages)
+            )
+        except:
+            pass
 
 # -------- MESSAGE HANDLER --------
 
@@ -111,28 +133,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (update.message.text or "").lower()
     user_id = update.message.from_user.id
 
-    # -------- QUICK CRYPTO ANSWERS --------
-
-    if "ca" in text or "contract" in text:
-
-        await update.message.reply_text(
-            f"💠 Contract Address\n\nBase:\n{CA_BASE}\n\nBlum:\n{CA_BLUM}"
-        )
-        return
+    # -------- QUICK TRIGGERS --------
 
     if "buy" in text:
-
-        await update.message.reply_text(
-            "🚀 Buy VEO / UNITY\n\n"
-            "https://base.app\n"
-            "or use Blum Mini App"
-        )
+        await buy(update, context)
         return
 
-    if "price" in text:
+    if "sell" in text:
+        await sell(update, context)
+        return
 
+    if "ca" in text:
         await update.message.reply_text(
-            "📈 Price tracking coming soon.\nStay tuned 🚀"
+            f"🧬 GENESIS:\n{GENESIS_CA}\n\n"
+            f"💎 UNITY:\n{UNITY_CA}\n\n"
+            f"⚡ VEO:\n{VEO_CA}"
         )
         return
 
@@ -141,34 +156,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_messages[user_id].append(update.message.date)
 
     if len(user_messages[user_id]) > 6:
-
         try:
             await update.message.delete()
         except:
             pass
-
         user_messages[user_id].clear()
         return
 
-    # -------- ANTI SCAM LINKS --------
+    # -------- ANTI SCAM --------
 
     if re.search(r"http|t\.me|\.com|\.xyz", text):
-
         if not any(link in text for link in allowed_links):
-
             try:
                 await update.message.delete()
             except:
                 pass
-
             return
-
-    # -------- AI RESPONSE --------
-
-    reply = await ask_ai(text)
-
-    await update.message.reply_text(f"🤖 {reply}")
-
 
 # -------- MAIN --------
 
@@ -178,16 +181,18 @@ async def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("links", links))
-    app.add_handler(CommandHandler("invite", invite))
-
-    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("sell", sell))
+    app.add_handler(CommandHandler("ecosystem", ecosystem))
+    app.add_handler(CommandHandler("status", status))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🚀 Bot démarré")
+    print("🚀 OWPC Bot Running")
 
-    await app.run_polling(drop_pending_updates=True)
+    asyncio.create_task(auto_hype(app))
 
+    await app.run_polling()
 
 if __name__ == "__main__":
     asyncio.run(main())
