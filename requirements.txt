@@ -1,5 +1,5 @@
 python-telegram-bot==20.8
-openai==0.28.1
+openai==1.14.0
+nest-asyncio==1.6.0
 requests
 web3
-nest_asyncio
