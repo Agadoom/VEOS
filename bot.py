@@ -8,22 +8,23 @@ from collections import defaultdict
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
-import openai
 
 nest_asyncio.apply()
 
 # -------- CONFIGURATION --------
 TOKEN = os.getenv("TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROUP_CHAT_ID = int(os.getenv("GROUP_CHAT_ID", 0))
 BOT_USERNAME = "OwpcInfoBot"
 ADMIN_ID = 1414016840 
 
-# -------- LIENS OFFICIELS --------
+# -------- LIENS & INFOS JETONS --------
+LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
+LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
+LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 LINK_CHANNEL = "https://t.me/+SQhKj-gWWmcyODY0"
 LINK_X = "https://x.com/DeepTradeX"
 
-# -------- BASE DE DONNÉES --------
+# -------- DATABASE --------
 DB_PATH = "data/owpc_data.db"
 os.makedirs("data", exist_ok=True)
 
@@ -33,8 +34,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY, name TEXT, score INTEGER, last_daily TEXT, 
                   quests_done INTEGER DEFAULT 0, referred_by INTEGER, is_verified INTEGER DEFAULT 0)''')
-    try:
-        c.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
+    try: c.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
     except: pass
     conn.commit(); conn.close()
 
@@ -57,113 +57,117 @@ def update_user(user_id, name, score_inc=0, daily=None, complete_quest=False, re
 
 init_db()
 
-# -------- GÉNÉRATEUR D'IMAGE HAUTE RÉSOLUTION --------
-
+# -------- IMAGE GENERATOR (H-RES) --------
 def create_visual_card(name, score, rank, uid, is_verified=False):
     w, h = 1600, 900
     base = Image.new('RGB', (w, h), (10, 10, 18))
     draw = ImageDraw.Draw(base)
     gold, white = (212, 175, 55), (245, 245, 245)
-    
     draw.rectangle([30, 30, 1570, 870], outline=gold, width=8)
-    
     try:
         logo = Image.open("media/owpc_logo.png").convert("RGBA")
         watermark = logo.resize((400, 400))
         base.paste(ImageEnhance.Brightness(watermark).enhance(0.2), (1150, 450), ImageEnhance.Brightness(watermark).enhance(0.2))
         base.paste(logo.resize((150, 150)), (1380, 60), logo.resize((150, 150)))
     except: pass
-
-    # On dessine le texte (le décalage simule une plus grande taille si la font est fixée)
     draw.text((100, 80), "OWPC DIGITAL PASSPORT", fill=gold)
     draw.text((100, 300), f"HOLDER: {name.upper()}", fill=white)
     draw.text((100, 420), f"RANK: {rank}", fill=gold)
     draw.text((100, 540), f"CREDITS: {score} OWPC PTS", fill=white)
-    
     if is_verified:
         draw.ellipse([1200, 200, 1500, 500], outline=gold, width=6)
         draw.text((1260, 320), "VERIFIED", fill=gold)
-        draw.text((100, 620), "STATUS: VERIFIED CITIZEN", fill=gold)
-    else:
-        draw.text((100, 620), "STATUS: ACTIVE SEEKER", fill=(150, 150, 150))
-
     draw.text((100, 780), f"UID: {uid}", fill=(120, 120, 120))
     bio = BytesIO(); bio.name = 'passport.png'; base.save(bio, 'PNG'); bio.seek(0)
     return bio
 
 def get_rank_info(score):
-    if score >= 1000: return "👑 ALPHA LEGEND", "MAX"
-    if score >= 500:  return "💎 UNITY GUARDIAN", 1000
-    if score >= 100:  return "🛠️ BUILDER", 500
-    return "🐣 SEEKER", 100
+    if score >= 1000: return "👑 ALPHA LEGEND"
+    if score >= 500:  return "💎 UNITY GUARDIAN"
+    if score >= 100:  return "🛠️ BUILDER"
+    return "🐣 SEEKER"
 
-# -------- GESTIONNAIRES DE COMMANDES --------
+# -------- HANDLERS --------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     res = update_user(user.id, user.first_name)
     kb = [
+        [InlineKeyboardButton("💰 Invest in OWPC", callback_data="invest_hub")],
         [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
         [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📊 Global Stats", callback_data="view_stats")],
         [InlineKeyboardButton("📅 Daily Points", callback_data="daily"), InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
     ]
-    cap = f"🕊️ **OWPC Core v4.7**\n\nRank: {get_rank_info(res[0])[0]}\nPoints: {res[0]}\n\nWelcome to the hive. 🚀"
+    cap = f"🕊️ **OWPC Ecosystem v5.0**\n\nRank: {get_rank_info(res[0])}\nPoints: {res[0]}\n\nWelcome to the future of decentralized peace. 🚀"
     try: await update.message.reply_photo(photo=open("media/owpc_logo.png", "rb"), caption=cap, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
     except: await update.message.reply_text(cap, reply_markup=InlineKeyboardMarkup(kb))
-
-# -------- GESTION DES BOUTONS (CALLBACKS) --------
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     uid, name = query.from_user.id, query.from_user.first_name
     await query.answer()
 
-    # 1. MON PASSEPORT
-    if query.data == "my_card":
+    # --- INVEST HUB (NOUVEAUTÉ v5.0) ---
+    if query.data == "invest_hub":
+        txt = (
+            "💰 **OWPC INVESTOR CENTER**\n\n"
+            "Choose your asset and join the revolution:\n\n"
+            "🧬 **GENESIS**: The core utility token of our ecosystem.\n"
+            "💎 **UNITY**: The community governance and reward asset.\n"
+            "⚡ **VEO**: The high-speed transactional asset.\n\n"
+            "Click a button below to buy on Blum Memepad! 🚀"
+        )
+        kb = [
+            [InlineKeyboardButton("🧬 Buy GENESIS", url=LINK_GENESIS)],
+            [InlineKeyboardButton("💎 Buy UNITY", url=LINK_UNITY)],
+            [InlineKeyboardButton("⚡ Buy VEO", url=LINK_VEO)],
+            [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]
+        ]
+        await query.message.reply_text(txt, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(kb))
+
+    elif query.data == "back_home":
+        # Relance le menu start sans renvoyer l'image
         res = update_user(uid, name)
-        score, is_v = res[0], res[3]
-        rank = get_rank_info(score)[0]
+        kb = [
+            [InlineKeyboardButton("💰 Invest in OWPC", callback_data="invest_hub")],
+            [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
+            [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📊 Global Stats", callback_data="view_stats")],
+            [InlineKeyboardButton("📅 Daily Points", callback_data="daily"), InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
+        ]
+        await query.message.edit_text(f"🕊️ **OWPC Core Menu**\n\nPoints: {res[0]}\nRank: {get_rank_info(res[0])}", reply_markup=InlineKeyboardMarkup(kb))
+
+    # --- AUTRES CALLBACKS ---
+    elif query.data == "my_card":
+        res = update_user(uid, name); score, is_v = res[0], res[3]
+        rank = get_rank_info(score)
         wait = await query.message.reply_text("⏳ *Generating Passport...*")
         card_img = create_visual_card(name, score, rank, uid, is_verified=(is_v == 1))
-        
-        share_txt = f"Claiming my status on OWPC! Rank: {rank} 🕊️ Join: https://t.me/{BOT_USERNAME}?start=ref_{uid}"
-        kb = [[InlineKeyboardButton("🐦 Share on X", url=f"https://twitter.com/intent/tweet?text={share_txt.replace(' ', '%20')}")],
-              [InlineKeyboardButton("📩 Request Verification", callback_data="req_verify")]]
-        
-        await query.message.reply_photo(photo=card_img, caption=f"🆔 **{name}**, your official Citizen Identity.", reply_markup=InlineKeyboardMarkup(kb))
+        kb = [[InlineKeyboardButton("🐦 Share on X", url=f"https://twitter.com/intent/tweet?text=I%20am%20a%20Citizen%20of%20OWPC!")]]
+        await query.message.reply_photo(photo=card_img, caption=f"🆔 **{name}**, official Passport.", reply_markup=InlineKeyboardMarkup(kb))
         await wait.delete()
 
-    # 2. QUEST CENTER (CORRIGÉ)
     elif query.data == "open_q":
-        kb = [
-            [InlineKeyboardButton("📢 Join Channel", url=LINK_CHANNEL)],
-            [InlineKeyboardButton("🐦 Follow our X", url=LINK_X)],
-            [InlineKeyboardButton("💰 Claim Quest Reward (+100)", callback_data="claim_q")]
-        ]
-        await query.message.reply_text("🚀 **QUEST CENTER**\n\nComplete these tasks to earn extra points!", reply_markup=InlineKeyboardMarkup(kb))
+        kb = [[InlineKeyboardButton("📢 Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("🐦 Follow X", url=LINK_X)], [InlineKeyboardButton("💰 Claim Reward (+100)", callback_data="claim_q")]]
+        await query.message.reply_text("🚀 **QUEST CENTER**", reply_markup=InlineKeyboardMarkup(kb))
 
     elif query.data == "claim_q":
         res = update_user(uid, name)
-        if res[2] == 1: # Si quests_done est déjà à 1
-            await query.message.reply_text("❌ Quest already completed!")
+        if res[2] == 1: await query.message.reply_text("❌ Already done!")
         else:
             update_user(uid, name, score_inc=100, complete_quest=True)
-            await query.message.reply_text("🔥 **SUCCESS!** +100 Points added to your account.")
+            await query.message.reply_text("🔥 **SUCCESS!** +100 Points.")
 
-    # 3. DAILY POINTS (CORRIGÉ)
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
         res = update_user(uid, name)
-        if res[1] == today:
-            await query.message.reply_text("⏳ Already claimed! Come back tomorrow.")
+        if res[1] == today: await query.message.reply_text("⏳ Tomorrow!")
         else:
             update_user(uid, name, score_inc=15, daily=today)
-            await query.message.reply_text("✅ **Daily Reward:** +15 Points added!")
+            await query.message.reply_text("✅ +15 Points!")
 
-    # 4. AUTRES FONCTIONS
     elif query.data == "view_stats":
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        c.execute("SELECT COUNT(*), SUM(score) FROM users"); s = c.fetchone()
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT COUNT(*), SUM(score) FROM users")
+        s = c.fetchone()
         await query.message.reply_text(f"📊 **GLOBAL STATS**\n\nCitizens: {s[0]}\nTotal Points: {s[1]}")
 
     elif query.data == "view_lb":
@@ -173,21 +177,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(txt)
 
     elif query.data == "get_invite":
-        await query.message.reply_text(f"🔗 **INVITE LINK:**\n\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`")
+        await query.message.reply_text(f"🔗 **INVITE LINK:**\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`")
 
-    elif query.data == "req_verify":
-        await query.message.reply_text("📩 Request sent to Admin!")
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"🔔 **VERIFY REQ:** {name} ({uid})")
-
-# -------- ADMIN & MAIN --------
-
+# -------- ADMIN COMMAND --------
 async def verify_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID: return
     try:
         tid = int(context.args[0])
         update_user(tid, "Verified", verify=1, score_inc=500)
-        await update.message.reply_text(f"✅ User {tid} verified.")
-        await context.bot.send_message(chat_id=tid, text="👑 Your profile is now VERIFIED!")
+        await update.message.reply_text(f"✅ User {tid} VERIFIED.")
+        await context.bot.send_message(chat_id=tid, text="👑 Profile VERIFIED! Check your passport.")
     except: pass
 
 async def main():
@@ -195,7 +194,7 @@ async def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("verify", verify_user))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("🚀 OWPC v4.7 - Full Rewards & Fix Live")
+    print("🚀 OWPC v5.0 - INVESTOR EDITION LIVE")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
