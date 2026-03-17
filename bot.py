@@ -1,110 +1,121 @@
-import logging
-import os
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
-import openai
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# CONFIG
-TOKEN = os.getenv("TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TOKEN = "YOUR_BOT_TOKEN_HERE"
 
-if not TOKEN or not OPENAI_API_KEY:
-    print("❌ TOKEN ou OPENAI_API_KEY manquant")
-    exit(1)
+# ===== MENU PRINCIPAL =====
+def main_menu():
+    keyboard = [
+        [InlineKeyboardButton("📊 Market", callback_data="market")],
+        [InlineKeyboardButton("🧠 AI Analyse", callback_data="ai")],
+        [InlineKeyboardButton("📢 Signals", callback_data="signals")],
+        [InlineKeyboardButton("🔥 Buy OWPC", callback_data="buy")],
+        [InlineKeyboardButton("💰 Wallet", callback_data="wallet")],
+        [InlineKeyboardButton("⚙️ Settings", callback_data="settings")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-openai.api_key = OPENAI_API_KEY
-
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-
-# MENU ULTRA PRO
-menu = [
-    ["📊 Market", "🧠 AI Analyse"],
-    ["💰 Wallet", "📢 Signal"],
-    ["⚙️ Settings"]
-]
-
-reply_markup = ReplyKeyboardMarkup(menu, resize_keyboard=True)
-
-# START
+# ===== START =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+    text = (
         "🚀 Welcome to VEO Crypto Bot\n\n"
-        "Your all-in-one Web3 assistant.\n"
-        "Choose an option below 👇",
-        reply_markup=reply_markup
+        "The smart gateway to the OWPC ecosystem 🌍\n\n"
+        "📊 Live Market Data\n"
+        "🧠 AI Crypto Analysis\n"
+        "📢 Early Signals & Opportunities\n\n"
+        "Start exploring now 👇"
     )
+    await update.message.reply_text(text, reply_markup=main_menu())
 
-# MARKET
-async def market(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📊 Market data coming soon...")
+# ===== CALLBACK HANDLER =====
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-# WALLET
-async def wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("💰 Wallet feature coming soon...")
+    data = query.data
 
-# SIGNAL
-async def signal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("📢 Signals coming soon...")
-
-# SETTINGS
-async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚙️ Settings panel coming soon...")
-
-# AI
-async def ai(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": user_text}]
+    if data == "market":
+        text = (
+            "📊 OWPC Market Overview\n\n"
+            "💰 Price: $0.0001\n"
+            "📈 Market Cap: $890K\n"
+            "👥 Holders: 120\n"
+            "🔄 Volume: $907\n\n"
+            "📊 Trend: Bullish 🟢"
         )
 
-        reply = response.choices[0].message.content
-        await update.message.reply_text(reply)
+    elif data == "ai":
+        text = (
+            "🧠 AI Crypto Assistant\n\n"
+            "Ask me anything about OWPC or crypto.\n\n"
+            "💬 Type your question below..."
+        )
 
-    except Exception as e:
-        await update.message.reply_text(f"❌ AI Error: {e}")
+    elif data == "signals":
+        text = (
+            "📢 Early Signals\n\n"
+            "🚀 OWPC Momentum Detected\n"
+            "📊 Volume increasing\n"
+            "👥 New holders rising\n\n"
+            "🔥 Potential early entry zone"
+        )
 
-# ROUTER
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
+    elif data == "buy":
+        text = (
+            "🔥 Buy OWPC Now\n\n"
+            "👉 https://your-link-here.com\n\n"
+            "⚠️ Always DYOR"
+        )
 
-    if text == "📊 Market":
-        await market(update, context)
+    elif data == "wallet":
+        text = (
+            "💰 Wallet Dashboard\n\n"
+            "Coming soon...\n"
+            "🔐 Track assets\n"
+            "📊 Portfolio insights"
+        )
 
-    elif text == "💰 Wallet":
-        await wallet(update, context)
-
-    elif text == "📢 Signal":
-        await signal(update, context)
-
-    elif text == "⚙️ Settings":
-        await settings(update, context)
-
-    elif text == "🧠 AI Analyse":
-        await update.message.reply_text("💬 Send me your question...")
+    elif data == "settings":
+        text = (
+            "⚙️ Settings\n\n"
+            "🔔 Notifications: ON\n"
+            "🌍 Language: EN"
+        )
 
     else:
-        await ai(update, context)
+        text = "Unknown option."
 
-# MAIN
+    await query.edit_message_text(text=text, reply_markup=main_menu())
+
+# ===== AI RESPONSE (FAKE INTELLIGENCE POUR L’INSTANT) =====
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text.lower()
+
+    if "owpc" in user_text:
+        response = (
+            "📊 AI Insight:\n\n"
+            "OWPC is an early-stage project with growth potential.\n"
+            "Low market cap + increasing activity = opportunity.\n\n"
+            "⚠️ High risk, high reward."
+        )
+    else:
+        response = (
+            "🤖 AI Response:\n\n"
+            "Crypto market is volatile.\n"
+            "Always do your own research."
+        )
+
+    await update.message.reply_text(response)
+
+# ===== MAIN =====
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🚀 BOT ONLINE")
+    print("Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
