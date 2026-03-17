@@ -6,7 +6,14 @@ import openai
 from collections import defaultdict
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+    filters
+)
 
 nest_asyncio.apply()
 
@@ -22,17 +29,14 @@ if not TOKEN or not OPENAI_API_KEY:
 
 # -------- DATA --------
 user_messages = defaultdict(list)
-user_activity = defaultdict(int)  # messages + quiz
-quiz_active = {}  # user_id: {question, answer}
-last_active = {}  # user_id: datetime
+user_activity = defaultdict(int)       # messages + quiz points
+quiz_active = {}                       # user_id -> {"answer": ""}
+last_active = {}                       # user_id -> datetime of last message
+holders_inactive_days = 3              # envoyer alertes si inactif > 3 jours
 
 CA_BASE = "0x4db4c0a8399d0a1e00110656a38f6dc5a94c4191"
 CA_BLUM = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
-allowed_links = [
-    "deeptrade.bio.link",
-    "base.app",
-    "t.me/blum"
-]
+allowed_links = ["deeptrade.bio.link","base.app","t.me/blum"]
 GIF_PATH = "lv_0_20260310200554.gif"
 
 # -------- COMMANDS --------
@@ -45,10 +49,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("Links", callback_data="links")],
         [InlineKeyboardButton("Invite", callback_data="invite")],
         [InlineKeyboardButton("Leaderboard", callback_data="leaderboard")],
-        [InlineKeyboardButton("Quiz", callback_data="quiz")]
+        [InlineKeyboardButton("Quiz", callback_data="quiz")],
+        [InlineKeyboardButton("Hype Alerts", callback_data="hype")],
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("🌍 Welcome to OWPC!\nChoose an option:", reply_markup=reply_markup)
+    await update.message.reply_text("🌍 Welcome to OWPC Ultra Pro!\nChoose an option:", reply_markup=reply_markup)
 
 # -------- CALLBACK BUTTONS --------
 
@@ -80,7 +85,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
     elif data == "quiz":
-        question, answer, options = "Which OWPC token has the Golden Pigeon logo?", "GENESIS", ["GENESIS", "UNITY", "VEO"]
+        question, answer, options = "Which OWPC token has the Golden Pigeon logo?", "GENESIS", ["GENESIS","UNITY","VEO"]
         quiz_active[user_id] = {"answer": answer}
         keyboard = [[InlineKeyboardButton(opt, callback_data=f"quiz_{opt}")] for opt in options]
         await query.edit_message_text(question, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -94,6 +99,22 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await query.edit_message_text(f"❌ Wrong! The correct answer was {correct}.")
             quiz_active.pop(user_id, None)
+    elif data == "hype":
+        # Liste holders inactifs
+        now = datetime.now()
+        inactive_users = [uid for uid, last in last_active.items() if now - last > timedelta(days=holders_inactive_days)]
+        text = "⚡ Hype Alert for inactive holders:\n"
+        if inactive_users:
+            for uid in inactive_users:
+                try:
+                    user = await context.bot.get_chat(uid)
+                    name = user.first_name
+                except:
+                    name = str(uid)
+                text += f"- {name}\n"
+        else:
+            text += "All holders active! 🚀"
+        await query.edit_message_text(text)
 
 # -------- AI CHAT --------
 
@@ -101,16 +122,12 @@ async def ask_ai(prompt):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful crypto community assistant."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role":"system","content":"You are a helpful crypto community assistant."},{"role":"user","content":prompt}],
             max_tokens=100,
             temperature=0.7
         )
         return response["choices"][0]["message"]["content"]
-    except Exception as e:
-        print("AI error:", e)
+    except:
         return "🤖 AI temporarily unavailable."
 
 # -------- MESSAGE HANDLER --------
@@ -125,30 +142,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_active[user_id] = datetime.now()
     user_activity[user_id] += 1
     user_messages[user_id].append(update.message.date)
+
+    # Anti spam
     if len(user_messages[user_id]) > 6:
-        try:
-            await update.message.delete()
-        except:
-            pass
+        try: await update.message.delete()
+        except: pass
         user_messages[user_id].clear()
         return
 
     if re.search(r"http|t\.me|\.com|\.xyz", text):
         if not any(link in text for link in allowed_links):
-            try:
-                await update.message.delete()
-            except:
-                pass
+            try: await update.message.delete()
+            except: pass
             return
 
+    # Quick crypto answers
     if "ca" in text or "contract" in text:
         await update.message.reply_text(f"💠 Contract Addresses:\nBase: {CA_BASE}\nBlum: {CA_BLUM}")
         return
-
     if "buy" in text:
         await update.message.reply_text("🚀 Buy VEO / UNITY / GENESIS\nhttps://base.app\nor use Blum Mini App")
         return
-
     if "price" in text:
         await update.message.reply_text("📈 Price tracking coming soon. Stay tuned 🚀")
         return
@@ -160,9 +174,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
-        await update.message.reply_text(
-            f"👋 Welcome {member.first_name}!\nUse /start to see the menu 🌍"
-        )
+        await update.message.reply_text(f"👋 Welcome {member.first_name}!\nUse /start to see the menu 🌍")
 
 # -------- STATS --------
 
@@ -182,8 +194,8 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_buttons))
 
-    print("🚀 Bot OWPC Pro avec Quiz démarré")
-    # JobQueue temporairement désactivé
+    print("🚀 OWPC Ultra Pro Bot démarré")
+    # Auto-hype JobQueue temporairement désactivé
     # app.job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
 
     await app.run_polling(drop_pending_updates=True)
