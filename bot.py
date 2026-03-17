@@ -6,8 +6,8 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    MessageHandler,
     CallbackQueryHandler,
+    MessageHandler,
     ContextTypes,
     filters
 )
@@ -34,8 +34,8 @@ LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKy
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 
 # ---- Media Locaux ----
-LOGO = "owpc_logo.png"       # ton logo local
-GIF_LAUNCH = "Iv_O_20260310200554.gif" # ton GIF local
+LOGO = "owpc_logo.png"
+GIF_LAUNCH = "Iv_O_20260310200554.gif"
 
 # ---- Allowed links ----
 allowed_links = [
@@ -62,7 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # On envoie le GIF puis le logo avec texte
+    # Envoie GIF puis logo
     if update.message:
         await update.message.reply_animation(animation=open(GIF_LAUNCH, "rb"))
         await update.message.reply_photo(
@@ -71,16 +71,57 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
             reply_markup=reply_markup
         )
-    elif update.callback_query:
-        await update.callback_query.message.reply_photo(
-            photo=open(LOGO, "rb"),
-            caption=text,
-            parse_mode="Markdown",
-            reply_markup=reply_markup
+
+# -------- BUTTON HANDLER --------
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()  # ferme le chargement
+
+    if query.data == "buy":
+        await query.message.reply_text(
+            f"💰 Buy OWPC Tokens:\n🧬 GENESIS: {LINK_GENESIS}\n💎 UNITY: {LINK_UNITY}\n⚡ VEO: {LINK_VEO}",
+            disable_web_page_preview=True
+        )
+    elif query.data == "links":
+        await query.message.reply_text(
+            "🔗 Official Links:\n🌐 Website: https://deeptrade.bio.link\n📺 YouTube: https://youtube.com/@deeptradex\n💬 Telegram: https://t.me/+SQhKj-gWWmcyODY0",
+            disable_web_page_preview=True
+        )
+    elif query.data == "invite":
+        await query.message.reply_text(
+            "📢 Invite friends and grow the OWPC community!"
+        )
+    elif query.data == "ecosystem":
+        await query.message.reply_text(
+            "🌍 OWPC Ecosystem Overview:\n🧬 GENESIS → Foundation\n💎 UNITY → Liquidity & staking\n⚡ VEO → Utility token"
         )
 
-# -------- Les autres fonctions (buy, links, invite, ecosystem, welcome, handle_message, button_handler) restent identiques --------
-# (tu peux copier la version précédente pour ces fonctions)
+# -------- WELCOME NEW MEMBERS --------
+async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for member in update.message.new_chat_members:
+        await update.message.reply_text(
+            f"👋 Welcome {member.first_name}!\nUse /start to see the OWPC ecosystem 🚀"
+        )
+
+# -------- ANTI-SPAM --------
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.is_bot:
+        return
+    user_id = update.message.from_user.id
+    text = (update.message.text or "").lower()
+
+    user_messages[user_id].append(update.message.date)
+    if len(user_messages[user_id]) > 6:
+        try: await update.message.delete()
+        except: pass
+        user_messages[user_id].clear()
+        return
+
+    if any(link in text for link in ["http", ".com", ".xyz", "t.me"]):
+        if not any(link in text for link in allowed_links):
+            try: await update.message.delete()
+            except: pass
+            return
 
 # -------- MAIN --------
 async def main():
@@ -88,9 +129,8 @@ async def main():
 
     # Commandes
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("buy", lambda u, c: asyncio.create_task(buy(u, c))))
 
-    # Boutons inline
+    # Inline buttons
     app.add_handler(CallbackQueryHandler(button_handler))
 
     # Nouveaux membres
@@ -99,7 +139,7 @@ async def main():
     # Anti-spam
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🚀 OWPC Bot Ultra-Pro running with local media...")
+    print("🚀 OWPC Bot running with GIF + logo + inline buttons...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
