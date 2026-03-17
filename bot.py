@@ -24,6 +24,7 @@ openai.api_key = OPENAI_API_KEY
 
 # -------- DATA --------
 user_activity = defaultdict(int)
+quiz_scores = defaultdict(int)
 CA_GENESIS = "EQADd56FsTcaOntj-F-he1DUnkPVnsHx7WolQpWUuW6tl1eS"
 CA_UNITY = "EQAN2MV2quj5n9CluKtoXI4tSCql_D_wzhw5c5RvngI_O4Hx"
 CA_VEO = "EQC80jMdQW-bS6ePB99HJIGN-krRBzPSJ8KIZ_dfwBhDV-wt"
@@ -62,7 +63,7 @@ async def ask_ai(prompt):
 # -------- COMMANDS --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 Welcome to OWPC Ultimate Hub\n🚀 Community driven crypto\n🌍 One World Peace Coins ecosystem",
+        "👋 Welcome to OWPC Ultimate Hub Pro\n🚀 Community driven crypto\n🌍 One World Peace Coins ecosystem",
         reply_markup=main_menu()
     )
 
@@ -74,6 +75,12 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"VEO: {len(user_activity)} holders approx\n"
     )
     await update.message.reply_text(text, reply_markup=main_menu())
+
+async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Exemples de question simples
+    question = "Which OWPC token was launched first? GENESIS, UNITY, or VEO?"
+    await update.message.reply_text(question)
+    # On peut ensuite traiter les réponses et attribuer des points
 
 # -------- CALLBACKS --------
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -132,7 +139,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🤖 {reply}")
 
 # -------- AUTO-HYPE TASK --------
-async def auto_hype(context):
+async def auto_hype(context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_photo(
             chat_id=int(GROUP_ID),
@@ -147,16 +154,17 @@ async def auto_hype(context):
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
+    # Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("quiz", quiz))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Auto-hype every 4 hours
-    job_queue = app.job_queue
-    job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
+    app.job_queue.run_repeating(auto_hype, interval=60*60*4, first=10)
 
-    print("🚀 OWPC Ultimate Hub Bot démarré")
+    print("🚀 OWPC Ultimate Hub Pro Bot démarré")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
