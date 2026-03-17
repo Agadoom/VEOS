@@ -5,7 +5,7 @@ import nest_asyncio
 import openai
 from datetime import datetime, timedelta
 from collections import defaultdict
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 )
@@ -15,15 +15,26 @@ nest_asyncio.apply()
 # -------- ENV --------
 TOKEN = os.getenv("TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GROUP_ID = os.getenv("GROUP_ID")  # ID du groupe Telegram pour auto-posting
+GROUP_ID = os.getenv("GROUP_ID")  # Pour auto-hype
 
 openai.api_key = OPENAI_API_KEY
-if not TOKEN or not OPENAI_API_KEY or not GROUP_ID:
-    exit("❌ TOKEN, OPENAI_API_KEY ou GROUP_ID manquant")
+
+print("DEBUG: TOKEN =", TOKEN)
+print("DEBUG: OPENAI_API_KEY =", OPENAI_API_KEY)
+print("DEBUG: GROUP_ID =", GROUP_ID)
+
+if not TOKEN or not OPENAI_API_KEY:
+    exit("❌ TOKEN ou OPENAI_API_KEY manquant. Vérifie tes variables Railway.")
+
+if not GROUP_ID:
+    print("⚠ GROUP_ID manquant ou incorrect. Auto-hype désactivé.")
+    AUTO_HYPE_ENABLED = False
+else:
+    AUTO_HYPE_ENABLED = True
 
 # -------- DATA --------
 user_messages = defaultdict(list)
-user_activity = defaultdict(int)  # Pour leaderboard
+user_activity = defaultdict(int)
 
 ALLOWED_LINKS = [
     "deeptrade.bio.link",
@@ -108,7 +119,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = (update.message.text or "").strip().lower()
     user_id = update.message.from_user.id
-    user_activity[user_id] += 1  # tracker activité pour leaderboard
+    user_activity[user_id] += 1
 
     # Anti-spam
     user_messages[user_id].append(update.message.date)
@@ -146,6 +157,8 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # -------- AUTO-HYPE --------
 async def auto_hype(app):
+    if not AUTO_HYPE_ENABLED:
+        return  # Désactive auto-hype si GROUP_ID manquant
     while True:
         text = (
             "🚀 Phase 2 Hype Message!\n"
@@ -153,7 +166,7 @@ async def auto_hype(app):
             "🌐 Links in menu below."
         )
         try:
-            await app.bot.send_message(chat_id=GROUP_ID, text=text, reply_markup=main_menu())
+            await app.bot.send_message(chat_id=int(GROUP_ID), text=text, reply_markup=main_menu())
         except Exception as e:
             print("Auto-hype error:", e)
         await asyncio.sleep(60*60)  # toutes les 60 minutes
@@ -168,7 +181,7 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome))
 
-    # Lancer auto-hype en arrière-plan
+    # Lancer auto-hype en arrière-plan si GROUP_ID défini
     asyncio.create_task(auto_hype(app))
 
     print("🚀 OWPC Ultimate Pro Bot started")
