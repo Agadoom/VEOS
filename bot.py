@@ -117,7 +117,7 @@ async def auto_hype(app):
 
         try:
             await app.bot.send_message(
-                chat_id=-100XXXXXXXXXX,  # ⚠️ METS TON CHAT ID
+                chat_id=-1003564334773,  # ⚠️ METS TON CHAT ID
                 text=random.choice(messages)
             )
         except:
