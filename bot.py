@@ -90,17 +90,37 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "links":
         text = "🌐 Official Links:\n" + "\n".join([f"{k}: {v}" for k, v in OFFICIAL_LINKS.items()])
+        await query.edit_message_text(text=text, reply_markup=main_menu())
+
     elif data == "invite":
         text = "📢 Invite friends and grow the OWPC community 🚀\nhttps://t.me/+SQhKj-gWWmcyODY0"
+        await query.edit_message_text(text=text, reply_markup=main_menu())
+
     elif data == "leaderboard":
         leaderboard = sorted(user_activity.items(), key=lambda x: x[1], reverse=True)[:5]
         text = "🏆 Top Active Members:\n"
-        for i, (user, score) in enumerate(leaderboard, start=1):
-            text += f"{i}. User {user} - {score} pts\n"
+        for i, (user_id, score) in enumerate(leaderboard, start=1):
+            try:
+                user = await context.bot.get_chat(user_id)
+                name = user.first_name
+            except:
+                name = str(user_id)
+            text += f"{i}. {name} - {score} pts\n"
+
+        # Envoyer avec GIF
+        try:
+            await query.message.reply_animation(
+                animation=open("lv_0_20260310200554.gif", "rb"),
+                caption=text,
+                reply_markup=main_menu()
+            )
+            await query.message.delete()
+        except Exception as e:
+            print("Error sending leaderboard GIF:", e)
+            await query.edit_message_text(text=text, reply_markup=main_menu())
     else:
         text = "🌍 OWPC Menu"
-
-    await query.edit_message_text(text=text, reply_markup=main_menu())
+        await query.edit_message_text(text=text, reply_markup=main_menu())
 
 # -------- MESSAGE HANDLER --------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -153,7 +173,7 @@ async def auto_hype(app):
         try:
             await app.bot.send_photo(
                 chat_id=int(GROUP_ID),
-                photo=open("lv_0_20260310200554.gif", "rb"),  # Ton logo doré
+                photo=open("owpc_logo.png", "rb"),
                 caption=(
                     "🚀 Phase 2 Hype!\n"
                     "Check GENESIS, UNITY, VEO and stay active in the community.\n"
