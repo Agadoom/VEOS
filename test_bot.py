@@ -14,7 +14,7 @@ nest_asyncio.apply()
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 8080))
 # On utilise l'URL que tu as générée
-WEBAPP_URL = f"https://{os.getenv('RAILWAY_STATIC_URL', 'veos-developpement.up.railway.app')}"
+WEBAPP_URL = f"https://{os.getenv('RAILWAY_STATIC_URL', 'veos-production.up.railway.app')}"
 
 app = FastAPI()
 
