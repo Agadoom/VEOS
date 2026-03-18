@@ -13,7 +13,6 @@ nest_asyncio.apply()
 # --- ⚙️ CONFIGURATION ---
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 8080))
-# Remplace bien par ton URL réelle si elle change
 WEBAPP_URL = "https://veos-production.up.railway.app" 
 DB_NAME = "owpc_data.db"
 
@@ -27,19 +26,35 @@ def get_user_data(user_id):
         cursor.execute("SELECT points, rank FROM users WHERE user_id = ?", (user_id,))
         result = cursor.fetchone()
         conn.close()
-        if result:
-            return {"points": result[0], "rank": result[1]}
+        return {"points": result[0], "rank": result[1]} if result else {"points": 0, "rank": "NEWBIE"}
     except Exception as e:
-        print(f"Erreur Database: {e}")
-    return {"points": 0, "rank": "NEWBIE"}
+        return {"points": 0, "rank": "ERROR"}
 
-# --- 🔌 API POUR LA MINI APP ---
+def update_user_points(user_id, amount):
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (amount, user_id))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
+# --- 🔌 API ---
 @app.get("/api/user/{user_id}")
 async def api_get_user(user_id: int):
-    data = get_user_data(user_id)
-    return JSONResponse(content=data)
+    return JSONResponse(content=get_user_data(user_id))
 
-# --- 🌐 INTERFACE MINI APP (HTML/JS/CSS) ---
+@app.post("/api/task/complete")
+async def complete_task(data: dict):
+    user_id = data.get("user_id")
+    reward = data.get("reward", 500)
+    if update_user_points(user_id, reward):
+        return {"status": "success", "new_balance": get_user_data(user_id)["points"]}
+    return {"status": "error"}
+
+# --- 🌐 INTERFACE MINI APP ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return f"""
@@ -50,133 +65,130 @@ async def read_root(request: Request):
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            :root {{ --gold: #d4af37; --bg: #0a0a12; --card-bg: #161626; }}
+            :root {{ --gold: #d4af37; --bg: #0a0a12; --card: #161626; }}
+            body {{ background-color: var(--bg); color: white; margin: 0; padding: 0; font-family: sans-serif; text-align: center; }}
             
-            body {{ 
-                background-color: var(--bg); color: white; margin: 0; padding: 20px; 
-                font-family: 'Segoe UI', Roboto, sans-serif; text-align: center; overflow: hidden;
-            }}
+            .page {{ display: none; padding: 20px; padding-bottom: 80px; }}
+            .active-page {{ display: block; }}
+
+            .card {{ background: var(--card); border: 1px solid rgba(212,175,55,0.2); border-radius: 20px; padding: 25px; margin-top: 20px; }}
+            .balance {{ font-size: 42px; font-weight: bold; color: white; margin: 10px 0; }}
             
-            .header {{ margin-top: 10px; margin-bottom: 20px; }}
-            .logo {{ 
-                width: 85px; height: 85px; border-radius: 50%; 
-                border: 2px solid var(--gold); padding: 5px;
-                box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+            /* TASKS STYLE */
+            .task-item {{
+                background: var(--card); border-radius: 15px; padding: 15px;
+                display: flex; justify-content: space-between; align-items: center;
+                margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);
             }}
+            .task-info {{ text-align: left; }}
+            .task-name {{ font-weight: bold; font-size: 14px; }}
+            .task-reward {{ color: var(--gold); font-size: 12px; font-weight: bold; }}
+            .btn-claim {{ background: var(--gold); color: black; border: none; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }}
 
-            #user-name {{ font-size: 20px; font-weight: bold; margin-top: 10px; letter-spacing: 1px; }}
-
-            .card {{
-                background: linear-gradient(145deg, #161626, #1f1f35);
-                border: 1px solid rgba(212, 175, 55, 0.2);
-                border-radius: 28px; padding: 35px 20px; margin: 20px 0;
-                box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            /* NAV BAR */
+            .nav-bar {{
+                position: fixed; bottom: 0; width: 100%; background: #12121f;
+                display: flex; justify-content: space-around; padding: 15px 0;
+                border-top: 1px solid rgba(255,255,255,0.1);
             }}
-
-            .balance-label {{ font-size: 11px; color: var(--gold); letter-spacing: 3px; text-transform: uppercase; opacity: 0.8; }}
-            .balance {{ font-size: 52px; font-weight: 800; margin: 10px 0; text-shadow: 0 0 20px rgba(214, 175, 55, 0.2); }}
-            
-            .rank-badge {{
-                background: rgba(212, 175, 55, 0.15); color: var(--gold);
-                padding: 7px 20px; border-radius: 50px; font-size: 13px; 
-                font-weight: bold; border: 1px solid var(--gold); text-transform: uppercase;
-            }}
-
-            .btn-invite {{
-                background: var(--gold); color: #000; border: none; 
-                padding: 18px; border-radius: 18px; font-weight: 800; 
-                font-size: 16px; width: 100%; cursor: pointer;
-                margin-top: 20px; transition: transform 0.1s;
-                box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
-            }}
-
-            .btn-invite:active {{ transform: scale(0.96); }}
+            .nav-item {{ color: grey; font-size: 12px; cursor: pointer; }}
+            .nav-item.active {{ color: var(--gold); font-weight: bold; }}
         </style>
     </head>
     <body>
-        <div class="header">
-            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=OWPC" class="logo">
-            <div id="user-name">CHARGEMENT...</div>
+        <div id="home" class="page active-page">
+            <h2 id="display-name">...</h2>
+            <div class="card">
+                <div style="font-size: 12px; color: var(--gold);">OWPC CREDITS</div>
+                <div id="user-points" class="balance">0</div>
+                <span id="user-rank" style="color: var(--gold); border: 1px solid var(--gold); padding: 4px 10px; border-radius: 10px; font-size: 12px;">...</span>
+            </div>
+            <button onclick="invite()" style="width:100%; margin-top:20px; padding:15px; border-radius:12px; background:var(--gold); border:none; font-weight:bold;">🤝 INVITE FRIENDS</button>
         </div>
 
-        <div class="card">
-            <div class="balance-label">OWPC Credits</div>
-            <div id="user-points" class="balance">0</div>
-            <span id="user-rank" class="rank-badge">...</span>
+        <div id="tasks" class="page">
+            <h2>MISSIONS</h2>
+            <div class="task-item">
+                <div class="task-info">
+                    <div class="task-name">Suivre OWPC sur X</div>
+                    <div class="task-reward">+1,000 OWPC</div>
+                </div>
+                <button class="btn-claim" onclick="doTask(1000, 'https://x.com/owpc')">GO</button>
+            </div>
+            <div class="task-item">
+                <div class="task-info">
+                    <div class="task-name">Rejoindre le Channel</div>
+                    <div class="task-reward">+500 OWPC</div>
+                </div>
+                <button class="btn-claim" onclick="doTask(500, 'https://t.me/owpc_co')">GO</button>
+            </div>
         </div>
 
-        <button class="btn-invite" onclick="inviteFriends()">🤝 INVITE FRIENDS</button>
+        <nav class="nav-bar">
+            <div class="nav-item active" onclick="showPage('home', this)">🏠<br>Home</div>
+            <div class="nav-item" onclick="showPage('tasks', this)">💎<br>Tasks</div>
+        </nav>
 
         <script>
             let tg = window.Telegram.WebApp;
-            tg.expand();
-            tg.ready();
-
-            // Récupération des données Telegram
             const user = tg.initDataUnsafe.user;
-            
-            if (user) {{
-                document.getElementById('user-name').innerText = user.first_name.toUpperCase();
-                
-                // Appel API pour les points réels
-                fetch('/api/user/' + user.id)
-                    .then(response => response.json())
-                    .then(data => {{
-                        document.getElementById('user-points').innerText = data.points.toLocaleString();
-                        document.getElementById('user-rank').innerText = data.rank;
-                    }})
-                    .catch(err => console.error("Erreur API:", err));
+
+            function showPage(pageId, el) {{
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.getElementById(pageId).classList.add('active-page');
+                el.classList.add('active');
+                tg.HapticFeedback.impactOccurred('light');
             }}
 
-            function inviteFriends() {{
-                // Vibration Haptique Medium
-                tg.HapticFeedback.impactOccurred('medium');
-                
-                const botUsername = "ton_bot_username"; // Remplace par l'ID de ton bot si besoin
-                const inviteLink = "https://t.me/" + botUsername + "?start=" + user.id;
-                const text = "Rejoins-moi sur OWPC HIVE ! Gagne des crédits et grimpe dans le classement. 🕊️💎";
-                const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(inviteLink) + "&text=" + encodeURIComponent(text);
-                
-                tg.openTelegramLink(shareUrl);
+            function refreshData() {{
+                fetch('/api/user/' + user.id).then(r => r.json()).then(data => {{
+                    document.getElementById('user-points').innerText = data.points.toLocaleString();
+                    document.getElementById('user-rank').innerText = data.rank;
+                    document.getElementById('display-name').innerText = user.first_name.toUpperCase();
+                }});
             }}
+
+            function doTask(reward, url) {{
+                tg.HapticFeedback.notificationOccurred('success');
+                tg.openLink(url);
+                // Simulation de validation de tâche
+                fetch('/api/task/complete', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ user_id: user.id, reward: reward }})
+                }}).then(() => refreshData());
+            }}
+
+            function invite() {{
+                tg.HapticFeedback.impactOccurred('medium');
+                tg.openTelegramLink("https://t.me/share/url?url=https://t.me/ton_bot?start=" + user.id + "&text=Rejoins le Hive !");
+            }}
+
+            refreshData();
+            tg.expand();
         </script>
     </body>
     </html>
     """
 
-# --- 🤖 BOT TELEGRAM LOGIC ---
+# --- 🤖 BOT ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    data = get_user_data(user_id)
-    
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Open OWPC HIVE", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton("📢 Channel", url="https://t.me/owpc_co")]
+        [InlineKeyboardButton("🚀 Launch OWPC HIVE", web_app=WebAppInfo(url=WEBAPP_URL))],
+        [InlineKeyboardButton("📢 Official Channel", url="https://t.me/owpc_co")]
     ])
-    
-    await update.message.reply_text(
-        f"Salut **{update.effective_user.first_name}** ! 🕊️\n\n"
-        f"Ton solde : **{data['points']:,} OWPC**\n"
-        f"Ton rang : **{data['rank']}**\n\n"
-        "Prêt pour la Phase 2 ? Lance l'app visuelle ci-dessous :",
-        reply_markup=kb,
-        parse_mode="Markdown"
-    )
+    await update.message.reply_text(f"Welcome back {update.effective_user.first_name}!\n\nReady to earn more?", reply_markup=kb)
 
 async def run_bot():
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
-    
     async with bot_app:
-        await bot_app.initialize()
-        await bot_app.start()
-        await bot_app.updater.start_polling()
-        while True:
-            await asyncio.sleep(1)
+        await bot_app.initialize(); await bot_app.start(); await bot_app.updater.start_polling()
+        while True: await asyncio.sleep(1)
 
 @app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(run_bot())
+async def startup_event(): asyncio.create_task(run_bot())
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)
