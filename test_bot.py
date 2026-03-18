@@ -50,8 +50,7 @@ async def api_user(user_id: int): return JSONResponse(content=get_user_data(user
 
 @app.post("/api/claim_genesis/{user_id}")
 async def claim_genesis(user_id: int):
-    today = date.today().isoformat(); data = get_user_data(user_id)
-    if data["last_checkin"] == today: return {"status": "already_claimed"}
+    today = date.today().isoformat()
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
     c.execute("UPDATE users SET points_genesis = points_genesis + 200, last_checkin = ? WHERE user_id = ?", (today, user_id))
     conn.commit(); conn.close()
@@ -64,7 +63,7 @@ async def sync_veo(user_id: int, amount: float):
     conn.commit(); conn.close()
     return {"status": "synced"}
 
-# --- 🌐 INTERFACE HTML ---
+# --- 🌐 INTERFACE HTML (Avec Home, Friends, Roadmap) ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return f"""
@@ -81,83 +80,64 @@ async def read_root(request: Request):
             .active-page {{ display: block; }}
             .header {{ padding: 15px; border-bottom: 1px solid rgba(212,175,55,0.1); }}
             .brand {{ font-size: 14px; font-weight: bold; color: var(--gold); letter-spacing: 4px; }}
-            .balance-main {{ font-size: 50px; font-weight: 800; margin: 10px 0; letter-spacing: -1px; }}
+            .balance-main {{ font-size: 50px; font-weight: 800; margin: 10px 0; }}
             .token-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }}
-            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); }}
-            .pillar {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 0; display: flex; align-items: center; text-align: left; border: 1px solid rgba(255,255,255,0.03); }}
+            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); font-size: 13px; }}
+            .pillar {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 0; display: flex; align-items: center; text-align: left; }}
             .btn-action {{ background: var(--gold); color: black; border: none; padding: 12px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }}
-            
-            /* Roadmap Styles */
-            .roadmap-item {{ text-align: left; border-left: 2px solid var(--gold); margin-left: 10px; padding-left: 20px; position: relative; margin-bottom: 25px; }}
+            .roadmap-item {{ text-align: left; border-left: 2px solid var(--gold); margin-left: 10px; padding-left: 20px; position: relative; margin-bottom: 20px; }}
             .roadmap-item::before {{ content: '●'; position: absolute; left: -9px; color: var(--gold); background: var(--bg); }}
-            .roadmap-done {{ border-left-color: var(--green); }}
-            .roadmap-done::before {{ color: var(--green); }}
-
-            .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); z-index: 100; }}
-            .nav-item {{ opacity: 0.5; font-size: 10px; color: white; text-transform: uppercase; }}
+            .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); }}
+            .nav-item {{ opacity: 0.5; font-size: 10px; color: white; }}
             .nav-item.active {{ opacity: 1; color: var(--gold); font-weight: bold; }}
             @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}
         </style>
     </head>
     <body>
-
         <div class="header"><div class="brand">OWPC TERMINAL</div></div>
 
         <div id="home" class="page active-page">
             <div class="balance-main" id="total-val">0</div>
             <div id="u-rank" style="color:var(--gold); font-size:12px; font-weight:bold; letter-spacing:2px; margin-bottom:20px;">🆕 SEEKER</div>
-
             <div class="token-grid">
-                <div class="token-box" onclick="tg.openLink('{LINK_GENESIS}')"><div id="bal-g" style="font-weight:bold;">0</div><div style="font-size:8px; color:var(--gold);">GENESIS</div></div>
-                <div class="token-box" onclick="tg.openLink('{LINK_UNITY}')"><div id="bal-u" style="font-weight:bold;">0</div><div style="font-size:8px; color:var(--gold);">UNITY</div></div>
-                <div class="token-box" onclick="tg.openLink('{LINK_VEO}')"><div id="bal-v" style="font-weight:bold;">0.00</div><div style="font-size:8px; color:var(--gold);">VEO AI</div></div>
+                <div class="token-box" onclick="tg.openLink('{LINK_GENESIS}')"><div id="bal-g">0</div><div style="font-size:8px;color:var(--gold)">GENESIS</div></div>
+                <div class="token-box" onclick="tg.openLink('{LINK_UNITY}')"><div id="bal-u">0</div><div style="font-size:8px;color:var(--gold)">UNITY</div></div>
+                <div class="token-box" onclick="tg.openLink('{LINK_VEO}')"><div id="bal-v">0.00</div><div style="font-size:8px;color:var(--gold)">VEO AI</div></div>
             </div>
-
             <div class="pillar">
                 <div style="font-size:24px; margin-right:15px;">🏺</div>
-                <div style="flex-grow:1;"><b>GENESIS</b><br><small opacity:0.6>Daily +200 OWPC</small></div>
-                <button class="btn-action" onclick="claim()">CLAIM</button>
+                <div style="flex-grow:1;"><b>GENESIS</b><br><small>Daily Grant</small></div>
+                <button class="btn-action" id="claim-btn" onclick="claim()">CLAIM</button>
             </div>
         </div>
 
         <div id="friends" class="page">
             <h2 style="color:var(--gold);">NETWORK</h2>
             <div class="pillar" style="flex-direction:column; text-align:center;">
-                <div style="font-size:40px;">👥</div>
-                <div id="ref-count" style="font-size:24px; font-weight:bold; margin:10px 0;">0 Friends</div>
-                <p style="font-size:12px; opacity:0.7;">Get 10% from your friends' claims.</p>
+                <div id="ref-count" style="font-size:24px; font-weight:bold;">0 Friends</div>
+                <p>Earn 10% from your network.</p>
             </div>
-            <button class="btn-action" style="width:100%;" onclick="shareRef()">INVITE COMMANDER</button>
+            <button class="btn-action" style="width:100%" onclick="share()">INVITE</button>
         </div>
 
         <div id="roadmap" class="page">
-            <h2 style="color:var(--gold);">PROTOCOL ROADMAP</h2>
-            <div class="roadmap-item roadmap-done">
-                <b style="color:var(--green);">PHASE 1: THE HIVE</b><br>
-                <small>Terminal Launch, Genesis & Veo Mining Integration. (COMPLETED)</small>
-            </div>
-            <div class="roadmap-item">
-                <b>PHASE 2: UNITY SYNC</b><br>
-                <small>Investment multiplier, Community Tasks and Leaderboard rewards.</small>
-            </div>
-            <div class="roadmap-item">
-                <b>PHASE 3: EVOLUTION</b><br>
-                <small>OWPC Token Listing, Wallet Integration & Veo AI Pro upgrades.</small>
-            </div>
+            <h2 style="color:var(--gold);">ROADMAP</h2>
+            <div class="roadmap-item"><b>PHASE 1</b><br><small>Hive Launch (Done)</small></div>
+            <div class="roadmap-item"><b>PHASE 2</b><br><small>Staking & Unity Sync</small></div>
+            <div class="roadmap-item"><b>PHASE 3</b><br><small>Listing & AI Trading</small></div>
         </div>
 
         <nav class="nav-bar">
-            <div class="nav-item active" id="n-home" onclick="showPage('home', 'n-home')">🏠<br>Hive</div>
-            <div class="nav-item" id="n-ref" onclick="showPage('friends', 'n-ref')">👥<br>Friends</div>
-            <div class="nav-item" id="n-road" onclick="showPage('roadmap', 'n-road')">📍<br>Roadmap</div>
+            <div class="nav-item active" id="n-home" onclick="showPage('home','n-home')">🏠<br>Hive</div>
+            <div class="nav-item" id="n-ref" onclick="showPage('friends','n-ref')">👥<br>Friends</div>
+            <div class="nav-item" id="n-road" onclick="showPage('roadmap','n-road')">📍<br>Roadmap</div>
         </nav>
 
         <script>
             let tg = window.Telegram.WebApp;
             const uid = tg.initDataUnsafe.user.id;
             let state = {{ g: 0, u: 0, v: 0.0 }};
-            tg.expand();
-
+            
             function updateUI() {{
                 document.getElementById('bal-g').innerText = Math.floor(state.g).toLocaleString();
                 document.getElementById('bal-u').innerText = Math.floor(state.u).toLocaleString();
@@ -166,52 +146,65 @@ async def read_root(request: Request):
             }}
 
             function sync() {{
-                fetch('/api/user/' + uid).then(r => r.json()).then(data => {{
-                    state.g = data.genesis; state.u = data.unity; state.v = data.veo;
-                    document.getElementById('u-rank').innerText = data.rank;
-                    document.getElementById('ref-count').innerText = data.refs + " Friends";
+                fetch('/api/user/'+uid).then(r=>r.json()).then(d=>{{
+                    state.g=d.genesis; state.u=d.unity; state.v=d.veo;
+                    document.getElementById('u-rank').innerText = d.rank;
+                    document.getElementById('ref-count').innerText = d.refs + " Friends";
                     updateUI();
                 }});
             }}
 
             function claim() {{
-                fetch('/api/claim_genesis/' + uid, {{ method: 'POST' }}).then(r => r.json()).then(d => {{
-                    if(d.status == 'success') {{ tg.HapticFeedback.notificationOccurred('success'); sync(); }}
-                    else {{ tg.showAlert("Synced for today."); }}
+                fetch('/api/claim_genesis/'+uid, {{method:'POST'}}).then(r=>r.json()).then(d=>{{
+                    tg.HapticFeedback.notificationOccurred('success');
+                    sync();
                 }});
             }}
 
-            function shareRef() {{
-                const link = "https://t.me/share/url?url=https://t.me/owpc_bot?start=" + uid + "&text=Join the OWPC Hive Network!";
-                tg.openTelegramLink(link);
+            function showPage(p,n) {{
+                document.querySelectorAll('.page').forEach(x=>x.classList.remove('active-page'));
+                document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+                document.getElementById(p).classList.add('active-page');
+                document.getElementById(n).classList.add('active');
             }}
 
-            function showPage(pId, nId) {{
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.getElementById(pId).classList.add('active-page');
-                document.getElementById(nId).classList.add('active');
-                tg.HapticFeedback.impactOccurred('light');
-            }}
+            function share() {{ tg.openTelegramLink("https://t.me/share/url?url=https://t.me/owpc_bot?start="+uid); }}
 
             setInterval(() => {{ state.v += 0.01; updateUI(); }}, 1000);
-            setInterval(() => {{ fetch(`/api/sync_veo/${{uid}}/0.30`, {{ method: 'POST' }}); }}, 30000);
-            sync();
+            setInterval(() => {{ fetch(`/api/sync_veo/${{uid}}/0.30`, {{method:'POST'}}); }}, 30000);
+            sync(); tg.expand();
         </script>
     </body>
     </html>
     """
 
-# --- BOT SETUP ---
-async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
-    await u.message.reply_text("🕊️ **OWPC TERMINAL**\nWelcome, Commander.", 
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")
+# --- 🔔 NOTIFICATION ENGINE ---
+async def reminder_loop(bot):
+    while True:
+        await asyncio.sleep(3600) # Vérifie toutes les heures
+        today = date.today().isoformat()
+        conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+        c.execute("SELECT user_id FROM users WHERE last_checkin != ?", (today,))
+        users_to_notify = c.fetchall()
+        conn.close()
+        
+        for (uid,) in users_to_notify:
+            try:
+                await bot.send_message(uid, "🏺 **Protocol Genesis Offline**\n\nYour daily 200 OWPC credits are waiting. Synchronize now to maintain your rank!", 
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")
+                await asyncio.sleep(0.05) # Anti-flood
+            except: continue
 
+# --- 🤖 BOT SETUP ---
 async def run_bot():
-    init_db(); bot = ApplicationBuilder().token(TOKEN).build()
-    bot.add_handler(CommandHandler("start", start))
+    init_db()
+    bot = ApplicationBuilder().token(TOKEN).build()
+    bot.add_handler(CommandHandler("start", lambda u,c: u.message.reply_text("🕊️ **OWPC TERMINAL**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 ENTER", web_app=WebAppInfo(url=WEBAPP_URL))]]))))
+    
     async with bot:
-        await bot.initialize(); await bot.start(); await bot.updater.start_polling()
+        await bot.initialize(); await bot.start(); 
+        asyncio.create_task(reminder_loop(bot.bot)) # Lance les rappels
+        await bot.updater.start_polling()
         while True: await asyncio.sleep(1)
 
 @app.on_event("startup")
