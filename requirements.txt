@@ -4,3 +4,5 @@ nest-asyncio==1.6.0
 Pillow==10.2.0
 requests
 web3
+fastapi
+uvicorn
