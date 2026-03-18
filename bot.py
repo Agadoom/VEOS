@@ -12,11 +12,11 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 nest_asyncio.apply()
 
 # --- ⚙️ CONFIG ---
-TOKEN = os.getenv("TOKEN") 
+TOKEN = os.getenv("TOKEN") # Token pour @OwpcInfoBot
 ADMIN_ID = 1414016840 
 LOGO_PATH = "media/owpc_logo.png"
 CHANNEL_ID = "@owpc_co" 
-WEBAPP_URL = "https://veos-production.up.railway.app" 
+WEBAPP_URL = "https://veos-production.up.railway.app" # Lien vers ta Mini App
 DB_PATH = "owpc_data.db" 
 
 # --- 📊 LOGIC ---
@@ -57,7 +57,7 @@ def back_btn(): return [InlineKeyboardButton("⬅️ Back to Menu", callback_dat
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     res = update_user_db(user.id, user.first_name)
-    cap = f"🕊️ **Welcome to OWPC HIVE**\n\nCommander: {user.first_name}\nCredits: {res[0]:,} OWPC"
+    cap = f"🕊️ **Welcome to One World Peace Coins**\n\nCommander: {user.first_name}\nCredits: {res[0]:,} OWPC\nRank: {get_rank_info(res[0])[0]}"
     if os.path.exists(LOGO_PATH):
         await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=main_menu_kb())
     else:
@@ -76,42 +76,60 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
             [InlineKeyboardButton("🌍 UNITY", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
-            [InlineKeyboardButton("🤖 VEO (AI)", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
+            [InlineKeyboardButton("🤖 VEO", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
             back_btn()
         ])
-        await query.message.edit_caption(caption="💰 **INVEST HUB**\nSelect your pillar to build the future:", reply_markup=kb)
+        await query.message.edit_caption(caption="💰 **INVEST HUB**\nBuild the ecosystem through our 3 pillars.", reply_markup=kb)
 
     elif query.data == "staking_sim":
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("📊 Simulate 10k $OWPC", callback_data="sim_now")], back_btn()])
-        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**\nCalculate your future rewards.", reply_markup=kb)
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("📊 Calculate Rewards", callback_data="sim_now")], back_btn()])
+        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**\nProject your future earnings.", reply_markup=kb)
 
     elif query.data == "sim_now":
-        await query.message.edit_caption(caption="📈 **STAKING ESTIMATE**\n\nFor 10,000 $OWPC:\n- Unity Reward: 208/mo\n- Genesis Bonus: 100/mo\n- Total: 308 OWPC/mo", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption="📈 **ESTIMATED YIELD**\n- Unity: 208/mo\n- Genesis: 100/mo\n- Total: 308 OWPC/mo", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "open_q":
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("Join Channel", url="https://t.me/owpc_co")],
-            [InlineKeyboardButton("Claim Task", callback_data="claim_q")],
+            [InlineKeyboardButton("Check & Claim", callback_data="claim_q")],
             back_btn()
         ])
-        await query.message.edit_caption(caption="🚀 **UNITY QUESTS**\nComplete tasks to earn credits.", reply_markup=kb)
+        await query.message.edit_caption(caption="🚀 **UNITY QUESTS**\nEarn credits by supporting the community.", reply_markup=kb)
+
+    elif query.data == "claim_q":
+        # Simulation de vérification
+        update_user_db(uid, name, score_inc=50)
+        await query.message.reply_text("🔥 Quest Validated: +50 OWPC!")
 
     elif query.data == "view_stats":
-        await query.message.edit_caption(caption=f"📊 **HIVE STATS**\n\nRank: {get_rank_info(score)[0]}\nTotal Score: {score:,} PTS", reply_markup=InlineKeyboardMarkup([back_btn()]))
-
-    elif query.data == "live_feed":
-        await query.message.edit_caption(caption="📡 **LIVE FEED**\n\nWelcome to the Hive! We are building the future of Peace Coins in real-time. 🚀", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"📊 **HIVE STATUS**\n\nRank: {get_rank_info(score)[0]}\nTotal Credits: {score:,} PTS", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "get_invite":
-        link = f"https://t.me/{context.bot.username}?start=ref_{uid}"
-        await query.message.edit_caption(caption=f"🔗 **REFERRAL LINK**\nInvite friends and earn 100 PTS.\n\n`{link}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
+        await query.message.edit_caption(caption=f"🔗 **REFERRAL**\nInvite friends and earn 100 PTS.\n\n`{link}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "view_lb":
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("SELECT name, points FROM users ORDER BY points DESC LIMIT 5")
+        top = c.fetchall(); conn.close()
+        txt = "🏛️ **TOP COMMANDERS**\n\n" + "\n".join([f"👑 {u[0]} — {u[1]:,} PTS" for u in top])
+        await query.message.edit_caption(caption=txt, reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "daily":
+        today = datetime.now().strftime("%Y-%m-%d")
+        if res and res[1] == today:
+            await query.message.reply_text("⏳ Come back tomorrow!")
+        else:
+            win = random.randint(20, 100)
+            update_user_db(uid, name, score_inc=win, daily=today)
+            await query.message.reply_text(f"🎰 Lucky Draw: +{win} PTS!")
 
 # --- MAIN ---
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("Bot Communautaire (FIXED) online.")
+    print("One World Peace Coins Bot is online.")
     await app.run_polling()
 
 if __name__ == "__main__":
