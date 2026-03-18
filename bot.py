@@ -23,7 +23,7 @@ LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZ
 LINK_CHANNEL = "https://t.me/+SQhKj-gWWmcyODY0"
 LINK_X = "https://x.com/DeepTradeX"
 
-# --- DB ---
+# --- DB & LOGIC ---
 DB_PATH = "data/owpc_data.db"
 os.makedirs("data", exist_ok=True)
 
@@ -50,7 +50,7 @@ def get_rank_info(score):
     if score >= 100:  return "🛠️ BUILDER"
     return "🐣 SEEKER"
 
-# --- IMAGE GENERATOR ---
+# --- PASSPORT ENGINE ---
 def create_visual_card(name, score, rank, uid, is_verified=False):
     w, h = 1600, 900
     base = Image.new('RGB', (w, h), (10, 10, 18))
@@ -75,45 +75,86 @@ def create_visual_card(name, score, rank, uid, is_verified=False):
     bio = BytesIO(); bio.name = 'passport.png'; base.save(bio, 'PNG'); bio.seek(0)
     return bio
 
-# --- LOGIC ---
-async def send_passport(update: Update):
-    user = update.effective_user
-    res = update_user(user.id, user.first_name)
-    rank = get_rank_info(res[0])
-    wait = await update.effective_message.reply_text("⏳ *Generating your official Passport...*", parse_mode="Markdown")
-    card = create_visual_card(user.first_name, res[0], rank, user.id, is_verified=(res[3] == 1))
-    await update.effective_message.reply_photo(photo=card, caption=f"🆔 Official Citizen ID for {user.first_name}")
-    await wait.delete()
+# --- INTERFACE ---
+def main_menu_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("💰 Invest in OWPC", callback_data="invest_hub")],
+        [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
+        [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📊 Global Stats", callback_data="view_stats")],
+        [InlineKeyboardButton("📅 Daily Points", callback_data="daily"), InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
+    ])
 
+def back_btn():
+    return [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]
+
+# --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     res = update_user(user.id, user.first_name)
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("💰 Invest in OWPC", callback_data="invest_hub")],
-        [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
-        [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📊 Global Stats", callback_data="view_stats")]
-    ])
-    cap = f"🕊️ **Welcome, {user.first_name}!**\nCredits: {res[0]} OWPC PTS"
+    cap = f"🕊️ **Welcome, {user.first_name}!**\n\nRank: {get_rank_info(res[0])}\nCredits: {res[0]} OWPC PTS"
     if os.path.exists(LOGO_PATH):
-        await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, reply_markup=kb)
+        await update.effective_message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=main_menu_kb())
     else:
-        await update.message.reply_text(cap, reply_markup=kb)
+        await update.effective_message.reply_text(cap, parse_mode="Markdown", reply_markup=main_menu_kb())
+
+async def passport_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    res = update_user(user.id, user.first_name)
+    rank = get_rank_info(res[0])
+    card = create_visual_card(user.first_name, res[0], rank, user.id, is_verified=(res[3] == 1))
+    await update.effective_message.reply_photo(photo=card, caption=f"🆔 Passport for {user.first_name}")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer()
-    if query.data == "my_card": await send_passport(query)
-    elif query.data == "back_home":
-        # Logique de retour déjà présente en v5.7...
-        pass 
-    # (Le reste des callback_data de la v5.7 à garder ici)
+    uid, name = query.from_user.id, query.from_user.first_name
+    res = update_user(uid, name)
 
+    if query.data == "back_home":
+        await query.message.edit_caption(caption=f"🕊️ **Main Menu**\nCitizen: {name}\nPoints: {res[0]}", reply_markup=main_menu_kb())
+
+    elif query.data == "invest_hub":
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS)], [InlineKeyboardButton("💎 UNITY", url=LINK_UNITY)], [InlineKeyboardButton("⚡ VEO", url=LINK_VEO)], back_btn()])
+        await query.message.edit_caption(caption="💰 **INVESTOR HUB**", reply_markup=kb)
+
+    elif query.data == "open_q":
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("📢 Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("🐦 X", url=LINK_X)], [InlineKeyboardButton("💰 Claim (+100)", callback_data="claim_q")], back_btn()])
+        await query.message.edit_caption(caption="🚀 **QUEST CENTER**", reply_markup=kb)
+
+    elif query.data == "claim_q":
+        # Logique simplifiée pour l'exemple
+        update_user(uid, name, score_inc=100)
+        await query.message.reply_text("🔥 Quest Complete! +100 Points.")
+
+    elif query.data == "daily":
+        today = datetime.now().strftime("%Y-%m-%d")
+        if res[1] == today: await query.message.reply_text("⏳ Come back tomorrow!")
+        else:
+            update_user(uid, name, score_inc=15, daily=today)
+            await query.message.reply_text("✅ +15 Points added!")
+
+    elif query.data == "view_stats":
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT COUNT(*) FROM users"); count = c.fetchone()[0]; conn.close()
+        await query.message.edit_caption(caption=f"📊 **STATS**\n\nCitizens: {count}", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "view_lb":
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 5")
+        lb = "🏆 **TOP 5**\n\n" + "\n".join([f"{r[0]}: {r[1]}" for r in c.fetchall()])
+        await query.message.edit_caption(caption=lb, reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "get_invite":
+        await query.message.edit_caption(caption=f"🔗 **INVITE**\n`https://t.me/{BOT_USERNAME}?start=ref_{uid}`", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "my_card":
+        await passport_cmd(update, context)
+
+# --- MAIN ---
 async def main():
     init_db()
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler(["passport", "passeport"], lambda u, c: send_passport(u)))
+    app.add_handler(CommandHandler(["passport", "passeport"], passport_cmd))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("🚀 OWPC v5.8 - Passport Online")
+    print("🚀 OWPC v5.9 Master LIVE")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
