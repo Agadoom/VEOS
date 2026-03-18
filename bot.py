@@ -21,10 +21,6 @@ LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA"
 LINK_CHANNEL = "https://t.me/+SQhKj-gWWmcyODY0"
-LINK_X = "https://x.com/DeepTradeX"
-
-# --- APR RATES ---
-APR_GENESIS, APR_UNITY, APR_VEO = 0.12, 0.25, 0.08
 
 # --- DB LOGIC ---
 DB_PATH = "data/owpc_data.db"
@@ -50,8 +46,7 @@ def update_user(user_id, name, score_inc=0, daily=None):
 def create_visual_card(name, score, uid, is_verified=False):
     w, h = 1600, 900
     base = Image.new('RGB', (w, h), (10, 10, 18))
-    draw = ImageDraw.Draw(base)
-    gold = (212, 175, 55)
+    draw = ImageDraw.Draw(base); gold = (212, 175, 55)
     draw.rectangle([30, 30, 1570, 870], outline=gold, width=8)
     if os.path.exists(LOGO_PATH):
         logo = Image.open(LOGO_PATH).convert("RGBA")
@@ -67,10 +62,11 @@ def create_visual_card(name, score, uid, is_verified=False):
 def main_menu_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("💰 Invest in OWPC", callback_data="invest_hub")],
+        [InlineKeyboardButton("🏛️ Hall of Fame", callback_data="view_lb")],
         [InlineKeyboardButton("💎 Staking Simulator", callback_data="staking_sim")],
-        [InlineKeyboardButton("🏆 Leaderboard", callback_data="view_lb"), InlineKeyboardButton("🆔 My Passport", callback_data="my_card")],
-        [InlineKeyboardButton("🚀 Quest Center", callback_data="open_q"), InlineKeyboardButton("📊 Global Stats", callback_data="view_stats")],
-        [InlineKeyboardButton("📅 Daily Points", callback_data="daily"), InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
+        [InlineKeyboardButton("🆔 My Passport", callback_data="my_card"), InlineKeyboardButton("🚀 Quests", callback_data="open_q")],
+        [InlineKeyboardButton("📊 Stats", callback_data="view_stats"), InlineKeyboardButton("📅 Daily", callback_data="daily")],
+        [InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
     ])
 
 def back_btn():
@@ -80,7 +76,7 @@ def back_btn():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     res = update_user(user.id, user.first_name)
-    cap = f"🕊️ **Welcome, {user.first_name}!**\n\nCredits: {res[0]} OWPC PTS"
+    cap = f"🕊️ **Welcome, {user.first_name}!**\n\nRank: Citizen\nCredits: {res[0]} OWPC PTS"
     if os.path.exists(LOGO_PATH):
         await update.effective_message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=main_menu_kb())
     else:
@@ -98,19 +94,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS)], [InlineKeyboardButton("💎 UNITY", url=LINK_UNITY)], [InlineKeyboardButton("⚡ VEO", url=LINK_VEO)], back_btn()])
         await query.message.edit_caption(caption="💰 **INVESTOR HUB**", reply_markup=kb)
 
+    elif query.data == "view_lb":
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 5")
+        top = c.fetchall(); conn.close()
+        titles = ["👑 Grand Archon", "💎 Prime Guardian", "🛡️ Elite Warden", "🎖️ Veteran", "🎖️ Veteran"]
+        txt = "🏛️ **OWPC HALL OF FAME**\n\n"
+        for i, u in enumerate(top):
+            m = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else "🔹"
+            txt += f"{m} **{titles[i]}**\n└ {u[0]} — {u[1]} PTS\n\n"
+        await query.message.edit_caption(caption=txt, reply_markup=InlineKeyboardMarkup([back_btn()]), parse_mode="Markdown")
+
     elif query.data == "staking_sim":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("Simulate 10k", callback_data="sim_10k")], [InlineKeyboardButton("Simulate 50k", callback_data="sim_50k")], back_btn()])
-        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**\nUnity: 25% | Genesis: 12% | Veo: 8%", reply_markup=kb)
+        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**\nEstimate your passive income.", reply_markup=kb)
 
     elif query.data.startswith("sim_"):
         amt = 10000 if "10k" in query.data else 50000
-        txt = f"📊 **MONTHLY GAINS ({amt:,})**\n💎 Unity: {(amt*0.25/12):.1f}\n🧬 Genesis: {(amt*0.12/12):.1f}\n⚡ Veo: {(amt*0.08/12):.1f}"
+        txt = f"📊 **RESULTS ({amt:,})**\n💎 Unity (25%): {(amt*0.25/12):.1f}/mo\n🧬 Genesis (12%): {(amt*0.12/12):.1f}/mo"
         await query.message.edit_caption(caption=txt, reply_markup=InlineKeyboardMarkup([back_btn()]))
-
-    elif query.data == "view_lb":
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 5")
-        lb = "🏆 **TOP 5**\n\n" + "\n".join([f"{r[0]}: {r[1]}" for r in c.fetchall()])
-        await query.message.edit_caption(caption=lb, reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "my_card":
         card = create_visual_card(name, res[0], uid, is_verified=(res[3]==1))
@@ -118,22 +120,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "open_q":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📢 Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("💰 Claim +100", callback_data="claim_q")], back_btn()])
-        await query.message.edit_caption(caption="🚀 **QUESTS**", reply_markup=kb)
+        await query.message.edit_caption(caption="🚀 **QUEST CENTER**", reply_markup=kb)
 
     elif query.data == "claim_q":
         update_user(uid, name, score_inc=100)
-        await query.message.reply_text("🔥 +100 PTS!")
+        await query.message.reply_text("🔥 +100 Points!")
 
     elif query.data == "view_stats":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT COUNT(*) FROM users"); count = c.fetchone()[0]
-        await query.message.edit_caption(caption=f"📊 **TOTAL CITIZENS:** {count}", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"📊 **GLOBAL CITIZENS:** {count}", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
-        if res[1] == today: await query.message.reply_text("⏳ Tomorrow!")
+        if res[1] == today: await query.message.reply_text("⏳ Come back tomorrow!")
         else:
             update_user(uid, name, score_inc=15, daily=today)
-            await query.message.reply_text("✅ +15 PTS!")
+            await query.message.reply_text("✅ +15 Points!")
 
     elif query.data == "get_invite":
         await query.message.edit_caption(caption=f"🔗 `https://t.me/{BOT_USERNAME}?start=ref_{uid}`", reply_markup=InlineKeyboardMarkup([back_btn()]))
@@ -142,9 +144,8 @@ async def main():
     init_db()
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler(["passport", "passeport"], lambda u, c: start(u, c))) # Redirige vers start ou une fonction passport
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("🚀 OWPC v6.1 TOTAL CONTROL LIVE")
+    print("🚀 OWPC v6.2 HALL OF FAME LIVE")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
