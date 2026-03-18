@@ -36,6 +36,13 @@ def get_user_data(user_id):
     return {"points": res[0], "rank": res[1], "last_checkin": res[2]} if res else {"points": 0, "rank": "NEWBIE", "last_checkin": None}
 
 # --- 🔌 API ---
+@app.get("/api/leaderboard")
+async def get_leaderboard():
+    conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+    c.execute("SELECT name, points FROM users ORDER BY points DESC LIMIT 10")
+    top = c.fetchall(); conn.close()
+    return [{"name": x[0], "points": x[1]} for x in top]
+
 @app.get("/api/check_membership/{user_id}")
 async def check_membership(user_id: int):
     try:
@@ -84,64 +91,65 @@ async def read_root(request: Request):
             
             #gate-overlay {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }}
             
-            .page {{ display: none; padding: 20px; height: 100vh; overflow-y: auto; }}
+            .page {{ display: none; padding: 20px; height: 100vh; overflow-y: auto; box-sizing: border-box; }}
             .active-page {{ display: block; }}
             
-            .brand-title {{ font-size: 14px; font-weight: bold; color: var(--gold); letter-spacing: 2px; margin-top: 15px; }}
             .balance {{ font-size: 52px; font-weight: 800; color: white; margin: 10px 0; }}
-            
             .pillar-card {{ background: var(--card); border: 1px solid rgba(212,175,55,0.1); border-radius: 20px; padding: 18px; margin-bottom: 15px; display: flex; align-items: center; text-align: left; }}
-            .btn-action {{ background: var(--gold); color: black; border: none; padding: 10px 18px; border-radius: 12px; font-weight: bold; font-size: 12px; cursor: pointer; }}
             
+            /* Leaderboard Styles */
+            .lb-item {{ display: flex; justify-content: space-between; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; border: 1px solid rgba(212,175,55,0.05); }}
+            .lb-rank {{ color: var(--gold); font-weight: bold; margin-right: 10px; }}
+            
+            .btn-action {{ background: var(--gold); color: black; border: none; padding: 10px 18px; border-radius: 12px; font-weight: bold; cursor: pointer; }}
             .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); }}
-            .nav-item {{ opacity: 0.5; font-size: 12px; }}
+            .nav-item {{ opacity: 0.5; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }}
             .nav-item.active {{ opacity: 1; color: var(--gold); }}
         </style>
     </head>
     <body>
 
         <div id="gate-overlay">
-            <h2 style="color: var(--red);">GATE LOCKED</h2>
-            <p style="font-size: 13px; opacity: 0.7;">Join @owpc_co to unlock the HIVE.</p>
-            <button class="btn-action" onclick="tg.openTelegramLink('https://t.me/owpc_co')">JOIN COMMUNITY</button>
-            <button style="background:none; border:none; color:var(--gold); margin-top:15px;" onclick="checkAccess()">[ VERIFY ]</button>
+            <h2 style="color: var(--gold);">OWPC HIVE</h2>
+            <p style="opacity: 0.7;">Accessing Secure Protocol...</p>
+            <button class="btn-action" onclick="checkAccess()">[ VERIFY IDENTITY ]</button>
         </div>
 
         <div id="main-content" style="display:none;">
-            <div class="brand-title">OWPC HIVE PROTOCOL</div>
             
             <div id="home" class="page active-page">
+                <div style="font-size: 12px; color: var(--gold); margin-top:20px;">TOTAL CREDITS</div>
                 <div class="balance" id="u-points">0</div>
-                <div style="font-size: 10px; opacity: 0.5; letter-spacing: 2px; margin-bottom: 30px;">CREDITS MINED</div>
                 
                 <div class="pillar-card">
                     <div style="font-size: 24px; margin-right: 15px;">🏺</div>
-                    <div style="flex-grow: 1;">
-                        <div style="font-weight: bold; color: var(--gold);">GENESIS</div>
-                        <div style="font-size: 11px; opacity: 0.6;">Daily Grant: +200</div>
-                    </div>
+                    <div style="flex-grow: 1;"><b>GENESIS</b><br><small>Daily rewards.</small></div>
                     <button class="btn-action" onclick="claimDaily()">CLAIM</button>
                 </div>
 
                 <div class="pillar-card">
                     <div style="font-size: 24px; margin-right: 15px;">🤖</div>
-                    <div style="flex-grow: 1;">
-                        <div style="font-weight: bold; color: var(--gold);">VEO AI MINING</div>
-                        <div id="mining-status" style="font-size: 11px; color: #50ff50;">ACTIVE (+0.01/s)</div>
-                    </div>
+                    <div style="flex-grow: 1;"><b>VEO MINING</b><br><small id="mining-status" style="color: #50ff50;">ONLINE (+0.01/s)</small></div>
                 </div>
+            </div>
+
+            <div id="leaderboard" class="page">
+                <h2 style="color: var(--gold);">TOP COMMANDERS</h2>
+                <div id="lb-list">
+                    </div>
             </div>
 
             <div id="tasks" class="page">
                 <h2 style="color: var(--gold);">MISSIONS</h2>
                 <div class="pillar-card">
-                    <div style="flex-grow: 1;"><b>DeepTradeX Protocol</b><br><small>+1,000 OWPC</small></div>
+                    <div style="flex-grow: 1;"><b>DeepTradeX X-Protocol</b><br><small>+1,000 OWPC</small></div>
                     <button class="btn-action" onclick="tg.openLink('https://x.com/DeepTradeX')">GO</button>
                 </div>
             </div>
 
             <nav class="nav-bar">
                 <div class="nav-item active" id="n-home" onclick="showPage('home', 'n-home')">🏠<br>Hive</div>
+                <div class="nav-item" id="n-lb" onclick="showPage('leaderboard', 'n-lb'); loadLB();">🏆<br>Ranks</div>
                 <div class="nav-item" id="n-tasks" onclick="showPage('tasks', 'n-tasks')">💠<br>Tasks</div>
             </nav>
         </div>
@@ -160,24 +168,39 @@ async def read_root(request: Request):
                     document.getElementById('main-content').style.display = 'block';
                     loadUser();
                     startFarming();
-                }} else {{ tg.showAlert("Please join the channel first!"); }}
+                }} else {{ 
+                    tg.showAlert("Access Restricted. Join @owpc_co first!"); 
+                    tg.openTelegramLink('https://t.me/owpc_co');
+                }}
             }}
 
             function loadUser() {{
                 fetch('/api/user/' + user.id).then(r => r.json()).then(data => {{
                     currentPoints = data.points;
-                    document.getElementById('u-points').innerText = currentPoints.toLocaleString();
+                    document.getElementById('u-points').innerText = Math.floor(currentPoints).toLocaleString();
+                }});
+            }}
+
+            function loadLB() {{
+                const list = document.getElementById('lb-list');
+                list.innerHTML = '<p>Loading database...</p>';
+                fetch('/api/leaderboard').then(r => r.json()).then(data => {{
+                    list.innerHTML = '';
+                    data.forEach((item, index) => {{
+                        list.innerHTML += `
+                            <div class="lb-item">
+                                <span><span class="lb-rank">#${{index+1}}</span> ${{item.name}}</span>
+                                <span style="font-weight:bold;">${{item.points.toLocaleString()}}</span>
+                            </div>`;
+                    }});
                 }});
             }}
 
             function startFarming() {{
-                // Farming visuel : +0.01 toutes les secondes
                 setInterval(() => {{
                     currentPoints += 0.01;
                     document.getElementById('u-points').innerText = Math.floor(currentPoints).toLocaleString();
                 }}, 1000);
-
-                // Sauvegarde réelle en DB toutes les 30 secondes
                 setInterval(() => {{
                     fetch('/api/add_points/' + user.id + '/1', {{ method: 'POST' }});
                 }}, 30000);
@@ -185,7 +208,7 @@ async def read_root(request: Request):
 
             function claimDaily() {{
                 fetch('/api/daily/' + user.id, {{ method: 'POST' }}).then(r => r.json()).then(data => {{
-                    if(data.status == 'already_done') tg.showAlert("Genesis already claimed for today.");
+                    if(data.status == 'already_done') tg.showAlert("Protocol Genesis: Already synchronized for today.");
                     else {{ tg.HapticFeedback.notificationOccurred('success'); loadUser(); }}
                 }});
             }}
@@ -195,7 +218,7 @@ async def read_root(request: Request):
                 document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
                 document.getElementById(pId).classList.add('active-page');
                 document.getElementById(nId).classList.add('active');
-                tg.HapticFeedback.impactOccurred('light');
+                tg.HapticFeedback.impactOccurred('medium');
             }}
 
             checkAccess();
@@ -204,11 +227,11 @@ async def read_root(request: Request):
     </html>
     """
 
-# --- BOT & STARTUP ---
+# --- BOT & SERVER ---
 async def start_bot():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
-    bot.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("🕊️ OWPC HIVE", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN HIVE", web_app=WebAppInfo(url=WEBAPP_URL))]]))))
+    bot.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("🕊️ **OWPC HIVE ACCESS**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 ENTER TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")))
     async with bot:
         await bot.initialize(); await bot.start(); await bot.updater.start_polling()
         while True: await asyncio.sleep(1)
