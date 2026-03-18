@@ -18,7 +18,7 @@ DB_NAME = "owpc_data.db"
 
 app = FastAPI()
 
-# --- 📊 GESTION BASE DE DONNÉES ---
+# --- 📊 DB LOGIC ---
 def get_user_data(user_id):
     try:
         conn = sqlite3.connect(DB_NAME)
@@ -27,8 +27,8 @@ def get_user_data(user_id):
         result = cursor.fetchone()
         conn.close()
         return {"points": result[0], "rank": result[1]} if result else {"points": 0, "rank": "NEWBIE"}
-    except Exception as e:
-        return {"points": 0, "rank": "ERROR"}
+    except:
+        return {"points": 0, "rank": "NEWBIE"}
 
 def update_user_points(user_id, amount):
     try:
@@ -38,134 +38,148 @@ def update_user_points(user_id, amount):
         conn.commit()
         conn.close()
         return True
-    except:
-        return False
+    except: return False
 
 # --- 🔌 API ---
 @app.get("/api/user/{user_id}")
-async def api_get_user(user_id: int):
-    return JSONResponse(content=get_user_data(user_id))
+async def api_user(user_id: int): return JSONResponse(content=get_user_data(user_id))
 
 @app.post("/api/task/complete")
 async def complete_task(data: dict):
-    user_id = data.get("user_id")
-    reward = data.get("reward", 500)
-    if update_user_points(user_id, reward):
-        return {"status": "success", "new_balance": get_user_data(user_id)["points"]}
+    if update_user_points(data.get("user_id"), data.get("reward", 500)):
+        return {"status": "success"}
     return {"status": "error"}
 
-# --- 🌐 INTERFACE MINI APP ---
+# --- 🌐 MINI APP INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return f"""
     <!DOCTYPE html>
-    <html lang="fr">
+    <html>
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            :root {{ --gold: #d4af37; --bg: #0a0a12; --card: #161626; }}
-            body {{ background-color: var(--bg); color: white; margin: 0; padding: 0; font-family: sans-serif; text-align: center; }}
+            :root {{ --gold: #d4af37; --bg: #0a0a12; --veo: #00f2ff; }}
+            body {{ background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 0; text-align: center; }}
             
-            .page {{ display: none; padding: 20px; padding-bottom: 80px; }}
+            .page {{ display: none; padding: 20px; padding-bottom: 90px; }}
             .active-page {{ display: block; }}
 
-            .card {{ background: var(--card); border: 1px solid rgba(212,175,55,0.2); border-radius: 20px; padding: 25px; margin-top: 20px; }}
-            .balance {{ font-size: 42px; font-weight: bold; color: white; margin: 10px 0; }}
-            
-            /* TASKS STYLE */
-            .task-item {{
-                background: var(--card); border-radius: 15px; padding: 15px;
-                display: flex; justify-content: space-between; align-items: center;
-                margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.05);
+            .pillar-card {{
+                background: linear-gradient(145deg, #161626, #1f1f35);
+                border: 1px solid rgba(212,175,55,0.2);
+                border-radius: 20px; padding: 15px; margin-bottom: 15px;
+                display: flex; align-items: center; justify-content: space-between;
             }}
-            .task-info {{ text-align: left; }}
-            .task-name {{ font-weight: bold; font-size: 14px; }}
-            .task-reward {{ color: var(--gold); font-size: 12px; font-weight: bold; }}
-            .btn-claim {{ background: var(--gold); color: black; border: none; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }}
+            
+            .pillar-icon {{ font-size: 24px; margin-right: 15px; }}
+            .pillar-info {{ text-align: left; flex-grow: 1; }}
+            .pillar-title {{ font-weight: bold; color: var(--gold); font-size: 16px; }}
+            .pillar-desc {{ font-size: 11px; opacity: 0.7; }}
 
-            /* NAV BAR */
+            .balance {{ font-size: 45px; font-weight: bold; margin: 20px 0; }}
+            
             .nav-bar {{
                 position: fixed; bottom: 0; width: 100%; background: #12121f;
                 display: flex; justify-content: space-around; padding: 15px 0;
                 border-top: 1px solid rgba(255,255,255,0.1);
             }}
-            .nav-item {{ color: grey; font-size: 12px; cursor: pointer; }}
-            .nav-item.active {{ color: var(--gold); font-weight: bold; }}
+            .nav-item {{ color: grey; font-size: 11px; cursor: pointer; opacity: 0.6; }}
+            .nav-item.active {{ color: var(--gold); opacity: 1; font-weight: bold; }}
+            
+            .btn-go {{ background: var(--gold); color: black; border: none; padding: 8px 12px; border-radius: 8px; font-weight: bold; }}
         </style>
     </head>
     <body>
         <div id="home" class="page active-page">
-            <h2 id="display-name">...</h2>
-            <div class="card">
-                <div style="font-size: 12px; color: var(--gold);">OWPC CREDITS</div>
-                <div id="user-points" class="balance">0</div>
-                <span id="user-rank" style="color: var(--gold); border: 1px solid var(--gold); padding: 4px 10px; border-radius: 10px; font-size: 12px;">...</span>
+            <h2 id="u-name">...</h2>
+            <div class="balance" id="u-points">0</div>
+            <div style="margin-bottom: 25px;"><span id="u-rank" style="border:1px solid var(--gold); padding:5px 15px; border-radius:15px; color:var(--gold);">RANK</span></div>
+            
+            <div class="pillar-card" style="border-color: var(--gold);">
+                <div class="pillar-icon">🏺</div>
+                <div class="pillar-info">
+                    <div class="pillar-title">GENESIS</div>
+                    <div class="pillar-desc">The origin of OWPC. Early access.</div>
+                </div>
+                <button class="btn-go" onclick="tg.showAlert('Genesis core is active')">STATUS</button>
             </div>
-            <button onclick="invite()" style="width:100%; margin-top:20px; padding:15px; border-radius:12px; background:var(--gold); border:none; font-weight:bold;">🤝 INVITE FRIENDS</button>
+
+            <div class="pillar-card">
+                <div class="pillar-icon">🌍</div>
+                <div class="pillar-info">
+                    <div class="pillar-title">UNITY</div>
+                    <div class="pillar-desc">Community & Ecosystem growth.</div>
+                </div>
+                <button class="btn-go" onclick="showPage('tasks', document.getElementById('nav-tasks'))">JOIN</button>
+            </div>
+
+            <div class="pillar-card" style="border-color: var(--veo);">
+                <div class="pillar-icon">🤖</div>
+                <div class="pillar-info">
+                    <div class="pillar-title" style="color: var(--veo);">VEO</div>
+                    <div class="pillar-desc">Artificial Intelligence & Future.</div>
+                </div>
+                <div style="font-size: 10px; color: var(--veo);">LOCKED</div>
+            </div>
         </div>
 
         <div id="tasks" class="page">
-            <h2>MISSIONS</h2>
-            <div class="task-item">
-                <div class="task-info">
-                    <div class="task-name">Suivre OWPC sur X</div>
-                    <div class="task-reward">+1,000 OWPC</div>
+            <h2 style="color: var(--gold);">UNITY TASKS</h2>
+            <div class="pillar-card">
+                <div class="pillar-info">
+                    <div class="pillar-title">Follow DeepTradeX</div>
+                    <div class="pillar-desc">+1,000 CREDITS</div>
                 </div>
-                <button class="btn-claim" onclick="doTask(1000, 'https://x.com/owpc')">GO</button>
+                <button class="btn-go" onclick="doTask(1000, 'https://x.com/DeepTradeX')">GO</button>
             </div>
-            <div class="task-item">
-                <div class="task-info">
-                    <div class="task-name">Rejoindre le Channel</div>
-                    <div class="task-reward">+500 OWPC</div>
+            <div class="pillar-card">
+                <div class="pillar-info">
+                    <div class="pillar-title">Join Telegram Channel</div>
+                    <div class="pillar-desc">+500 CREDITS</div>
                 </div>
-                <button class="btn-claim" onclick="doTask(500, 'https://t.me/owpc_co')">GO</button>
+                <button class="btn-go" onclick="doTask(500, 'https://t.me/owpc_co')">GO</button>
             </div>
         </div>
 
         <nav class="nav-bar">
             <div class="nav-item active" onclick="showPage('home', this)">🏠<br>Home</div>
-            <div class="nav-item" onclick="showPage('tasks', this)">💎<br>Tasks</div>
+            <div class="nav-item" id="nav-tasks" onclick="showPage('tasks', this)">💠<br>Pillars</div>
         </nav>
 
         <script>
             let tg = window.Telegram.WebApp;
             const user = tg.initDataUnsafe.user;
 
-            function showPage(pageId, el) {{
+            function showPage(pId, el) {{
                 document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
                 document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.getElementById(pageId).classList.add('active-page');
+                document.getElementById(pId).classList.add('active-page');
                 el.classList.add('active');
                 tg.HapticFeedback.impactOccurred('light');
             }}
 
-            function refreshData() {{
+            function refresh() {{
                 fetch('/api/user/' + user.id).then(r => r.json()).then(data => {{
-                    document.getElementById('user-points').innerText = data.points.toLocaleString();
-                    document.getElementById('user-rank').innerText = data.rank;
-                    document.getElementById('display-name').innerText = user.first_name.toUpperCase();
+                    document.getElementById('u-points').innerText = data.points.toLocaleString();
+                    document.getElementById('u-rank').innerText = data.rank;
+                    document.getElementById('u-name').innerText = user.first_name.toUpperCase();
                 }});
             }}
 
             function doTask(reward, url) {{
                 tg.HapticFeedback.notificationOccurred('success');
                 tg.openLink(url);
-                // Simulation de validation de tâche
                 fetch('/api/task/complete', {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
                     body: JSON.stringify({{ user_id: user.id, reward: reward }})
-                }}).then(() => refreshData());
+                }}).then(() => setTimeout(refresh, 2000));
             }}
 
-            function invite() {{
-                tg.HapticFeedback.impactOccurred('medium');
-                tg.openTelegramLink("https://t.me/share/url?url=https://t.me/ton_bot?start=" + user.id + "&text=Rejoins le Hive !");
-            }}
-
-            refreshData();
+            refresh();
             tg.expand();
         </script>
     </body>
@@ -173,22 +187,22 @@ async def read_root(request: Request):
     """
 
 # --- 🤖 BOT ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 Launch OWPC HIVE", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("📢 Official Channel", url="https://t.me/owpc_co")]
     ])
-    await update.message.reply_text(f"Welcome back {update.effective_user.first_name}!\n\nReady to earn more?", reply_markup=kb)
+    await u.message.reply_text("🕊️ **Welcome to the HIVE**\nGenesis. Unity. Veo.", reply_markup=kb, parse_mode="Markdown")
 
 async def run_bot():
-    bot_app = ApplicationBuilder().token(TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    async with bot_app:
-        await bot_app.initialize(); await bot_app.start(); await bot_app.updater.start_polling()
+    bot = ApplicationBuilder().token(TOKEN).build()
+    bot.add_handler(CommandHandler("start", start))
+    async with bot:
+        await bot.initialize(); await bot.start(); await bot.updater.start_polling()
         while True: await asyncio.sleep(1)
 
 @app.on_event("startup")
-async def startup_event(): asyncio.create_task(run_bot())
+async def startup(): asyncio.create_task(run_bot())
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)
