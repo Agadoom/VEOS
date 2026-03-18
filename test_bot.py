@@ -21,50 +21,46 @@ CHANNEL_ID = "@owpc_co"
 
 app = FastAPI()
 
-# --- 📊 LOGIC RANKS ---
-def calculate_rank(points):
-    if points >= 15000: return "👑 OVERLORD"
-    if points >= 5000:  return "💎 ELITE"
-    if points >= 1500:  return "⚔️ COMMANDER"
-    if points >= 500:   return "🛡️ GUARDIAN"
-    return "🆕 SEEKER"
-
-# --- 🔌 API ---
-@app.get("/api/user/{user_id}")
-async def api_user(user_id: int):
+# --- 📊 DB LOGIC (Updated for Multi-Tokens) ---
+def init_db():
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
-    c.execute("SELECT points, last_checkin FROM users WHERE user_id = ?", (user_id,))
+    c.execute('''CREATE TABLE IF NOT EXISTS users 
+                 (user_id INTEGER PRIMARY KEY, name TEXT, 
+                  points_genesis INTEGER DEFAULT 0,
+                  points_unity INTEGER DEFAULT 0,
+                  points_veo REAL DEFAULT 0.0,
+                  rank TEXT DEFAULT '🆕 SEEKER', last_checkin TEXT DEFAULT '')''')
+    conn.commit(); conn.close()
+
+def get_user_data(user_id):
+    conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+    c.execute("SELECT points_genesis, points_unity, points_veo, last_checkin FROM users WHERE user_id = ?", (user_id,))
     res = c.fetchone(); conn.close()
     if res:
-        pts = res[0]
-        return {"points": pts, "rank": calculate_rank(pts), "last_checkin": res[1]}
-    return {"points": 0, "rank": "🆕 SEEKER", "last_checkin": None}
+        total = res[0] + res[1] + int(res[2])
+        return {"genesis": res[0], "unity": res[1], "veo": res[2], "total": total, "last_checkin": res[3]}
+    return {"genesis": 0, "unity": 0, "veo": 0.0, "total": 0, "last_checkin": None}
 
-@app.get("/api/leaderboard")
-async def get_leaderboard():
+# --- 🔌 API ---
+@app.post("/api/sync_veo/{user_id}/{amount}")
+async def sync_veo(user_id: int, amount: float):
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
-    c.execute("SELECT name, points FROM users ORDER BY points DESC LIMIT 10")
-    top = c.fetchall(); conn.close()
-    return [{"name": x[0], "points": x[1], "rank": calculate_rank(x[1])} for x in top]
+    c.execute("UPDATE users SET points_veo = points_veo + ? WHERE user_id = ?", (amount, user_id))
+    conn.commit(); conn.close()
+    return {"status": "synced"}
 
-@app.get("/api/check_membership/{user_id}")
-async def check_membership(user_id: int):
-    try:
-        url = f"https://api.telegram.org/bot{TOKEN}/getChatMember"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, params={"chat_id": CHANNEL_ID, "user_id": user_id})
-            data = resp.json()
-            if data.get("ok") and data["result"]["status"] in ['member', 'administrator', 'creator']:
-                return {"status": "member"}
-    except: pass
-    return {"status": "not_member"}
-
-@app.post("/api/add_points/{user_id}/{amount}")
-async def add_points(user_id: int, amount: int):
+@app.post("/api/claim_genesis/{user_id}")
+async def claim_genesis(user_id: int):
+    today = date.today().isoformat()
+    data = get_user_data(user_id)
+    if data["last_checkin"] == today: return {"status": "already_claimed"}
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
-    c.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (amount, user_id))
+    c.execute("UPDATE users SET points_genesis = points_genesis + 200, last_checkin = ? WHERE user_id = ?", (today, user_id))
     conn.commit(); conn.close()
     return {"status": "success"}
+
+@app.get("/api/user/{user_id}")
+async def api_user(user_id: int): return JSONResponse(content=get_user_data(user_id))
 
 # --- 🌐 INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
@@ -78,101 +74,105 @@ async def read_root(request: Request):
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             :root {{ --gold: #d4af37; --bg: #0a0a12; --card: #161626; --green: #50ff50; }}
-            body {{ background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; text-align: center; overflow: hidden; }}
-            .page {{ display: none; padding: 20px; height: 100vh; overflow-y: auto; box-sizing: border-box; }}
-            .active-page {{ display: block; }}
-            .balance {{ font-size: 52px; font-weight: 800; margin-top: 10px; }}
-            .rank-badge {{ color: var(--gold); font-size: 14px; font-weight: bold; letter-spacing: 2px; margin-bottom: 20px; }}
-            .pillar-card {{ background: var(--card); border-radius: 20px; padding: 18px; margin-bottom: 15px; display: flex; align-items: center; text-align: left; border: 1px solid rgba(212,175,55,0.1); }}
-            .lb-item {{ display: flex; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 8px; font-size: 14px; }}
-            .btn-action {{ background: var(--gold); color: black; border: none; padding: 10px 18px; border-radius: 12px; font-weight: bold; }}
-            .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); }}
-            .nav-item {{ opacity: 0.5; font-size: 10px; }}
-            .nav-item.active {{ opacity: 1; color: var(--gold); }}
+            body {{ background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; text-align: center; }}
+            .header {{ padding: 20px; border-bottom: 1px solid rgba(212,175,55,0.2); }}
+            .title {{ font-size: 16px; font-weight: bold; color: var(--gold); letter-spacing: 3px; }}
+            
+            .total-balance {{ font-size: 48px; font-weight: 800; margin: 10px 0; }}
+            .token-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 20px; margin-bottom: 20px; }}
+            .token-box {{ background: var(--card); padding: 10px; border-radius: 12px; border: 1px solid rgba(212,175,55,0.1); }}
+            .token-val {{ font-weight: bold; color: var(--gold); font-size: 14px; }}
+            .token-lab {{ font-size: 9px; opacity: 0.6; text-transform: uppercase; }}
+
+            .pillar-card {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 20px; display: flex; align-items: center; text-align: left; border: 1px solid rgba(212,175,55,0.1); }}
+            .btn-claim {{ background: var(--gold); color: black; border: none; padding: 8px 15px; border-radius: 10px; font-weight: bold; font-size: 12px; }}
+            
+            .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; }}
         </style>
     </head>
     <body>
-        <div id="main-content">
-            <div id="home" class="page active-page">
-                <div class="balance" id="u-points">0</div>
-                <div id="u-rank" class="rank-badge">LOADING RANK...</div>
-                
-                <div class="pillar-card">
-                    <div style="font-size: 24px; margin-right: 15px;">🏺</div>
-                    <div style="flex-grow: 1;"><b>GENESIS</b><br><small>Daily rewards.</small></div>
-                    <button class="btn-action" onclick="claimDaily()">CLAIM</button>
-                </div>
+        <div class="header">
+            <div class="title">OWPC TERMINAL</div>
+        </div>
 
-                <div class="pillar-card">
-                    <div style="font-size: 24px; margin-right: 15px;">🤖</div>
-                    <div style="flex-grow: 1;"><b>VEO MINING</b><br><small style="color: var(--green);">ACTIVE (+0.01/s)</small></div>
-                </div>
+        <div class="total-balance" id="total-pts">0</div>
+        <div style="font-size: 10px; opacity: 0.5; margin-bottom: 20px;">TOTAL OWPC ASSETS</div>
+
+        <div class="token-grid">
+            <div class="token-box">
+                <div class="token-val" id="val-genesis">0</div>
+                <div class="token-lab">Genesis</div>
             </div>
-
-            <div id="leaderboard" class="page">
-                <h2 style="color: var(--gold);">COMMANDERS</h2>
-                <div id="lb-list"></div>
+            <div class="token-box">
+                <div class="token-val" id="val-unity">0</div>
+                <div class="token-lab">Unity</div>
             </div>
+            <div class="token-box">
+                <div class="token-val" id="val-veo">0.00</div>
+                <div class="token-lab">Veo AI</div>
+            </div>
+        </div>
 
-            <nav class="nav-bar">
-                <div class="nav-item active" id="n-home" onclick="showPage('home', 'n-home')">🏠<br>Hive</div>
-                <div class="nav-item" id="n-lb" onclick="showPage('leaderboard', 'n-lb'); loadLB();">🏆<br>Ranks</div>
-            </nav>
+        <div class="pillar-card">
+            <div style="font-size: 24px; margin-right: 15px;">🏺</div>
+            <div style="flex-grow: 1;"><b>GENESIS PROTOCOL</b><br><small>Daily synchronisation.</small></div>
+            <button class="btn-claim" onclick="claimG()">CLAIM</button>
+        </div>
+
+        <div class="pillar-card">
+            <div style="font-size: 24px; margin-right: 15px;">🤖</div>
+            <div style="flex-grow: 1;"><b>VEO AI MINER</b><br><small style="color:var(--green)">MINING ACTIVE...</small></div>
         </div>
 
         <script>
             let tg = window.Telegram.WebApp;
-            const user = tg.initDataUnsafe.user;
-            let currentPoints = 0;
+            const uid = tg.initDataUnsafe.user.id;
+            let bal = {{ g:0, u:0, v:0.0 }};
+
+            function updateUI() {{
+                document.getElementById('val-genesis').innerText = bal.g.toLocaleString();
+                document.getElementById('val-unity').innerText = bal.u.toLocaleString();
+                document.getElementById('val-veo').innerText = bal.v.toFixed(2);
+                document.getElementById('total-pts').innerText = Math.floor(bal.g + bal.u + bal.v).toLocaleString();
+            }}
+
+            function load() {{
+                fetch('/api/user/'+uid).then(r=>r.json()).then(data=>{{
+                    bal.g = data.genesis; bal.u = data.unity; bal.v = data.veo;
+                    updateUI();
+                }});
+            }}
+
+            function claimG() {{
+                fetch('/api/claim_genesis/'+uid, {{method:'POST'}}).then(r=>r.json()).then(d=>{{
+                    if(d.status=='success') {{ tg.HapticFeedback.notificationOccurred('success'); load(); }}
+                    else tg.showAlert("Already synced for today.");
+                }});
+            }}
+
+            // Farming VEO en temps réel
+            setInterval(() => {{
+                bal.v += 0.01;
+                updateUI();
+            }}, 1000);
+
+            // Sync DB toutes les 30s
+            setInterval(() => {{
+                fetch(`/api/sync_veo/${{uid}}/0.30`, {{method:'POST'}});
+            }}, 30000);
+
+            load();
             tg.expand();
-
-            function loadUser() {{
-                fetch('/api/user/' + user.id).then(r => r.json()).then(data => {{
-                    currentPoints = data.points;
-                    document.getElementById('u-points').innerText = Math.floor(currentPoints).toLocaleString();
-                    document.getElementById('u-rank').innerText = data.rank;
-                }});
-            }}
-
-            function loadLB() {{
-                const list = document.getElementById('lb-list');
-                list.innerHTML = 'Syncing...';
-                fetch('/api/leaderboard').then(r => r.json()).then(data => {{
-                    list.innerHTML = '';
-                    data.forEach((item, i) => {{
-                        list.innerHTML += `<div class="lb-item">
-                            <span>#${{i+1}} ${{item.name}} <br><small style="color:var(--gold)">${{item.rank}}</small></span>
-                            <b>${{item.points.toLocaleString()}}</b>
-                        </div>`;
-                    }});
-                }});
-            }}
-
-            function startFarming() {{
-                setInterval(() => {{
-                    currentPoints += 0.01;
-                    document.getElementById('u-points').innerText = Math.floor(currentPoints).toLocaleString();
-                }}, 1000);
-                setInterval(() => {{ fetch('/api/add_points/' + user.id + '/1', {{ method: 'POST' }}); }}, 30000);
-            }}
-
-            function showPage(pId, nId) {{
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.getElementById(pId).classList.add('active-page');
-                document.getElementById(nId).classList.add('active');
-            }}
-
-            loadUser();
-            startFarming();
         </script>
     </body>
     </html>
     """
-# --- BOT SETUP ---
+
+# --- BOT ---
 async def start_bot():
+    init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
-    bot.add_handler(CommandHandler("start", lambda u, c: u.message.reply_text("🕊️ OWPC HIVE", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN", web_app=WebAppInfo(url=WEBAPP_URL))]]))))
+    bot.add_handler(CommandHandler("start", lambda u,c: u.message.reply_text("🕊️ OWPC HIVE", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN", web_app=WebAppInfo(url=WEBAPP_URL))]]))))
     async with bot:
         await bot.initialize(); await bot.start(); await bot.updater.start_polling()
         while True: await asyncio.sleep(1)
