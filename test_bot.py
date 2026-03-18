@@ -24,11 +24,14 @@ LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK"
 
 app = FastAPI()
 
-# --- 📊 RANK LOGIC ---
+# --- 📊 RANK LOGIC (Harmonized with Community Bot) ---
 def calculate_rank(points):
-    if points >= 50000: return "💎 LEGEND"
-    if points >= 10000: return "🎖️ COMMANDER"
-    if points >= 2500:  return "⚔️ WARRIOR"
+    """Calculates rank based on total OWPC points"""
+    if points >= 100000: return "💎 LEGEND"
+    if points >= 50000:  return "👑 ELITE"
+    if points >= 15000:  return "🎖️ COMMANDER"
+    if points >= 5000:   return "⚔️ WARRIOR"
+    if points >= 1000:   return "🛡️ GUARDIAN"
     return "🆕 SEEKER"
 
 # --- 📊 DATABASE ---
@@ -46,12 +49,15 @@ def get_user_data(user_id):
     c.execute("SELECT points_genesis, points_unity, points_veo, last_checkin, referrals FROM users WHERE user_id = ?", (user_id,))
     res = c.fetchone(); conn.close()
     if res:
-        total = res[0] + res[1] + res[2]
+        # We calculate the total to determine the dynamic rank
+        total = (res[0] or 0) + (res[1] or 0) + (res[2] or 0.0)
+        current_rank = calculate_rank(total)
         return {
             "genesis": res[0], "unity": res[1], "veo": res[2], 
-            "last_checkin": res[3], "rank": calculate_rank(total), "refs": res[4]
+            "last_checkin": res[3], "rank": current_rank, "refs": res[4],
+            "total": int(total)
         }
-    return {"genesis": 0, "unity": 0, "veo": 0.0, "last_checkin": None, "rank": "🆕 SEEKER", "refs": 0}
+    return {"genesis": 0, "unity": 0, "veo": 0.0, "last_checkin": None, "rank": "🆕 SEEKER", "refs": 0, "total": 0}
 
 # --- 🔌 API ---
 @app.get("/api/stats")
@@ -159,12 +165,8 @@ async def read_root(request: Request):
                 <button class="btn-action" onclick="tg.openTelegramLink('https://t.me/owpc_co')">GO</button>
             </div>
             <div class="task-card">
-                <div style="text-align:left;"><b>Buy Genesis</b><br><small>+2500 OWPC</small></div>
+                <div style="text-align:left;"><b>Invest in Genesis</b><br><small>Unlock COMMANDER rank</small></div>
                 <button class="btn-action" onclick="tg.openLink('{LINK_GENESIS}')">BUY</button>
-            </div>
-            <div class="task-card" style="opacity:0.5;">
-                <div style="text-align:left;"><b>Invite 5 Friends</b><br><small>Rank: WARRIOR</small></div>
-                <span>🔒</span>
             </div>
         </div>
 
@@ -172,9 +174,9 @@ async def read_root(request: Request):
             <h2 style="color:var(--gold);">NETWORK</h2>
             <div class="pillar" style="flex-direction:column; text-align:center;">
                 <div id="ref-count" style="font-size:40px; font-weight:bold; margin-bottom:10px;">0</div>
-                <p>Commanders joined your Hive.</p>
+                <p>Commanders joined your network.</p>
             </div>
-            <button class="btn-action" style="width:100%" onclick="tg.openTelegramLink('https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start='+uid+'&text=Join the OWPC Hive!')">INVITE FRIENDS</button>
+            <button class="btn-action" style="width:100%" onclick="tg.openTelegramLink('https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start='+uid+'&text=Join the OWPC Hive Network!')">INVITE FRIENDS</button>
         </div>
 
         <nav class="nav-bar">
@@ -213,7 +215,8 @@ async def read_root(request: Request):
             function claim(e) {{
                 fetch('/api/claim_genesis/'+uid, {{method:'POST'}}).then(r=>r.json()).then(d=>{{
                     const fx = document.createElement('div');
-                    fx.className = 'float-text'; fx.innerText = '+200';
+                    fx.className = 'float-text';
+                    fx.innerText = '+200';
                     document.getElementById('fx-container').appendChild(fx);
                     setTimeout(() => fx.remove(), 1000);
                     tg.HapticFeedback.notificationOccurred('success');
@@ -243,9 +246,15 @@ async def run_bot():
     
     async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
         conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
-        cursor.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (u.effective_user.id, u.effective_user.first_name))
+        # Ensure name is updated if changed
+        cursor.execute("INSERT INTO users (user_id, name) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET name=excluded.name", (u.effective_user.id, u.effective_user.first_name))
         conn.commit(); conn.close()
-        await u.message.reply_text(f"🕊️ **OWPC TERMINAL**\nWelcome Commander {u.effective_user.first_name}.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")
+        
+        await u.message.reply_text(
+            f"🕊️ **OWPC TERMINAL**\n\nWelcome Commander {u.effective_user.first_name}.\nAccess your synchronized assets below.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]),
+            parse_mode="Markdown"
+        )
 
     bot.add_handler(CommandHandler("start", start))
     async with bot:
