@@ -16,7 +16,7 @@ TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 1414016840 
 BOT_USERNAME = "OwpcInfoBot"
 LOGO_PATH = "media/owpc_logo.png"
-CHANNEL_ID = "@owpc_co"  # <--- TON CANAL CONFIGURÉ
+CHANNEL_ID = "@owpc_co" 
 
 # --- LINKS ---
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA"
@@ -74,7 +74,6 @@ def create_visual_card(name, score, uid):
     bio = BytesIO(); bio.name = 'passport.png'; base.save(bio, 'PNG'); bio.seek(0)
     return bio
 
-# --- CHECK MEMBERSHIP ---
 async def is_subscribed(context, user_id):
     try:
         member = await context.bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
@@ -112,54 +111,56 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "back_home":
         await query.message.edit_caption(caption=f"🕊️ **Main Menu**\nPoints: {res[0]}", reply_markup=main_menu_kb())
 
+    elif query.data == "staking_sim":
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Simulate 10,000 $OWPC", callback_data="sim_10k")], back_btn()])
+        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**\nChoose an amount to estimate rewards:", reply_markup=kb)
+
+    elif query.data == "sim_10k":
+        txt = "📊 **ESTIMATION (10,000 tokens)**\n\n💎 UNITY (25%): 208.3/mo\n🧬 GENESIS (12%): 100/mo\n\n🔥 Buy on Blum to earn!"
+        await query.message.edit_caption(caption=txt, reply_markup=InlineKeyboardMarkup([back_btn()]))
+
     elif query.data == "my_card":
-        card = create_visual_card(name, res[0], uid)
-        await query.message.reply_photo(photo=card, caption=f"🆔 Passport: {name}\nRank: {get_rank_info(res[0])[0]}")
+        await query.message.reply_photo(photo=create_visual_card(name, res[0], uid), caption=f"🆔 Passport: {name}")
 
     elif query.data == "view_stats":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         c.execute("SELECT COUNT(*) FROM users"); total = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM users WHERE referred_by = ?", (uid,)); inv = c.fetchone()[0]; conn.close()
-        await query.message.edit_caption(caption=f"📊 **YOUR STATS**\n\nGlobal Citizens: {total}\nYour Referrals: {inv}\nYour Score: {res[0]} PTS", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"📊 **STATS**\nGlobal Users: {total}\nYour Referrals: {inv}", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "get_invite":
         link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
-        await query.message.edit_caption(caption=f"🔗 **INVITE FRIENDS**\n\nShare this link to earn 100 PTS per referral:\n`{link}`", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"🔗 **INVITE**\n`{link}`", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "live_feed":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT value FROM settings WHERE key = 'live_feed'"); feed = c.fetchone()[0]; conn.close()
-        await query.message.edit_caption(caption=f"📡 **LIVE FEED**\n\n{feed}", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"📡 **FEED**\n\n{feed}", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
-        if res[1] == today: await query.message.reply_text("⏳ Come back tomorrow!")
+        if res[1] == today: await query.message.reply_text("⏳ Tomorrow!")
         else:
             if await is_subscribed(context, uid):
-                win = random.choices([15, 30, 50, 100], weights=[60, 25, 10, 5])[0]
+                win = random.choices([15, 30, 50], weights=[70, 20, 10])[0]
                 update_user(uid, name, score_inc=win, daily=today)
-                await query.message.reply_text(f"🎰 **Lucky Draw: +{win} PTS!**")
-            else:
-                await query.message.reply_text("❌ Join @owpc_co first!")
+                await query.message.reply_text(f"🎰 Lucky Draw: +{win} PTS!")
+            else: await query.message.reply_text("❌ Join @owpc_co first!")
 
     elif query.data == "open_q":
         await query.message.edit_caption(caption="🚀 **QUESTS**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("Claim +100", callback_data="claim_q")], back_btn()]))
 
     elif query.data == "claim_q":
         if await is_subscribed(context, uid):
-            update_user(uid, name, score_inc=100); await query.message.reply_text("🔥 Quest Done! +100 PTS")
+            update_user(uid, name, score_inc=100); await query.message.reply_text("🔥 +100 PTS!")
         else: await query.message.reply_text("❌ Join @owpc_co first!")
 
     elif query.data == "invest_hub":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS)], [InlineKeyboardButton("💎 UNITY", url=LINK_UNITY)], [InlineKeyboardButton("⚡ VEO", url=LINK_VEO)], back_btn()])
         await query.message.edit_caption(caption="💰 **INVEST HUB**", reply_markup=kb)
 
-    elif query.data == "staking_sim":
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("10k Sim", callback_data="sim_10k")], back_btn()])
-        await query.message.edit_caption(caption="💎 **SIMULATOR**", reply_markup=kb)
-
     elif query.data == "view_lb":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 5"); top = c.fetchall(); conn.close()
-        txt = "🏛️ **HALL OF FAME**\n\n" + "\n".join([f"👑 {u[0]} — {u[1]} PTS" for u in top])
+        txt = "🏛️ **LEADERBOARD**\n\n" + "\n".join([f"👑 {u[0]} — {u[1]} PTS" for u in top])
         await query.message.edit_caption(caption=txt, reply_markup=InlineKeyboardMarkup([back_btn()]))
 
 async def main():
@@ -167,7 +168,6 @@ async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("🚀 OWPC v6.9.1 TOTAL REPAIR LIVE")
     await app.run_polling()
 
 if __name__ == "__main__":
