@@ -16,7 +16,7 @@ TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 8080))
 WEBAPP_URL = "https://veos-production.up.railway.app" 
 DB_NAME = "owpc_data.db"
-BOT_USERNAME = "owpcsbot" # Verified username
+BOT_USERNAME = "owpcsbot"
 
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1"
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR"
@@ -47,7 +47,8 @@ async def get_stats():
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
     c.execute("SELECT COUNT(*) FROM users")
     count = c.fetchone()[0]
-    c.execute("SELECT SUM(points_genesis + points_unity + points_veo) FROM users")
+    # FIX: Use COALESCE to avoid NULL returning 0
+    c.execute("SELECT SUM(COALESCE(points_genesis,0) + COALESCE(points_unity,0) + COALESCE(points_veo,0)) FROM users")
     total = c.fetchone()[0] or 0
     conn.close()
     return {"user_count": count, "total_claimed": int(total)}
@@ -59,6 +60,8 @@ async def api_user(user_id: int): return JSONResponse(content=get_user_data(user
 async def claim_genesis(user_id: int):
     today = date.today().isoformat()
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+    # FIX: Ensure user exists before update
+    c.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
     c.execute("UPDATE users SET points_genesis = points_genesis + 200, last_checkin = ? WHERE user_id = ?", (today, user_id))
     conn.commit(); conn.close()
     return {"status": "success"}
@@ -95,12 +98,12 @@ async def read_root(request: Request):
             .float-text {{ position: absolute; color: var(--green); font-size: 24px; font-weight: bold; pointer-events: none; animation: floatUp 1s forwards; left: 50%; transform: translateX(-50%); }}
             
             .token-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }}
-            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); cursor: pointer; }}
+            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); }}
             .pillar {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 0; display: flex; align-items: center; text-align: left; }}
             .btn-action {{ background: var(--gold); color: black; border: none; padding: 12px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }}
             
             .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); }}
-            .nav-item {{ opacity: 0.4; font-size: 10px; color: white; text-align: center; text-decoration: none; }}
+            .nav-item {{ opacity: 0.4; font-size: 10px; color: white; text-align: center; }}
             .nav-item.active {{ opacity: 1; color: var(--gold); font-weight: bold; }}
 
             @keyframes blink {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.3; }} }}
@@ -132,26 +135,26 @@ async def read_root(request: Request):
 
             <div class="pillar">
                 <div style="font-size:24px; margin-right:15px;">🏺</div>
-                <div style="flex-grow:1;"><b>DAILY GRANT</b><br><small opacity:0.6>Claim +200 OWPC</small></div>
+                <div style="flex-grow:1;"><b>GENESIS GRANT</b><br><small opacity:0.6>Claim daily +200 OWPC</small></div>
                 <button class="btn-action" onclick="claim(event)">CLAIM</button>
             </div>
         </div>
 
         <div id="friends" class="page">
-            <h2 style="color:var(--gold);">NETWORK</h2>
+            <h2 style="color:var(--gold);">HIVE NETWORK</h2>
             <div class="pillar" style="flex-direction:column; text-align:center;">
                 <div id="ref-count" style="font-size:40px; font-weight:bold; margin-bottom:10px;">0</div>
-                <p style="font-size:14px;">Commanders in your Hive</p>
+                <p>Commanders joined your network.</p>
             </div>
             <button class="btn-action" style="width:100%" onclick="tg.openTelegramLink('https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start='+uid+'&text=Join the OWPC Hive Network!')">INVITE FRIENDS</button>
         </div>
 
         <div id="roadmap" class="page">
-            <h2 style="color:var(--gold);">ROADMAP</h2>
+            <h2 style="color:var(--gold);">PROTOCOL ROADMAP</h2>
             <div style="text-align:left; padding:0 20px; border-left:2px solid var(--gold); margin-left:10px;">
                 <p style="margin-bottom:25px;"><b>PHASE 1: HIVE START</b><br><small>Terminal Launch & Genesis Mining (LIVE)</small></p>
                 <p style="margin-bottom:25px;"><b>PHASE 2: UNITY SYNC</b><br><small>Investment multipliers & Community Tasks.</small></p>
-                <p><b>PHASE 3: EVOLUTION</b><br><small>Listing & AI Trading deployment.</small></p>
+                <p><b>PHASE 3: EVOLUTION</b><br><small>Listing & DEX deployment.</small></p>
             </div>
         </div>
 
@@ -176,7 +179,11 @@ async def read_root(request: Request):
 
             function loadData() {{
                 fetch('/api/user/'+uid).then(r=>r.json()).then(d=>{{
-                    state.g=d.genesis; state.u=d.unity; state.v=d.veo;
+                    // FIX: Don't reset if local mining is ahead
+                    state.g = d.genesis;
+                    state.u = d.unity;
+                    if (d.veo > state.v) state.v = d.veo;
+                    
                     document.getElementById('u-rank').innerText = d.rank;
                     document.getElementById('ref-count').innerText = d.refs;
                     updateUI();
@@ -194,6 +201,7 @@ async def read_root(request: Request):
                     fx.innerText = '+200';
                     document.getElementById('fx-container').appendChild(fx);
                     setTimeout(() => fx.remove(), 1000);
+                    
                     tg.HapticFeedback.notificationOccurred('success');
                     loadData();
                 }});
@@ -204,11 +212,10 @@ async def read_root(request: Request):
                 document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
                 document.getElementById(p).classList.add('active-page');
                 document.getElementById(n).classList.add('active');
-                tg.HapticFeedback.impactOccurred('light');
             }}
 
             setInterval(() => {{ state.v += 0.01; updateUI(); }}, 1000);
-            setInterval(loadData, 30000);
+            setInterval(loadData, 30000); 
             loadData();
         </script>
     </body>
@@ -226,7 +233,7 @@ async def run_bot():
         conn.commit(); conn.close()
         
         await u.message.reply_text(
-            f"🕊️ **OWPC TERMINAL**\n\nWelcome Commander {u.effective_user.first_name}.\nAccess the Genesis & Unity protocols below.",
+            f"🕊️ **OWPC TERMINAL**\n\nWelcome Commander {u.effective_user.first_name}.\nAccess your assets below.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]),
             parse_mode="Markdown"
         )
