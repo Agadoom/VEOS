@@ -11,9 +11,9 @@ nest_asyncio.apply()
 
 # --- ⚙️ CONFIG ---
 TOKEN = os.getenv("TOKEN") 
-LOGO_PATH = "media/owpc_logo.png"
 DB_PATH = "owpc_data.db" 
 WEBAPP_URL = "https://veos-production.up.railway.app" 
+LOGO_PATH = "media/owpc_logo.png"
 
 # --- 📊 SYNCHRONIZED RANK LOGIC ---
 def calculate_rank(points):
@@ -26,7 +26,6 @@ def calculate_rank(points):
 
 # --- 📊 DATABASE LOGIC ---
 def init_db():
-    """S'assure que la table existe si elle n'est pas encore créée"""
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id INTEGER PRIMARY KEY, name TEXT, 
@@ -35,24 +34,18 @@ def init_db():
                   rank TEXT DEFAULT '🆕 SEEKER', last_checkin TEXT DEFAULT '')''')
     conn.commit(); conn.close()
 
-def get_user_data(user_id):
+def get_user_full_data(user_id):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("SELECT points_genesis, points_unity, points_veo, last_checkin FROM users WHERE user_id = ?", (user_id,))
+    c.execute("SELECT points_genesis, points_unity, points_veo, last_checkin, referrals FROM users WHERE user_id = ?", (user_id,))
     res = c.fetchone(); conn.close()
     if res:
-        total = (res[0] or 0) + (res[1] or 0) + (res[2] or 0.0)
-        return {"total": int(total), "last_checkin": res[3], "rank": calculate_rank(total)}
-    return {"total": 0, "last_checkin": None, "rank": "🆕 SEEKER"}
-
-def update_user_points(user_id, name, bonus=0, daily=None):
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    # On utilise INSERT OR IGNORE pour créer l'user s'il n'existe pas
-    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (user_id, name))
-    if bonus:
-        c.execute("UPDATE users SET points_genesis = points_genesis + ? WHERE user_id = ?", (bonus, user_id))
-    if daily:
-        c.execute("UPDATE users SET last_checkin = ? WHERE user_id = ?", (daily, user_id))
-    conn.commit(); conn.close()
+        g, u, v = (res[0] or 0), (res[1] or 0), (res[2] or 0.0)
+        total = g + u + v
+        return {
+            "genesis": g, "unity": u, "veo": v, "total": int(total),
+            "last_checkin": res[3], "refs": res[4] or 0, "rank": calculate_rank(total)
+        }
+    return {"genesis": 0, "unity": 0, "veo": 0, "total": 0, "last_checkin": None, "refs": 0, "rank": "🆕 SEEKER"}
 
 # --- ⌨️ KEYBOARDS ---
 def main_menu_kb():
@@ -68,9 +61,12 @@ def back_btn(): return [InlineKeyboardButton("⬅️ Back to Menu", callback_dat
 # --- 🛠️ HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    update_user_points(user.id, user.first_name)
-    data = get_user_data(user.id)
+    # Ensure user exists
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (user.id, user.first_name))
+    conn.commit(); conn.close()
     
+    data = get_user_full_data(user.id)
     cap = (f"🕊️ **OWPC PROTOCOL**\n\n"
            f"👤 **Commander:** {user.first_name}\n"
            f"🏆 **Rank:** {data['rank']}\n"
@@ -84,40 +80,63 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer()
     uid, name = query.from_user.id, query.from_user.first_name
-    data = get_user_data(uid)
+    data = get_user_full_data(uid)
 
     if query.data == "back_home":
-        cap = (f"🕊️ **Main Menu**\nRank: {data['rank']}\nCredits: {data['total']:,} OWPC")
+        cap = f"🕊️ **Main Menu**\nRank: {data['rank']}\nCredits: {data['total']:,} OWPC"
         await query.message.edit_caption(caption=cap, reply_markup=main_menu_kb(), parse_mode="Markdown")
-    # ... (le reste du code reste identique) ...
+
     elif query.data == "invest_hub":
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
-                                    [InlineKeyboardButton("🌍 UNITY", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
-                                    [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
-                                    back_btn()])
-        await query.message.edit_caption(caption="💰 **INVEST HUB**", reply_markup=kb)
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
+            [InlineKeyboardButton("🌍 UNITY", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
+            [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
+            [back_btn()]
+        ])
+        await query.message.edit_caption(caption="💰 **INVEST HUB**\nAcquire assets to increase your rank.", reply_markup=kb)
+
+    elif query.data == "view_stats":
+        stats_text = (f"📊 **DETAILED ASSETS**\n\n"
+                      f"🧬 Genesis: {data['genesis']:,}\n"
+                      f"🌍 Unity: {data['unity']:,}\n"
+                      f"🤖 Veo AI: {data['veo']:.2f}\n"
+                      f"------------------\n"
+                      f"🔥 **Total: {data['total']:,} OWPC**")
+        await query.message.edit_caption(caption=stats_text, reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "my_card":
+        card_text = (f"🆔 **OWPC PASSPORT**\n\n"
+                     f"Name: {name}\n"
+                     f"Rank: {data['rank']}\n"
+                     f"Network: {data['refs']} members\n"
+                     f"Status: VERIFIED ✅")
+        await query.message.edit_caption(caption=card_text, reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "get_invite":
+        link = f"https://t.me/owpcsbot?start={uid}"
+        await query.message.edit_caption(caption=f"🔗 **NETWORK GROWTH**\n\nInvite friends and earn bonuses.\nYour link:\n`{link}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "view_lb":
+        await query.message.edit_caption(caption="🏛️ **HALL OF FAME**\nComing soon: Real-time global ranking.", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
         if data['last_checkin'] == today:
-            await query.message.reply_text("⏳ Already claimed!")
+            await query.message.reply_text("⏳ Check-in already completed today.")
         else:
             win = random.randint(50, 150)
-            update_user_points(uid, name, bonus=win, daily=today)
-            await query.message.reply_text(f"🎰 Lucky Draw: +{win} OWPC!")
-    elif query.data == "my_card":
-        await query.message.reply_text(f"🆔 **OWPC PASSPORT**\nRank: {data['rank']}")
-    elif query.data == "view_stats":
-        await query.message.edit_caption(caption=f"📊 **STATS**\nTotal: {data['total']:,} OWPC", reply_markup=InlineKeyboardMarkup([back_btn()]))
-    elif query.data == "get_invite":
-        await query.message.edit_caption(caption=f"🔗 **LINK**\nhttps://t.me/owpcsbot?start={uid}", reply_markup=InlineKeyboardMarkup([back_btn()]))
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute("UPDATE users SET points_genesis = points_genesis + ?, last_checkin = ? WHERE user_id = ?", (win, today, uid))
+            conn.commit(); conn.close()
+            await query.message.reply_text(f"🎰 Lucky Draw: +{win} OWPC added to Genesis!")
 
 # --- MAIN ---
 async def main():
-    init_db() # IMPORTANT: On crée la table au démarrage
+    init_db()
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("Bot Synced & Database Ready...")
+    print("Bot One World Peace Coins (Fixed & Fully Synced) Online...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
