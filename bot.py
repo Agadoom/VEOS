@@ -60,7 +60,6 @@ def update_user(user_id, name, score_inc=0, daily=None, ref_by=0):
     conn.commit(); conn.close()
     return get_user_data(user_id)
 
-# --- PASSPORT IMAGE ---
 def create_visual_card(name, score, uid):
     w, h = 1600, 900
     base = Image.new('RGB', (w, h), (10, 10, 18))
@@ -87,7 +86,7 @@ def main_menu_kb():
         [InlineKeyboardButton("📡 Live Feed", callback_data="live_feed"), InlineKeyboardButton("💎 Staking Sim", callback_data="staking_sim")],
         [InlineKeyboardButton("🆔 My Passport", callback_data="my_card"), InlineKeyboardButton("🚀 Quests", callback_data="open_q")],
         [InlineKeyboardButton("📊 Stats", callback_data="view_stats"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="daily")],
-        [InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
+        [InlineKeyboardButton("🗺️ Roadmap", callback_data="view_roadmap"), InlineKeyboardButton("🔗 Invite Friends", callback_data="get_invite")]
     ])
 
 def back_btn(): return [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]
@@ -96,25 +95,11 @@ def back_btn(): return [InlineKeyboardButton("⬅️ Back to Menu", callback_dat
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     res = update_user(user.id, user.first_name, ref_by=int(context.args[0].replace("ref_","")) if context.args and context.args[0].startswith("ref_") else 0)
-    cap = f"🕊️ **Welcome to OWPC**\nPoints: {res[0]} PTS"
+    cap = f"🕊️ **Welcome to OWPC**\nRank: {get_rank_info(res[0])[0]}\nPoints: {res[0]} PTS"
     if os.path.exists(LOGO_PATH):
         await update.effective_message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=main_menu_kb())
     else:
         await update.effective_message.reply_text(cap, parse_mode="Markdown", reply_markup=main_menu_kb())
-
-async def set_feed_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    msg = " ".join(context.args)
-    if not msg: return
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("UPDATE settings SET value = ? WHERE key = 'live_feed'", (msg,))
-    c.execute("SELECT id FROM users"); all_u = c.fetchall(); conn.commit(); conn.close()
-    await update.message.reply_text(f"📢 Broadcasting to {len(all_u)} members...")
-    for u in all_u:
-        try: await context.bot.send_message(chat_id=u[0], text=f"🔔 **OWPC UPDATE**\n\n{msg}", parse_mode="Markdown")
-        except: pass
-        await asyncio.sleep(0.05)
-    await update.message.reply_text("✅ Broadcast complete!")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer()
@@ -124,41 +109,44 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "back_home":
         await query.message.edit_caption(caption=f"🕊️ **Main Menu**\nPoints: {res[0]}", reply_markup=main_menu_kb(), parse_mode="Markdown")
 
+    elif query.data == "view_roadmap":
+        txt = (
+            "🗺️ **OWPC STRATEGIC ROADMAP**\n\n"
+            "📍 **PHASE 1: Foundation (LIVE)**\n"
+            "└ Bot Launch, Passport, Referral system.\n\n"
+            "📍 **PHASE 2: Growth (Q2 2026)**\n"
+            "└ Mini-App Dashboard, Staking Portal V1.\n\n"
+            "📍 **PHASE 3: Ecosystem (Q3 2026)**\n"
+            "└ Marketplace, Governance voting, VEO tools.\n\n"
+            "📍 **PHASE 4: Moon (Q4 2026)**\n"
+            "└ Token Airdrop based on Points & Ranks! 🚀"
+        )
+        await query.message.edit_caption(caption=txt, reply_markup=InlineKeyboardMarkup([back_btn()]), parse_mode="Markdown")
+
     elif query.data == "live_feed":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT value FROM settings WHERE key = 'live_feed'"); feed = c.fetchone()[0]; conn.close()
         await query.message.edit_caption(caption=f"📡 **LIVE FEED**\n\n{feed}", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "my_card":
-        await query.message.reply_photo(photo=create_visual_card(name, res[0], uid), caption=f"🆔 Passport for {name}")
+        await query.message.reply_photo(photo=create_visual_card(name, res[0], uid), caption=f"🆔 Passport: {name}")
 
     elif query.data == "view_stats":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT COUNT(*) FROM users"); total = c.fetchone()[0]; conn.close()
-        await query.message.edit_caption(caption=f"📊 **STATS**\nGlobal Users: {total}\nYour Score: {res[0]} PTS", reply_markup=InlineKeyboardMarkup([back_btn()]))
-
-    elif query.data == "get_invite":
-        link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
-        await query.message.edit_caption(caption=f"🔗 **INVITE LINK**\n`{link}`", reply_markup=InlineKeyboardMarkup([back_btn()]))
-
-    elif query.data == "staking_sim":
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Simulate 10,000 $OWPC", callback_data="sim_10k")], back_btn()])
-        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**", reply_markup=kb)
-
-    elif query.data == "sim_10k":
-        await query.message.edit_caption(caption="📊 **ESTIMATES**\nUnity: 208/mo\nGenesis: 100/mo", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"📊 **STATS**\nGlobal Citizens: {total}\nYour Rank: {get_rank_info(res[0])[0]}", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
         if res[1] == today: await query.message.reply_text("⏳ Come back tomorrow!")
         else:
             if await is_subscribed(context, uid):
-                win = random.choices([15, 30, 50], weights=[70, 20, 10])[0]
+                win = random.choices([15, 30, 50, 100], weights=[60, 25, 10, 5])[0]
                 update_user(uid, name, score_inc=win, daily=today)
                 await query.message.reply_text(f"🎰 Lucky Draw: +{win} PTS!")
             else: await query.message.reply_text("❌ Join @owpc_co first!")
 
     elif query.data == "open_q":
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("Claim +100", callback_data="claim_q")], back_btn()])
-        await query.message.edit_caption(caption="🚀 **QUESTS**", reply_markup=kb)
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Join Channel", url=LINK_CHANNEL)], [InlineKeyboardButton("Claim Reward", callback_data="claim_q")], back_btn()])
+        await query.message.edit_caption(caption="🚀 **QUESTS**\nComplete tasks to earn more points.", reply_markup=kb)
 
     elif query.data == "claim_q":
         if await is_subscribed(context, uid):
@@ -169,10 +157,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS)], [InlineKeyboardButton("💎 UNITY", url=LINK_UNITY)], [InlineKeyboardButton("⚡ VEO", url=LINK_VEO)], back_btn()])
         await query.message.edit_caption(caption="💰 **INVEST HUB**", reply_markup=kb)
 
+    elif query.data == "staking_sim":
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("Simulate 10k $OWPC", callback_data="sim_10k")], back_btn()])
+        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**", reply_markup=kb)
+
+    elif query.data == "sim_10k":
+        await query.message.edit_caption(caption="📊 **ESTIMATES**\nUnity: 208/mo\nGenesis: 100/mo", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
     elif query.data == "view_lb":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor(); c.execute("SELECT name, score FROM users ORDER BY score DESC LIMIT 5"); top = c.fetchall(); conn.close()
-        txt = "🏛️ **LEADERBOARD**\n\n" + "\n".join([f"👑 {u[0]} — {u[1]} PTS" for u in top])
+        txt = "🏛️ **HALL OF FAME**\n\n" + "\n".join([f"👑 {u[0]} — {u[1]} PTS" for u in top])
         await query.message.edit_caption(caption=txt, reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "get_invite":
+        link = f"https://t.me/{BOT_USERNAME}?start=ref_{uid}"
+        await query.message.edit_caption(caption=f"🔗 **INVITE**\n`{link}`", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+async def set_feed_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID: return
+    msg = " ".join(context.args)
+    if not msg: return
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("UPDATE settings SET value = ? WHERE key = 'live_feed'", (msg,))
+    c.execute("SELECT id FROM users"); all_u = c.fetchall(); conn.commit(); conn.close()
+    await update.message.reply_text(f"📢 Broadcasting to {len(all_u)} members...")
+    for u in all_u:
+        try: await context.bot.send_message(chat_id=u[0], text=f"🔔 **OWPC NEWS**\n\n{msg}", parse_mode="Markdown")
+        except: pass
+        await asyncio.sleep(0.05)
+    await update.message.reply_text("✅ Done!")
 
 async def main():
     init_db()
