@@ -11,20 +11,20 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 nest_asyncio.apply()
 
-# --- ⚙️ CONFIG (Vérifie bien ton TOKEN et l'URL Railway) ---
+# --- ⚙️ CONFIG ---
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.environ.get("PORT", 8080))
 WEBAPP_URL = "https://veos-production.up.railway.app" 
 DB_NAME = "owpc_data.db"
+BOT_USERNAME = "owpcsbot" # Verified username
 
-# Liens vers tes jettons sur Blum
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1"
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK"
 
 app = FastAPI()
 
-# --- 📊 BASE DE DONNÉES ---
+# --- 📊 DATABASE ---
 def init_db():
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
@@ -59,8 +59,6 @@ async def api_user(user_id: int): return JSONResponse(content=get_user_data(user
 async def claim_genesis(user_id: int):
     today = date.today().isoformat()
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
-    # On vérifie si l'utilisateur existe, sinon on le crée (important pour le premier claim)
-    c.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
     c.execute("UPDATE users SET points_genesis = points_genesis + 200, last_checkin = ? WHERE user_id = ?", (today, user_id))
     conn.commit(); conn.close()
     return {"status": "success"}
@@ -72,7 +70,7 @@ async def sync_veo(user_id: int, amount: float):
     conn.commit(); conn.close()
     return {"status": "synced"}
 
-# --- 🌐 INTERFACE WEBAPP ---
+# --- 🌐 WEBAPP INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return f"""
@@ -97,12 +95,12 @@ async def read_root(request: Request):
             .float-text {{ position: absolute; color: var(--green); font-size: 24px; font-weight: bold; pointer-events: none; animation: floatUp 1s forwards; left: 50%; transform: translateX(-50%); }}
             
             .token-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }}
-            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); }}
+            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); cursor: pointer; }}
             .pillar {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 0; display: flex; align-items: center; text-align: left; }}
             .btn-action {{ background: var(--gold); color: black; border: none; padding: 12px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }}
             
             .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); }}
-            .nav-item {{ opacity: 0.4; font-size: 10px; color: white; text-align: center; }}
+            .nav-item {{ opacity: 0.4; font-size: 10px; color: white; text-align: center; text-decoration: none; }}
             .nav-item.active {{ opacity: 1; color: var(--gold); font-weight: bold; }}
 
             @keyframes blink {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.3; }} }}
@@ -116,7 +114,7 @@ async def read_root(request: Request):
 
         <div class="stats-bar">
             <span><span class="live-dot"></span><b id="st-users">0</b> COMMANDERS</span>
-            <span>💎 <b id="st-total">0</b> CLAIMED</span>
+            <span>💎 <b id="st-total">0</b> ASSETS</span>
         </div>
 
         <div id="home" class="page active-page">
@@ -134,26 +132,26 @@ async def read_root(request: Request):
 
             <div class="pillar">
                 <div style="font-size:24px; margin-right:15px;">🏺</div>
-                <div style="flex-grow:1;"><b>GENESIS GRANT</b><br><small opacity:0.6>Daily +200 OWPC</small></div>
+                <div style="flex-grow:1;"><b>DAILY GRANT</b><br><small opacity:0.6>Claim +200 OWPC</small></div>
                 <button class="btn-action" onclick="claim(event)">CLAIM</button>
             </div>
         </div>
 
         <div id="friends" class="page">
-            <h2 style="color:var(--gold);">HIVE NETWORK</h2>
+            <h2 style="color:var(--gold);">NETWORK</h2>
             <div class="pillar" style="flex-direction:column; text-align:center;">
                 <div id="ref-count" style="font-size:40px; font-weight:bold; margin-bottom:10px;">0</div>
-                <p style="font-size:14px;">Commanders recruited via your link.</p>
+                <p style="font-size:14px;">Commanders in your Hive</p>
             </div>
-            <button class="btn-action" style="width:100%" onclick="tg.openTelegramLink('https://t.me/share/url?url=https://t.me/owpcsbot?start='+uid+'&text=Rejoins mon réseau sur OWPC Terminal !')">INVITE COMMANDERS</button>
+            <button class="btn-action" style="width:100%" onclick="tg.openTelegramLink('https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start='+uid+'&text=Join the OWPC Hive Network!')">INVITE FRIENDS</button>
         </div>
 
         <div id="roadmap" class="page">
-            <h2 style="color:var(--gold);">PROTOCOL ROADMAP</h2>
+            <h2 style="color:var(--gold);">ROADMAP</h2>
             <div style="text-align:left; padding:0 20px; border-left:2px solid var(--gold); margin-left:10px;">
-                <p style="margin-bottom:25px;"><b>PHASE 1: HIVE START</b><br><small>Lancement du Terminal et du minage Genesis. (ACTIF)</small></p>
-                <p style="margin-bottom:25px;"><b>PHASE 2: UNITY SYNC</b><br><small>Staking des jettons et multiplicateurs d'investissement.</small></p>
-                <p><b>PHASE 3: LISTING</b><br><small>Ouverture des retraits et listing sur les DEX.</small></p>
+                <p style="margin-bottom:25px;"><b>PHASE 1: HIVE START</b><br><small>Terminal Launch & Genesis Mining (LIVE)</small></p>
+                <p style="margin-bottom:25px;"><b>PHASE 2: UNITY SYNC</b><br><small>Investment multipliers & Community Tasks.</small></p>
+                <p><b>PHASE 3: EVOLUTION</b><br><small>Listing & AI Trading deployment.</small></p>
             </div>
         </div>
 
@@ -196,7 +194,6 @@ async def read_root(request: Request):
                     fx.innerText = '+200';
                     document.getElementById('fx-container').appendChild(fx);
                     setTimeout(() => fx.remove(), 1000);
-                    
                     tg.HapticFeedback.notificationOccurred('success');
                     loadData();
                 }});
@@ -211,32 +208,30 @@ async def read_root(request: Request):
             }}
 
             setInterval(() => {{ state.v += 0.01; updateUI(); }}, 1000);
-            setInterval(loadData, 30000); // Rafraîchir les stats toutes les 30s
+            setInterval(loadData, 30000);
             loadData();
         </script>
     </body>
     </html>
     """
 
-# --- 🤖 LOGIQUE DU BOT TELEGRAM ---
+# --- 🤖 BOT LOGIC ---
 async def run_bot():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
     
     async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
-        # Enregistre l'utilisateur dans la DB s'il n'existe pas
         conn = sqlite3.connect(DB_NAME); cursor = conn.cursor()
         cursor.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (u.effective_user.id, u.effective_user.first_name))
         conn.commit(); conn.close()
         
         await u.message.reply_text(
-            f"🕊️ **OWPC TERMINAL**\n\nBienvenue Commander {u.effective_user.first_name}.\nAccédez au protocole Genesis et Unity via le bouton ci-dessous.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 LANCER LE TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]),
+            f"🕊️ **OWPC TERMINAL**\n\nWelcome Commander {u.effective_user.first_name}.\nAccess the Genesis & Unity protocols below.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]),
             parse_mode="Markdown"
         )
 
     bot.add_handler(CommandHandler("start", start))
-    
     async with bot:
         await bot.initialize(); await bot.start(); await bot.updater.start_polling()
         while True: await asyncio.sleep(1)
