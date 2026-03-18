@@ -19,6 +19,11 @@ WEBAPP_URL = "https://veos-production.up.railway.app"
 DB_NAME = "owpc_data.db"
 CHANNEL_ID = "@owpc_co"
 
+# Liens d'investissement (Blum Memepad)
+LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1"
+LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR"
+LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK"
+
 app = FastAPI()
 
 # --- 📊 DB LOGIC ---
@@ -57,6 +62,16 @@ async def check_membership(user_id: int):
 @app.get("/api/user/{user_id}")
 async def api_user(user_id: int): return JSONResponse(content=get_user_data(user_id))
 
+@app.post("/api/claim_genesis/{user_id}")
+async def claim_genesis(user_id: int):
+    today = date.today().isoformat()
+    data = get_user_data(user_id)
+    if data["last_checkin"] == today: return {"status": "already_claimed"}
+    conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+    c.execute("UPDATE users SET points_genesis = points_genesis + 200, last_checkin = ? WHERE user_id = ?", (today, user_id))
+    conn.commit(); conn.close()
+    return {"status": "success"}
+
 @app.post("/api/sync_veo/{user_id}/{amount}")
 async def sync_veo(user_id: int, amount: float):
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
@@ -75,10 +90,9 @@ async def read_root(request: Request):
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            :root {{ --gold: #d4af37; --bg: #0a0a12; --card: #161626; --red: #ff4d4d; --green: #50ff50; }}
+            :root {{ --gold: #d4af37; --bg: #0a0a12; --card: #161626; --green: #50ff50; }}
             body {{ background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; text-align: center; overflow: hidden; }}
             
-            /* GATE OVERLAY */
             #gate {{ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 30px; box-sizing: border-box; }}
             
             .header {{ padding: 15px; border-bottom: 1px solid rgba(212,175,55,0.1); margin-bottom: 10px; }}
@@ -88,23 +102,24 @@ async def read_root(request: Request):
             .rank-text {{ font-size: 12px; color: var(--gold); font-weight: bold; letter-spacing: 2px; margin-bottom: 20px; }}
 
             .token-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 0 20px; margin-bottom: 25px; }}
-            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); }}
+            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); cursor: pointer; }}
             .token-val {{ font-weight: bold; font-size: 14px; }}
             .token-lab {{ font-size: 8px; color: var(--gold); text-transform: uppercase; margin-top: 4px; }}
 
             .pillar {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 20px; display: flex; align-items: center; text-align: left; border: 1px solid rgba(212,175,55,0.05); }}
             .btn-action {{ background: var(--gold); color: black; border: none; padding: 10px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }}
+            .btn-invest {{ background: transparent; color: var(--gold); border: 1px solid var(--gold); padding: 5px 10px; border-radius: 8px; font-size: 10px; font-weight: bold; cursor: pointer; }}
+            
+            .section-title {{ font-size: 10px; color: var(--gold); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; opacity: 0.8; }}
         </style>
     </head>
     <body>
 
         <div id="gate">
-            <div style="font-size: 50px; margin-bottom: 20px;">🛡️</div>
-            <h2 style="color: var(--gold); margin: 0;">COMMUNITY GATE</h2>
-            <p style="opacity: 0.7; font-size: 14px;">You must join our official community to access the HIVE Terminal.</p>
-            <br>
+            <h2 style="color: var(--gold);">HIVE ACCESS</h2>
+            <p style="opacity: 0.7; font-size: 14px;">Join community to enter terminal.</p>
             <button class="btn-action" onclick="tg.openTelegramLink('https://t.me/owpc_co')">JOIN @OWPC_CO</button>
-            <button style="background:none; border:none; color:var(--gold); margin-top:20px; cursor:pointer;" onclick="checkAccess()">[ VERIFY ACCESS ]</button>
+            <button style="background:none; border:none; color:var(--gold); margin-top:20px;" onclick="checkAccess()">[ VERIFY ]</button>
         </div>
 
         <div id="main-content" style="display:none;">
@@ -113,21 +128,33 @@ async def read_root(request: Request):
             <div class="balance-main" id="total-val">0</div>
             <div id="u-rank" class="rank-text">🆕 SEEKER</div>
 
+            <div class="section-title">Investment Hub</div>
             <div class="token-grid">
-                <div class="token-box"><div class="token-val" id="bal-g">0</div><div class="token-lab">Genesis</div></div>
-                <div class="token-box"><div class="token-val" id="bal-u">0</div><div class="token-lab">Unity</div></div>
-                <div class="token-box"><div class="token-val" id="bal-v">0.00</div><div class="token-lab">Veo AI</div></div>
+                <div class="token-box" onclick="tg.openLink('{LINK_GENESIS}')">
+                    <div class="token-val" id="bal-g">0</div>
+                    <div class="token-lab">Genesis ↗️</div>
+                </div>
+                <div class="token-box" onclick="tg.openLink('{LINK_UNITY}')">
+                    <div class="token-val" id="bal-u">0</div>
+                    <div class="token-lab">Unity ↗️</div>
+                </div>
+                <div class="token-box" onclick="tg.openLink('{LINK_VEO}')">
+                    <div class="token-val" id="bal-v">0.00</div>
+                    <div class="token-lab">Veo AI ↗️</div>
+                </div>
             </div>
 
+            <div class="section-title">Active Protocols</div>
             <div class="pillar">
                 <div style="font-size: 24px; margin-right: 15px;">🏺</div>
-                <div style="flex-grow: 1;"><b>GENESIS</b><br><small style="opacity:0.6;">Daily Protocol</small></div>
+                <div style="flex-grow: 1;"><b>GENESIS</b><br><small style="opacity:0.6;">Daily +200 OWPC</small></div>
                 <button class="btn-action" style="padding: 8px 12px; font-size: 10px;" onclick="claim()">CLAIM</button>
             </div>
 
             <div class="pillar">
                 <div style="font-size: 24px; margin-right: 15px;">🤖</div>
-                <div style="flex-grow: 1;"><b>VEO AI MINING</b><br><small style="color:var(--green);">ACTIVE (+0.01/s)</small></div>
+                <div style="flex-grow: 1;"><b>VEO AI MINER</b><br><small style="color:var(--green);">MINING ACTIVE (+0.01/s)</small></div>
+                <button class="btn-invest" onclick="tg.openLink('{LINK_VEO}')">BOOST</button>
             </div>
         </div>
 
@@ -146,7 +173,7 @@ async def read_root(request: Request):
                     sync();
                     startFarming();
                 }} else {{
-                    tg.showAlert("Access Denied! Please join our Telegram Channel first.");
+                    tg.showAlert("Please join @owpc_co first!");
                 }}
             }}
 
@@ -165,6 +192,17 @@ async def read_root(request: Request):
                 }});
             }}
 
+            function claim() {{
+                fetch('/api/claim_genesis/' + uid, {{ method: 'POST' }}).then(r => r.json()).then(d => {{
+                    if(d.status == 'success') {{
+                        tg.HapticFeedback.notificationOccurred('success');
+                        sync();
+                    }} else {{
+                        tg.showAlert("Protocol Genesis: Already synchronized today.");
+                    }}
+                }});
+            }}
+
             function startFarming() {{
                 setInterval(() => {{ state.v += 0.01; updateUI(); }}, 1000);
                 setInterval(() => {{ fetch(`/api/sync_veo/${{uid}}/0.30`, {{ method: 'POST' }}); }}, 30000);
@@ -176,11 +214,11 @@ async def read_root(request: Request):
     </html>
     """
 
-# --- BOT & STARTUP ---
+# --- BOT SETUP ---
 async def start_bot():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
-    bot.add_handler(CommandHandler("start", lambda u,c: u.message.reply_text("🕊️ **OWPC TERMINAL**\nWelcome Commander.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")))
+    bot.add_handler(CommandHandler("start", lambda u,c: u.message.reply_text("🕊️ **OWPC TERMINAL**\n\nAuthorized access only.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")))
     async with bot:
         await bot.initialize(); await bot.start(); await bot.updater.start_polling()
         while True: await asyncio.sleep(1)
