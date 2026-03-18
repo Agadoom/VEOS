@@ -19,7 +19,6 @@ WEBAPP_URL = "https://veos-production.up.railway.app"
 DB_NAME = "owpc_data.db"
 CHANNEL_ID = "@owpc_co"
 
-# Liens d'investissement
 LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1"
 LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR"
 LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK"
@@ -40,11 +39,20 @@ def get_user_data(user_id):
     conn = sqlite3.connect(DB_NAME); c = conn.cursor()
     c.execute("SELECT points_genesis, points_unity, points_veo, last_checkin, rank, referrals FROM users WHERE user_id = ?", (user_id,))
     res = c.fetchone(); conn.close()
-    if res:
-        return {"genesis": res[0], "unity": res[1], "veo": res[2], "last_checkin": res[3], "rank": res[4], "refs": res[5]}
+    if res: return {"genesis": res[0], "unity": res[1], "veo": res[2], "last_checkin": res[3], "rank": res[4], "refs": res[5]}
     return {"genesis": 0, "unity": 0, "veo": 0.0, "last_checkin": None, "rank": "🆕 SEEKER", "refs": 0}
 
 # --- 🔌 API ---
+@app.get("/api/stats")
+async def get_stats():
+    conn = sqlite3.connect(DB_NAME); c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM users")
+    count = c.fetchone()[0]
+    c.execute("SELECT SUM(points_genesis + points_unity + points_veo) FROM users")
+    total = c.fetchone()[0] or 0
+    conn.close()
+    return {"user_count": count, "total_claimed": int(total)}
+
 @app.get("/api/user/{user_id}")
 async def api_user(user_id: int): return JSONResponse(content=get_user_data(user_id))
 
@@ -63,7 +71,7 @@ async def sync_veo(user_id: int, amount: float):
     conn.commit(); conn.close()
     return {"status": "synced"}
 
-# --- 🌐 INTERFACE HTML (Avec Home, Friends, Roadmap) ---
+# --- 🌐 INTERFACE HTML ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return f"""
@@ -78,53 +86,76 @@ async def read_root(request: Request):
             body {{ background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding-bottom: 90px; text-align: center; overflow-x: hidden; }}
             .page {{ display: none; padding: 20px; animation: fadeIn 0.3s forwards; }}
             .active-page {{ display: block; }}
-            .header {{ padding: 15px; border-bottom: 1px solid rgba(212,175,55,0.1); }}
-            .brand {{ font-size: 14px; font-weight: bold; color: var(--gold); letter-spacing: 4px; }}
-            .balance-main {{ font-size: 50px; font-weight: 800; margin: 10px 0; }}
+            
+            /* Stats Bar */
+            .stats-bar {{ background: rgba(212,175,55,0.05); border-radius: 50px; padding: 6px 15px; display: inline-flex; gap: 15px; font-size: 9px; margin: 15px 0; border: 1px solid rgba(212,175,55,0.1); text-transform: uppercase; letter-spacing: 1px; }}
+            .live-dot {{ height: 6px; width: 6px; background: var(--green); border-radius: 50%; display: inline-block; margin-right: 5px; animation: blink 1.5s infinite; }}
+            
+            .header {{ padding: 15px; border-bottom: 1px solid rgba(212,175,55,0.1); font-weight: bold; color: var(--gold); letter-spacing: 4px; font-size: 14px; }}
+            .balance-main {{ font-size: 55px; font-weight: 800; margin: 5px 0; letter-spacing: -2px; position: relative; }}
+            
+            /* Floating FX */
+            .float-text {{ position: absolute; color: var(--green); font-size: 20px; font-weight: bold; pointer-events: none; animation: floatUp 1s forwards; z-index: 1000; }}
+            
             .token-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }}
-            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); font-size: 13px; }}
-            .pillar {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 0; display: flex; align-items: center; text-align: left; }}
+            .token-box {{ background: var(--card); padding: 12px 5px; border-radius: 15px; border: 1px solid rgba(212,175,55,0.1); }}
+            .pillar {{ background: var(--card); border-radius: 20px; padding: 18px; margin: 10px 0; display: flex; align-items: center; text-align: left; border: 1px solid rgba(255,255,255,0.03); }}
             .btn-action {{ background: var(--gold); color: black; border: none; padding: 12px 20px; border-radius: 12px; font-weight: bold; cursor: pointer; }}
-            .roadmap-item {{ text-align: left; border-left: 2px solid var(--gold); margin-left: 10px; padding-left: 20px; position: relative; margin-bottom: 20px; }}
-            .roadmap-item::before {{ content: '●'; position: absolute; left: -9px; color: var(--gold); background: var(--bg); }}
+            
             .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); }}
-            .nav-item {{ opacity: 0.5; font-size: 10px; color: white; }}
+            .nav-item {{ opacity: 0.4; font-size: 10px; color: white; }}
             .nav-item.active {{ opacity: 1; color: var(--gold); font-weight: bold; }}
+
+            @keyframes blink {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.3; }} }}
+            @keyframes floatUp {{ 0% {{ opacity: 1; transform: translateY(0); }} 100% {{ opacity: 0; transform: translateY(-50px); }} }}
             @keyframes fadeIn {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}
         </style>
     </head>
     <body>
-        <div class="header"><div class="brand">OWPC TERMINAL</div></div>
+
+        <div class="header">OWPC TERMINAL</div>
+
+        <div class="stats-bar">
+            <span><span class="live-dot"></span><b id="st-users">0</b> COMMANDERS</span>
+            <span>💎 <b id="st-total">0</b> ASSETS</span>
+        </div>
 
         <div id="home" class="page active-page">
-            <div class="balance-main" id="total-val">0</div>
-            <div id="u-rank" style="color:var(--gold); font-size:12px; font-weight:bold; letter-spacing:2px; margin-bottom:20px;">🆕 SEEKER</div>
-            <div class="token-grid">
-                <div class="token-box" onclick="tg.openLink('{LINK_GENESIS}')"><div id="bal-g">0</div><div style="font-size:8px;color:var(--gold)">GENESIS</div></div>
-                <div class="token-box" onclick="tg.openLink('{LINK_UNITY}')"><div id="bal-u">0</div><div style="font-size:8px;color:var(--gold)">UNITY</div></div>
-                <div class="token-box" onclick="tg.openLink('{LINK_VEO}')"><div id="bal-v">0.00</div><div style="font-size:8px;color:var(--gold)">VEO AI</div></div>
+            <div style="position: relative; display: inline-block;">
+                <div class="balance-main" id="total-val">0</div>
+                <div id="fx-container"></div>
             </div>
+            <div id="u-rank" style="color:var(--gold); font-size:11px; font-weight:bold; letter-spacing:2px; margin-bottom:20px;">🆕 SEEKER</div>
+
+            <div class="token-grid">
+                <div class="token-box" onclick="tg.openLink('{LINK_GENESIS}')"><div id="bal-g" style="font-weight:bold;">0</div><div style="font-size:8px; color:var(--gold);">GENESIS</div></div>
+                <div class="token-box" onclick="tg.openLink('{LINK_UNITY}')"><div id="bal-u" style="font-weight:bold;">0</div><div style="font-size:8px; color:var(--gold);">UNITY</div></div>
+                <div class="token-box" onclick="tg.openLink('{LINK_VEO}')"><div id="bal-v" style="font-weight:bold;">0.00</div><div style="font-size:8px; color:var(--gold);">VEO AI</div></div>
+            </div>
+
             <div class="pillar">
                 <div style="font-size:24px; margin-right:15px;">🏺</div>
-                <div style="flex-grow:1;"><b>GENESIS</b><br><small>Daily Grant</small></div>
-                <button class="btn-action" id="claim-btn" onclick="claim()">CLAIM</button>
+                <div style="flex-grow:1;"><b>GENESIS PROTOCOL</b><br><small opacity:0.6>Daily Reward +200</small></div>
+                <button class="btn-action" id="btn-claim" onclick="claim(event)">CLAIM</button>
             </div>
         </div>
 
         <div id="friends" class="page">
             <h2 style="color:var(--gold);">NETWORK</h2>
             <div class="pillar" style="flex-direction:column; text-align:center;">
-                <div id="ref-count" style="font-size:24px; font-weight:bold;">0 Friends</div>
-                <p>Earn 10% from your network.</p>
+                <div id="ref-count" style="font-size:30px; font-weight:bold;">0</div>
+                <p style="font-size:12px; opacity:0.7;">Active Commanders in your Hive.</p>
             </div>
-            <button class="btn-action" style="width:100%" onclick="share()">INVITE</button>
+            <button class="btn-action" style="width:100%" onclick="tg.openTelegramLink('https://t.me/share/url?url=https://t.me/owpc_bot?start='+uid)">INVITE FRIENDS</button>
         </div>
 
         <div id="roadmap" class="page">
             <h2 style="color:var(--gold);">ROADMAP</h2>
-            <div class="roadmap-item"><b>PHASE 1</b><br><small>Hive Launch (Done)</small></div>
-            <div class="roadmap-item"><b>PHASE 2</b><br><small>Staking & Unity Sync</small></div>
-            <div class="roadmap-item"><b>PHASE 3</b><br><small>Listing & AI Trading</small></div>
+            <div style="text-align:left; padding:0 20px; border-left:1px solid var(--gold); margin-left:20px;">
+                <p><b>PHASE 1:</b> Hive Launch ✅</p>
+                <p><b>PHASE 2:</b> Sync & Staking ⏳</p>
+                <p><b>PHASE 3:</b> Token Listing 🚀</p>
+            </div>
         </div>
 
         <nav class="nav-bar">
@@ -137,7 +168,8 @@ async def read_root(request: Request):
             let tg = window.Telegram.WebApp;
             const uid = tg.initDataUnsafe.user.id;
             let state = {{ g: 0, u: 0, v: 0.0 }};
-            
+            tg.expand();
+
             function updateUI() {{
                 document.getElementById('bal-g').innerText = Math.floor(state.g).toLocaleString();
                 document.getElementById('bal-u').innerText = Math.floor(state.u).toLocaleString();
@@ -145,19 +177,31 @@ async def read_root(request: Request):
                 document.getElementById('total-val').innerText = Math.floor(state.g + state.u + state.v).toLocaleString();
             }}
 
-            function sync() {{
+            function loadData() {{
                 fetch('/api/user/'+uid).then(r=>r.json()).then(d=>{{
                     state.g=d.genesis; state.u=d.unity; state.v=d.veo;
                     document.getElementById('u-rank').innerText = d.rank;
-                    document.getElementById('ref-count').innerText = d.refs + " Friends";
+                    document.getElementById('ref-count').innerText = d.refs;
                     updateUI();
+                }});
+                fetch('/api/stats').then(r=>r.json()).then(s=>{{
+                    document.getElementById('st-users').innerText = s.user_count.toLocaleString();
+                    document.getElementById('st-total').innerText = s.total_claimed.toLocaleString();
                 }});
             }}
 
-            function claim() {{
+            function claim(e) {{
                 fetch('/api/claim_genesis/'+uid, {{method:'POST'}}).then(r=>r.json()).then(d=>{{
+                    // Animation +200
+                    const fx = document.createElement('div');
+                    fx.className = 'float-text';
+                    fx.innerText = '+200';
+                    fx.style.left = '50%';
+                    document.getElementById('fx-container').appendChild(fx);
+                    setTimeout(() => fx.remove(), 1000);
+                    
                     tg.HapticFeedback.notificationOccurred('success');
-                    sync();
+                    loadData();
                 }});
             }}
 
@@ -168,43 +212,21 @@ async def read_root(request: Request):
                 document.getElementById(n).classList.add('active');
             }}
 
-            function share() {{ tg.openTelegramLink("https://t.me/share/url?url=https://t.me/owpc_bot?start="+uid); }}
-
             setInterval(() => {{ state.v += 0.01; updateUI(); }}, 1000);
-            setInterval(() => {{ fetch(`/api/sync_veo/${{uid}}/0.30`, {{method:'POST'}}); }}, 30000);
-            sync(); tg.expand();
+            setInterval(loadData, 30000);
+            loadData();
         </script>
     </body>
     </html>
     """
-
-# --- 🔔 NOTIFICATION ENGINE ---
-async def reminder_loop(bot):
-    while True:
-        await asyncio.sleep(3600) # Vérifie toutes les heures
-        today = date.today().isoformat()
-        conn = sqlite3.connect(DB_NAME); c = conn.cursor()
-        c.execute("SELECT user_id FROM users WHERE last_checkin != ?", (today,))
-        users_to_notify = c.fetchall()
-        conn.close()
-        
-        for (uid,) in users_to_notify:
-            try:
-                await bot.send_message(uid, "🏺 **Protocol Genesis Offline**\n\nYour daily 200 OWPC credits are waiting. Synchronize now to maintain your rank!", 
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")
-                await asyncio.sleep(0.05) # Anti-flood
-            except: continue
 
 # --- 🤖 BOT SETUP ---
 async def run_bot():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
     bot.add_handler(CommandHandler("start", lambda u,c: u.message.reply_text("🕊️ **OWPC TERMINAL**", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 ENTER", web_app=WebAppInfo(url=WEBAPP_URL))]]))))
-    
     async with bot:
-        await bot.initialize(); await bot.start(); 
-        asyncio.create_task(reminder_loop(bot.bot)) # Lance les rappels
-        await bot.updater.start_polling()
+        await bot.initialize(); await bot.start(); await bot.updater.start_polling()
         while True: await asyncio.sleep(1)
 
 @app.on_event("startup")
