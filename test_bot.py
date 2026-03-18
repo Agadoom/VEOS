@@ -58,7 +58,7 @@ async def daily_checkin(user_id: int):
     conn.commit(); conn.close()
     return {"status": "success", "bonus": 200}
 
-# --- 🌐 INTERFACE ---
+# --- 🌐 INTERFACE (ENGLISH VERSION) ---
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return f"""
@@ -69,51 +69,81 @@ async def read_root(request: Request):
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            :root {{ --gold: #d4af37; --bg: #0a0a12; --card: #161626; }}
-            body {{ background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 0; text-align: center; }}
+            :root {{ --gold: #d4af37; --bg: #0a0a12; --card: #161626; --veo: #00f2ff; }}
+            body {{ background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; text-align: center; }}
             .page {{ display: none; padding: 20px; padding-bottom: 100px; animation: fadeIn 0.3s; }}
             .active-page {{ display: block; }}
             @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
             
-            .pillar-card {{ background: var(--card); border: 1px solid rgba(212,175,55,0.1); border-radius: 20px; padding: 15px; margin-bottom: 10px; display: flex; align-items: center; text-align: left; }}
-            .balance {{ font-size: 40px; font-weight: bold; margin: 10px 0; color: white; }}
-            .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); }}
-            .nav-item {{ color: #555; font-size: 10px; cursor: pointer; }}
+            .pillar-card {{ background: var(--card); border: 1px solid rgba(212,175,55,0.1); border-radius: 20px; padding: 15px; margin-bottom: 12px; display: flex; align-items: center; text-align: left; }}
+            .balance {{ font-size: 44px; font-weight: 800; margin: 5px 0; color: white; }}
+            .nav-bar {{ position: fixed; bottom: 0; width: 100%; background: #12121f; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid rgba(255,255,255,0.05); z-index: 100; }}
+            .nav-item {{ color: #555; font-size: 10px; cursor: pointer; text-transform: uppercase; }}
             .active {{ color: var(--gold); font-weight: bold; }}
-            .btn-action {{ background: var(--gold); color: black; border: none; padding: 10px 15px; border-radius: 10px; font-weight: bold; }}
-            .rank-item {{ display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }}
+            .btn-action {{ background: var(--gold); color: black; border: none; padding: 10px 18px; border-radius: 12px; font-weight: bold; cursor: pointer; }}
+            .rank-item {{ display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }}
         </style>
     </head>
     <body>
         <div id="home" class="page active-page">
-            <h2 id="u-name">...</h2>
+            <div style="font-size: 10px; letter-spacing: 2px; color: var(--gold); font-weight: bold;">HIVE COMMANDER</div>
+            <h2 id="u-name" style="margin: 5px 0 15px 0;">...</h2>
+            
             <div class="balance" id="u-points">0</div>
-            <div id="u-rank" style="color: var(--gold); margin-bottom: 20px;">RANK</div>
+            <div style="font-size: 10px; opacity: 0.5; letter-spacing: 2px; margin-bottom: 20px;">TOTAL CREDITS</div>
 
-            <div class="pillar-card">
-                <div style="font-size: 24px; margin-right: 15px;">🏺</div>
-                <div style="flex-grow: 1;">
-                    <div style="font-weight: bold; color: var(--gold);">GENESIS DAILY</div>
-                    <div style="font-size: 11px; opacity: 0.6;">Claim 200 OWPC every 24h.</div>
+            <div id="u-rank" style="color: var(--gold); font-weight: bold; border: 1px solid var(--gold); display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px;">RANK</div>
+
+            <div style="margin-top: 30px;">
+                <div class="pillar-card">
+                    <div style="font-size: 24px; margin-right: 15px;">🏺</div>
+                    <div style="flex-grow: 1;">
+                        <div style="font-weight: bold; color: var(--gold);">GENESIS DAILY</div>
+                        <div style="font-size: 11px; opacity: 0.6;">Claim 200 Credits daily.</div>
+                    </div>
+                    <button id="btn-daily" class="btn-action" onclick="claimDaily()">CLAIM</button>
                 </div>
-                <button id="btn-daily" class="btn-action" onclick="claimDaily()">CLAIM</button>
-            </div>
-            <div class="pillar-card" onclick="showPage('tasks', document.getElementById('nav-tasks'))">
-                <div style="font-size: 24px; margin-right: 15px;">🌍</div>
-                <div style="flex-grow: 1;"><div style="font-weight: bold; color: var(--gold);">UNITY</div><div style="font-size: 11px; opacity: 0.6;">Missions & Growth.</div></div>
+                
+                <div class="pillar-card" onclick="showPage('tasks', document.getElementById('nav-tasks'))">
+                    <div style="font-size: 24px; margin-right: 15px;">🌍</div>
+                    <div style="flex-grow: 1;">
+                        <div style="font-weight: bold; color: var(--gold);">UNITY PROTOCOL</div>
+                        <div style="font-size: 11px; opacity: 0.6;">Missions & Community growth.</div>
+                    </div>
+                </div>
+
+                <div class="pillar-card" style="border-color: var(--veo); opacity: 0.8;">
+                    <div style="font-size: 24px; margin-right: 15px;">🤖</div>
+                    <div style="flex-grow: 1;">
+                        <div style="font-weight: bold; color: var(--veo);">VEO AI</div>
+                        <div style="font-size: 11px; opacity: 0.6;">Future Intelligence loading...</div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <div id="leaderboard" class="page">
-            <h2 style="color: var(--gold);">TOP COMMANDERS</h2>
-            <div id="rank-list" class="pillar-card" style="display: block;">Chargement...</div>
+            <h2 style="color: var(--gold); letter-spacing: 1px;">TOP COMMANDERS</h2>
+            <div id="rank-list" class="pillar-card" style="display: block; padding: 0;">
+                <div style="padding: 20px;">Loading ranking...</div>
+            </div>
         </div>
 
         <div id="tasks" class="page">
-            <h2 style="color: var(--gold);">MISSIONS</h2>
+            <h2 style="color: var(--gold); letter-spacing: 1px;">UNITY MISSIONS</h2>
             <div class="pillar-card">
-                <div style="flex-grow: 1;"><div style="font-weight: bold;">Follow DeepTradeX</div><div style="font-size: 11px; color: var(--gold);">+1,000 CREDITS</div></div>
+                <div style="flex-grow: 1;">
+                    <div style="font-weight: bold;">Follow DeepTradeX</div>
+                    <div style="font-size: 11px; color: var(--gold);">+1,000 CREDITS</div>
+                </div>
                 <button class="btn-action" onclick="tg.openLink('https://x.com/DeepTradeX')">GO</button>
+            </div>
+            <div class="pillar-card">
+                <div style="flex-grow: 1;">
+                    <div style="font-weight: bold;">Join Official Channel</div>
+                    <div style="font-size: 11px; color: var(--gold);">+500 CREDITS</div>
+                </div>
+                <button class="btn-action" onclick="tg.openLink('https://t.me/owpc_co')">GO</button>
             </div>
         </div>
 
@@ -138,7 +168,7 @@ async def read_root(request: Request):
             function refresh() {{
                 fetch('/api/user/' + user.id).then(r => r.json()).then(data => {{
                     document.getElementById('u-points').innerText = data.points.toLocaleString();
-                    document.getElementById('u-rank').innerText = data.rank;
+                    document.getElementById('u-rank').innerText = data.rank.toUpperCase();
                     document.getElementById('u-name').innerText = user.first_name.toUpperCase();
                 }});
             }}
@@ -146,10 +176,10 @@ async def read_root(request: Request):
             function claimDaily() {{
                 fetch('/api/daily/' + user.id, {{ method: 'POST' }}).then(r => r.json()).then(data => {{
                     if(data.status == 'already_done') {{
-                        tg.showAlert("Revenez demain ! Protocol Genesis déjà activé.");
+                        tg.showAlert("Access Denied: Already claimed today. Return in 24h.");
                     }} else {{
                         tg.HapticFeedback.notificationOccurred('success');
-                        tg.showAlert("Bonus Genesis reçu : +200 OWPC");
+                        tg.showAlert("Genesis Reward: +200 Credits added to your terminal.");
                         refresh();
                     }}
                 }});
@@ -173,10 +203,14 @@ async def read_root(request: Request):
     </html>
     """
 
-# --- BOT START ---
+# --- 🤖 BOT START (ENGLISH) ---
 async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 Launch OWPC HIVE", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await u.message.reply_text("🕊️ **HIVE TERMINAL ONLINE**\nWelcome Commander.", reply_markup=kb, parse_mode="Markdown")
+    await u.message.reply_text(
+        "🕊️ **OWPC HIVE TERMINAL**\n\n"
+        "Welcome Commander. Your access to Genesis, Unity, and Veo protocols is granted.", 
+        reply_markup=kb, parse_mode="Markdown"
+    )
 
 async def run_bot():
     bot = ApplicationBuilder().token(TOKEN).build()
