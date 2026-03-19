@@ -15,7 +15,7 @@ DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v42.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
-bot_app = None # Sera initialisé dans main()
+bot_app = None 
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -56,30 +56,26 @@ async def get_user(uid: int):
 
 @app.post("/api/create-invoice/{uid}")
 async def create_invoice(uid: int):
-    # Génère un vrai lien de paiement Telegram Stars (XTR)
     try:
-        title = "10.0 VEO Boost"
-        description = "Acheter 10 points VEO supplémentaires pour votre compte OWPC."
-        payload = f"boost_{uid}_{int(time.time())}"
-        currency = "XTR" # Code pour Telegram Stars
-        prices = [LabeledPrice("Boost", 50)] # 50 Stars
-        
-        # Création du lien via le bot
+        # Génère un lien de facture réel pour 50 Stars (XTR)
         link = await bot_app.bot.create_invoice_link(
-            title=title, description=description, payload=payload,
-            provider_token="", # Vide pour Telegram Stars
-            currency=currency, prices=prices
+            title="Donation 50 Stars",
+            description="Obtenez +10 Points UNITY instantanément !",
+            payload=f"donate_{uid}",
+            provider_token="", 
+            currency="XTR",
+            prices=[LabeledPrice("Stars", 50)]
         )
         return {"invoice_url": link}
     except Exception as e:
-        logging.error(f"Invoice error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.post("/api/reward-stars/{uid}")
-async def reward_stars(uid: int):
+@app.post("/api/reward-success/{uid}")
+async def reward_success(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("UPDATE users SET p_veo = p_veo + 10.0 WHERE user_id = ?", (uid,))
-    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, 'STARS_VEO', 10.0, ?)", (uid, int(time.time())))
+    # Ajoute les 10 points Unity comme demandé
+    c.execute("UPDATE users SET p_unity = p_unity + 10.0 WHERE user_id = ?", (uid,))
+    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, 'STARS_DONATE', 10.0, ?)", (uid, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
 
@@ -87,7 +83,7 @@ async def reward_stars(uid: int):
 async def mine_api(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    gain = 0.01 if t == 'veo' else 0.05
+    gain = 0.05
     col = {"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}.get(t)
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute(f"UPDATE users SET {col} = {col} + ?, total_clicks = total_clicks + 1 WHERE user_id = ?", (gain, uid))
@@ -131,15 +127,16 @@ async def web_ui():
 
     <div id="p-mine">
         <div class="balance">
-            <small>STARS SHOP ⭐</small>
-            <div style="font-size:14px; margin: 10px 0;">Get +10.00 VEO for 50 Stars</div>
-            <button class="payer-btn" id="payBtn" onclick="startStarsPay()">Payer ⚡ 50</button>
+            <small>UNITY REWARD ⭐</small>
+            <div style="font-size:14px; margin: 10px 0;">Get +10.00 UNITY points !</div>
+            <button class="payer-btn" id="payBtn" onclick="payWithStars()">Payer ⚡ 50</button>
         </div>
+        
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:38px; margin:5px 0">0.00</h1></div>
         <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--gold)"><span>⚡ ENERGY</span><span id="energy-text">100/100</span></div>
         <div class="energy-container"><div id="energy-fill" class="energy-fill"></div></div>
 
-        <div class="section-title">Mining Units</div>
+        <div class="section-title">Units</div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('genesis')">CLAIM</button></div>
         <div class="card"><div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
@@ -157,28 +154,26 @@ async def web_ui():
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
         let energy = 100;
 
-        async function startStarsPay() {
+        async function payWithStars() {
             const btn = document.getElementById('payBtn');
-            btn.disabled = true; btn.innerText = "Chargement...";
-            
+            btn.disabled = true;
             try {
                 const res = await fetch('/api/create-invoice/' + uid, {method:'POST'});
                 const data = await res.json();
-                
                 if(data.invoice_url) {
                     tg.openInvoice(data.invoice_url, async (status) => {
                         if(status == 'paid') {
-                            await fetch('/api/reward-stars/' + uid, {method:'POST'});
-                            tg.showAlert("🎉 Félicitations ! +10.00 VEO ajoutés.");
-                            setTimeout(() => { tg.close(); }, 1500);
+                            await fetch('/api/reward-success/' + uid, {method:'POST'});
+                            tg.showAlert("🎉 FÉLICITATIONS D'ACHAT !\n\nVous avez reçu 10 points Unity.");
+                            setTimeout(() => { tg.close(); }, 1000);
                         } else {
-                            tg.showAlert("Paiement annulé ou échoué.");
+                            tg.showAlert("Paiement non complété.");
                         }
                         refresh();
                     });
                 }
-            } catch(e) { tg.showAlert("Erreur de connexion"); }
-            btn.disabled = false; btn.innerText = "Payer ⚡ 50";
+            } catch(e) { tg.showAlert("Erreur serveur."); }
+            btn.disabled = false;
         }
 
         setInterval(() => { if(energy < 100) { energy++; updateUI(); } }, 1500);
