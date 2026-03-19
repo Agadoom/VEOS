@@ -14,6 +14,15 @@ WEBAPP_URL = os.getenv("WEBAPP_URL")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 bot_app = None 
 
 # --- BOT FUNCTIONS ---
