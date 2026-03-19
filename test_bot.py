@@ -58,16 +58,18 @@ async def get_user(uid: int):
 async def create_invoice(uid: int):
     try:
         # Génère un lien de facture réel pour 50 Stars (XTR)
+        # Indispensable pour que tg.openInvoice fonctionne
         link = await bot_app.bot.create_invoice_link(
-            title="Donation 50 Stars",
-            description="Obtenez +10 Points UNITY instantanément !",
-            payload=f"donate_{uid}",
+            title="10 UNITY Points Boost",
+            description="Félicitations pour votre achat de points UNITY !",
+            payload=f"stars_{uid}_{int(time.time())}",
             provider_token="", 
             currency="XTR",
             prices=[LabeledPrice("Stars", 50)]
         )
         return {"invoice_url": link}
     except Exception as e:
+        logging.error(f"Invoice error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/reward-success/{uid}")
@@ -75,7 +77,7 @@ async def reward_success(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     # Ajoute les 10 points Unity comme demandé
     c.execute("UPDATE users SET p_unity = p_unity + 10.0 WHERE user_id = ?", (uid,))
-    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, 'STARS_DONATE', 10.0, ?)", (uid, int(time.time())))
+    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, 'STARS_REWARD', 10.0, ?)", (uid, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
 
@@ -106,7 +108,15 @@ async def web_ui():
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #161618; border-radius: 15px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
         .user-info { display: flex; align-items: center; gap: 10px; }
         .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; }
-        .payer-btn { background: #87a05e; color: #FFF; border: none; width: 100%; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
+        
+        /* Style du bouton Payer inspiré de l'image */
+        .payer-btn { 
+            background: #87a05e; color: #FFF; border: none; width: 100%; padding: 14px; 
+            border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; 
+            display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px;
+        }
+        .payer-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .balance { text-align: center; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); margin-bottom: 10px; }
         .energy-container { width: 100%; height: 8px; background: #222; border-radius: 4px; margin: 10px 0; overflow: hidden; }
         .energy-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #FFA500); width: 100%; transition: width 0.2s; }
@@ -122,30 +132,30 @@ async def web_ui():
 <body>
     <div class="profile-bar">
         <div class="user-info"><div class="avatar" id="u-avatar">?</div><div style="font-size: 13px; font-weight: 700;" id="u-name">User</div></div>
-        <div style="text-align:right"><small style="color:var(--text); font-size:9px">CLICKS</small><div id="u-clicks" style="color:var(--gold); font-weight:bold">0</div></div>
+        <div style="text-align:right"><small style="color:var(--text); font-size:9px">TOTAL CLICKS</small><div id="u-clicks" style="color:var(--gold); font-weight:bold">0</div></div>
     </div>
 
     <div id="p-mine">
         <div class="balance">
-            <small>UNITY REWARD ⭐</small>
-            <div style="font-size:14px; margin: 10px 0;">Get +10.00 UNITY points !</div>
-            <button class="payer-btn" id="payBtn" onclick="payWithStars()">Payer ⚡ 50</button>
+            <small style="color:var(--gold)">STARS SHOP ⭐</small>
+            <div style="font-size:14px; margin: 10px 0; font-weight:bold;">Acheter +10.00 UNITY</div>
+            <button class="payer-btn" id="payBtn" onclick="runStarsPayment()">Payer ⚡ 50</button>
         </div>
         
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:38px; margin:5px 0">0.00</h1></div>
         <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--gold)"><span>⚡ ENERGY</span><span id="energy-text">100/100</span></div>
         <div class="energy-container"><div id="energy-fill" class="energy-fill"></div></div>
 
-        <div class="section-title">Units</div>
+        <div class="section-title">Mining Units</div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('genesis')">CLAIM</button></div>
         <div class="card"><div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
 
-        <div class="section-title">History</div>
+        <div class="section-title">Activity History</div>
         <div id="history-list"></div>
     </div>
 
-    <div id="p-leader" style="display:none"><div class="section-title">Leaderboard</div><div id="rank-list"></div></div>
+    <div id="p-leader" style="display:none"><div class="section-title">Top Players</div><div id="rank-list"></div></div>
 
     <div class="nav"><div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div><div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div></div>
 
@@ -154,26 +164,33 @@ async def web_ui():
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
         let energy = 100;
 
-        async function payWithStars() {
+        async function runStarsPayment() {
             const btn = document.getElementById('payBtn');
-            btn.disabled = true;
+            btn.disabled = true; btn.innerText = "Chargement...";
+            
             try {
+                // Étape 1 : Demander au backend de créer une vraie facture
                 const res = await fetch('/api/create-invoice/' + uid, {method:'POST'});
                 const data = await res.json();
+                
                 if(data.invoice_url) {
+                    // Étape 2 : Ouvrir l'interface native Telegram Stars
                     tg.openInvoice(data.invoice_url, async (status) => {
                         if(status == 'paid') {
+                            // Étape 3 : Donner la récompense
                             await fetch('/api/reward-success/' + uid, {method:'POST'});
-                            tg.showAlert("🎉 FÉLICITATIONS D'ACHAT !\n\nVous avez reçu 10 points Unity.");
-                            setTimeout(() => { tg.close(); }, 1000);
+                            tg.HapticFeedback.notificationOccurred('success');
+                            tg.showAlert("🎉 FÉLICITATIONS D'ACHAT !\n\nVotre compte a été crédité de 10 points UNITY.");
+                            // Fermeture de l'app comme demandé
+                            setTimeout(() => { tg.close(); }, 1500);
                         } else {
-                            tg.showAlert("Paiement non complété.");
+                            tg.showAlert("Paiement annulé.");
                         }
                         refresh();
                     });
                 }
-            } catch(e) { tg.showAlert("Erreur serveur."); }
-            btn.disabled = false;
+            } catch(e) { tg.showAlert("Erreur de connexion au serveur."); }
+            btn.disabled = false; btn.innerText = "Payer ⚡ 50";
         }
 
         setInterval(() => { if(energy < 100) { energy++; updateUI(); } }, 1500);
@@ -183,6 +200,7 @@ async def web_ui():
         }
 
         async function refresh() {
+            if(!uid && uid !== 0) return;
             const r = await fetch('/api/user/' + uid);
             const d = await r.json();
             document.getElementById('u-name').innerText = d.name;
@@ -194,7 +212,8 @@ async def web_ui():
             
             let h_html = "";
             d.history.forEach(h => {
-                h_html += `<div class="history-item"><span>${h.t}</span><b>+${h.a}</b></div>`;
+                let color = h.t.includes('STARS') ? 'var(--gold)' : 'var(--text)';
+                h_html += `<div class="history-item"><span style="color:${color}">${h.t}</span><b>+${h.a}</b></div>`;
             });
             document.getElementById('history-list').innerHTML = h_html;
 
