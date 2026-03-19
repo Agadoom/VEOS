@@ -1,8 +1,8 @@
 import os, sqlite3, asyncio, uvicorn, logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
@@ -23,8 +23,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id INTEGER PRIMARY KEY, name TEXT, 
                   points_genesis REAL DEFAULT 0, points_unity REAL DEFAULT 0, 
-                  points_veo REAL DEFAULT 0, referred_by INTEGER, ref_count INTEGER DEFAULT 0,
-                  level INTEGER DEFAULT 1)''')
+                  points_veo REAL DEFAULT 0, referred_by INTEGER, ref_count INTEGER DEFAULT 0)''')
     conn.commit(); conn.close()
 
 # --- BOT ---
@@ -36,34 +35,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not c.fetchone():
         c.execute("INSERT INTO users (user_id, name, referred_by) VALUES (?, ?, ?)", (uid, name, ref_id))
         if ref_id and ref_id != uid:
-            c.execute("UPDATE users SET points_unity = points_unity + 10.0, ref_count = ref_count + 1 WHERE user_id = ?", (ref_id,))
+            c.execute("UPDATE users SET points_unity = points_unity + 10 WHERE user_id = ?", (ref_id,))
     conn.commit(); conn.close()
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ ACCESS TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f">> PROTOCOL_CONNECTED: {name}\n>> STATUS: ONLINE", reply_markup=kb)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ INITIALIZE TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await update.message.reply_text(f"SYSTEM READY.\nUSER: {name}\nACCESS: GRANTED", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{{uid}}")
 async def get_user_api(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("SELECT points_genesis, points_unity, points_veo, ref_count, level FROM users WHERE user_id=?", (uid,))
+    c.execute("SELECT points_genesis, points_unity, points_veo, ref_count FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
     c.execute("SELECT name, points_genesis FROM users ORDER BY points_genesis DESC LIMIT 5")
     top = [{"n": x[0], "p": round(x[1],2)} for x in c.fetchall()]
     conn.close()
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "lvl": r[4], "top": top} if r else None
+    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "top": top} if r else None
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
-    data = await request.json()
-    uid, t = data.get("user_id"), data.get("token")
-    gain = 0.01 if t == 'veo' else 0.05
-    col = {"genesis":"points_genesis", "unity":"points_unity", "veo":"points_veo"}.get(t)
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute(f"UPDATE users SET {col} = {col} + ? WHERE user_id = ?", (gain, uid))
-    conn.commit(); conn.close()
-    return {"ok": True}
+    try:
+        data = await request.json()
+        uid, t = data.get("user_id"), data.get("token")
+        gain = 0.01 if t == 'veo' else 0.05
+        col = {"genesis":"points_genesis", "unity":"points_unity", "veo":"points_veo"}.get(t)
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute(f"UPDATE users SET {col} = {col} + ? WHERE user_id = ?", (gain, uid))
+        conn.commit(); conn.close()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "err": str(e)}
 
-# --- UI (DESIGN TERMINAL RETRO) ---
+# --- UI (THEME HACKER PERFORMANT) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return f"""
@@ -73,72 +75,49 @@ async def web_ui():
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            :root {{ --neon: #0f0; --bg: #000; }}
-            body {{ background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; padding: 15px; overflow-x: hidden; }}
-            
-            /* Scanline Effect */
-            body::before {{ content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 100; background-size: 100% 3px, 3px 100%; pointer-events: none; }}
-
-            .header {{ border-bottom: 1px solid var(--neon); padding-bottom: 5px; margin-bottom: 20px; font-size: 12px; }}
-            
-            .card {{ border: 1px solid var(--neon); padding: 15px; margin-bottom: 15px; background: rgba(0, 255, 0, 0.02); position: relative; }}
-            .label {{ font-size: 10px; opacity: 0.7; letter-spacing: 2px; }}
-            .val {{ font-size: 24px; font-weight: bold; margin: 5px 0; }}
-            
-            .btn-terminal {{ width: 100%; padding: 12px; background: transparent; border: 1px solid var(--neon); color: var(--neon); font-family: 'Courier New'; font-weight: bold; cursor: pointer; margin-top: 5px; text-transform: uppercase; }}
-            .btn-terminal:active {{ background: var(--neon); color: #000; }}
-            
-            .footer {{ position: fixed; bottom: 0; left: 0; right: 0; background: #000; display: flex; justify-content: space-around; padding: 12px; border-top: 1px solid var(--neon); z-index: 200; }}
-            .nav-item {{ font-size: 10px; cursor: pointer; text-align: center; opacity: 0.5; }}
-            .nav-item.active {{ opacity: 1; text-shadow: 0 0 8px var(--neon); }}
-            
-            .task-row {{ display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dashed var(--neon); font-size: 12px; }}
-            .floating {{ position: absolute; animation: fly 0.8s forwards; font-weight: bold; }}
-            @keyframes fly {{ 0%{{transform:translateY(0);opacity:1}} 100%{{transform:translateY(-40px);opacity:0}} }}
+            :root {{ --neon: #00ff41; --bg: #0d0208; --card: #151515; }}
+            body {{ background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; padding: 15px; text-transform: uppercase; }}
+            .header {{ border-bottom: 2px solid var(--neon); padding-bottom: 10px; margin-bottom: 20px; font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; }}
+            .card {{ background: var(--card); border: 1px solid var(--neon); padding: 15px; margin-bottom: 15px; box-shadow: 0 0 10px rgba(0, 255, 65, 0.1); }}
+            .val {{ font-size: 30px; font-weight: 900; margin: 10px 0; text-shadow: 0 0 5px var(--neon); }}
+            .btn {{ width: 100%; padding: 15px; background: transparent; border: 1px solid var(--neon); color: var(--neon); font-weight: bold; cursor: pointer; transition: 0.2s; }}
+            .btn:active {{ background: var(--neon); color: #000; }}
+            .footer {{ position: fixed; bottom: 0; left: 0; right: 0; background: #000; display: flex; justify-content: space-around; padding: 15px; border-top: 2px solid var(--neon); }}
+            .nav-item {{ font-size: 11px; opacity: 0.5; cursor: pointer; }}
+            .nav-item.active {{ opacity: 1; text-decoration: underline; }}
+            .status-log {{ font-size: 9px; color: #555; margin-top: 5px; }}
         </style>
     </head>
     <body>
         <div id="p-mine">
-            <div class="header">>> OWPC_CORE_V24.2 / LEVEL: <span id="lvl">1</span></div>
-            
+            <div class="header"><span>> OWPC_OS_V24</span> <span id="st">ONLINE</span></div>
             <div class="card">
-                <div class="label">[ GENESIS_PROTOCOL ]</div>
+                <div style="font-size:10px">TOKEN: GENESIS</div>
                 <div class="val" id="gv">0.00</div>
-                <button class="btn-terminal" onclick="mine('genesis', this)">EXEC_EXTRACT</button>
+                <button class="btn" onclick="mine('genesis')">EXECUTE_MINING</button>
             </div>
-
             <div class="card">
-                <div class="label">[ UNITY_NODES ]</div>
+                <div style="font-size:10px">TOKEN: UNITY</div>
                 <div class="val" id="uv">0.00</div>
-                <button class="btn-terminal" onclick="mine('unity', this)">SYNC_UNITY</button>
+                <button class="btn" onclick="mine('unity')">SYNC_NODES</button>
             </div>
-
             <div class="card">
-                <div class="label">[ VEO_AI_QUANTUM ]</div>
+                <div style="font-size:10px">TOKEN: VEO_AI</div>
                 <div class="val" id="vv">0.00</div>
-                <button class="btn-terminal" onclick="mine('veo', this)">COMPUTE_VEO</button>
+                <button class="btn" onclick="mine('veo')">COMPUTE_AI</button>
             </div>
-        </div>
-
-        <div id="p-tasks" style="display:none">
-            <div class="header">>> ACTIVE_MISSIONS</div>
-            <div class="card">
-                <div class="task-row" onclick="window.open('https://t.me/BlumCryptoBot')"><span>BLUM_JOIN</span><span>+5.00</span></div>
-                <div class="task-row" onclick="tg.openTelegramLink('https://t.me/OWPC_Official')"><span>OFFICIAL_CHANNEL</span><span>+2.00</span></div>
-                <div class="task-row" onclick="share()"><span>INVITE_FRIENDS</span><span>+10.00</span></div>
-            </div>
-            <button class="btn-terminal" style="border-color:gold; color:gold" onclick="tg.showAlert('Send /donate to bot')">SUPPORT_ stars</button>
+            <div class="status-log" id="log">SYSTEM READY...</div>
         </div>
 
         <div id="p-top" style="display:none">
-            <div class="header">>> TOP_RANKING</div>
-            <div class="card" id="top-l"></div>
+            <div class="header"><span>> GLOBAL_RANKING</span></div>
+            <div id="top-l" class="card"></div>
+            <button class="btn" onclick="share()">INVITE_USER</button>
         </div>
 
         <div class="footer">
-            <div class="nav-item active" id="n-mine" onclick="show('mine')">[ MINING ]</div>
-            <div class="nav-item" id="n-tasks" onclick="show('tasks')">[ TASKS ]</div>
-            <div class="nav-item" id="n-top" onclick="show('top')">[ RANK ]</div>
+            <div class="nav-item active" id="n-mine" onclick="show('mine')">[ MINER ]</div>
+            <div class="nav-item" id="n-top" onclick="show('top')">[ TOP ]</div>
         </div>
 
         <script>
@@ -146,40 +125,50 @@ async def web_ui():
             const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
 
             async function refresh() {{
-                if(!uid) return;
+                if(!uid) {{ document.getElementById('log').innerText = "ERROR: NO_USER_ID. RESTART BOT."; return; }}
                 try {{
                     const r = await fetch('/api/user/' + uid);
                     const d = await r.json();
-                    document.getElementById('gv').innerText = d.g.toFixed(2);
-                    document.getElementById('uv').innerText = d.u.toFixed(2);
-                    document.getElementById('vv').innerText = d.v.toFixed(2);
-                    document.getElementById('lvl').innerText = d.lvl;
-                    let h = ""; d.top.forEach((u, i) => {{ h += `<div class="task-row"><span>${{i+1}}. ${{u.n}}</span><span>${{u.p}}</span></div>`; }});
-                    document.getElementById('top-l').innerHTML = h;
-                }} catch(e) {{}}
+                    if(d) {{
+                        document.getElementById('gv').innerText = d.g.toFixed(2);
+                        document.getElementById('uv').innerText = d.u.toFixed(2);
+                        document.getElementById('vv').innerText = d.v.toFixed(2);
+                        let h = ""; d.top.forEach((u, i) => {{ h += `<div style="display:flex;justify-content:space-between;margin:5px 0"><span>${{i+1}}. ${{u.n}}</span><span>${{u.p}}</span></div>`; }});
+                        document.getElementById('top-l').innerHTML = h;
+                    }}
+                }} catch(e) {{ document.getElementById('log').innerText = "ERR: " + e; }}
             }}
 
-            async function mine(t, btn) {{
+            async function mine(t) {{
                 tg.HapticFeedback.impactOccurred('medium');
-                let f = document.createElement('div'); f.className='floating'; f.innerText='+'+(t=='veo'?'0.01':'0.05'); f.style.left='50%'; btn.appendChild(f);
-                setTimeout(()=>f.remove(), 800);
-
-                await fetch('/api/mine', {{ method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{user_id:uid, token:t}}) }});
-                refresh();
+                document.getElementById('log').innerText = "MINING IN PROGRESS...";
+                const res = await fetch('/api/mine', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ user_id: uid, token: t }})
+                }});
+                const result = await res.json();
+                if(result.ok) {{ 
+                    document.getElementById('log').innerText = "SUCCESS: +0.05 DATA_POINTS";
+                    refresh(); 
+                }} else {{
+                    document.getElementById('log').innerText = "FAILED: SERVER_REJECTED";
+                }}
             }}
 
             function show(p) {{
-                ['mine','tasks','top'].forEach(id => document.getElementById('p-'+id).style.display = 'none');
-                ['mine','tasks','top'].forEach(id => document.getElementById('n-'+id).classList.remove('active'));
-                document.getElementById('p-'+p).style.display = 'block';
-                document.getElementById('n-'+p).classList.add('active');
+                document.getElementById('p-mine').style.display = (p=='mine'?'block':'none');
+                document.getElementById('p-top').style.display = (p=='top'?'block':'none');
+                document.getElementById('n-mine').classList.toggle('active', p=='mine');
+                document.getElementById('n-top').classList.toggle('active', p=='top');
             }}
 
             function share() {{
-                tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start=${{uid}}&text=Join the OWPC Hack.`);
+                tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start=${{uid}}&text=JOIN_THE_NETWORK`);
             }}
 
-            refresh(); setInterval(refresh, 5000);
+            refresh();
+            setInterval(refresh, 5000);
         </script>
     </body>
     </html>
