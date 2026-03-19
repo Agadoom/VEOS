@@ -5,7 +5,7 @@ import uvicorn
 import random
 from datetime import datetime, date
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, InputMediaPhoto
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -14,89 +14,44 @@ TOKEN = os.getenv("TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 DB_PATH = "owpc_data.db"
 WEBAPP_URL = "https://veos-production.up.railway.app" 
-BOT_USERNAME = "OWPCsbot"
-LOGO_PATH = "media/owpc_logo.png" # Ton logo local
+LOGO_PATH = "media/owpc_logo.png"
 
 app = FastAPI()
 
-# --- 📊 LOGIQUE DE PROGRESSION ---
+# --- 📊 LOGIQUE ---
 def get_rank_info(total_points):
-    if total_points < 25:
-        return {"name": "🆕 NOVICE", "mult": 1.0, "next": 25, "color": "#888888"}
-    elif total_points < 100:
-        return {"name": "🛠️ SPECIALIST", "mult": 2.0, "next": 100, "color": "#50ff50"}
-    elif total_points < 500:
-        return {"name": "⚡ EXTRACTOR", "mult": 5.0, "next": 500, "color": "#3399ff"}
-    else:
-        return {"name": "🐋 WHALE", "mult": 10.0, "next": 999999, "color": "#ffcc00"}
+    if total_points < 25: return {"name": "🆕 NOVICE", "mult": 1.0, "next": 25, "color": "#888888"}
+    elif total_points < 100: return {"name": "🛠️ SPECIALIST", "mult": 2.0, "next": 100, "color": "#50ff50"}
+    elif total_points < 500: return {"name": "⚡ EXTRACTOR", "mult": 5.0, "next": 500, "color": "#3399ff"}
+    else: return {"name": "🐋 WHALE", "mult": 10.0, "next": 999999, "color": "#ffcc00"}
 
-# --- 🗄️ DATABASE (TASKS ADDED) ---
 def init_db():
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id INTEGER PRIMARY KEY, name TEXT, 
                   points_genesis REAL DEFAULT 0.0, points_unity REAL DEFAULT 0.0, 
                   points_veo REAL DEFAULT 0.0, referred_by INTEGER,
-                  last_bonus TEXT DEFAULT '',
-                  tasks_sub_channel INTEGER DEFAULT 0)''') # Nouvelle colonne
+                  last_bonus TEXT DEFAULT '', tasks_sub_channel INTEGER DEFAULT 0,
+                  wallet_address TEXT DEFAULT '')''')
     conn.commit(); conn.close()
 
 def get_stats(uid):
-    try:
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        c.execute("SELECT points_genesis, points_unity, points_veo, last_bonus, tasks_sub_channel FROM users WHERE user_id=?", (uid,))
-        res = c.fetchone(); conn.close()
-        if res:
-            total = sum(res[:3])
-            return {"g": res[0], "u": res[1], "v": res[2], "total": total, "rank": get_rank_info(total), "last_bonus": res[3], "task_sub": res[4]}
-    except: pass
-    return {"g": 0.0, "u": 0.0, "v": 0.0, "total": 0.0, "rank": get_rank_info(0), "last_bonus": "", "task_sub": 0}
-
-# --- 🌐 MINI APP API & HTML ---
-@app.post("/update_points")
-async def receive_points(request: Request):
-    data = await request.json()
-    uid, token = data.get("user_id"), data.get("token")
-    if uid and token:
-        s = get_stats(uid)
-        gain = 0.05 * s['rank']['mult']
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        c.execute(f"UPDATE users SET points_{token} = points_{token} + ? WHERE user_id = ?", (gain, uid))
-        c.execute("SELECT referred_by FROM users WHERE user_id = ?", (uid,))
-        ref = c.fetchone()
-        if ref and ref[0]:
-            c.execute(f"UPDATE users SET points_{token} = points_{token} + ? WHERE user_id = ?", (gain * 0.1, ref[0]))
-        conn.commit(); conn.close()
-        return {"status": "success", "new_balance": get_stats(uid)}
-    return {"status": "error"}
-
-@app.get("/", response_class=HTMLResponse)
-async def mini_app():
-    # (Le code HTML reste identique à la V4 pour l'instant)
-    return """
-    <html><head><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"><script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>body { background: #000; color: #0f0; font-family: monospace; text-align: center; margin:0; padding:15px; } .terminal { border: 2px solid #0f0; padding: 15px; border-radius: 15px; height: 85vh; display: flex; flex-direction: column; justify-content: space-between; } .progress-bg { width: 100%; background: #002200; height: 8px; border-radius: 4px; margin: 10px 0; border: 1px solid #0f0; } #progress-bar { width: 0%; background: #0f0; height: 100%; transition: 0.5s; } .btn-extract { background: #0f0; color: #000; border: none; width: 140px; height: 140px; border-radius: 50%; font-weight: bold; cursor: pointer; box-shadow: 0 0 20px #0f0; }</style></head>
-    <body><div class="terminal"><div><div id="rank-tag">RANK: NOVICE</div><div class="progress-bg"><div id="progress-bar"></div></div><div style="display:grid; grid-template-columns:1fr 1fr 1fr; font-size:0.7em;"><div>G:<br><span id="g">0</span></div><div>U:<br><span id="u">0</span></div><div>V:<br><span id="v">0</span></div></div></div>
-    <div><select id="sel" style="background:#000; color:#0f0; border:1px solid #0f0; padding:10px; width:90%;"><option value="genesis">GENESIS</option><option value="unity">UNITY</option><option value="veo">VEO AI</option></select><br><br><button class="btn-extract" onclick="mine()">EXTRACT</button></div>
-    <div id="log" style="font-size: 0.6em;">> SYSTEM ONLINE</div></div>
-    <script>let tg = window.Telegram.WebApp; tg.expand(); async function mine() { let uid = tg.initDataUnsafe.user.id; let t = document.getElementById('sel').value; const r = await fetch('/update_points', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: uid, token: t })}); const res = await r.json(); updateUI(res.new_balance); }
-    function updateUI(s) { document.getElementById('g').innerText = s.g.toFixed(2); document.getElementById('u').innerText = s.u.toFixed(2); document.getElementById('v').innerText = s.v.toFixed(2); document.getElementById('rank-tag').innerText = "RANK: " + s.rank.name; let p = (s.total / s.rank.next) * 100; document.getElementById('progress-bar').style.width = p + "%"; }</script></body></html>
-    """
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("SELECT points_genesis, points_unity, points_veo, last_bonus, tasks_sub_channel, wallet_address FROM users WHERE user_id=?", (uid,))
+    res = c.fetchone(); conn.close()
+    if res:
+        total = sum(res[:3])
+        return {"g": res[0], "u": res[1], "v": res[2], "total": total, "rank": get_rank_info(total), "last_bonus": res[3], "task_sub": res[4], "wallet": res[5]}
+    return None
 
 # --- 🤖 BOT LOGIC ---
 async def start_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     init_db()
     
-    # Inscription + Parrainage
-    ref_by = None
-    if context.args:
-        try: rid = int(context.args[0]); 
-        except: rid=None
-        if rid and rid != user.id: ref_by = rid
-
+    # Inscription
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id, name, referred_by) VALUES (?, ?, ?)", (user.id, user.first_name, ref_by))
+    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (user.id, user.first_name))
     conn.commit(); conn.close()
     
     s = get_stats(user.id)
@@ -104,64 +59,119 @@ async def start_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("🎁 Daily Bonus", callback_data="daily"), InlineKeyboardButton("🆔 Passport", callback_data="passport")],
         [InlineKeyboardButton("🏛️ Hall of Fame", callback_data="hof"), InlineKeyboardButton("🎰 Lucky", callback_data="lucky")],
-        [InlineKeyboardButton("🏆 Tasks Hub (FREE OWPC)", callback_data="tasks")], # Nouveau bouton
-        [InlineKeyboardButton("🔗 Invite", callback_data="invite"), InlineKeyboardButton("💰 Invest", callback_data="invest")]
+        [InlineKeyboardButton("🏆 Tasks Hub", callback_data="tasks"), InlineKeyboardButton("👛 Wallet", callback_data="wallet")],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats"), InlineKeyboardButton("🔗 Invite", callback_data="invite")],
+        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest")]
     ])
     
     text = f"🕊️ **OWPC PROTOCOL**\n\nRank: `{s['rank']['name']}`\nBalance: `{s['total']:.2f}` OWPC"
     
-    # --- AJOUT LOGO DANS LE MESSAGE DE BASE ---
+    # Correction : On utilise reply_photo pour le message initial et edit_media pour les retours
     if update.callback_query:
-        if os.path.exists(LOGO_PATH):
+        try:
             await update.callback_query.message.edit_media(
                 media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=text, parse_mode="Markdown"),
                 reply_markup=kb
             )
-        else:
-            await update.callback_query.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        except:
+            await update.callback_query.message.reply_photo(photo=open(LOGO_PATH, 'rb'), caption=text, reply_markup=kb, parse_mode="Markdown")
     else:
-        if os.path.exists(LOGO_PATH):
-            await update.message.reply_photo(photo=open(LOGO_PATH, 'rb'), caption=text, reply_markup=kb, parse_mode="Markdown")
-        else:
-            await update.message.reply_text(text, reply_markup=kb, parse_mode="Markdown")
+        await update.message.reply_photo(photo=open(LOGO_PATH, 'rb'), caption=text, reply_markup=kb, parse_mode="Markdown")
 
 async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query; await q.answer(); uid = q.from_user.id
-    
+    s = get_stats(uid)
+
     if q.data == "back_to_main":
         await start_menu(update, context)
 
-    elif q.data == "tasks":
-        s = get_stats(uid)
-        task_sub = "✅ CLAIMED (+50)" if s['task_sub'] == 1 else "⏳ (+50)"
+    elif q.data == "wallet":
+        status = f"`{s['wallet']}`" if s['wallet'] else "Not connected"
         kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"Sub to @owpc_co {task_sub}", callback_data="tasks_check_sub")],
+            [InlineKeyboardButton("🔗 Connect TON Wallet", url="https://tonkeeper.com/")], # Exemple
             [InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]
         ])
-        text = "🏆 **TASKS HUB**\n\nComplete simple missions to get **FREE OWPC** in your Genesis sector."
-        
-        if os.path.exists(LOGO_PATH):
-            await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=text, parse_mode="Markdown"),reply_markup=kb)
-        else:
-            await q.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=f"👛 **WALLET SETTINGS**\n\nAddress: {status}\n\n*Withdrawals will be available after the TGE.*", parse_mode="Markdown"), reply_markup=kb)
 
-    elif q.data == "tasks_check_sub":
-        # Simulation d'une vérification
-        # (En production, il faut appeler l'API de Telegram pour vérifier l'abonnement)
-        s = get_stats(uid)
-        if s['task_sub'] == 0:
-            reward = 50.0
+    elif q.data == "tasks":
+        status = "✅" if s['task_sub'] else "⏳"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"Sub to @owpc_co {status}", callback_data="check_sub")],
+            [InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]
+        ])
+        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption="🏆 **TASKS HUB**\nComplete missions to earn Genesis coins.", parse_mode="Markdown"), reply_markup=kb)
+
+    elif q.data == "check_sub":
+        if not s['task_sub']:
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-            c.execute("UPDATE users SET points_genesis = points_genesis + ?, tasks_sub_channel = 1 WHERE user_id = ?", (reward, uid))
+            c.execute("UPDATE users SET points_genesis = points_genesis + 50, tasks_sub_channel = 1 WHERE user_id = ?", (uid,))
             conn.commit(); conn.close()
-            await q.message.edit_text(f"✅ **TASK COMPLETED**\n\nYou are subscribed! 50.0 OWPC Genesis added.")
+            await q.answer("✅ 50 OWPC Added!", show_alert=True)
+        await start_menu(update, context)
+
+    elif q.data == "daily":
+        today = date.today().isoformat()
+        if s['last_bonus'] == today:
+            await q.answer("❌ Already claimed today", show_alert=True)
         else:
-            await q.message.edit_text("⏳ **TASK ALREADY CLAIMED**\n\nProtocol is checking membership. Retry later.")
-        await start_menu(update, context) # Retour au menu principal après vérification
+            bonus = 1.0 * s['rank']['mult']
+            conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+            c.execute("UPDATE users SET points_genesis = points_genesis + ?, last_bonus = ? WHERE user_id = ?", (bonus, today, uid))
+            conn.commit(); conn.close()
+            await q.answer(f"🎁 Bonus +{bonus} claimed!", show_alert=True)
+        await start_menu(update, context)
 
-    # (Le reste du code reste identique à la V4 pour Stats, Hof, Lucky, Invite, Invest)
+    elif q.data == "stats":
+        txt = f"📊 **ASSETS**\nGen: `{s['g']:.2f}`\nUni: `{s['u']:.2f}`\nVeo: `{s['v']:.2f}`"
+        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=txt, parse_mode="Markdown"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]]))
 
-# --- RUN ---
+    elif q.data == "passport":
+        txt = f"🆔 **PASSPORT**\nRank: {s['rank']['name']}\nPower: x{s['rank']['mult']}"
+        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=txt, parse_mode="Markdown"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]]))
+
+    elif q.data == "hof":
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("SELECT name, (points_genesis+points_unity+points_veo) as t FROM users ORDER BY t DESC LIMIT 5")
+        top = c.fetchall(); conn.close()
+        txt = "🏛️ **TOP PLAYERS**\n\n" + "\n".join([f"{i+1}. {u[0]} - {u[1]:.2f}" for i,u in enumerate(top)])
+        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=txt, parse_mode="Markdown"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]]))
+
+    elif q.data == "lucky":
+        win = round(random.uniform(0.1, 0.4), 2)
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("UPDATE users SET points_veo = points_veo + ? WHERE user_id = ?", (win, uid))
+        conn.commit(); conn.close()
+        await q.answer(f"🎰 Win: +{win}!", show_alert=True)
+        await start_menu(update, context)
+
+    elif q.data == "invite":
+        txt = f"🔗 **INVITE**\n\n`https://t.me/{BOT_USERNAME}?start={uid}`"
+        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=txt, parse_mode="Markdown"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]]))
+
+    elif q.data == "invest":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧬 Genesis", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
+            [InlineKeyboardButton("🌍 Unity", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
+            [InlineKeyboardButton("🤖 Veo AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
+            [InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]
+        ])
+        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption="💰 **INVEST**", parse_mode="Markdown"), reply_markup=kb)
+
+# --- WEB APP PART (STAYS SAME) ---
+@app.post("/update_points")
+async def receive_points(request: Request):
+    data = await request.json(); uid, token = data.get("user_id"), data.get("token")
+    if uid and token:
+        s = get_stats(uid); gain = 0.05 * s['rank']['mult']
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute(f"UPDATE users SET points_{token} = points_{token} + ? WHERE user_id = ?", (gain, uid))
+        conn.commit(); conn.close()
+        return {"status": "success", "new_balance": get_stats(uid)}
+
+@app.get("/", response_class=HTMLResponse)
+async def mini_app():
+    return """<html><body style="background:#000; color:#0f0; text-align:center; font-family:monospace;"><h3>TERMINAL</h3><button style="width:150px; height:150px; border-radius:50%; background:#0f0;" onclick="mine()">EXTRACT</button><script>let tg=window.Telegram.WebApp; async function mine(){ let uid=tg.initDataUnsafe.user.id; await fetch('/update_points',{method:'POST',body:JSON.stringify({user_id:uid,token:'genesis'})}); alert('Extracted!'); }</script></body></html>"""
+
 async def main():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
