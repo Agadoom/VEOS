@@ -144,9 +144,42 @@ async def handle_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await q.answer(f"🎰 Win: +{win}!", show_alert=True)
         await start_menu(update, context)
 
-    elif q.data == "invite":
-        txt = f"🔗 **INVITE**\n\n`https://t.me/{BOT_USERNAME}?start={uid}`"
-        await q.message.edit_media(media=InputMediaPhoto(media=open(LOGO_PATH, 'rb'), caption=txt, parse_mode="Markdown"), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]]))
+        elif q.data == "invite":
+        link = f"https://t.me/{BOT_USERNAME}?start={uid}"
+        share_url = f"https://t.me/share/url?url={link}&text=🚀 Join me on OWPC Terminal! Mine Genesis, Unity and Veo AI tokens for free! 🕊️"
+        
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📤 Share with Friends", url=share_url)],
+            [InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]
+        ])
+        
+        txt = (
+            f"🔗 **REFERRAL SYSTEM**\n\n"
+            f"Invite your friends and earn **10% bonus** on all their extractions!\n\n"
+            f"Your personal link:\n`{link}`"
+        )
+        # On utilise une méthode plus stable pour l'édition avec image
+        await q.message.edit_caption(caption=txt, reply_markup=kb, parse_mode="Markdown")
+
+    elif q.data == "wallet":
+        # On va permettre à l'utilisateur d'enregistrer son adresse via une petite astuce
+        status = f"`{s['wallet']}`" if s['wallet'] else "Not connected"
+        
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💳 Connect Wallet (Coming Soon)", callback_data="wallet_info")],
+            [InlineKeyboardButton("⬅️ BACK", callback_data="back_to_main")]
+        ])
+        
+        txt = (
+            f"👛 **WALLET INTERFACE**\n\n"
+            f"Status: {status}\n\n"
+            f"Withdrawals and TON connection will be activated during the TGE (Token Generation Event).\n"
+            f"Stay tuned in @owpc_co for the announcement!"
+        )
+        await q.message.edit_caption(caption=txt, reply_markup=kb, parse_mode="Markdown")
+
+    elif q.data == "wallet_info":
+        await q.answer("🔒 Connection module encrypted. Available soon!", show_alert=True)
 
     elif q.data == "invest":
         kb = InlineKeyboardMarkup([
