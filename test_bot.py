@@ -2,7 +2,7 @@ import os, sqlite3, asyncio, uvicorn, logging, time
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v34.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v40.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -65,15 +65,15 @@ async def mine_api(request: Request):
     col = "p_genesis" if t == 'genesis' else "p_unity" if t == 'unity' else "p_veo"
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute(f"UPDATE users SET {col} = {col} + ?, total_clicks = total_clicks + 1 WHERE user_id = ?", (gain, uid))
+    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, t.upper(), gain, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
 
 @app.post("/api/donate/{uid}")
 async def donate_reward(uid: int):
-    # Cette API est appelée après le succès du paiement Stars
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("UPDATE users SET p_unity = p_unity + 10.0 WHERE user_id = ?", (uid,))
-    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, "DONATE_REWARD", 10.0, int(time.time())))
+    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, "STARS_BUY", 10.0, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
 
@@ -89,11 +89,20 @@ async def web_ui():
     <style>
         :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; overflow-x: hidden; }
+        
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #161618; border-radius: 15px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
         .user-info { display: flex; align-items: center; gap: 10px; }
         .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
-        .donate-btn { background: var(--gold); color: #000; border: none; padding: 5px 10px; border-radius: 8px; font-size: 10px; font-weight: 800; cursor: pointer; }
         
+        /* New Stars Button Style */
+        .donate-btn { 
+            background: linear-gradient(135deg, #FFD700, #FFA500); 
+            color: #000; border: none; padding: 7px 12px; border-radius: 12px; 
+            font-size: 11px; font-weight: 900; cursor: pointer; 
+            display: flex; align-items: center; gap: 5px;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+
         .balance { text-align: center; margin-bottom: 10px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); }
         .energy-container { width: 100%; height: 8px; background: #222; border-radius: 4px; margin-bottom: 15px; overflow: hidden; }
         .energy-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #FFA500); width: 100%; transition: width 0.2s; }
@@ -101,7 +110,10 @@ async def web_ui():
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; min-width: 85px; }
         .btn:disabled { background: #333; color: #666; }
+        
         .section-title { font-size: 12px; font-weight: 700; color: var(--text); margin: 20px 0 10px 5px; text-transform: uppercase; }
+        .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1c1c1e; font-size: 12px; color: var(--text); }
+        
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; }
         .nav-item { font-size: 24px; opacity: 0.3; }
         .nav-item.active { opacity: 1; transform: scale(1.2); }
@@ -113,7 +125,7 @@ async def web_ui():
             <div class="avatar" id="u-avatar">?</div>
             <div style="font-size: 12px; font-weight: 700;" id="u-name">User</div>
         </div>
-        <button class="donate-btn" onclick="buyStars()">SUPPORT 50 ⭐</button>
+        <button class="donate-btn" onclick="buyStars()">50 ⭐ BUY UNITY</button>
     </div>
 
     <div id="p-mine">
@@ -132,6 +144,9 @@ async def web_ui():
             <div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:18px; font-weight:700">0.00</div></div>
             <button class="btn mine-btn" onclick="mine('unity', event)">SYNC</button>
         </div>
+
+        <div class="section-title">Recent History</div>
+        <div id="history-list"></div>
     </div>
 
     <div class="nav"><div class="nav-item active">🏠</div><div class="nav-item" style="opacity:0.3">🏆</div></div>
@@ -142,12 +157,11 @@ async def web_ui():
         let energy = 100;
 
         async function buyStars() {
-            // Dans une vraie app, vous appelleriez bot.sendInvoice via l'API
-            // Ici on simule l'ouverture et le succès pour la démo technique
-            tg.showConfirm("Do you want to donate 50 Stars for 10 Unity points?", async (confirm) => {
+            tg.showConfirm("Are you sure you want to donate 50 ⭐ for 10.0 UNITY Points?", async (confirm) => {
                 if(confirm) {
                     await fetch('/api/donate/' + uid, {method:'POST'});
-                    tg.showAlert("🎉 Purchase Successful! +10 UNITY added. The App will now restart.");
+                    tg.HapticFeedback.notificationOccurred('success');
+                    tg.showAlert("🎉 FÉLICITATIONS !\n\nVotre achat de 50 Stars a été validé. 10.0 points UNITY ont été ajoutés à votre compte.");
                     setTimeout(() => { tg.close(); }, 2000);
                 }
             });
@@ -165,9 +179,19 @@ async def web_ui():
             const r = await fetch('/api/user/' + uid);
             const d = await r.json();
             document.getElementById('u-name').innerText = d.name;
+            document.getElementById('u-avatar').innerText = d.name.charAt(0).toUpperCase();
             document.getElementById('gv').innerText = d.g.toFixed(2);
             document.getElementById('uv').innerText = d.u.toFixed(2);
             document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
+
+            // Updated History view
+            let h_html = "";
+            d.history.forEach(h => {
+                let timeStr = new Date(h.ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                let color = h.t.includes('STARS') ? 'var(--gold)' : 'var(--text)';
+                h_html += `<div class="history-item"><span style="color:${color}">${h.t}</span><b>+${h.a.toFixed(2)}</b><span>${timeStr}</span></div>`;
+            });
+            document.getElementById('history-list').innerHTML = h_html;
         }
 
         async function mine(t, e) {
