@@ -27,7 +27,7 @@ def get_user_stats(uid):
     except: pass
     return {"total": 0, "g": 0, "u": 0, "v": 0.0}
 
-# --- KEYBOARDS ---
+# --- KEYBOARDS (Back to the original rich style) ---
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
@@ -38,32 +38,38 @@ def main_menu_keyboard():
 
 # --- BOT HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    name = update.effective_user.first_name
+    user = update.effective_user
+    uid = user.id
     
-    # Init user in DB
+    # Save user to DB
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (uid, name))
+    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (uid, user.first_name))
     conn.commit(); conn.close()
     
     stats = get_user_stats(uid)
-    await update.message.reply_text(
-        f"🕊️ **OWPC PROTOCOL**\n\nWelcome Commander **{name}**\nBalance: `{stats['total']:,} OWPC`",
-        reply_markup=main_menu_keyboard(), parse_mode="Markdown"
+    
+    # Construction du message RICHE comme sur ta photo 1
+    welcome_msg = (
+        f"🕊️ **OWPC PROTOCOL**\n\n"
+        f"👤 **Commander:** {user.first_name}\n"
+        f"🏆 **Rank:** SEEKER\n"
+        f"💰 **Balance:** {stats['total']:,} OWPC\n\n"
+        f"System Status: `OPERATIONAL` ✅"
     )
+    
+    # On renvoie le message avec le menu complet
+    await update.message.reply_text(welcome_msg, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
 
 async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer() # CRITICAL: Stop the loading spinner
+    await query.answer()
     uid = query.from_user.id
     stats = get_user_stats(uid)
 
-    # 1. Main Menu
     if query.data == "main_menu":
         await query.message.edit_text(f"🕊️ **OWPC PROTOCOL**\n\nBalance: `{stats['total']:,} OWPC`", 
                                       reply_markup=main_menu_keyboard(), parse_mode="Markdown")
-
-    # 2. Stats (Fixing the non-clickable issue)
+    
     elif query.data == "stats":
         txt = (f"📊 **ASSETS OVERVIEW**\n\n"
                f"🧬 Genesis: `{stats['g']:,}`\n"
@@ -73,14 +79,12 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text(txt, parse_mode="Markdown", 
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
 
-    # 3. Passport (Fixing the non-clickable issue)
     elif query.data == "passport":
         txt = (f"🆔 **OWPC PASSPORT**\n\nHolder: `{query.from_user.first_name}`\n"
                f"ID: `{uid}`\nStatus: `VERIFIED ✅`")
         await query.message.edit_text(txt, parse_mode="Markdown",
                                       reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
 
-    # 4. Invest Hub (Already working, kept for sync)
     elif query.data == "invest":
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
@@ -88,7 +92,7 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
             [InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]
         ])
-        await query.message.edit_text("💰 **INVEST HUB**\nSelect an asset:", reply_markup=kb)
+        await query.message.edit_text("💰 **INVEST HUB**", reply_markup=kb)
 
 # --- SYSTEM RUN ---
 @app.on_event("startup")
@@ -99,10 +103,11 @@ async def startup_event():
     await bot_app.initialize()
     await bot_app.start()
     asyncio.create_task(bot_app.updater.start_polling(drop_pending_updates=True))
-    print("✅ BOT LISTENING ON CALLBACKS")
+    print("✅ BOT RE-SYNCHRONIZED")
 
 @app.get("/")
 async def home(): return "🚀 TERMINAL ACTIVE"
 
 if __name__ == "__main__":
+    # Utilisation de uvicorn standard pour Railway
     uvicorn.run("bot:app", host="0.0.0.0", port=PORT, factory=False)
