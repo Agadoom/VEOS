@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from data_conx import init_db, get_db_conn
 
@@ -15,12 +15,9 @@ WEBAPP_URL = os.getenv("WEBAPP_URL")
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+bot_app = None 
 
 # --- BOT FUNCTIONS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -28,7 +25,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     referrer_id = None
     if context.args:
         try:
-            arg = int(context.args[0]); referrer_id = arg if arg != uid else None
+            arg = int(context.args[0])
+            referrer_id = arg if arg != uid else None
         except: pass
 
     conn = get_db_conn()
@@ -51,19 +49,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
     await update.message.reply_text(f"Welcome {name}!", reply_markup=kb)
 
-# --- SYSTÈME DE DON (STARS) ---
+# --- CRÉATION DU LIEN DE FACTURE (STARS) ---
 @app.post("/api/donate")
 async def donate_stars(request: Request):
     data = await request.json()
-    uid = data.get("user_id")
-    # Envoi d'une facture de 50 Stars pour soutenir le projet
+    # On génère un lien de facture qui sera ouvert par la WebApp
     try:
-        await bot_app.bot.send_invoice(
-            chat_id=uid, title="Support OWPC HUB", description="Donate 50 Stars to help us grow!",
-            payload="donate_50", currency="XTR", prices=[LabeledPrice("Support", 50)]
+        link = await bot_app.bot.create_invoice_link(
+            title="Support OWPC HUB",
+            description="Donate 50 Stars to help us grow!",
+            payload="donate_50",
+            currency="XTR", # XTR = Telegram Stars
+            prices=[LabeledPrice("Support", 50)]
         )
-        return {"ok": True}
+        return {"ok": True, "link": link}
     except Exception as e:
+        logging.error(f"Invoice Error: {e}")
         return {"ok": False, "error": str(e)}
 
 # --- API ENDPOINTS ---
@@ -96,7 +97,7 @@ async def mine_api(request: Request):
         return {"ok": True}
     return {"ok": False}
 
-# --- WEB UI (CONFÉTTIS + DONATE STARS) ---
+# --- WEB UI (AVEC OPENINVOICE) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -151,7 +152,7 @@ async def web_ui():
 
         <div class="section-title">Support Project</div>
         <div class="card">
-            <div><b>Donate Stars</b><br><small style="color:var(--text)">Help us improve OWPC</small></div>
+            <div><b>Donate Stars</b><br><small style="color:var(--text)">Direct Telegram Payment</small></div>
             <button class="btn btn-star" onclick="donate()">⭐️ 50</button>
         </div>
     </div>
@@ -201,7 +202,13 @@ async def web_ui():
 
         async function donate() {
             const r = await fetch(`${apiBase}/api/donate`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(r.ok) tg.close(); // Ferme la WebApp pour laisser place au paiement
+            const data = await r.json();
+            if(data.ok && data.link) {
+                // Ouvre le paiement directement SANS fermer la WebApp
+                tg.openInvoice(data.link, function(status) {
+                    if(status == 'paid') tg.showAlert("Thank you for your donation! 🚀");
+                });
+            }
         }
 
         function show(p) {
