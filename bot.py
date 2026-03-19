@@ -14,7 +14,7 @@ WEBAPP_URL = "https://veos-production.up.railway.app"
 
 app = FastAPI()
 
-# --- DB HELPERS ---
+# --- DB ---
 def get_stats(uid):
     try:
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
@@ -28,11 +28,12 @@ def get_stats(uid):
 def main_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest"), InlineKeyboardButton("📊 Stats", callback_data="stats")],
-        [InlineKeyboardButton("🆔 Passport", callback_data="passport")]
+        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="hof")],
+        [InlineKeyboardButton("🆔 Passport", callback_data="passport"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="lucky")],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats"), InlineKeyboardButton("🔗 Invite", callback_data="invite")]
     ])
 
-# --- HANDLERS ---
+# --- BOT HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     stats = get_stats(user.id)
@@ -41,36 +42,43 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cb_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; await query.answer()
-    stats = get_stats(query.from_user.id)
+    uid = query.from_user.id
+    stats = get_stats(uid)
     if query.data == "stats":
         await query.message.edit_text(f"📊 Genesis: {stats['g']}\nUnity: {stats['u']}", reply_markup=main_kb())
     elif query.data == "passport":
-        await query.message.edit_text(f"🆔 Passport: {query.from_user.first_name}", reply_markup=main_kb())
+        await query.message.edit_text(f"🆔 Passport: {query.from_user.first_name}\nStatus: Verified ✅", reply_markup=main_kb())
+    elif query.data == "invest":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
+            [InlineKeyboardButton("🌍 UNITY", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
+            [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]
+        ])
+        await query.message.edit_text("💰 **INVEST HUB**", reply_markup=kb)
 
 # --- WEB ---
 @app.get("/")
-async def root(): return {"status": "running"}
+async def root(): return {"status": "online"}
 
-# --- THE FIX: MANUAL STARTUP ---
-def run_everything():
-    # 1. Configurer le bot
-    print("🤖 [STARTING] Bot initialization...")
+# --- MAIN ---
+async def main():
+    # 1. Initialisation du Bot
+    print("🤖 [BOOT] Starting Telegram Bot...")
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
     bot_app.add_handler(CallbackQueryHandler(cb_handler))
+    
+    await bot_app.initialize()
+    await bot_app.start()
+    await bot_app.updater.start_polling(drop_pending_updates=True)
+    print("✅ [BOOT] Bot is polling updates.")
 
-    # 2. Lancer le polling en tâche de fond
-    loop = asyncio.get_event_loop()
-    loop.create_task(bot_app.initialize())
-    loop.create_task(bot_app.start())
-    loop.create_task(bot_app.updater.start_polling(drop_pending_updates=True))
-    print("✅ [OK] Bot is running background")
-
-    # 3. Lancer le serveur Web (Bloquant, donc à la fin)
-    print(f"🌐 [STARTING] Web Server on port {PORT}")
-    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")
+    # 2. Initialisation du Web
+    print(f"🌐 [BOOT] Starting Web Server on port {PORT}")
+    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, log_level="info")
     server = uvicorn.Server(config)
-    loop.run_until_complete(server.serve())
+    await server.serve()
 
 if __name__ == "__main__":
-    run_everything()
+    asyncio.run(main())
