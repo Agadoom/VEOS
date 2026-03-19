@@ -1,8 +1,8 @@
 import os, sqlite3, asyncio, uvicorn, logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
@@ -15,17 +15,20 @@ os.makedirs(DATA_DIR, exist_ok=True)
 DB_PATH = os.path.join(DATA_DIR, "owpc_data.db")
 
 app = FastAPI()
+logging.basicConfig(level=logging.INFO)
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # Table Utilisateurs étendue
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id INTEGER PRIMARY KEY, name TEXT, 
                   points_genesis REAL DEFAULT 0, points_unity REAL DEFAULT 0, 
-                  points_veo REAL DEFAULT 0, referred_by INTEGER, ref_count INTEGER DEFAULT 0)''')
+                  points_veo REAL DEFAULT 0, referred_by INTEGER, ref_count INTEGER DEFAULT 0,
+                  last_task_date TEXT)''')
     conn.commit(); conn.close()
 
-# --- BOT ---
+# --- BOT LOGIC ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
@@ -35,12 +38,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not c.fetchone():
         c.execute("INSERT INTO users (user_id, name, referred_by) VALUES (?, ?, ?)", (uid, name, ref_id))
         if ref_id and ref_id != uid:
-            # Bonus de parrainage immédiat pour le parrain
-            c.execute("UPDATE users SET points_unity = points_unity + 5.0, ref_count = ref_count + 1 WHERE user_id = ?", (ref_id,))
+            c.execute("UPDATE users SET points_unity = points_unity + 10.0, ref_count = ref_count + 1 WHERE user_id = ?", (ref_id,))
     conn.commit(); conn.close()
 
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("💎 OPEN OWPC TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome {name}.\nYour mining nodes are ready.", reply_markup=kb)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 LAUNCH OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await update.message.reply_text(f"Welcome to OWPC Ecosystem.\nAll systems are green.", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -48,8 +50,11 @@ async def get_user_api(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT points_genesis, points_unity, points_veo, ref_count FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
+    # Récupérer le TOP 3 pour le leaderboard
+    c.execute("SELECT name, points_genesis FROM users ORDER BY points_genesis DESC LIMIT 3")
+    top = [{"n": x[0], "p": round(x[1],2)} for x in c.fetchall()]
     conn.close()
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3]} if r else {"g":0,"u":0,"v":0,"rc":0}
+    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "top": top} if r else {"g":0,"u":0,"v":0,"rc":0, "top":[]}
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
@@ -62,7 +67,7 @@ async def api_mine(request: Request):
     conn.commit(); conn.close()
     return {"ok": True}
 
-# --- WEB APP ---
+# --- WEB UI (Premium & Multitâches) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return f"""
@@ -72,52 +77,59 @@ async def web_ui():
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            :root {{ --g: #00ff88; --u: #ffffff; --v: #00d9ff; --bg: #0a0e17; }}
-            body {{ background: var(--bg); color: #fff; font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; text-align: center; }}
+            :root {{ --g: #00ff88; --u: #fff; --v: #00d9ff; --bg: #080c14; --card: #121826; }}
+            body {{ background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 15px; padding-bottom: 80px; }}
             
-            .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 12px; }}
-            .ref-badge {{ background: gold; color: #000; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; }}
-
-            .card {{ background: linear-gradient(145deg, #161c27, #0b0f19); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 20px; margin-bottom: 15px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }}
-            .label {{ font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; }}
-            .val {{ font-size: 32px; font-weight: 800; margin: 10px 0; font-family: 'Courier New', monospace; }}
+            .tab-btn {{ background: none; border: none; color: #666; font-weight: bold; padding: 10px; font-size: 14px; cursor: pointer; }}
+            .tab-btn.active {{ color: var(--g); border-bottom: 2px solid var(--g); }}
             
-            .btn-mine {{ width: 100%; padding: 18px; border-radius: 15px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }}
-            .btn-mine:active {{ transform: scale(0.96); opacity: 0.8; }}
+            .card {{ background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 15px; margin-bottom: 12px; }}
+            .val {{ font-size: 24px; font-weight: 800; font-family: monospace; }}
             
-            .btn-share {{ background: #2b3344; color: #fff; padding: 15px; border-radius: 12px; border: 1px solid #444; width: 100%; font-weight: bold; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; }}
+            .btn-action {{ width: 100%; padding: 12px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.2s; }}
+            .btn-mine {{ background: var(--g); color: #000; }}
+            .btn-task {{ background: #252f44; color: #fff; text-align: left; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
             
-            .floating {{ position: absolute; font-weight: bold; color: var(--g); pointer-events: none; animation: up 1s forwards; }}
-            @keyframes up {{ 0%{{transform:translateY(0);opacity:1}} 100%{{transform:translateY(-60px);opacity:0}} }}
+            .footer {{ position: fixed; bottom: 0; left: 0; right: 0; background: #111; display: flex; justify-content: space-around; padding: 10px; border-top: 1px solid #222; }}
+            .nav-item {{ font-size: 10px; color: #888; text-decoration: none; display: flex; flex-direction: column; align-items: center; }}
+            
+            .leader-row {{ display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; font-size: 14px; }}
         </style>
     </head>
     <body>
-        <div class="header">
-            <span style="font-weight:bold; color:var(--v)">OWPC PROTOCOL</span>
-            <div class="ref-badge">Parrains: <span id="ref_count">0</span></div>
-        </div>
-        
-        <div class="card" style="border-top: 4px solid var(--g)">
-            <div class="label">Genesis Balance</div>
-            <div class="val" style="color:var(--g)" id="g_val">0.00</div>
-            <button class="btn-mine" style="background:var(--g); color:#000" onclick="mine('genesis', this)">EXTRACT GENESIS</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 style="margin:0; color:var(--v)">OWPC HUB</h3>
+            <div style="background:gold; color:000; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:bold">⭐️ <span id="ref_count">0</span></div>
         </div>
 
-        <div class="card" style="border-top: 4px solid var(--u)">
-            <div class="label">Unity Core</div>
-            <div class="val" style="color:var(--u)" id="u_val">0.00</div>
-            <button class="btn-mine" style="background:var(--u); color:#000" onclick="mine('unity', this)">HARVEST UNITY</button>
+        <div id="section-mine">
+            <div class="card" style="border-left: 4px solid var(--g)">
+                <div style="font-size:11px; color:#aaa">GENESIS BALANCE</div>
+                <div class="val" style="color:var(--g)" id="g_val">0.00</div>
+                <button class="btn-action btn-mine" onclick="mine('genesis', this)">MINE GENESIS</button>
+            </div>
+            
+            <div class="card">
+                <div style="font-size:11px; color:#aaa">DAILY TASKS</div>
+                <button class="btn-action btn-task" onclick="window.open('https://t.me/BlumCryptoBot')">1. Join Blum Crypto <span>+5.0 G</span></button>
+                <button class="btn-action btn-task" onclick="tg.openTelegramLink('https://t.me/YourChannel')">2. Subscribe Channel <span>+2.0 G</span></button>
+                <button class="btn-action btn-task" style="background:var(--v); color:#000" onclick="donate()">💝 DONATE STARS (SUPPORT)</button>
+            </div>
         </div>
 
-        <div class="card" style="border-top: 4px solid var(--v)">
-            <div class="label">Veo AI Tokens</div>
-            <div class="val" style="color:var(--v)" id="v_val">0.00</div>
-            <button class="btn-mine" style="background:var(--v); color:#000" onclick="mine('veo', this)">COMPUTE VEO</button>
+        <div id="section-top" style="display:none">
+            <div class="card">
+                <div style="font-size:12px; color:gold; margin-bottom:10px">🏆 GLOBAL RANKING</div>
+                <div id="leaderboard-list"></div>
+                <button class="btn-action" style="background:#fff; color:#000; margin-top:15px" onclick="share()">INVITE FRIENDS (+10 UNITY)</button>
+            </div>
         </div>
 
-        <button class="btn-share" onclick="share()">
-            <span>🔗</span> INVITE FRIENDS (+5 UNITY)
-        </button>
+        <div class="footer">
+            <div class="nav-item" onclick="showTab('mine')" style="color:var(--g)">⛏️<br>Mining</div>
+            <div class="nav-item" onclick="showTab('top')">🏆<br>Top</div>
+            <div class="nav-item" onclick="tg.close()">❌<br>Exit</div>
+        </div>
 
         <script>
             let tg = window.Telegram.WebApp; tg.expand();
@@ -128,20 +140,17 @@ async def web_ui():
                 const r = await fetch('/api/user/' + uid);
                 const d = await r.json();
                 document.getElementById('g_val').innerText = d.g.toFixed(2);
-                document.getElementById('u_val').innerText = d.u.toFixed(2);
-                document.getElementById('v_val').innerText = d.v.toFixed(2);
                 document.getElementById('ref_count').innerText = d.rc;
+                
+                let html = "";
+                d.top.forEach((u, i) => {{
+                    html += `<div class="leader-row"><span>${{i+1}}. ${{u.n}}</span><span style="color:var(--g)">${{u.p}} G</span></div>`;
+                }});
+                document.getElementById('leaderboard-list').innerHTML = html;
             }}
 
             async function mine(t, btn) {{
-                tg.HapticFeedback.impactOccurred('rigid');
-                let float = document.createElement('div');
-                float.className = 'floating';
-                float.innerText = (t==='veo' ? '+0.01' : '+0.05');
-                float.style.left = '50%'; float.style.top = '20%';
-                btn.parentElement.appendChild(float);
-                setTimeout(()=>float.remove(), 1000);
-
+                tg.HapticFeedback.impactOccurred('medium');
                 await fetch('/api/mine', {{
                     method: 'POST',
                     headers: {{'Content-Type': 'application/json'}},
@@ -150,14 +159,23 @@ async def web_ui():
                 refresh();
             }}
 
+            function showTab(t) {{
+                document.getElementById('section-mine').style.display = (t==='mine'?'block':'none');
+                document.getElementById('section-top').style.display = (t==='top'?'block':'none');
+            }}
+
             function share() {{
                 const url = `https://t.me/{BOT_USERNAME}?start=${{uid}}`;
-                const text = "Join me on OWPC and start mining Genesis tokens!";
-                tg.openTelegramLink(`https://t.me/share/url?url=${{encodeURIComponent(url)}}&text=${{encodeURIComponent(text)}}`);
+                tg.openTelegramLink(`https://t.me/share/url?url=${{encodeURIComponent(url)}}&text=Join the OWPC mining revolution!`);
+            }}
+
+            function donate() {{
+                // Note: La gestion des Stars nécessite une intégration côté Bot (Payment)
+                tg.showAlert("Merci ! Pour donner des Stars, utilisez le menu du Bot Telegram.");
             }}
 
             refresh();
-            setInterval(refresh, 5000);
+            setInterval(refresh, 8000);
         </script>
     </body>
     </html>
