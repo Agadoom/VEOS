@@ -2,7 +2,7 @@ import os, sqlite3, asyncio, uvicorn, logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
@@ -12,7 +12,7 @@ BOT_USERNAME = "OWPCsbot"
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_final.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -23,27 +23,17 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id INTEGER PRIMARY KEY, name TEXT, 
                   p_genesis REAL DEFAULT 0, p_unity REAL DEFAULT 0, 
-                  p_veo REAL DEFAULT 0, referred_by INTEGER, ref_count INTEGER DEFAULT 0)''')
+                  p_veo REAL DEFAULT 0, ref_count INTEGER DEFAULT 0)''')
     conn.commit(); conn.close()
 
-# --- BOT LOGIC ---
+# --- BOT ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
-    ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
-    
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("SELECT user_id FROM users WHERE user_id = ?", (uid,))
-    if not c.fetchone():
-        c.execute("INSERT INTO users (user_id, name, referred_by) VALUES (?, ?, ?)", (uid, name.replace("'",""), ref_id))
-        if ref_id and ref_id != uid:
-            c.execute("UPDATE users SET p_unity = p_unity + 10.0, ref_count = ref_count + 1 WHERE user_id = ?", (ref_id,))
+    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (uid, name))
     conn.commit(); conn.close()
-
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ ACCESS MAIN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f">> WELCOME TO OWPC NETWORK\\n>> STATUS: ENCRYPTED\\n>> USER_ID: {uid}", reply_markup=kb)
-
-async def donate(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_invoice(title="Support OWPC", description="Donate 50 Stars", payload="support", provider_token="", currency="XTR", prices=[LabeledPrice("Donation", 50)])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await update.message.reply_text(f"Welcome to OWPC Ecosystem, {name}.", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{{uid}}")
@@ -51,15 +41,13 @@ async def get_user(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT p_genesis, p_unity, p_veo, ref_count FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
-    c.execute("SELECT name, p_genesis FROM users ORDER BY p_genesis DESC LIMIT 5")
-    top = [{"n": x[0], "p": round(x[1],2)} for x in c.fetchall()]
     conn.close()
-    return {{"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "top": top}} if r else None
+    return {{"g": r[0], "u": r[1], "v": r[2], "rc": r[3]}} if r else None
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json()
-    uid, t = data.get("uid"), data.get("type")
+    uid, t = data.get("user_id"), data.get("token")
     gain = 0.01 if t == 'veo' else 0.05
     col = {{"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}}.get(t)
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
@@ -67,7 +55,7 @@ async def mine_api(request: Request):
     conn.commit(); conn.close()
     return {{"ok": True}}
 
-# --- WEB UI (THEME TERMINAL V3) ---
+# --- UI RÉALISTE (NEUMORPHISM) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return f"""
@@ -76,51 +64,69 @@ async def web_ui():
     <head>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
         <style>
-            :root {{ --neon: #0f0; --bg: #000; --dim: #003300; }}
-            body {{ background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; padding: 15px; padding-bottom: 80px; overflow-x: hidden; }}
-            .header {{ border-bottom: 1px solid var(--neon); padding-bottom: 5px; margin-bottom: 15px; font-size: 11px; display: flex; justify-content: space-between; }}
-            .card {{ border: 1px solid var(--neon); padding: 12px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.03); box-shadow: inset 0 0 10px var(--dim); }}
-            .label {{ font-size: 10px; text-transform: uppercase; opacity: 0.8; }}
-            .val {{ font-size: 26px; font-weight: bold; margin: 5px 0; }}
-            .btn {{ width: 100%; padding: 12px; background: transparent; border: 1px solid var(--neon); color: var(--neon); font-family: 'Courier New'; font-weight: bold; cursor: pointer; }}
-            .btn:active {{ background: var(--neon); color: #000; }}
-            .footer {{ position: fixed; bottom: 0; left: 0; right: 0; background: #000; display: flex; justify-content: space-around; padding: 12px; border-top: 1px solid var(--neon); }}
-            .nav-item {{ font-size: 10px; cursor: pointer; opacity: 0.5; }}
-            .nav-item.active {{ opacity: 1; text-shadow: 0 0 5px var(--neon); }}
-            .task-row {{ display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--dim); font-size: 12px; }}
-            #log {{ font-size: 9px; color: #006600; margin-top: 10px; }}
+            :root {{ --bg: #f0f2f5; --text: #1c1e21; --blue: #007bff; --glass: rgba(255, 255, 255, 0.7); }}
+            body {{ background: var(--bg); color: var(--text); font-family: 'Poppins', sans-serif; margin: 0; padding: 20px; }}
+            
+            .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }}
+            .logo {{ font-weight: 800; font-size: 20px; color: var(--blue); }}
+            
+            .token-card {{ 
+                background: white; border-radius: 24px; padding: 20px; margin-bottom: 15px;
+                box-shadow: 10px 10px 20px #d1d9e6, -10px -10px 20px #ffffff;
+                transition: transform 0.2s;
+            }}
+            .token-card:active {{ transform: scale(0.98); box-shadow: inset 5px 5px 10px #d1d9e6, inset -5px -5px 10px #ffffff; }}
+            
+            .label {{ font-size: 12px; color: #65676b; font-weight: 600; text-transform: uppercase; }}
+            .value {{ font-size: 32px; font-weight: 800; margin: 5px 0; color: #050505; }}
+            
+            .btn-mine {{ 
+                background: var(--blue); color: white; border: none; padding: 12px 20px; 
+                border-radius: 12px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px;
+            }}
+
+            .nav {{ position: fixed; bottom: 20px; left: 20px; right: 20px; background: var(--glass); backdrop-filter: blur(10px); border-radius: 20px; display: flex; justify-content: space-around; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }}
+            .nav-item {{ font-size: 20px; cursor: pointer; }}
+            
+            .task-btn {{ background: #e4e6eb; color: #050505; padding: 15px; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; text-decoration: none; font-weight: 600; }}
         </style>
     </head>
     <body>
-        <div id="p-mine">
-            <div class="header"><span>>> OWPC_CORE_V25</span><span id="stat">SCANNING...</span></div>
-            <div class="card"><div class="label">OWPC_GENESIS</div><div class="val" id="gv">0.00</div><button class="btn" onclick="mine('genesis')">EXEC_EXTRACTION</button></div>
-            <div class="card"><div class="label">OWPC_UNITY</div><div class="val" id="uv">0.00</div><button class="btn" onclick="mine('unity')">SYNC_NODES</button></div>
-            <div class="card"><div class="label">OWPC_VEO_AI</div><div class="val" id="vv">0.00</div><button class="btn" onclick="mine('veo')">RUN_QUANTUM</button></div>
-            <div id="log">READY.</div>
+        <div id="p-home">
+            <div class="header"><div class="logo">OWPC HUB</div><div id="user-tag" style="font-size:12px; font-weight:600">PRO</div></div>
+            
+            <div class="token-card">
+                <div class="label">Genesis Token</div>
+                <div class="value" id="gv">0.00</div>
+                <button class="btn-mine" onclick="mine('genesis')">Mine Genesis</button>
+            </div>
+
+            <div class="token-card">
+                <div class="label">Unity Core</div>
+                <div class="value" id="uv">0.00</div>
+                <button class="btn-mine" style="background:#28a745" onclick="mine('unity')">Harvest Unity</button>
+            </div>
+
+            <div class="token-card">
+                <div class="label">Veo AI</div>
+                <div class="value" id="vv">0.00</div>
+                <button class="btn-mine" style="background:#6f42c1" onclick="mine('veo')">Compute AI</button>
+            </div>
         </div>
 
         <div id="p-tasks" style="display:none">
-            <div class="header">>> NETWORK_TASKS</div>
-            <div class="card">
-                <div class="task-row" onclick="window.open('https://t.me/BlumCryptoBot')"><span>JOIN_BLUM</span><span>+5.00G</span></div>
-                <div class="task-row" onclick="tg.openTelegramLink('https://t.me/OWPC_Official')"><span>COMMUNITY_HUB</span><span>+2.00G</span></div>
-                <div class="task-row" onclick="window.open('https://example.com/buy')"><span>BUY_OWPC_TOKENS</span><span>[LINK]</span></div>
-            </div>
-            <button class="btn" style="border-color:gold; color:gold" onclick="tg.showAlert('Send /donate in bot for Stars support')">DONATE_STARS ⭐</button>
+            <h2>Community Tasks</h2>
+            <a href="https://t.me/BlumCryptoBot" class="task-btn"><span>🌱 Join Blum</span><span>+5.0</span></a>
+            <a href="https://t.me/OWPC_Official" class="task-btn"><span>📢 Official Channel</span><span>+2.0</span></a>
+            <div class="task-btn" onclick="donate()" style="background:gold"><span>⭐ Support with Stars</span><span>BUY</span></div>
         </div>
 
-        <div id="p-top" style="display:none">
-            <div class="header">>> GLOBAL_RANKING</div>
-            <div class="card" id="top-l"></div>
-            <button class="btn" onclick="share()">GENERATE_REF_LINK</button>
-        </div>
-
-        <div class="footer">
-            <div class="nav-item active" id="n-mine" onclick="show('mine')">[ MINING ]</div>
-            <div class="nav-item" id="n-tasks" onclick="show('tasks')">[ TASKS ]</div>
-            <div class="nav-item" id="n-top" onclick="show('top')">[ RANKING ]</div>
+        <div class="nav">
+            <div onclick="show('home')" class="nav-item">🏠</div>
+            <div onclick="show('tasks')" class="nav-item">📋</div>
+            <div onclick="tg.close()" class="nav-item">🚪</div>
         </div>
 
         <script>
@@ -129,35 +135,33 @@ async def web_ui():
 
             async function refresh() {{
                 if(!uid) return;
-                try {{
-                    const r = await fetch('/api/user/' + uid);
-                    const d = await r.json();
-                    if(d) {{
-                        document.getElementById('gv').innerText = d.g.toFixed(2);
-                        document.getElementById('uv').innerText = d.u.toFixed(2);
-                        document.getElementById('vv').innerText = d.v.toFixed(2);
-                        let h = ""; d.top.forEach((u, i) => {{ h += `<div class="task-row"><span>${{i+1}}. ${{u.n}}</span><span>${{u.p}}</span></div>`; }});
-                        document.getElementById('top-l').innerHTML = h;
-                        document.getElementById('stat').innerText = "LINK_OK";
-                    }}
-                }} catch(e) {{ document.getElementById('stat').innerText = "API_ERR"; }}
+                const r = await fetch('/api/user/' + uid);
+                const d = await r.json();
+                if(d) {{
+                    document.getElementById('gv').innerText = d.g.toFixed(2);
+                    document.getElementById('uv').innerText = d.u.toFixed(2);
+                    document.getElementById('vv').innerText = d.v.toFixed(2);
+                }}
             }}
 
             async function mine(t) {{
                 tg.HapticFeedback.impactOccurred('medium');
-                await fetch('/api/mine', {{ method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{uid:uid, type:t}}) }});
+                await fetch('/api/mine', {{
+                    method: 'POST',
+                    headers: {{'Content-Type':'application/json'}},
+                    body: JSON.stringify({{user_id: uid, token: t}})
+                }});
                 refresh();
             }}
 
-            function show(p) {{
-                ['mine','tasks','top'].forEach(id => document.getElementById('p-'+id).style.display = 'none');
-                ['mine','tasks','top'].forEach(id => document.getElementById('n-'+id).classList.remove('active'));
-                document.getElementById('p-'+p).style.display = 'block';
-                document.getElementById('n-'+p).classList.add('active');
+            function donate() {{
+                tg.openTelegramLink('https://t.me/' + '{BOT_USERNAME}' + '?start=donate');
+                tg.close();
             }}
 
-            function share() {{
-                tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start=${{uid}}&text=Mine OWPC tokens with me!`);
+            function show(p) {{
+                document.getElementById('p-home').style.display = (p=='home'?'block':'none');
+                document.getElementById('p-tasks').style.display = (p=='tasks'?'block':'none');
             }}
 
             refresh(); setInterval(refresh, 5000);
@@ -170,11 +174,8 @@ async def main():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
     bot.add_handler(CommandHandler("start", start))
-    bot.add_handler(CommandHandler("donate", donate))
-    bot.add_handler(PreCheckoutQueryHandler(lambda u,c: u.pre_checkout_query.answer(ok=True)))
-    
     await bot.initialize(); await bot.start()
-    asyncio.create_task(bot.updater.start_polling(drop_pending_updates=True))
+    asyncio.create_task(bot.updater.start_polling())
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
 
 if __name__ == "__main__": asyncio.run(main())
