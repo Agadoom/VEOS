@@ -16,7 +16,8 @@ bot_app = None
 
 # Connexion sécurisée à PostgreSQL
 def get_db_conn():
-    return psycopg2.connect(DATABASE_URL, sslmode='require')
+    return psycopg2.connect(DATABASE_URL)
+
 
 def init_db():
     conn = get_db_conn(); c = conn.cursor()
