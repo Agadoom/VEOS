@@ -43,7 +43,8 @@ def main_menu_kb():
         [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("💰 Invest Hub", callback_data="invest_hub"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="view_lb")],
         [InlineKeyboardButton("🆔 Passport", callback_data="my_card"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="daily")],
-        [InlineKeyboardButton("📊 Stats", callback_data="view_stats"), InlineKeyboardButton("🔗 Invite", callback_data="get_invite")]
+        [InlineKeyboardButton("📊 Stats", callback_data="view_stats"), InlineKeyboardButton("🔗 Invite", callback_data="get_invite")],
+        [InlineKeyboardButton("📡 Live Feed", callback_data="live_feed"), InlineKeyboardButton("🗺️ Roadmap", callback_data="view_roadmap")]
     ])
 
 def back_btn(): return [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]
@@ -72,12 +73,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = query.from_user.id, query.from_user.first_name
     data = get_user_full_data(uid)
 
-    # 🏠 HOME
     if query.data == "back_home":
         cap = f"🕊️ **Main Menu**\nRank: {data['rank']}\nBalance: {data['total']:,} OWPC"
         await query.message.edit_caption(caption=cap, reply_markup=main_menu_kb(), parse_mode="Markdown")
 
-    # 💰 INVEST HUB (FIXED & CLICKABLE)
     elif query.data == "invest_hub":
         invest_kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
@@ -85,42 +84,54 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
             [back_btn()]
         ])
-        await query.message.edit_caption(caption="💰 **INVEST HUB**\n\nClick a pillar to acquire assets via Memepad and increase your protocol rank.", reply_markup=invest_kb)
+        await query.message.edit_caption(caption="💰 **INVEST HUB**\n\nChoisissez un pilier pour acquérir des actifs et monter en grade.", reply_markup=invest_kb)
 
-    # 🔗 INVITE
     elif query.data == "get_invite":
         link = f"https://t.me/owpcsbot?start={uid}"
-        await query.message.edit_caption(caption=f"🔗 **NETWORK GROWTH**\n\nYour referral link:\n`{link}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"🔗 **INVITATION**\n\nTon lien :\n`{link}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
-    # 🏛️ LEADERBOARD
     elif query.data == "view_lb":
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         c.execute("SELECT name, (points_genesis + points_unity + points_veo) as total FROM users ORDER BY total DESC LIMIT 5")
         top = c.fetchall(); conn.close()
-        lb = "🏛️ **TOP COMMANDERS**\n\n"
+        lb = "🏛️ **LEADERBOARD**\n\n"
         for i, u in enumerate(top, 1): lb += f"{i}. {u[0]} - {int(u[1]):,} OWPC\n"
         await query.message.edit_caption(caption=lb, reply_markup=InlineKeyboardMarkup([back_btn()]))
 
-    # 📊 STATS
     elif query.data == "view_stats":
-        stats = (f"📊 **ASSETS**\n\n🧬 Genesis: {data['genesis']:,}\n🌍 Unity: {data['unity']:,}\n🤖 Veo AI: {data['veo']:.2f}\n──────────────\n💰 TOTAL: {data['total']:,} OWPC")
+        stats = (f"📊 **VOS ACTIFS**\n\n"
+                 f"🧬 Genesis: {data['genesis']:,}\n"
+                 f"🌍 Unity: {data['unity']:,}\n"
+                 f"🤖 Veo AI: {data['veo']:.2f}\n"
+                 f"──────────────\n"
+                 f"💰 TOTAL: {data['total']:,} OWPC")
         await query.message.edit_caption(caption=stats, reply_markup=InlineKeyboardMarkup([back_btn()]))
 
-    # 🆔 PASSPORT
     elif query.data == "my_card":
-        await query.message.edit_caption(caption=f"🆔 **PASSPORT**\n\nHolder: {name}\nRank: {data['rank']}\nStatus: VERIFIED ✅", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"🆔 **PASSPORT**\n\nNom: {name}\nRang: {data['rank']}\nStatut: VÉRIFIÉ ✅", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
-    # 🎰 LUCKY DRAW
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
         if data['last_checkin'] == today:
-            await query.message.reply_text("⏳ Security: Already claimed today.")
+            await query.message.reply_text("⏳ Déjà réclamé aujourd'hui.")
         else:
             win = random.randint(50, 150)
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
             c.execute("UPDATE users SET points_genesis = points_genesis + ?, last_checkin = ? WHERE user_id = ?", (win, today, uid))
             conn.commit(); conn.close()
-            await query.message.reply_text(f"🎰 Success! +{win} OWPC added.")
+            await query.message.reply_text(f"🎰 Lucky Draw : +{win} OWPC !")
+
+    # --- RETOUR DES BOUTONS MANQUANTS ---
+    elif query.data == "live_feed":
+        await query.message.edit_caption(caption="📡 **LIVE FEED**\n\n• Protocol Status: Stable\n• Network Nodes: Online\n• Mining: Active", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    elif query.data == "view_roadmap":
+        roadmap = ("🗺️ **ROADMAP 2026**\n\n"
+                   "Q1: Lancement Terminal (Done)\n"
+                   "Q2: Activation Staking Unity\n"
+                   "Q3: Gouvernance DAO\n"
+                   "Q4: Listing DEX")
+        await query.message.edit_caption(caption=roadmap, reply_markup=InlineKeyboardMarkup([back_btn()]))
 
 # --- MAIN ---
 async def main():
@@ -131,7 +142,7 @@ async def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("Bot One World Peace Coins (Final Sync) Online...")
+    print("Bot One World Peace Coins (Restored & Fixed) Online...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
