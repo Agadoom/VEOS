@@ -10,7 +10,9 @@ from data_conx import init_db, get_db_conn
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.getenv("PORT", 8080))
-WEBAPP_URL = os.getenv("WEBAPP_URL")
+# Correction automatique de l'URL pour forcer HTTPS
+RAW_URL = os.getenv("WEBAPP_URL", "")
+WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -42,24 +44,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit(); c.close(); conn.close()
         except Exception as e: logging.error(f"SQL Start Error: {e}")
     
-    url = WEBAPP_URL.rstrip('/')
+    # Bouton avec l'URL corrigée (toujours HTTPS)
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=url))],
+        [InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("📢 Invite Friends", switch_inline_query=f"\nJoin me on OWPC HUB! 🚀 https://t.me/owpcsbot?start={uid}")]
     ])
     await update.message.reply_text(f"Welcome {name}!", reply_markup=kb)
 
-# --- CRÉATION DU LIEN DE FACTURE (STARS) ---
+# --- CRÉATION DU LIEN DE FACTURE (STARS) CORRIGÉ ---
 @app.post("/api/donate")
 async def donate_stars(request: Request):
     data = await request.json()
-    # On génère un lien de facture qui sera ouvert par la WebApp
     try:
+        # Pour les Telegram Stars (currency="XTR"), provider_token DOIT être une chaîne vide ""
         link = await bot_app.bot.create_invoice_link(
             title="Support OWPC HUB",
             description="Donate 50 Stars to help us grow!",
             payload="donate_50",
-            currency="XTR", # XTR = Telegram Stars
+            provider_token="", # <-- C'ÉTAIT ÇA L'ERREUR DANS TES LOGS
+            currency="XTR", 
             prices=[LabeledPrice("Support", 50)]
         )
         return {"ok": True, "link": link}
@@ -97,7 +100,7 @@ async def mine_api(request: Request):
         return {"ok": True}
     return {"ok": False}
 
-# --- WEB UI (AVEC OPENINVOICE) ---
+# --- WEB UI (CONFÉTTIS + OPENINVOICE) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -152,7 +155,7 @@ async def web_ui():
 
         <div class="section-title">Support Project</div>
         <div class="card">
-            <div><b>Donate Stars</b><br><small style="color:var(--text)">Direct Telegram Payment</small></div>
+            <div><b>Donate Stars</b><br><small style="color:var(--text)">Help us grow!</small></div>
             <button class="btn btn-star" onclick="donate()">⭐️ 50</button>
         </div>
     </div>
@@ -172,25 +175,27 @@ async def web_ui():
 
         async function refresh() {
             if(!uid) return;
-            const r = await fetch(`${apiBase}/api/user/${uid}`);
-            if(!r.ok) return;
-            const d = await r.json();
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
-            document.getElementById('u-ref').innerText = d.rc;
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
-            document.getElementById('ref-link').innerText = `https://t.me/owpcsbot?start=${uid}`;
+            try {
+                const r = await fetch(`${apiBase}/api/user/${uid}`);
+                if(!r.ok) return;
+                const d = await r.json();
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
+                document.getElementById('u-ref').innerText = d.rc;
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
+                document.getElementById('ref-link').innerText = `https://t.me/owpcsbot?start=${uid}`;
 
-            let h_html = "";
-            d.history.forEach(h => { h_html += `<div class="history-item"><span>${h.t}</span><b>+${h.a}</b></div>`; });
-            document.getElementById('history-list').innerHTML = h_html || "<small>No activity</small>";
+                let h_html = "";
+                d.history.forEach(h => { h_html += `<div class="history-item"><span>${h.t}</span><b>+${h.a}</b></div>`; });
+                document.getElementById('history-list').innerHTML = h_html || "<small>No activity</small>";
 
-            let r_html = "";
-            d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = r_html;
+                let r_html = "";
+                d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+                document.getElementById('rank-list').innerHTML = r_html;
+            } catch(e) { console.error(e); }
         }
 
         async function mine(t) {
@@ -201,14 +206,17 @@ async def web_ui():
         }
 
         async function donate() {
-            const r = await fetch(`${apiBase}/api/donate`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            const data = await r.json();
-            if(data.ok && data.link) {
-                // Ouvre le paiement directement SANS fermer la WebApp
-                tg.openInvoice(data.link, function(status) {
-                    if(status == 'paid') tg.showAlert("Thank you for your donation! 🚀");
-                });
-            }
+            try {
+                const r = await fetch(`${apiBase}/api/donate`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+                const data = await r.json();
+                if(data.ok && data.link) {
+                    tg.openInvoice(data.link, function(status) {
+                        if(status == 'paid') tg.showAlert("Thank you! 🚀");
+                    });
+                } else {
+                    tg.showAlert("Error creating invoice. Check BotFather settings.");
+                }
+            } catch(e) { tg.showAlert("Network error"); }
         }
 
         function show(p) {
