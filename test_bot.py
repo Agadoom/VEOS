@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v32.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v33.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -47,15 +47,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("UPDATE users SET name=? WHERE user_id=?", (name, uid))
     conn.commit(); conn.close()
     
-    if context.args and context.args[0] == "donate":
-        await update.message.reply_invoice(
-            title="🚀 VEO BOOST", description="Add +10.00 VEO!",
-            payload="boost_veo", provider_token="", currency="XTR", prices=[LabeledPrice("Payer", 50)]
-        )
-        return
-
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to the Hub, {name}!", reply_markup=kb)
+    await update.message.reply_text(f"Welcome back to OWPC Hub, {name}!", reply_markup=kb)
 
 async def success_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -104,7 +97,7 @@ async def mine_api(request: Request):
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
-    html_raw = r"""
+    return r"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -112,59 +105,77 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; }
-        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; overflow-x: hidden; }
+        :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; }
         .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
         .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: #050505; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; }
+        
+        /* Spinner Styles */
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; position: relative; }
+        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .spinner { width: 12px; height: 12px; border: 2px solid #000; border-top: 2px solid transparent; border-radius: 50%; display: none; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(10px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 1000; }
         .nav-item { font-size: 22px; opacity: 0.4; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.1); }
-        .rank-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #1c1c1e; }
-        .daily-btn { width: 100%; background: var(--blue); color: #FFF; padding: 12px; border-radius: 12px; border: none; font-weight: 700; margin-bottom: 15px; transition: 0.3s; }
+        .daily-btn { width: 100%; background: var(--blue); color: #FFF; padding: 12px; border-radius: 12px; border: none; font-weight: 700; margin-bottom: 15px; }
         .daily-btn:disabled { background: #222; color: #555; }
     </style>
 </head>
 <body>
     <div id="p-mine">
-        <div class="header">OWPC HUB</div>
+        <div class="header">OWPC CORE</div>
         <button id="daily-btn" class="daily-btn" onclick="claimDaily()">CLAIM DAILY REWARD (+1.0 Unity)</button>
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:40px; margin:5px 0">0.00</h1></div>
-        <div class="card"><div><small>GENESIS</small><div id="gv">0.00</div></div><button class="btn" style="background:var(--green)" onclick="mine('genesis')">CLAIM</button></div>
-        <div class="card"><div><small>UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small>VEO AI</small><div id="vv">0.00</div></div><button class="btn" style="background:var(--blue);color:#FFF" onclick="mine('veo')">COMPUTE</button></div>
-    </div>
-    <div id="p-tasks" style="display:none">
-        <h2>REFERRALS</h2>
-        <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px">
-            <div><b>Invite Friends</b><br><small style="color:#8E8E93">Get +5.00 Genesis per friend</small></div>
-            <button class="btn" style="width:100%" onclick="copyRef()">COPY MY REF LINK</button>
-            <div style="font-size:12px; color:var(--green)">Total Referred: <span id="rc">0</span></div>
+        
+        <div class="card">
+            <div><small>GENESIS</small><div id="gv">0.00</div></div>
+            <button class="btn" style="background:var(--green)" id="btn-genesis" onclick="mine('genesis')">
+                <span class="spinner" id="sp-genesis"></span><span>CLAIM</span>
+            </button>
         </div>
-        <h2>ECOSYSTEM</h2>
-        <div class="card"><div>Genesis<br><small>Blum Memepad</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
-        <div class="card"><div>Unity<br><small>Node Network</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
-        <div class="card"><div>Veo AI<br><small>Quantum Power</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
-        <div class="card" style="border: 1px solid gold"><div>Boost +10 VEO<br><small style="color:gold">Stars Payment</small></div><div class="btn" style="background:gold; color:#000" onclick="donate()">BUY ⭐</div></div>
+        <div class="card">
+            <div><small>UNITY</small><div id="uv">0.00</div></div>
+            <button class="btn" id="btn-unity" onclick="mine('unity')">
+                <span class="spinner" id="sp-unity"></span><span>SYNC</span>
+            </button>
+        </div>
+        <div class="card">
+            <div><small>VEO AI</small><div id="vv">0.00</div></div>
+            <button class="btn" style="background:var(--blue);color:#FFF" id="btn-veo" onclick="mine('veo')">
+                <span class="spinner" id="sp-veo" style="border-color:#FFF; border-top-color:transparent"></span><span>COMPUTE</span>
+            </button>
+        </div>
     </div>
+
+    <div id="p-tasks" style="display:none">
+        <h2>REFERRALS & LINKS</h2>
+        <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px">
+            <div><b>Invite Friends</b><br><small style="color:#8E8E93">+5.00 Genesis per ref</small></div>
+            <button class="btn" style="width:100%" onclick="copyRef()">COPY LINK</button>
+        </div>
+        <div class="card"><div>Genesis Jetton</div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+        <div class="card"><div>Unity Node</div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+        <div class="card"><div>Veo AI</div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+    </div>
+
     <div id="p-ranks" style="display:none">
         <h2>TOP MINERS</h2>
-        <div id="rank-list" style="background:var(--card); border-radius:15px; overflow:hidden"></div>
+        <div id="rank-list" style="background:var(--card); border-radius:15px; overflow:hidden; padding:10px"></div>
     </div>
+
     <div class="nav">
         <div id="n-mine" onclick="show('mine')" class="nav-item active">🏠</div>
         <div id="n-tasks" onclick="show('tasks')" class="nav-item">👥</div>
         <div id="n-ranks" onclick="show('ranks')" class="nav-item">🏆</div>
     </div>
+
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
-        const botName = '""" + BOT_USERNAME + r"""';
-
-        function launchConfetti() {
-            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#007AFF', '#34C759', '#FFD700'] });
-        }
+        const clickSound = new Audio('https://www.soundjay.com/buttons/button-16.mp3');
 
         async function refresh() {
             if(!uid) return;
@@ -174,37 +185,43 @@ async def web_ui():
             document.getElementById('uv').innerText = d.u.toFixed(2);
             document.getElementById('vv').innerText = d.v.toFixed(2);
             document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
-            document.getElementById('rc').innerText = d.rc;
             document.getElementById('daily-btn').disabled = !d.can_daily;
             if(!d.can_daily) document.getElementById('daily-btn').innerText = "DAILY CLAIMED";
             let h = "";
-            d.top.forEach((u, i) => { h += `<div class="rank-row"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+            d.top.forEach((u, i) => { h += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #222">${i+1}. ${u.n} <b>${u.p}</b></div>`; });
             document.getElementById('rank-list').innerHTML = h;
+        }
+
+        async function mine(t) {
+            tg.HapticFeedback.impactOccurred('medium');
+            clickSound.play().catch(()=>{});
+            const btn = document.getElementById('btn-'+t);
+            const sp = document.getElementById('sp-'+t);
+            btn.disabled = true; sp.style.display = 'inline-block';
+            
+            await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
+            
+            setTimeout(() => {
+                btn.disabled = false; sp.style.display = 'none';
+                refresh();
+            }, 400);
         }
 
         async function claimDaily() {
             const r = await fetch('/api/daily/' + uid, {method:'POST'});
             const d = await r.json();
-            if(d.ok) { 
-                launchConfetti();
+            if(d.ok) {
+                confetti({ particleCount: 150, spread: 60, origin: { y: 0.7 } });
                 tg.HapticFeedback.notificationOccurred('success');
-                refresh(); 
+                refresh();
             }
         }
 
         function copyRef() {
-            const link = "https://t.me/" + botName + "?start=ref_" + uid;
+            const link = "https://t.me/""" + os.getenv("BOT_USERNAME") + r"""?start=ref_" + uid;
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el);
             el.select(); document.execCommand('copy'); document.body.removeChild(el);
             tg.showAlert("Link copied!");
-        }
-
-        function donate() { tg.openTelegramLink('https://t.me/' + botName + '?start=donate'); setTimeout(() => { tg.close(); }, 300); }
-        
-        async function mine(t) {
-            tg.HapticFeedback.impactOccurred('light');
-            await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            refresh();
         }
 
         function show(p) {
@@ -213,12 +230,11 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id==p);
             });
         }
-        refresh(); setInterval(refresh, 8000);
+        refresh(); setInterval(refresh, 10000);
     </script>
 </body>
 </html>
     """
-    return html_raw
 
 async def main():
     init_db()
