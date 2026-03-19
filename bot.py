@@ -1,127 +1,138 @@
 import os
-import sqlite3
 import asyncio
-import uvicorn
-from fastapi import FastAPI
+import sqlite3
+import random
+import nest_asyncio
+from io import BytesIO
+from datetime import datetime
+from PIL import Image, ImageDraw
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# --- CONFIGURATION ---
-TOKEN = os.getenv("TOKEN")
-PORT = int(os.getenv("PORT", 8080))
-DB_PATH = "owpc_data.db"
-WEBAPP_URL = "https://veos-production.up.railway.app"
+nest_asyncio.apply()
 
-app = FastAPI()
+# --- ⚙️ CONFIG ---
+TOKEN = os.getenv("TOKEN") 
+LOGO_PATH = "media/owpc_logo.png"
+DB_PATH = "owpc_data.db" 
+# C'est ici qu'on pointe vers la Mini App de @OWPCsbot
+WEBAPP_URL = "https://veos-production.up.railway.app" 
 
-# --- DATABASE ENGINE ---
-def get_user_stats(uid):
-    try:
-        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-        c.execute("SELECT points_genesis, points_unity, points_veo FROM users WHERE user_id=?", (uid,))
-        res = c.fetchone(); conn.close()
-        if res:
-            total = (res[0] or 0) + (res[1] or 0) + (res[2] or 0.0)
-            return {"total": int(total), "g": res[0] or 0, "u": res[1] or 0, "v": res[2] or 0.0}
-    except: pass
-    return {"total": 0, "g": 0, "u": 0, "v": 0.0}
+# --- 📊 LOGIC DB ---
+def init_db():
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users 
+                 (user_id INTEGER PRIMARY KEY, name TEXT, points INTEGER DEFAULT 0, 
+                  rank TEXT DEFAULT 'NEWBIE', last_checkin TEXT DEFAULT '')''')
+    conn.commit(); conn.close()
 
-# --- MENU COMPLET (PHOTO 1) ---
-def main_menu_keyboard():
+def get_user_data(user_id):
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("SELECT points, last_checkin, rank FROM users WHERE user_id = ?", (user_id,))
+    res = c.fetchone(); conn.close(); return res
+
+def update_user_db(user_id, name, score_inc=0, daily=None):
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users (user_id, name, points, rank) VALUES (?, ?, 0, 'NEWBIE')", (user_id, name))
+    if score_inc: c.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (score_inc, user_id))
+    if daily: c.execute("UPDATE users SET last_checkin = ? WHERE user_id = ?", (daily, user_id))
+    conn.commit(); conn.close()
+    return get_user_data(user_id)
+
+# --- ⌨️ KEYBOARDS ---
+def main_menu_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="hof")],
-        [InlineKeyboardButton("🆔 Passport", callback_data="passport"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="lucky")],
-        [InlineKeyboardButton("📊 Stats", callback_data="stats"), InlineKeyboardButton("🔗 Invite", callback_data="invite")]
+        # Ce bouton ouvre DIRECTEMENT la Mini App de @OWPCsbot
+        [InlineKeyboardButton("🚀 LAUNCH HIVE APP", web_app=WebAppInfo(url=WEBAPP_URL))],
+        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest_hub"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="view_lb")],
+        [InlineKeyboardButton("📡 Live Feed", callback_data="live_feed"), InlineKeyboardButton("💎 Staking Sim", callback_data="staking_sim")],
+        [InlineKeyboardButton("🆔 Passport", callback_data="my_card"), InlineKeyboardButton("🚀 Quests", callback_data="open_q")],
+        [InlineKeyboardButton("📊 Stats", callback_data="view_stats"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="daily")],
+        [InlineKeyboardButton("🗺️ Roadmap", callback_data="view_roadmap"), InlineKeyboardButton("🔗 Invite", callback_data="get_invite")]
     ])
 
-# --- HANDLERS ---
+def back_btn(): return [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_home")]
+
+# --- 🛠️ HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    uid = user.id
-    
-    # Init User in DB
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (uid, user.first_name))
-    conn.commit(); conn.close()
-    
-    stats = get_user_stats(uid)
-    
-    welcome_msg = (
-        f"🕊️ **OWPC PROTOCOL**\n\n"
-        f"👤 **Commander:** {user.first_name}\n"
-        f"🏆 **Rank:** SEEKER\n"
-        f"💰 **Balance:** {stats['total']:,} OWPC\n\n"
-        f"System Status: `OPERATIONAL` ✅"
-    )
-    
-    # On gère si c'est un nouveau message ou un callback (retour au menu)
-    if update.message:
-        await update.message.reply_text(welcome_msg, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+    res = update_user_db(user.id, user.first_name)
+    cap = f"🕊️ **One World Peace Coins**\n\nCommander: {user.first_name}\nCredits: {res[0]:,} OWPC"
+    if os.path.exists(LOGO_PATH):
+        await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=main_menu_kb())
     else:
-        await update.callback_query.message.edit_text(welcome_msg, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+        await update.message.reply_text(cap, parse_mode="Markdown", reply_markup=main_menu_kb())
 
-async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    uid = query.from_user.id
-    stats = get_user_stats(uid)
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query; await query.answer()
+    uid, name = query.from_user.id, query.from_user.first_name
+    res = get_user_data(uid)
+    score = res[0] if res else 0
 
-    # Navigation : Retour au menu
-    if query.data == "main_menu":
-        await start(update, context)
+    # 🏠 RETOUR ACCUEIL
+    if query.data == "back_home":
+        await query.message.edit_caption(caption=f"🕊️ **Main Menu**\nCredits: {score:,} OWPC", reply_markup=main_menu_kb(), parse_mode="Markdown")
 
-    # Navigation : Stats
-    elif query.data == "stats":
-        txt = (f"📊 **ASSETS OVERVIEW**\n\n"
-               f"🧬 Genesis: `{stats['g']:,}`\n"
-               f"🌍 Unity: `{stats['u']:,}`\n"
-               f"🤖 Veo AI: `{stats['v']:.2f}`\n\n"
-               f"Total: `{stats['total']:,} OWPC`")
-        await query.message.edit_text(txt, parse_mode="Markdown", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
-
-    # Navigation : Passport
-    elif query.data == "passport":
-        txt = (f"🆔 **OWPC PASSPORT**\n\nHolder: `{query.from_user.first_name}`\n"
-               f"ID: `{uid}`\nStatus: `VERIFIED ✅`")
-        await query.message.edit_text(txt, parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
-
-    # Navigation : Invest Hub (Liens opérationnels)
-    elif query.data == "invest":
+    # 💰 INVEST HUB (GENESIS, UNITY, VEO)
+    elif query.data == "invest_hub":
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
             [InlineKeyboardButton("🌍 UNITY", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
-            [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]
+            [InlineKeyboardButton("🤖 VEO", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
+            back_btn()
         ])
-        await query.message.edit_text("💰 **INVEST HUB**\nSelect an asset to acquire:", reply_markup=kb)
-    
-    # Autres sections (Placeholder)
-    elif query.data in ["hof", "lucky", "invite"]:
-        await query.message.edit_text(f"🚧 Sector **{query.data.upper()}** is under maintenance.", 
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
+        await query.message.edit_caption(caption="💰 **INVEST HUB**\nChoose your pillar:", reply_markup=kb)
 
-# --- ENGINE ---
-@app.get("/")
-async def home(): return {"status": "terminal_online"}
+    # 🎰 LUCKY DRAW
+    elif query.data == "daily":
+        today = datetime.now().strftime("%Y-%m-%d")
+        if res and res[1] == today:
+            await query.message.reply_text("⏳ Already claimed! Return tomorrow.")
+        else:
+            win = random.randint(20, 100)
+            update_user_db(uid, name, score_inc=win, daily=today)
+            await query.message.reply_text(f"🎰 Lucky Draw: +{win} PTS!")
 
-async def run_main():
-    # Setup Bot
-    bot_app = ApplicationBuilder().token(TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    bot_app.add_handler(CallbackQueryHandler(handle_callbacks))
+    # 📊 STATS
+    elif query.data == "view_stats":
+        await query.message.edit_caption(caption=f"📊 **HIVE STATS**\n\nScore: {score:,} OWPC\nRank: SEEKER", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    # 🆔 PASSPORT (SIMPLIFIÉ)
+    elif query.data == "my_card":
+        await query.message.reply_text(f"🆔 **PASSPORT**\nHolder: {name}\nScore: {score:,} OWPC\nVerified: YES ✅")
+
+    # 🏛️ LEADERBOARD
+    elif query.data == "view_lb":
+        await query.message.edit_caption(caption="🏛️ **HALL OF FAME**\n\n1. Top Global: 154,200\n2. Your position: #142", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    # 💎 STAKING
+    elif query.data == "staking_sim":
+        await query.message.edit_caption(caption="💎 **STAKING SIMULATOR**\nYield: 308 OWPC/month (Estimated)", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    # 🚀 QUESTS
+    elif query.data == "open_q":
+        await query.message.edit_caption(caption="🚀 **QUESTS**\n- Join @owpc_co (+50)\n- Follow X (+50)", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    # 📡 LIVE FEED
+    elif query.data == "live_feed":
+        await query.message.edit_caption(caption="📡 **LIVE FEED**\nHive Protocol is stable. 🚀", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+    # 🔗 INVITE
+    elif query.data == "get_invite":
+        await query.message.edit_caption(caption=f"🔗 **INVITE LINK**\nhttps://t.me/OwpcInfoBot?start=ref_{uid}", reply_markup=InlineKeyboardMarkup([back_btn()]))
     
-    await bot_app.initialize()
-    await bot_app.start()
-    # Nettoyage et lancement
-    asyncio.create_task(bot_app.updater.start_polling(drop_pending_updates=True))
-    
-    # Setup Web Server
-    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, log_level="info")
-    server = uvicorn.Server(config)
-    await server.serve()
+    # 🗺️ ROADMAP
+    elif query.data == "view_roadmap":
+        await query.message.edit_caption(caption="🗺️ **ROADMAP**\nPhase 2: Mini-App Expansion.", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
+# --- MAIN ---
+async def main():
+    init_db()
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    print("Bot One World Peace Coins Online...")
+    await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    asyncio.run(run_main())
+    asyncio.run(main())
