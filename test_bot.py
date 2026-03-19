@@ -8,13 +8,13 @@ from telegram.ext import ApplicationBuilder, CommandHandler, PreCheckoutQueryHan
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 DB_PATH = "owpc_data.db"
-WEBAPP_URL = os.getenv("WEBAPP_URL")
+WEBAPP_URL = os.getenv("WEBAPP_URL") # Ton URL Railway
 BOT_USERNAME = "OWPCsbot" 
 
 app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 
-# --- 🗄️ DATABASE (Structure Complète) ---
+# --- 🗄️ DATABASE (Structure Finale) ---
 def init_db():
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
@@ -28,10 +28,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     name = update.effective_user.first_name
     
-    # 1. Gestion Parrainage
+    # Gestion Parrainage
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
     
-    # 2. Inscription / Update
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT user_id FROM users WHERE user_id = ?", (uid,))
     if not c.fetchone():
@@ -40,20 +39,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute("UPDATE users SET points_unity = points_unity + 5.0, ref_count = ref_count + 1 WHERE user_id = ?", (ref_id,))
     conn.commit(); conn.close()
 
-    # 3. Facture Stars (si demandé via lien)
+    # Facture Stars (quand la Mini App se ferme et redirige ici)
     if context.args and "boost" in context.args[0]:
         token = context.args[0].split('_')[1]
         await update.message.reply_invoice(
-            title=f"🚀 BOOST {token.upper()}", description=f"Get +10 {token.upper()}",
+            title=f"🚀 BOOST {token.upper()}", description=f"Get +10.00 {token.upper()} immediately!",
             payload=f"boost_{token}", provider_token="", currency="XTR",
-            prices=[LabeledPrice("Boost", 50)]
+            prices=[LabeledPrice("Boost Extra", 50)]
         )
         return
 
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to OWPC, {name}!\nYour terminal is ready for extraction.", reply_markup=kb)
+    await update.message.reply_text(f"Welcome back to OWPC, {name}!\nYour terminal is online.", reply_markup=kb)
 
-# --- 🌐 WEB APP INTERFACE (Visuel Fixé) ---
+async def precheckout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.pre_checkout_query.answer(ok=True)
+
+async def payment_success(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    token = update.message.successful_payment.invoice_payload.split('_')[1]
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute(f"UPDATE users SET points_{token} = points_{token} + 10.0 WHERE user_id = ?", (update.effective_user.id,))
+    conn.commit(); conn.close()
+    await update.message.reply_text(f"✅ Boost {token.upper()} activated! +10.00 tokens credited.")
+
+# --- 🌐 MINI APP INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return f"""
@@ -64,47 +73,31 @@ async def web_ui():
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             body {{ background: #000; color: #fff; font-family: 'Courier New', monospace; text-align: center; margin: 0; padding: 15px; }}
-            .header {{ color: #0f0; border-bottom: 1px solid #0f0; padding-bottom: 10px; margin-bottom: 20px; }}
+            .header {{ color: #0f0; border-bottom: 1px solid #0f0; padding-bottom: 10px; margin-bottom: 20px; font-weight: bold; }}
             .token-card {{ background: #111; border: 1px solid #333; border-radius: 12px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
-            .token-name {{ color: #0f0; font-weight: bold; }}
+            .token-name {{ color: #0f0; font-weight: bold; font-size: 0.9em; }}
             .token-val {{ font-size: 1.2em; }}
-            .btn-mine {{ width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; margin-top: 5px; cursor: pointer; }}
-            .btn-boost {{ background: gold; color: #000; padding: 10px; border-radius: 5px; font-size: 0.8em; border: none; margin-top: 10px; width: 100%; font-weight:bold; }}
-            .nav {{ display: flex; justify-content: space-around; margin-top: 20px; border-top: 1px solid #333; padding-top: 15px; }}
+            .btn-mine {{ width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; margin-bottom: 15px; cursor: pointer; }}
+            .btn-boost {{ background: gold; color: #000; padding: 10px; border-radius: 8px; width: 100%; font-weight: bold; border: none; margin-top: 5px; cursor: pointer; }}
         </style>
     </head>
     <body>
-        <div class="header">OWPC PROTOCOL v1.0</div>
+        <div class="header">OWPC PROTOCOL v1.1</div>
         
-        <div class="token-card">
-            <span class="token-name">🧬 GENESIS</span>
-            <span class="token-val" id="bal_genesis">0.00</span>
-        </div>
-        <button class="btn-mine" style="background:#0f0; color:#000;" onclick="mine('genesis')">EXTRACT GENESIS (+0.05)</button>
+        <div class="token-card"><span class="token-name">🧬 GENESIS</span><span class="token-val" id="bal_genesis">0.00</span></div>
+        <button class="btn-mine" style="background:#0f0; color:#000;" onclick="mine('genesis')">EXTRACT GENESIS</button>
 
-        <div class="token-card" style="margin-top:20px;">
-            <span class="token-name">⚙️ UNITY</span>
-            <span class="token-val" id="bal_unity">0.00</span>
-        </div>
-        <button class="btn-mine" style="background:#fff; color:#000;" onclick="mine('unity')">EXTRACT UNITY (+0.05)</button>
+        <div class="token-card"><span class="token-name">⚙️ UNITY</span><span class="token-val" id="bal_unity">0.00</span></div>
+        <button class="btn-mine" style="background:#fff; color:#000;" onclick="mine('unity')">EXTRACT UNITY</button>
 
-        <div class="token-card" style="margin-top:20px;">
-            <span class="token-name">🤖 VEO AI</span>
-            <span class="token-val" id="bal_veo">0.00</span>
-        </div>
-        <button class="btn-mine" style="background:#00bcd4; color:#fff;" onclick="mine('veo')">EXTRACT VEO (+0.01)</button>
+        <div class="token-card"><span class="token-name">🤖 VEO AI</span><span class="token-val" id="bal_veo">0.00</span></div>
+        <button class="btn-mine" style="background:#00bcd4; color:#fff;" onclick="mine('veo')">EXTRACT VEO</button>
 
-        <button class="btn-boost" onclick="tg.openTelegramLink('https://t.me/{BOT_USERNAME}?start=boost_veo')">⭐ BUY VEO BOOST (50 Stars)</button>
-
-        <div class="nav">
-            <button onclick="alert('Friends: ' + window.refCount)" style="background:transparent; color:#0f0; border:1px solid #0f0; border-radius:5px; padding:5px;">👥 Friends</button>
-            <button onclick="shareInvite()" style="background:transparent; color:#0f0; border:1px solid #0f0; border-radius:5px; padding:5px;">🔗 Invite</button>
-        </div>
+        <button class="btn-boost" onclick="buyBoost('veo')">⭐ BOOST VEO (50 Stars)</button>
 
         <script>
             let tg = window.Telegram.WebApp; tg.expand();
             const uid = tg.initDataUnsafe.user.id;
-            window.refCount = 0;
 
             async function loadData() {{
                 const r = await fetch('/api/user/' + uid);
@@ -112,7 +105,6 @@ async def web_ui():
                 document.getElementById('bal_genesis').innerText = d.g.toFixed(2);
                 document.getElementById('bal_unity').innerText = d.u.toFixed(2);
                 document.getElementById('bal_veo').innerText = d.v.toFixed(2);
-                window.refCount = d.rc;
             }}
 
             async function mine(t) {{
@@ -127,9 +119,9 @@ async def web_ui():
                 el.innerText = (parseFloat(el.innerText) + gain).toFixed(2);
             }}
 
-            function shareInvite() {{
-                const link = "https://t.me/{BOT_USERNAME}?start=" + uid;
-                tg.openTelegramLink("https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=Join OWPC!");
+            function buyBoost(token) {{
+                tg.openTelegramLink("https://t.me/{BOT_USERNAME}?start=boost_" + token);
+                setTimeout(() => {{ tg.close(); }}, 150);
             }}
 
             loadData();
@@ -137,14 +129,14 @@ async def web_ui():
     </body></html>
     """
 
-# --- 🛰️ API ENDPOINTS ---
-@app.get("/api/user/{uid}")
+# --- 🛰️ API ---
+@app.get("/api/user/{{uid}}")
 async def get_user_api(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT points_genesis, points_unity, points_veo, ref_count FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
     conn.close()
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3]} if r else {"g":0,"u":0,"v":0,"rc":0}
+    return {{"g": r[0], "u": r[1], "v": r[2], "rc": r[3]}} if r else {{"g":0,"u":0,"v":0,"rc":0}}
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
@@ -152,15 +144,17 @@ async def api_mine(request: Request):
     uid, t = data.get("user_id"), data.get("token")
     gain = 0.01 if t == 'veo' else 0.05
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute(f"UPDATE users SET points_{t} = points_{t} + ? WHERE user_id = ?", (gain, uid))
+    c.execute(f"UPDATE users SET points_{{t}} = points_{{t}} + ? WHERE user_id = ?", (gain, uid))
     conn.commit(); conn.close()
-    return {"ok": True}
+    return {{"ok": True}}
 
-# --- 🛠️ MAIN ---
+# --- START ---
 async def main():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
     bot.add_handler(CommandHandler("start", start))
+    bot.add_handler(PreCheckoutQueryHandler(precheckout))
+    bot.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, payment_success))
     await bot.initialize(); await bot.start()
     asyncio.create_task(bot.updater.start_polling())
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
