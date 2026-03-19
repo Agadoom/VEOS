@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v34.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v35.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -25,7 +25,6 @@ def init_db():
                   p_genesis REAL DEFAULT 0, p_unity REAL DEFAULT 0, 
                   p_veo REAL DEFAULT 0, ref_count INTEGER DEFAULT 0,
                   last_daily INTEGER DEFAULT 0, referred_by INTEGER)''')
-    # Table pour l'historique des gains
     c.execute('''CREATE TABLE IF NOT EXISTS logs 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, 
                   token TEXT, amount REAL, timestamp INTEGER)''')
@@ -52,7 +51,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to the Hub, {name}!", reply_markup=kb)
+    await update.message.reply_text(f"Welcome back to OWPC Hub, {name}!", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -60,10 +59,8 @@ async def get_user(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_daily FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
-    # Récupération de l'historique (5 derniers)
     c.execute("SELECT token, amount, timestamp FROM logs WHERE user_id=? ORDER BY id DESC LIMIT 5", (uid,))
     history = [{"t": x[0], "a": x[1], "ts": x[2]} for x in c.fetchall()]
-    
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 5")
     top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
     conn.close()
@@ -79,7 +76,6 @@ async def mine_api(request: Request):
     col = {"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}.get(t)
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute(f"UPDATE users SET {col} = {col} + ? WHERE user_id = ?", (gain, uid))
-    # Ajout au log
     c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, t, gain, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
@@ -101,6 +97,7 @@ async def daily_api(uid: int):
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
+    b_name = str(BOT_USERNAME)
     return r"""
 <!DOCTYPE html>
 <html>
@@ -113,13 +110,15 @@ async def web_ui():
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; overflow-x: hidden; }
         .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
         .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: #050505; }
-        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; min-width: 80px; }
-        .btn:disabled { opacity: 0.6; }
+        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; position: relative; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; min-width: 80px; z-index: 2; }
         .loader { width: 14px; height: 14px; border: 2px solid #000; border-bottom-color: transparent; border-radius: 50%; display: none; animation: rot 1s linear infinite; }
         @keyframes rot { to { transform: rotate(360deg); } }
+        .cps-box { text-align: center; font-size: 12px; color: var(--gold); margin-bottom: 10px; font-weight: bold; }
         .history-box { margin-top: 20px; font-size: 13px; color: #8E8E93; }
         .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1c1c1e; }
+        .floating-text { position: absolute; font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 10; }
+        @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-40px); } }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(10px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 1000; }
         .nav-item { font-size: 22px; opacity: 0.4; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.1); }
@@ -128,16 +127,33 @@ async def web_ui():
 </head>
 <body>
     <div id="p-mine">
-        <div class="header">OWPC HUB</div>
+        <div class="header">OWPC ENGINE</div>
         <button id="daily-btn" class="daily-btn" onclick="claimDaily()">CLAIM DAILY REWARD (+1.0 Unity)</button>
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:40px; margin:5px 0">0.00</h1></div>
         
-        <div class="card"><div><small>GENESIS</small><div id="gv">0.00</div></div><button class="btn" id="btn-genesis" onclick="mine('genesis')" style="background:var(--green)"><span id="tx-genesis">CLAIM</span><div class="loader" id="ld-genesis"></div></button></div>
-        <div class="card"><div><small>UNITY</small><div id="uv">0.00</div></div><button class="btn" id="btn-unity" onclick="mine('unity')"><span id="tx-unity">SYNC</span><div class="loader" id="ld-unity"></div></button></div>
-        <div class="card"><div><small>VEO AI</small><div id="vv">0.00</div></div><button class="btn" id="btn-veo" onclick="mine('veo')" style="background:var(--blue);color:#FFF"><span id="tx-veo">COMPUTE</span><div class="loader" id="ld-veo" style="border-color:#FFF; border-bottom-color:transparent"></div></button></div>
+        <div class="cps-box">ENGINE STABILITY: <span id="cps-val">0</span> CLICKS/S</div>
+
+        <div class="card">
+            <div><small>GENESIS</small><div id="gv">0.00</div></div>
+            <button class="btn" id="btn-genesis" onclick="mine('genesis', event)" style="background:var(--green)">
+                <span id="tx-genesis">CLAIM</span><div class="loader" id="ld-genesis"></div>
+            </button>
+        </div>
+        <div class="card">
+            <div><small>UNITY</small><div id="uv">0.00</div></div>
+            <button class="btn" id="btn-unity" onclick="mine('unity', event)">
+                <span id="tx-unity">SYNC</span><div class="loader" id="ld-unity"></div>
+            </button>
+        </div>
+        <div class="card">
+            <div><small>VEO AI</small><div id="vv">0.00</div></div>
+            <button class="btn" id="btn-veo" onclick="mine('veo', event)" style="background:var(--blue);color:#FFF">
+                <span id="tx-veo">COMPUTE</span><div class="loader" id="ld-veo" style="border-color:#FFF; border-bottom-color:transparent"></div>
+            </button>
+        </div>
 
         <div class="history-box">
-            <b>RECENTS GAINS</b>
+            <b>RECENT ACTIVITY</b>
             <div id="history-list"></div>
         </div>
     </div>
@@ -145,29 +161,38 @@ async def web_ui():
     <div id="p-tasks" style="display:none">
         <h2>REFERRALS</h2>
         <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px">
-            <button class="btn" style="width:100%" onclick="copyRef()">COPY REF LINK</button>
-            <div style="font-size:12px; color:var(--green)">Referred: <span id="rc">0</span></div>
+            <button class="btn" style="width:100%" onclick="copyRef()">COPY MY REF LINK</button>
+            <div style="font-size:12px; color:var(--green)">Total Referred: <span id="rc">0</span></div>
         </div>
-        <h2>ECOSYSTEM</h2>
-        <div class="card"><div>Genesis</div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn">OPEN</a></div>
-        <div class="card"><div>Unity</div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="btn">OPEN</a></div>
-        <div class="card"><div>Veo AI</div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="btn">OPEN</a></div>
-    </div>
-    <div id="p-ranks" style="display:none">
         <h2>TOP MINERS</h2>
-        <div id="rank-list"></div>
+        <div id="rank-list" style="background:var(--card); border-radius:15px; overflow:hidden"></div>
     </div>
 
     <div class="nav">
         <div id="n-mine" onclick="show('mine')" class="nav-item active">🏠</div>
-        <div id="n-tasks" onclick="show('tasks')" class="nav-item">👥</div>
-        <div id="n-ranks" onclick="show('ranks')" class="nav-item">🏆</div>
+        <div id="n-tasks" onclick="show('tasks')" class="nav-item">🏆</div>
     </div>
 
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
+        const botName = '""" + b_name + r"""';
         const clickSound = new Audio('https://www.soundjay.com/buttons/button-16.mp3');
+        let clickCount = 0;
+
+        // CPS Logic
+        setInterval(() => { document.getElementById('cps-val').innerText = clickCount; clickCount = 0; }, 1000);
+
+        function createFloatingText(e, text, color) {
+            const el = document.createElement('div');
+            el.className = 'floating-text';
+            el.innerText = text;
+            el.style.left = (e.clientX - 20) + 'px';
+            el.style.top = (e.clientY - 20) + 'px';
+            el.style.color = color;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
 
         async function refresh() {
             if(!uid) return;
@@ -179,8 +204,8 @@ async def web_ui():
             document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
             document.getElementById('rc').innerText = d.rc;
             document.getElementById('daily-btn').disabled = !d.can_daily;
+            if(!d.can_daily) document.getElementById('daily-btn').innerText = "DAILY CLAIMED";
 
-            // Update History
             let h_html = "";
             d.history.forEach(h => {
                 let timeStr = new Date(h.ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
@@ -188,23 +213,30 @@ async def web_ui():
             });
             document.getElementById('history-list').innerHTML = h_html || "No recent activity";
             
-            // Update Ranks
             let r_html = "";
-            d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+            d.top.forEach((u, i) => { r_html += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #222"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
             document.getElementById('rank-list').innerHTML = r_html;
         }
 
-        async function mine(t) {
+        async function mine(t, e) {
+            clickCount++;
             clickSound.play();
             tg.HapticFeedback.impactOccurred('light');
+            
+            const color = t === 'veo' ? '#007AFF' : '#34C759';
+            const val = t === 'veo' ? '+0.01' : '+0.05';
+            createFloatingText(e, val, color);
+
             document.getElementById('tx-'+t).style.display = 'none';
             document.getElementById('ld-'+t).style.display = 'block';
+
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
+            
             setTimeout(() => {
                 document.getElementById('tx-'+t).style.display = 'block';
                 document.getElementById('ld-'+t).style.display = 'none';
                 refresh();
-            }, 400);
+            }, 300);
         }
 
         async function claimDaily() {
@@ -213,14 +245,14 @@ async def web_ui():
         }
 
         function copyRef() {
-            const link = "https://t.me/" + '""" + BOT_USERNAME + r"""' + "?start=ref_" + uid;
+            const link = "https://t.me/" + botName + "?start=ref_" + uid;
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el);
             el.select(); document.execCommand('copy'); document.body.removeChild(el);
             tg.showAlert("Link copied!");
         }
 
         function show(p) {
-            ['mine','tasks','ranks'].forEach(id => {
+            ['mine','tasks'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id==p?'block':'none');
                 document.getElementById('n-'+id).classList.toggle('active', id==p);
             });
