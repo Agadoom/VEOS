@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v28.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v29.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -36,7 +36,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (uid, name))
+    # On met à jour le nom si l'utilisateur existe déjà pour le leaderboard
+    c.execute("INSERT INTO users (user_id, name) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET name=excluded.name", (uid, name))
     conn.commit(); conn.close()
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text(f"Welcome to the Hub, {name}.", reply_markup=kb)
@@ -52,10 +53,14 @@ async def success_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    # Récupération données utilisateur
     c.execute("SELECT p_genesis, p_unity, p_veo, ref_count FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
+    # Récupération Top 5 (basé sur le total des 3 piliers)
+    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 5")
+    top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
     conn.close()
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3]} if r else None
+    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "top": top} if r else None
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -68,7 +73,7 @@ async def mine_api(request: Request):
     conn.commit(); conn.close()
     return {"ok": True}
 
-# --- WEB UI (SÉPARÉ POUR STABILITÉ) ---
+# --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     html_raw = r"""
@@ -78,54 +83,46 @@ async def web_ui():
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --purple: #AF52DE; }
-        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 20px; padding-bottom: 80px; }
-        .header { font-weight: 800; font-size: 20px; margin-bottom: 20px; color: var(--blue); }
-        .balance { text-align: center; margin-bottom: 30px; border: 1px solid #222; padding: 20px; border-radius: 24px; background: linear-gradient(145deg, #000, #111); }
+        :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 20px; padding-bottom: 90px; }
+        .header { font-weight: 800; font-size: 22px; margin-bottom: 20px; color: var(--blue); text-align: center; }
+        .balance { text-align: center; margin-bottom: 25px; border: 1px solid #222; padding: 25px; border-radius: 28px; background: linear-gradient(180deg, #0a0a0a, #000); }
         .card { background: var(--card); padding: 18px; border-radius: 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .val-text { font-size: 20px; font-weight: 700; }
-        .label-text { font-size: 11px; color: #8E8E93; text-transform: uppercase; font-weight: 600; }
-        .btn { background: #FFF; color: #000; border: none; padding: 12px 18px; border-radius: 12px; font-weight: 700; font-size: 14px; cursor: pointer; }
-        .nav { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.9); backdrop-filter: blur(10px); padding: 12px 30px; border-radius: 30px; display: flex; gap: 35px; border: 1px solid #333; z-index: 100; }
-        .task-item { background: var(--card); padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #222; }
-        .task-link { display: inline-block; margin-top: 10px; text-decoration: none; background: #222; color: #FFF; padding: 8px 15px; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1px solid #444; }
+        .btn { background: #FFF; color: #000; border: none; padding: 12px 20px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+        .nav { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.95); backdrop-filter: blur(15px); padding: 12px 35px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; z-index: 1000; }
+        .nav-item { font-size: 24px; opacity: 0.4; transition: 0.3s; cursor: pointer; }
+        .nav-item.active { opacity: 1; transform: scale(1.1); }
+        .rank-row { display: flex; justify-content: space-between; padding: 15px; border-bottom: 1px solid #1c1c1e; align-items: center; }
+        .task-link { text-decoration: none; background: #222; color: #FFF; padding: 8px 15px; border-radius: 8px; font-size: 12px; font-weight: 600; border: 1px solid #444; }
     </style>
 </head>
 <body>
-    <div id="h">
-        <div class="header">OWPC HUB</div>
-        <div class="balance"><span style="color:#8E8E93; font-size:12px">TOTAL ASSETS</span><h1 id="tot" style="font-size:42px; margin:10px 0">0.00</h1></div>
-        
-        <div class="card"><div><div class="label-text">Genesis</div><div class="val-text" id="gv">0.00</div></div><button class="btn" style="background:var(--green)" onclick="mine('genesis')">CLAIM</button></div>
-        <div class="card"><div><div class="label-text">Unity</div><div class="val-text" id="uv">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><div class="label-text">Veo AI</div><div class="val-text" id="vv">0.00</div></div><button class="btn" style="background:var(--blue);color:#FFF" onclick="mine('veo')">COMPUTE</button></div>
+    <div id="p-mine">
+        <div class="header">OWPC CORE</div>
+        <div class="balance"><span style="color:#8E8E93; font-size:12px">TOTAL BALANCE</span><h1 id="tot" style="font-size:48px; margin:10px 0">0.00</h1></div>
+        <div class="card"><div><small style="color:#8E8E93">GENESIS</small><div id="gv" style="font-size:20px; font-weight:700">0.00</div></div><button class="btn" style="background:var(--green)" onclick="mine('genesis')">CLAIM</button></div>
+        <div class="card"><div><small style="color:#8E8E93">UNITY</small><div id="uv" style="font-size:20px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:#8E8E93">VEO AI</small><div id="vv" style="font-size:20px; font-weight:700">0.00</div></div><button class="btn" style="background:var(--blue);color:#FFF" onclick="mine('veo')">COMPUTE</button></div>
     </div>
 
-    <div id="t" style="display:none">
-        <h2 style="font-weight:800; margin-bottom:20px">ECOSYSTEM LINKS</h2>
-        <div class="task-item">
-            <div style="font-weight:700">💎 GENESIS JETTON</div>
-            <div style="font-size:11px; color:#8E8E93; margin-top:4px">Trade Genesis on Blum Memepad</div>
-            <a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="task-link">TRADE NOW</a>
-        </div>
-        <div class="task-item">
-            <div style="font-weight:700">🔗 UNITY CORE</div>
-            <div style="font-size:11px; color:#8E8E93; margin-top:4px">Access Unity Node Network</div>
-            <a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_6vK2A-ref_6VRKyJ9MZA" class="task-link">OPEN NODE</a>
-        </div>
-        <div class="task-item">
-            <div style="font-weight:700">🧠 VEO AI QUANTUM</div>
-            <div style="font-size:11px; color:#8E8E93; margin-top:4px">Quantum Computing Power</div>
-            <a href="https://t.me/blum/app?startapp=memepadjetton_VEO_7zL3B-ref_6VRKyJ9MZA" class="task-link">ACCESS AI</a>
-        </div>
-        <div class="task-item" style="border: 1px solid gold">
-            <div style="font-weight:700; color:gold">⭐ BOOST ACCOUNT</div>
-            <div style="font-size:11px; color:#8E8E93; margin-top:4px">Instant +10.00 VEO via Stars</div>
-            <div class="task-link" style="background:gold; color:#000; cursor:pointer" onclick="donate()">BUY BOOST</div>
-        </div>
+    <div id="p-tasks" style="display:none">
+        <h2 style="font-weight:800">ECOSYSTEM</h2>
+        <div class="card"><div>Genesis Jetton<br><small style="color:#8E8E93">Memepad Trade</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="task-link">OPEN</a></div>
+        <div class="card"><div>Unity Core<br><small style="color:#8E8E93">Node Network</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_6vK2A-ref_6VRKyJ9MZA" class="task-link">OPEN</a></div>
+        <div class="card"><div>Veo AI Quantum<br><small style="color:#8E8E93">AI Power</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_7zL3B-ref_6VRKyJ9MZA" class="task-link">OPEN</a></div>
+        <div class="card" style="border: 1px solid gold"><div>Boost +10 VEO<br><small style="color:gold">Stars Payment</small></div><div class="task-link" style="background:gold; color:#000; cursor:pointer" onclick="donate()">BUY ⭐</div></div>
     </div>
 
-    <div class="nav"><div onclick="show('h')">🏠</div><div onclick="show('t')">📋</div><div onclick="tg.close()">✕</div></div>
+    <div id="p-ranks" style="display:none">
+        <h2 style="font-weight:800">TOP MINERS</h2>
+        <div id="rank-list" style="background:var(--card); border-radius:20px; border:1px solid #1C1C1E; overflow:hidden"></div>
+    </div>
+
+    <div class="nav">
+        <div id="n-mine" onclick="show('mine')" class="nav-item active">🏠</div>
+        <div id="n-tasks" onclick="show('tasks')" class="nav-item">📋</div>
+        <div id="n-ranks" onclick="show('ranks')" class="nav-item">🏆</div>
+    </div>
 
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
@@ -141,6 +138,15 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
+                
+                let h = "";
+                d.top.forEach((u, i) => {
+                    h += `<div class="rank-row">
+                            <span>${i+1}. ${u.n}</span>
+                            <span style="color:var(--blue); font-weight:700">${u.p}</span>
+                          </div>`;
+                });
+                document.getElementById('rank-list').innerHTML = h;
             } catch(e) {}
         }
         async function mine(t) {
@@ -153,8 +159,10 @@ async def web_ui():
             setTimeout(() => { tg.close(); }, 300);
         }
         function show(p) {
-            document.getElementById('h').style.display=(p=='h'?'block':'none');
-            document.getElementById('t').style.display=(p=='t'?'block':'none');
+            ['mine','tasks','ranks'].forEach(id => {
+                document.getElementById('p-'+id).style.display = (id==p?'block':'none');
+                document.getElementById('n-'+id).classList.toggle('active', id==p);
+            });
         }
         refresh(); setInterval(refresh, 5000);
     </script>
