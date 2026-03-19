@@ -2,7 +2,7 @@ import os, asyncio, uvicorn, logging, time
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from data_conx import init_db, get_db_conn
@@ -24,10 +24,9 @@ app.add_middleware(
 
 bot_app = None 
 
-# --- BOT FUNCTIONS (AVEC PARRAINAGE) ---
+# --- BOT FUNCTIONS (PARRAINAGE @owpcsbot) ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
-    # Vérification du parrain (ex: /start 123456)
     referrer_id = None
     if context.args:
         try:
@@ -39,15 +38,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if conn:
         try:
             c = conn.cursor()
-            # 1. Vérifier si l'utilisateur existe déjà
             c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
             exists = c.fetchone()
             
             if not exists:
-                # 2. Créer l'utilisateur avec son parrain s'il y en a un
                 c.execute("INSERT INTO users (user_id, name, referred_by) VALUES (%s, %s, %s)", (uid, name, referrer_id))
-                
-                # 3. Récompenser le parrain (+1.0 UNITY)
                 if referrer_id:
                     c.execute("UPDATE users SET p_unity = p_unity + 1.0, ref_count = ref_count + 1 WHERE user_id = %s", (referrer_id,))
                     c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (%s, 'REFERRAL_REWARD', 1.0, %s)", (referrer_id, int(time.time())))
@@ -62,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=final_url))],
-        [InlineKeyboardButton("📢 Share Referral Link", switch_inline_query=f"\nJoin me on OWPC HUB and earn! https://t.me/{(await context.bot.get_me()).username}?start={uid}")]
+        [InlineKeyboardButton("📢 Invite Friends", switch_inline_query=f"\nJoin me on OWPC HUB! 🚀 https://t.me/owpcsbot?start={uid}")]
     ])
     await update.message.reply_text(f"Welcome to the Ecosystem, {name}!", reply_markup=kb)
 
@@ -81,11 +76,11 @@ async def get_user(uid: int):
     c.execute("SELECT token, amount, timestamp FROM logs WHERE user_id=%s ORDER BY id DESC LIMIT 5", (uid,))
     history = [{"t": x[0], "a": x[1], "ts": x[2]} for x in c.fetchall()]
     
-    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 5")
+    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
     top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
     
     c.close(); conn.close()
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "history": history, "clicks": r[5], "name": r[6], "top": top, "uid": uid}
+    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "history": history, "clicks": r[5], "name": r[6], "top": top}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -101,7 +96,7 @@ async def mine_api(request: Request):
         return {"ok": True}
     return {"ok": False}
 
-# --- WEB UI (RETOUR DE L'HISTORIQUE + NOUVEAUX ONGLETS) ---
+# --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -137,7 +132,6 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('genesis')">CLAIM</button></div>
         <div class="card"><div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
-        
         <div class="section-title">Recent Activity</div>
         <div id="history-list" style="background: var(--card); padding: 10px 15px; border-radius: 18px; border: 1px solid #1C1C1E;"></div>
     </div>
@@ -147,7 +141,6 @@ async def web_ui():
         <div class="card"><div><b>Genesis Unit</b><br><small>Open Blum App</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
         <div class="card"><div><b>Unity Unit</b><br><small>Open Blum App</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
         <div class="card"><div><b>Veo AI Unit</b><br><small>Open Blum App</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
-        
         <div class="section-title">Your Referral Link</div>
         <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px;">
             <small id="ref-link" style="color:var(--blue); word-break:break-all; font-size:11px;">Generate link...</small>
@@ -155,10 +148,7 @@ async def web_ui():
         </div>
     </div>
 
-    <div id="p-leader" style="display:none">
-        <div class="section-title">Global Top Players</div>
-        <div id="rank-list"></div>
-    </div>
+    <div id="p-leader" style="display:none"><div class="section-title">Global Top Players</div><div id="rank-list"></div></div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
@@ -177,7 +167,6 @@ async def web_ui():
                 const r = await fetch(`${apiBase}/api/user/${uid}`);
                 if(!r.ok) return;
                 const d = await r.json();
-                
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
                 document.getElementById('u-ref').innerText = d.rc;
@@ -185,23 +174,19 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
-                
-                // Ton bot username pour le lien de parrainage
-                const botUsername = "TON_BOT_USERNAME"; // <-- METS TON NOM DE BOT ICI (ex: owpc_hub_bot)
-                document.getElementById('ref-link').innerText = `https://t.me/${botUsername}?start=${uid}`;
+                document.getElementById('ref-link').innerText = `https://t.me/owpcsbot?start=${uid}`;
 
-                // Remplissage de l'historique
                 let h_html = "";
                 d.history.forEach(h => {
                     let color = h.t.includes('REFERRAL') ? 'var(--gold)' : 'var(--text)';
                     h_html += `<div class="history-item"><span style="color:${color}">${h.t}</span><b>+${h.a}</b></div>`;
                 });
-                document.getElementById('history-list').innerHTML = h_html || "<small>No activity yet</small>";
+                document.getElementById('history-list').innerHTML = h_html || "<small>No activity</small>";
 
                 let r_html = "";
                 d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
-            } catch(e) { console.error("Refresh failed", e); }
+            } catch(e) { console.error(e); }
         }
 
         async function mine(t) {
@@ -216,21 +201,16 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-
         function copyRef() {
-            const link = document.getElementById('ref-link').innerText;
-            navigator.clipboard.writeText(link);
-            tg.showAlert("Referral link copied!");
+            navigator.clipboard.writeText(document.getElementById('ref-link').innerText);
+            tg.showAlert("Link copied!");
         }
-
         refresh();
-        // Rafraîchir toutes les 10 secondes pour voir les points de parrainage tomber
         setInterval(refresh, 10000);
     </script>
 </body>
 </html>
     """
-
 
 async def main():
     global bot_app
