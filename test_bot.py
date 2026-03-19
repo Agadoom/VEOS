@@ -7,7 +7,11 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCh
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.getenv("PORT", 8080))
-WEBAPP_URL = os.getenv("WEBAPP_URL")
+# Correction : On s'assure que l'URL commence par https://
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
+if WEBAPP_URL and not WEBAPP_URL.startswith("http"):
+    WEBAPP_URL = f"https://{WEBAPP_URL}"
+
 BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
@@ -97,7 +101,9 @@ async def mine_api(request: Request):
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
-    return r"""
+    # Correction de l'insertion de BOT_USERNAME
+    b_name = str(BOT_USERNAME)
+    html_raw = r"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -110,13 +116,9 @@ async def web_ui():
         .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
         .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: #050505; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        
-        /* Spinner Styles */
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; position: relative; }
-        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; }
         .spinner { width: 12px; height: 12px; border: 2px solid #000; border-top: 2px solid transparent; border-radius: 50%; display: none; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(10px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 1000; }
         .nav-item { font-size: 22px; opacity: 0.4; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.1); }
@@ -129,53 +131,32 @@ async def web_ui():
         <div class="header">OWPC CORE</div>
         <button id="daily-btn" class="daily-btn" onclick="claimDaily()">CLAIM DAILY REWARD (+1.0 Unity)</button>
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:40px; margin:5px 0">0.00</h1></div>
-        
-        <div class="card">
-            <div><small>GENESIS</small><div id="gv">0.00</div></div>
-            <button class="btn" style="background:var(--green)" id="btn-genesis" onclick="mine('genesis')">
-                <span class="spinner" id="sp-genesis"></span><span>CLAIM</span>
-            </button>
-        </div>
-        <div class="card">
-            <div><small>UNITY</small><div id="uv">0.00</div></div>
-            <button class="btn" id="btn-unity" onclick="mine('unity')">
-                <span class="spinner" id="sp-unity"></span><span>SYNC</span>
-            </button>
-        </div>
-        <div class="card">
-            <div><small>VEO AI</small><div id="vv">0.00</div></div>
-            <button class="btn" style="background:var(--blue);color:#FFF" id="btn-veo" onclick="mine('veo')">
-                <span class="spinner" id="sp-veo" style="border-color:#FFF; border-top-color:transparent"></span><span>COMPUTE</span>
-            </button>
-        </div>
+        <div class="card"><div><small>GENESIS</small><div id="gv">0.00</div></div><button class="btn" style="background:var(--green)" id="btn-genesis" onclick="mine('genesis')"><span class="spinner" id="sp-genesis"></span>CLAIM</button></div>
+        <div class="card"><div><small>UNITY</small><div id="uv">0.00</div></div><button class="btn" id="btn-unity" onclick="mine('unity')"><span class="spinner" id="sp-unity"></span>SYNC</button></div>
+        <div class="card"><div><small>VEO AI</small><div id="vv">0.00</div></div><button class="btn" style="background:var(--blue);color:#FFF" id="btn-veo" onclick="mine('veo')"><span class="spinner" id="sp-veo" style="border-color:#FFF; border-top-color:transparent"></span>COMPUTE</button></div>
     </div>
-
     <div id="p-tasks" style="display:none">
-        <h2>REFERRALS & LINKS</h2>
+        <h2>TASKS & REF</h2>
         <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px">
             <div><b>Invite Friends</b><br><small style="color:#8E8E93">+5.00 Genesis per ref</small></div>
-            <button class="btn" style="width:100%" onclick="copyRef()">COPY LINK</button>
+            <button class="btn" style="width:100%" onclick="copyRef()">COPY MY LINK</button>
         </div>
-        <div class="card"><div>Genesis Jetton</div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
         <div class="card"><div>Unity Node</div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
         <div class="card"><div>Veo AI</div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
     </div>
-
     <div id="p-ranks" style="display:none">
         <h2>TOP MINERS</h2>
-        <div id="rank-list" style="background:var(--card); border-radius:15px; overflow:hidden; padding:10px"></div>
+        <div id="rank-list" style="background:var(--card); border-radius:15px; overflow:hidden"></div>
     </div>
-
     <div class="nav">
         <div id="n-mine" onclick="show('mine')" class="nav-item active">🏠</div>
         <div id="n-tasks" onclick="show('tasks')" class="nav-item">👥</div>
         <div id="n-ranks" onclick="show('ranks')" class="nav-item">🏆</div>
     </div>
-
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
-        const clickSound = new Audio('https://www.soundjay.com/buttons/button-16.mp3');
+        const bName = '""" + b_name + r"""';
 
         async function refresh() {
             if(!uid) return;
@@ -188,42 +169,26 @@ async def web_ui():
             document.getElementById('daily-btn').disabled = !d.can_daily;
             if(!d.can_daily) document.getElementById('daily-btn').innerText = "DAILY CLAIMED";
             let h = "";
-            d.top.forEach((u, i) => { h += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #222">${i+1}. ${u.n} <b>${u.p}</b></div>`; });
+            d.top.forEach((u, i) => { h += `<div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #222"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
             document.getElementById('rank-list').innerHTML = h;
         }
-
         async function mine(t) {
-            tg.HapticFeedback.impactOccurred('medium');
-            clickSound.play().catch(()=>{});
-            const btn = document.getElementById('btn-'+t);
-            const sp = document.getElementById('sp-'+t);
-            btn.disabled = true; sp.style.display = 'inline-block';
-            
+            tg.HapticFeedback.impactOccurred('light');
+            const sp = document.getElementById('sp-'+t); sp.style.display = 'inline-block';
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            
-            setTimeout(() => {
-                btn.disabled = false; sp.style.display = 'none';
-                refresh();
-            }, 400);
+            setTimeout(() => { sp.style.display='none'; refresh(); }, 500);
         }
-
         async function claimDaily() {
             const r = await fetch('/api/daily/' + uid, {method:'POST'});
             const d = await r.json();
-            if(d.ok) {
-                confetti({ particleCount: 150, spread: 60, origin: { y: 0.7 } });
-                tg.HapticFeedback.notificationOccurred('success');
-                refresh();
-            }
+            if(d.ok) { confetti({ particleCount: 150, spread: 60, origin: { y: 0.7 } }); refresh(); }
         }
-
         function copyRef() {
-            const link = "https://t.me/""" + os.getenv("BOT_USERNAME") + r"""?start=ref_" + uid;
+            const link = "https://t.me/" + bName + "?start=ref_" + uid;
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el);
             el.select(); document.execCommand('copy'); document.body.removeChild(el);
             tg.showAlert("Link copied!");
         }
-
         function show(p) {
             ['mine','tasks','ranks'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id==p?'block':'none');
@@ -235,6 +200,7 @@ async def web_ui():
 </body>
 </html>
     """
+    return html_raw
 
 async def main():
     init_db()
