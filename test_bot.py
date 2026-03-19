@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v31.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v32.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -110,9 +110,10 @@ async def web_ui():
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; }
-        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; overflow-x: hidden; }
         .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
         .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: #050505; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
@@ -121,7 +122,7 @@ async def web_ui():
         .nav-item { font-size: 22px; opacity: 0.4; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.1); }
         .rank-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #1c1c1e; }
-        .daily-btn { width: 100%; background: var(--blue); color: #FFF; padding: 12px; border-radius: 12px; border: none; font-weight: 700; margin-bottom: 15px; }
+        .daily-btn { width: 100%; background: var(--blue); color: #FFF; padding: 12px; border-radius: 12px; border: none; font-weight: 700; margin-bottom: 15px; transition: 0.3s; }
         .daily-btn:disabled { background: #222; color: #555; }
     </style>
 </head>
@@ -160,6 +161,11 @@ async def web_ui():
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
         const botName = '""" + BOT_USERNAME + r"""';
+
+        function launchConfetti() {
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#007AFF', '#34C759', '#FFD700'] });
+        }
+
         async function refresh() {
             if(!uid) return;
             const r = await fetch('/api/user/' + uid);
@@ -175,23 +181,32 @@ async def web_ui():
             d.top.forEach((u, i) => { h += `<div class="rank-row"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
             document.getElementById('rank-list').innerHTML = h;
         }
+
         async function claimDaily() {
             const r = await fetch('/api/daily/' + uid, {method:'POST'});
             const d = await r.json();
-            if(d.ok) { tg.showAlert("Success! +1.0 Unity added."); refresh(); }
+            if(d.ok) { 
+                launchConfetti();
+                tg.HapticFeedback.notificationOccurred('success');
+                refresh(); 
+            }
         }
+
         function copyRef() {
             const link = "https://t.me/" + botName + "?start=ref_" + uid;
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el);
             el.select(); document.execCommand('copy'); document.body.removeChild(el);
             tg.showAlert("Link copied!");
         }
+
         function donate() { tg.openTelegramLink('https://t.me/' + botName + '?start=donate'); setTimeout(() => { tg.close(); }, 300); }
+        
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('light');
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             refresh();
         }
+
         function show(p) {
             ['mine','tasks','ranks'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id==p?'block':'none');
