@@ -2,40 +2,81 @@ import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# --- CONFIG ---
+# --- CONFIGURATION ---
+# Assure-toi que cette variable est bien le TOKEN de @OwpcInfobot sur Railway
 TOKEN = os.getenv("TOKEN")
 
+# Liens officiels (récupérés de l'écosystème)
+LINK_MINING_BOT = "https://t.me/OWPCsbot"
+LINK_CHANNEL = "https://t.me/owpc_co"  # Remplace par ton canal si différent
+LINK_GENESIS = "https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1"
+LINK_UNITY = "https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR"
+LINK_VEO = "https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK"
+
+# --- LOGIQUE DU BOT ---
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menu principal du bot d'information"""
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 START MINING OWPC", url="https://t.me/OWPCsbot")],
-        [InlineKeyboardButton("📢 Official Channel", url="https://t.me/OneWorldPeaceCoins")],
-        [InlineKeyboardButton("🧬 Genesis (Blum)", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
-        [InlineKeyboardButton("🌍 Unity (Blum)", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
-        [InlineKeyboardButton("🤖 Veo AI (Blum)", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
-        [InlineKeyboardButton("❓ How it works", callback_data="help")]
+        [InlineKeyboardButton("🚀 START MINING (Terminal)", url=LINK_MINING_BOT)],
+        [InlineKeyboardButton("📢 Official Channel", url=LINK_CHANNEL)],
+        [InlineKeyboardButton("💰 Buy/Invest (Blum)", callback_data="buy_menu")],
+        [InlineKeyboardButton("📖 Protocol Info", callback_data="info_menu")]
     ])
     
     msg = (
         "🕊️ **WELCOME TO OWPC INFO HUB**\n\n"
-        "The official gateway to the One World Peace Coins ecosystem.\n\n"
-        "🔹 **Mining:** Use our specialized bot to extract OWPC.\n"
-        "🔹 **Tokens:** Genesis, Unity, and Veo AI are live on Blum.\n\n"
-        "Click below to start your journey."
+        "You have reached the official information terminal for the One World Peace Coins ecosystem.\n\n"
+        "**Status:** `ACTIVE ✅`\n"
+        "**Network:** `TON / BLUM`"
     )
-    await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
+    
+    if update.message:
+        await update.message.reply_text(msg, reply_markup=kb, parse_mode="Markdown")
+    else:
+        await update.callback_query.message.edit_text(msg, reply_markup=kb, parse_mode="Markdown")
 
-async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query; await query.answer()
-    if query.data == "help":
-        txt = "📖 **GUIDE**\n\n1. Launch @OWPCsbot to mine.\n2. Collect tokens daily.\n3. Check Hall of Fame for rankings."
-        await query.message.edit_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="back")]]), parse_mode="Markdown")
-    elif query.data == "back":
-        # On renvoie le menu principal
+async def handle_menus(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestion des menus secondaires et du bouton retour"""
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "back_main":
         await start(update, context)
 
+    elif query.data == "buy_menu":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧬 GENESIS", url=LINK_GENESIS)],
+            [InlineKeyboardButton("🌍 UNITY", url=LINK_UNITY)],
+            [InlineKeyboardButton("🤖 VEO AI", url=LINK_VEO)],
+            [InlineKeyboardButton("⬅️ BACK", callback_data="back_main")]
+        ])
+        await query.message.edit_text(
+            "💎 **INVESTMENT SECTORS**\n\nClick a token to open it in Blum Memepad:",
+            reply_markup=kb, parse_mode="Markdown"
+        )
+
+    elif query.data == "info_menu":
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ BACK", callback_data="back_main")]])
+        info_txt = (
+            "📖 **OWPC PROTOCOL INFO**\n\n"
+            "**Genesis:** The foundational core of OWPC.\n"
+            "**Unity:** The community and governance layer.\n"
+            "**Veo AI:** The intelligent extraction algorithm.\n\n"
+            "Use the Mining Bot to earn points and stay active in the ecosystem."
+        )
+        await query.message.edit_text(info_txt, reply_markup=kb, parse_mode="Markdown")
+
+# --- EXECUTION ---
+
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(help_callback))
-    print("✅ Info Bot is running...")
-    app.run_polling()
+    if not TOKEN:
+        print("❌ ERROR: No TOKEN found in environment variables!")
+    else:
+        print("✅ OwpcInfobot is starting...")
+        app = ApplicationBuilder().token(TOKEN).build()
+        
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CallbackQueryHandler(handle_menus))
+        
+        app.run_polling(drop_pending_updates=True)
