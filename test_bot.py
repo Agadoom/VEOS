@@ -1,125 +1,155 @@
 import os
-import asyncio
 import sqlite3
-import random
-import nest_asyncio
-from datetime import datetime
-from fastapi import FastAPI, Request
+import asyncio
+import uvicorn
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-import uvicorn
 
-nest_asyncio.apply()
-
-# --- ⚙️ CONFIG ---
+# --- 1. CONFIGURATION ---
 TOKEN = os.getenv("TOKEN")
-DB_PATH = "owpc_data.db"
-WEBAPP_URL = "https://veos-production.up.railway.app" # Ton URL Railway
 PORT = int(os.getenv("PORT", 8080))
+DB_PATH = "owpc_data.db"
+# L'URL de ta Mini App hébergée sur Railway
+WEBAPP_URL = "https://veos-production.up.railway.app" 
 
 app = FastAPI()
 
-# --- 📊 DATABASE LOGIC (Identique au bot stable) ---
+# --- 2. DATABASE ENGINE ---
 def init_db():
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id INTEGER PRIMARY KEY, name TEXT, 
-                  points_genesis INTEGER DEFAULT 0, points_unity INTEGER DEFAULT 0,
-                  points_veo REAL DEFAULT 0.0, referrals INTEGER DEFAULT 0,
-                  rank TEXT DEFAULT '🆕 SEEKER', last_checkin TEXT DEFAULT '')''')
-    conn.commit(); conn.close()
+                  points_genesis INTEGER DEFAULT 0, 
+                  points_unity INTEGER DEFAULT 0, 
+                  points_veo REAL DEFAULT 0.0)''')
+    conn.commit()
+    conn.close()
 
-def get_user_data(uid):
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("SELECT points_genesis, points_unity, points_veo, last_checkin FROM users WHERE user_id=?", (uid,))
-    res = c.fetchone(); conn.close()
-    if res:
-        total = (res[0] or 0) + (res[1] or 0) + (res[2] or 0.0)
-        return {"total": int(total), "last_checkin": res[3]}
-    return {"total": 0, "last_checkin": None}
+def get_stats(uid):
+    try:
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("SELECT points_genesis, points_unity, points_veo FROM users WHERE user_id=?", (uid,))
+        res = c.fetchone(); conn.close()
+        if res:
+            total = (res[0] or 0) + (res[1] or 0) + (res[2] or 0.0)
+            return {"total": int(total), "g": res[0] or 0, "u": res[1] or 0, "v": res[2] or 0.0}
+    except: pass
+    return {"total": 0, "g": 0, "u": 0, "v": 0.0}
 
-# --- 🌐 WEBAPP INTERFACE (HTML) ---
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return """
-    <html>
-        <head>
-            <title>OWPC Terminal</title>
-            <script src="https://telegram.org/js/telegram-web-app.js"></script>
-            <style>
-                body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 20px; }
-                .btn { background: #0f0; color: #000; padding: 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 80%; }
-                .stats { border: 1px solid #0f0; margin: 20px 0; padding: 10px; }
-            </style>
-        </head>
-        <body>
-            <h1>🚀 OWPC TERMINAL</h1>
-            <div class="stats">
-                <p>SYNCING NODES...</p>
-                <p id="balance">Balance: Loading...</p>
-            </div>
-            <button class="btn" onclick="window.location.reload()">REFRESH DATA</button>
-            <script>
-                let tg = window.Telegram.WebApp;
-                tg.expand();
-            </script>
-        </body>
-    </html>
-    """
+# --- 3. KEYBOARDS ---
+def main_menu_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
+        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="hof")],
+        [InlineKeyboardButton("🆔 Passport", callback_data="passport"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="lucky")],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats"), InlineKeyboardButton("🔗 Invite", callback_data="invite")]
+    ])
 
-# --- 🤖 BOT LOGIC (Ton menu qui marche) ---
+# --- 4. BOT HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # Init user
+    init_db()
+    
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (user.id, user.first_name))
     conn.commit(); conn.close()
     
-    data = get_user_data(user.id)
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest_hub"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="daily")],
-        [InlineKeyboardButton("📊 Stats", callback_data="view_stats"), InlineKeyboardButton("🆔 Passport", callback_data="my_card")]
-    ])
-    await update.message.reply_text(f"🕊️ **OWPC PROTOCOL**\n\nBalance: {data['total']:,} OWPC", parse_mode="Markdown", reply_markup=kb)
-
-async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query; await query.answer()
-    uid = query.from_user.id
+    s = get_stats(user.id)
+    msg = (f"🕊️ **OWPC PROTOCOL**\n\n"
+           f"👤 **Commander:** {user.first_name}\n"
+           f"💰 **Balance:** {s['total']:,} OWPC\n\n"
+           f"System Status: `OPERATIONAL` ✅")
     
-    if query.data == "view_stats":
-        data = get_user_data(uid)
-        await query.message.edit_text(f"📊 **TERMINAL STATS**\nTotal: {data['total']:,} OWPC", 
-                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="back")]]))
-    elif query.data == "back":
-        # Relancer l'affichage du menu
-        data = get_user_data(uid)
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
-            [InlineKeyboardButton("💰 Invest Hub", callback_data="invest_hub"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="daily")]
-        ])
-        await query.message.edit_text(f"🕊️ **OWPC PROTOCOL**\n\nBalance: {data['total']:,} OWPC", reply_markup=kb)
+    target = update.message if update.message else update.callback_query.message
+    await target.reply_text(msg, reply_markup=main_menu_kb(), parse_mode="Markdown")
 
-# --- 🚀 LIFESPAN & RUN ---
-async def run_bot():
+async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    uid = query.from_user.id
+    s = get_stats(uid)
+
+    if query.data == "main_menu":
+        await start(update, context)
+    elif query.data == "stats":
+        txt = f"📊 **ASSETS**\n\nGenesis: `{s['g']}`\nUnity: `{s['u']}`\nVeo AI: `{s['v']:.2f}`"
+        await query.message.edit_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]), parse_mode="Markdown")
+    elif query.data == "passport":
+        txt = f"🆔 **PASSPORT**\n\nHolder: `{query.from_user.first_name}`\nStatus: `VERIFIED ✅`"
+        await query.message.edit_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]), parse_mode="Markdown")
+    elif query.data == "invest":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
+            [InlineKeyboardButton("🌍 UNITY", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
+            [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]
+        ])
+        await query.message.edit_text("💰 **INVEST HUB**", reply_markup=kb)
+    elif query.data in ["hof", "lucky", "invite"]:
+        await query.message.edit_text(f"🚧 Sector **{query.data.upper()}** under construction.", 
+                                      reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
+
+# --- 5. MINI APP INTERFACE (HTML) ---
+@app.get("/", response_class=HTMLResponse)
+async def mini_app():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>OWPC Terminal</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <style>
+            body { background: #000; color: #00ff00; font-family: 'Courier New', monospace; text-align: center; padding: 20px; }
+            .terminal { border: 2px solid #00ff00; padding: 20px; border-radius: 10px; box-shadow: 0 0 15px #00ff00; }
+            .btn { background: #00ff00; color: #000; border: none; padding: 15px 30px; font-weight: bold; border-radius: 5px; cursor: pointer; margin-top: 20px; }
+            .status { margin-top: 10px; font-size: 0.8em; color: #008800; }
+        </style>
+    </head>
+    <body>
+        <div class="terminal">
+            <h1>> OWPC TERMINAL</h1>
+            <p>SYSTEM: ONLINE</p>
+            <hr>
+            <div id="mining-status">READY TO EXTRACT</div>
+            <button class="btn" onclick="startMining()">INITIALIZE MINING</button>
+            <div class="status">ID: <span id="user-id">Loading...</span></div>
+        </div>
+
+        <script>
+            let tg = window.Telegram.WebApp;
+            tg.expand();
+            document.getElementById('user-id').innerText = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : "Unknown";
+
+            function startMining() {
+                document.getElementById('mining-status').innerText = "EXTRACTING OWPC...";
+                tg.HapticFeedback.impactOccurred('heavy');
+                setTimeout(() => {
+                    alert("Mining logic integration next!");
+                }, 1000);
+            }
+        </script>
+    </body>
+    </html>
+    """
+
+# --- 6. STARTUP ---
+async def main():
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
-    bot_app.add_handler(CallbackQueryHandler(handle_buttons))
+    bot_app.add_handler(CallbackQueryHandler(handle_callbacks))
     
-    # drop_pending_updates=True RÈGLE LE PROBLÈME DE CONFLICT
     await bot_app.initialize()
     await bot_app.start()
-    print("🤖 Bot is Online...")
-    await bot_app.updater.start_polling(drop_pending_updates=True)
+    asyncio.create_task(bot_app.updater.start_polling(drop_pending_updates=True))
+    
+    config = uvicorn.Config(app, host="0.0.0.0", port=PORT)
+    server = uvicorn.Server(config)
+    await server.serve()
 
 if __name__ == "__main__":
-    init_db()
-    # Lancer le Bot en tâche de fond
-    loop = asyncio.get_event_loop()
-    loop.create_task(run_bot())
-    
-    # Lancer l'API Web (Mini App)
-    print(f"🌐 Web Server on port {PORT}...")
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    asyncio.run(main())
