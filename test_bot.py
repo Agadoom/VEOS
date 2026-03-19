@@ -27,20 +27,17 @@ def init_db():
                   last_daily INTEGER DEFAULT 0, referred_by INTEGER)''')
     conn.commit(); conn.close()
 
-# --- BOT LOGIC ---
+# --- BOT FUNCTIONS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
-    
-    # Gestion du parrainage
     ref_by = None
     if context.args and context.args[0].startswith("ref_"):
         try:
             ref_by = int(context.args[0].replace("ref_", ""))
-            if ref_by == uid: ref_by = None # Auto-parrainage interdit
+            if ref_by == uid: ref_by = None
         except: pass
 
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    # Check si nouvel utilisateur
     c.execute("SELECT user_id FROM users WHERE user_id=?", (uid,))
     if not c.fetchone():
         c.execute("INSERT INTO users (user_id, name, referred_by) VALUES (?, ?, ?)", (uid, name, ref_by))
@@ -48,10 +45,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute("UPDATE users SET p_genesis = p_genesis + 5.0, ref_count = ref_count + 1 WHERE user_id = ?", (ref_by,))
     else:
         c.execute("UPDATE users SET name=? WHERE user_id=?", (name, uid))
-    
     conn.commit(); conn.close()
     
-    # Gestion du don via deep link
     if context.args and context.args[0] == "donate":
         await update.message.reply_invoice(
             title="🚀 VEO BOOST", description="Add +10.00 VEO!",
@@ -60,7 +55,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome back, {name}!", reply_markup=kb)
+    await update.message.reply_text(f"Welcome to the Hub, {name}!", reply_markup=kb)
+
+async def success_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("UPDATE users SET p_veo = p_veo + 10.0 WHERE user_id = ?", (uid,))
+    conn.commit(); conn.close()
+    await update.message.reply_text("✅ Payment Successful! +10.00 VEO added to your account.")
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -80,8 +82,8 @@ async def daily_api(uid: int):
     now = int(time.time())
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT last_daily FROM users WHERE user_id=?", (uid,))
-    last = c.fetchone()[0]
-    if (now - last) > 86400:
+    res = c.fetchone()
+    if res and (now - res[0]) > 86400:
         c.execute("UPDATE users SET p_unity = p_unity + 1.0, last_daily = ? WHERE user_id = ?", (now, uid))
         conn.commit(); conn.close()
         return {"ok": True}
@@ -102,7 +104,7 @@ async def mine_api(request: Request):
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
-    return r"""
+    html_raw = r"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -132,7 +134,6 @@ async def web_ui():
         <div class="card"><div><small>UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small>VEO AI</small><div id="vv">0.00</div></div><button class="btn" style="background:var(--blue);color:#FFF" onclick="mine('veo')">COMPUTE</button></div>
     </div>
-
     <div id="p-tasks" style="display:none">
         <h2>REFERRALS</h2>
         <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px">
@@ -143,24 +144,22 @@ async def web_ui():
         <h2>ECOSYSTEM</h2>
         <div class="card"><div>Genesis<br><small>Blum Memepad</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
         <div class="card"><div>Unity<br><small>Node Network</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_6vK2A-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+        <div class="card"><div>Veo AI<br><small>Quantum Power</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_7zL3B-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+        <div class="card" style="border: 1px solid gold"><div>Boost +10 VEO<br><small style="color:gold">Stars Payment</small></div><div class="btn" style="background:gold; color:#000" onclick="donate()">BUY ⭐</div></div>
     </div>
-
     <div id="p-ranks" style="display:none">
         <h2>TOP MINERS</h2>
         <div id="rank-list" style="background:var(--card); border-radius:15px; overflow:hidden"></div>
     </div>
-
     <div class="nav">
         <div id="n-mine" onclick="show('mine')" class="nav-item active">🏠</div>
         <div id="n-tasks" onclick="show('tasks')" class="nav-item">👥</div>
         <div id="n-ranks" onclick="show('ranks')" class="nav-item">🏆</div>
     </div>
-
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
         const botName = '""" + BOT_USERNAME + r"""';
-
         async function refresh() {
             if(!uid) return;
             const r = await fetch('/api/user/' + uid);
@@ -172,35 +171,27 @@ async def web_ui():
             document.getElementById('rc').innerText = d.rc;
             document.getElementById('daily-btn').disabled = !d.can_daily;
             if(!d.can_daily) document.getElementById('daily-btn').innerText = "DAILY CLAIMED";
-            
             let h = "";
-            d.top.forEach((u, i) => {
-                h += `<div class="rank-row"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`;
-            });
+            d.top.forEach((u, i) => { h += `<div class="rank-row"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
             document.getElementById('rank-list').innerHTML = h;
         }
-
         async function claimDaily() {
             const r = await fetch('/api/daily/' + uid, {method:'POST'});
             const d = await r.json();
             if(d.ok) { tg.showAlert("Success! +1.0 Unity added."); refresh(); }
         }
-
         function copyRef() {
             const link = "https://t.me/" + botName + "?start=ref_" + uid;
-            const el = document.createElement('textarea');
-            el.value = link; document.body.appendChild(el);
-            el.select(); document.execCommand('copy');
-            document.body.removeChild(el);
-            tg.showAlert("Link copied to clipboard!");
+            const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el);
+            el.select(); document.execCommand('copy'); document.body.removeChild(el);
+            tg.showAlert("Link copied!");
         }
-
+        function donate() { tg.openTelegramLink('https://t.me/' + botName + '?start=donate'); setTimeout(() => { tg.close(); }, 300); }
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('light');
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             refresh();
         }
-
         function show(p) {
             ['mine','tasks','ranks'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id==p?'block':'none');
@@ -212,6 +203,7 @@ async def web_ui():
 </body>
 </html>
     """
+    return html_raw
 
 async def main():
     init_db()
