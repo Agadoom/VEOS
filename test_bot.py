@@ -11,7 +11,7 @@ WEBAPP_URL = os.getenv("WEBAPP_URL")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v43.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v43_1.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -104,18 +104,13 @@ async def web_ui():
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #161618; border-radius: 15px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
         .user-info { display: flex; align-items: center; gap: 10px; }
         .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; }
-        
         .payer-btn { background: #87a05e; color: #FFF; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
-        
         .balance { text-align: center; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); margin-bottom: 10px; }
         .energy-container { width: 100%; height: 8px; background: #222; border-radius: 4px; margin: 10px 0; overflow: hidden; }
         .energy-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #FFA500); width: 100%; transition: width 0.2s; }
-        
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
         .btn { background: #FFF; color: #000; border: none; padding: 8px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; }
-        
         .pill-link { background: #1C1C1E; color: #FFF; text-decoration: none; padding: 10px 15px; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid #333; display: inline-block; }
-        
         .section-title { font-size: 11px; font-weight: 700; color: var(--text); margin: 20px 0 8px 5px; text-transform: uppercase; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; }
         .nav-item { font-size: 22px; opacity: 0.3; }
@@ -152,7 +147,7 @@ async def web_ui():
         </div>
         <div class="card">
             <div><b>Unity</b></div>
-            <a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_v8fN2-ref_6VRKyJ9MZA" class="pill-link">OPEN BLUM ↗</a>
+            <a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="pill-link">OPEN BLUM ↗</a>
         </div>
         <div class="card">
             <div><b>Veo AI</b></div>
