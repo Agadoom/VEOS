@@ -1,8 +1,8 @@
 import os, sqlite3, asyncio, uvicorn, logging, time
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v34.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v39.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -38,10 +38,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.execute("SELECT user_id FROM users WHERE user_id=?", (uid,))
     if not c.fetchone():
         c.execute("INSERT INTO users (user_id, name) VALUES (?, ?)", (uid, name))
+    else:
+        c.execute("UPDATE users SET name=? WHERE user_id=?", (name, uid))
     conn.commit(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome back to the Hub, {name}!", reply_markup=kb)
+    await update.message.reply_text(f"Welcome to the Ecosystem, {name}!", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -55,25 +57,27 @@ async def get_user(uid: int):
     top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
     conn.close()
     if not r: return None
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "history": history, "clicks": r[5], "name": r[6], "top": top}
+    can_daily = (int(time.time()) - r[4]) > 86400
+    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "can_daily": can_daily, "history": history, "clicks": r[5], "name": r[6], "top": top}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    gain = 0.05
-    col = "p_genesis" if t == 'genesis' else "p_unity" if t == 'unity' else "p_veo"
+    gain = 0.01 if t == 'veo' else 0.05
+    col = {"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}.get(t)
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute(f"UPDATE users SET {col} = {col} + ?, total_clicks = total_clicks + 1 WHERE user_id = ?", (gain, uid))
+    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, t, gain, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
 
 @app.post("/api/donate/{uid}")
-async def donate_reward(uid: int):
-    # Cette API est appelée après le succès du paiement Stars
+async def donate_api(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    # Ajoute 10 points UNITY directement
     c.execute("UPDATE users SET p_unity = p_unity + 10.0 WHERE user_id = ?", (uid,))
-    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, "DONATE_REWARD", 10.0, int(time.time())))
+    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, 'DONATE', 10.0, ?)", (uid, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
 
@@ -86,69 +90,98 @@ async def web_ui():
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; overflow-x: hidden; }
+        
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #161618; border-radius: 15px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
         .user-info { display: flex; align-items: center; gap: 10px; }
         .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
-        .donate-btn { background: var(--gold); color: #000; border: none; padding: 5px 10px; border-radius: 8px; font-size: 10px; font-weight: 800; cursor: pointer; }
+        .global-stats { display: flex; gap: 15px; font-size: 12px; }
+        .stat-item { text-align: right; }
+        .stat-label { color: var(--text); font-size: 10px; text-transform: uppercase; display: block; }
+        .stat-value { font-weight: 700; color: var(--gold); }
+
+        .donate-stars-btn { background: var(--gold); color: #000; border: none; padding: 8px 12px; border-radius: 10px; font-weight: 800; cursor: pointer; font-size: 11px; margin-bottom: 15px; width: 100%; box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); }
+
+        .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
+        .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); }
+        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; position: relative; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; min-width: 85px; z-index: 2; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); }
         
-        .balance { text-align: center; margin-bottom: 10px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); }
         .energy-container { width: 100%; height: 8px; background: #222; border-radius: 4px; margin-bottom: 15px; overflow: hidden; }
-        .energy-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #FFA500); width: 100%; transition: width 0.2s; }
-        
-        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; min-width: 85px; }
-        .btn:disabled { background: #333; color: #666; }
-        .section-title { font-size: 12px; font-weight: 700; color: var(--text); margin: 20px 0 10px 5px; text-transform: uppercase; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; }
-        .nav-item { font-size: 24px; opacity: 0.3; }
+        .energy-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #FFA500); width: 100%; transition: width 0.3s; }
+
+        .section-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 20px 0 10px 5px; text-transform: uppercase; }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; z-index: 1000; }
+        .nav-item { font-size: 24px; opacity: 0.3; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.2); }
+        .pill-link { background: #1C1C1E; color: #FFF; text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; border: 1px solid #333; }
+        .floating-text { position: absolute; font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 10; font-size: 18px; }
+        @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-50px); } }
     </style>
 </head>
 <body>
     <div class="profile-bar">
         <div class="user-info">
             <div class="avatar" id="u-avatar">?</div>
-            <div style="font-size: 12px; font-weight: 700;" id="u-name">User</div>
+            <div style="font-size: 14px; font-weight: 700;" id="u-name">User</div>
         </div>
-        <button class="donate-btn" onclick="buyStars()">SUPPORT 50 ⭐</button>
+        <div class="global-stats">
+            <div class="stat-item"><span class="stat-label">Clicks</span><span class="stat-value" id="total-clicks">0</span></div>
+            <div class="stat-item"><span class="stat-label">Harvested</span><span class="stat-value" id="total-harvest">0.00</span></div>
+        </div>
     </div>
 
     <div id="p-mine">
+        <button class="donate-stars-btn" onclick="handleStars()">⭐ DONATE STARS (+10 UNITY)</button>
+        
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:42px; margin:5px 0">0.00</h1></div>
-        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--gold); margin-bottom:5px">
-            <span>⚡ ENERGY</span><span id="energy-text">100/100</span>
+        
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--gold); margin-bottom:5px">
+            <span>⚡ ENERGY</span><span id="energy-text">100 / 100</span>
         </div>
         <div class="energy-container"><div id="energy-fill" class="energy-fill"></div></div>
 
         <div class="section-title">Mining Units</div>
         <div class="card">
             <div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn mine-btn" onclick="mine('genesis', event)" style="background:var(--green)">CLAIM</button>
+            <button class="btn m-btn" onclick="mine('genesis', event)" style="background:var(--green)">CLAIM</button>
         </div>
         <div class="card">
             <div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn mine-btn" onclick="mine('unity', event)">SYNC</button>
+            <button class="btn m-btn" onclick="mine('unity', event)">SYNC</button>
         </div>
+
+        <div class="section-title">Ecosystem Pillars</div>
+        <div class="card"><div><b>Genesis</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
+        <div class="card"><div><b>Unity</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
     </div>
 
-    <div class="nav"><div class="nav-item active">🏠</div><div class="nav-item" style="opacity:0.3">🏆</div></div>
+    <div id="p-tasks" style="display:none">
+        <div class="header">LEADERBOARD</div>
+        <div id="rank-list"></div>
+    </div>
+
+    <div class="nav">
+        <div id="n-mine" onclick="show('mine')" class="nav-item active">🏠</div>
+        <div id="n-tasks" onclick="show('tasks')" class="nav-item">🏆</div>
+    </div>
 
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
         let energy = 100;
 
-        async function buyStars() {
-            // Dans une vraie app, vous appelleriez bot.sendInvoice via l'API
-            // Ici on simule l'ouverture et le succès pour la démo technique
-            tg.showConfirm("Do you want to donate 50 Stars for 10 Unity points?", async (confirm) => {
-                if(confirm) {
+        async function handleStars() {
+            // Simulation du paiement Stars pour la démonstration WebApp
+            tg.showConfirm("Confirm donation of Stars to receive 10 UNITY points?", async (ok) => {
+                if(ok) {
                     await fetch('/api/donate/' + uid, {method:'POST'});
-                    tg.showAlert("🎉 Purchase Successful! +10 UNITY added. The App will now restart.");
-                    setTimeout(() => { tg.close(); }, 2000);
+                    tg.showAlert("🎉 Congratulations! You received 10 UNITY. The app will now close to sync.");
+                    setTimeout(() => { tg.close(); }, 1500);
                 }
             });
         }
@@ -156,28 +189,50 @@ async def web_ui():
         setInterval(() => { if(energy < 100) { energy++; updateEnergyUI(); } }, 1500);
 
         function updateEnergyUI() {
-            document.getElementById('energy-text').innerText = energy + "/100";
+            document.getElementById('energy-text').innerText = energy + " / 100";
             document.getElementById('energy-fill').style.width = energy + "%";
-            document.querySelectorAll('.mine-btn').forEach(b => b.disabled = energy <= 0);
+            document.querySelectorAll('.m-btn').forEach(b => b.disabled = (energy <= 0));
         }
 
         async function refresh() {
+            if(!uid) return;
             const r = await fetch('/api/user/' + uid);
             const d = await r.json();
             document.getElementById('u-name').innerText = d.name;
+            document.getElementById('u-avatar').innerText = d.name.charAt(0).toUpperCase();
+            document.getElementById('total-clicks').innerText = d.clicks;
+            let totalVal = d.g + d.u + d.v;
+            document.getElementById('total-harvest').innerText = totalVal.toFixed(2);
             document.getElementById('gv').innerText = d.g.toFixed(2);
             document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
+            document.getElementById('tot').innerText = totalVal.toFixed(2);
+            
+            let r_html = "";
+            d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+            document.getElementById('rank-list').innerHTML = r_html;
         }
 
         async function mine(t, e) {
             if(energy <= 0) return;
             energy--; updateEnergyUI();
             tg.HapticFeedback.impactOccurred('light');
+            
+            const ft = document.createElement('div');
+            ft.className = 'floating-text'; ft.innerText = '+0.05';
+            ft.style.left = (e.clientX - 20) + 'px'; ft.style.top = (e.clientY - 20) + 'px';
+            ft.style.color = '#34C759'; document.body.appendChild(ft);
+            setTimeout(() => ft.remove(), 800);
+
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             refresh();
         }
 
+        function show(p) {
+            document.getElementById('p-mine').style.display = (p=='mine'?'block':'none');
+            document.getElementById('p-tasks').style.display = (p=='tasks'?'block':'none');
+            document.getElementById('n-mine').classList.toggle('active', p=='mine');
+            document.getElementById('n-tasks').classList.toggle('active', p=='tasks');
+        }
         refresh();
     </script>
 </body>
