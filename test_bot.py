@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v37.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v38.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -119,17 +119,24 @@ async def web_ui():
         .stat-value { font-weight: 700; color: var(--gold); }
 
         .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
-        .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); }
+        .balance { text-align: center; margin-bottom: 10px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); }
+        
+        /* Energy Bar Styles */
+        .energy-container { width: 100%; height: 8px; background: #222; border-radius: 4px; margin-bottom: 15px; position: relative; overflow: hidden; }
+        .energy-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #FFA500); width: 100%; transition: width 0.2s ease; }
+        .energy-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--gold); font-weight: bold; margin-bottom: 15px; padding: 0 5px; }
+
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; position: relative; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; min-width: 85px; z-index: 2; transition: 0.2s; }
         .btn:active { transform: scale(0.95); }
-        .loader { width: 14px; height: 14px; border: 2px solid #000; border-bottom-color: transparent; border-radius: 50%; display: none; animation: rot 1s linear infinite; }
-        @keyframes rot { to { transform: rotate(360deg); } }
+        .btn:disabled { background: #333 !important; color: #666 !important; cursor: not-allowed; }
+
         .cps-box { text-align: center; font-size: 11px; color: var(--gold); margin-bottom: 10px; font-weight: bold; }
         .section-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 20px 0 10px 5px; text-transform: uppercase; }
         .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1c1c1e; font-size: 12px; color: var(--text); }
         .floating-text { position: absolute; font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 10; font-size: 18px; }
         @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-50px); } }
+        
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; z-index: 1000; }
         .nav-item { font-size: 24px; opacity: 0.3; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.2); }
@@ -159,20 +166,29 @@ async def web_ui():
         <button id="daily-btn" class="btn" style="width:100%; background:var(--blue); color:#FFF; margin-bottom:15px; height:45px" onclick="claimDaily()">CLAIM DAILY REWARD</button>
         
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:42px; margin:5px 0">0.00</h1></div>
+        
+        <div class="energy-info">
+            <span>⚡ ENERGY</span>
+            <span id="energy-text">100 / 100</span>
+        </div>
+        <div class="energy-container">
+            <div id="energy-fill" class="energy-fill"></div>
+        </div>
+
         <div class="cps-box">STABILITY: <span id="cps-val">0</span> CLICKS/S</div>
 
         <div class="section-title">Mining Units</div>
         <div class="card">
             <div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn" id="btn-genesis" onclick="mine('genesis', event)" style="background:var(--green)">CLAIM</button>
+            <button class="btn mine-btn" id="btn-genesis" onclick="mine('genesis', event)" style="background:var(--green)">CLAIM</button>
         </div>
         <div class="card">
             <div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn" id="btn-unity" onclick="mine('unity', event)">SYNC</button>
+            <button class="btn mine-btn" id="btn-unity" onclick="mine('unity', event)">SYNC</button>
         </div>
         <div class="card">
             <div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn" id="btn-veo" onclick="mine('veo', event)" style="background:var(--blue);color:#FFF">COMPUTE</button>
+            <button class="btn mine-btn" id="btn-veo" onclick="mine('veo', event)" style="background:var(--blue);color:#FFF">COMPUTE</button>
         </div>
 
         <div class="section-title">Ecosystem Pillars</div>
@@ -185,7 +201,7 @@ async def web_ui():
     </div>
 
     <div id="p-tasks" style="display:none">
-        <div class="header">LEADERBOARD</div>
+        <div class="header" style="text-align:center; padding:20px">LEADERBOARD</div>
         <div id="rank-list"></div>
     </div>
 
@@ -198,9 +214,29 @@ async def web_ui():
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
         const clickSound = new Audio('https://www.soundjay.com/buttons/button-16.mp3');
+        
         let clickCount = 0;
+        let energy = 100;
+        const maxEnergy = 100;
+
+        // Energy Regen (1 point every 1.5s)
+        setInterval(() => {
+            if (energy < maxEnergy) {
+                energy++;
+                updateEnergyUI();
+            }
+        }, 1500);
 
         setInterval(() => { document.getElementById('cps-val').innerText = clickCount; clickCount = 0; }, 1000);
+
+        function updateEnergyUI() {
+            document.getElementById('energy-text').innerText = `${energy} / ${maxEnergy}`;
+            document.getElementById('energy-fill').style.width = `${(energy / maxEnergy) * 100}%`;
+            
+            // Disable buttons if no energy
+            const btns = document.querySelectorAll('.mine-btn');
+            btns.forEach(btn => btn.disabled = (energy <= 0));
+        }
 
         function createFloatingText(e, text, color) {
             const el = document.createElement('div');
@@ -215,14 +251,12 @@ async def web_ui():
             const r = await fetch('/api/user/' + uid);
             const d = await r.json();
             
-            // Stats Profil
             document.getElementById('u-name').innerText = d.name;
             document.getElementById('u-avatar').innerText = d.name.charAt(0).toUpperCase();
             document.getElementById('total-clicks').innerText = d.clicks;
             let totalVal = d.g + d.u + d.v;
             document.getElementById('total-harvest').innerText = totalVal.toFixed(2);
 
-            // Interface
             document.getElementById('gv').innerText = d.g.toFixed(2);
             document.getElementById('uv').innerText = d.u.toFixed(2);
             document.getElementById('vv').innerText = d.v.toFixed(2);
@@ -243,10 +277,16 @@ async def web_ui():
         }
 
         async function mine(t, e) {
+            if (energy <= 0) return;
+            
+            energy--;
             clickCount++;
+            updateEnergyUI();
+            
             clickSound.play();
             tg.HapticFeedback.impactOccurred('light');
             createFloatingText(e, t==='veo'?'+0.01':'+0.05', t==='veo'?'#007AFF':'#34C759');
+            
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             refresh();
         }
@@ -262,7 +302,10 @@ async def web_ui():
             document.getElementById('n-mine').classList.toggle('active', p=='mine');
             document.getElementById('n-tasks').classList.toggle('active', p=='tasks');
         }
-        refresh(); setInterval(refresh, 5000);
+        
+        updateEnergyUI();
+        refresh(); 
+        setInterval(refresh, 8000);
     </script>
 </body>
 </html>
