@@ -2,26 +2,25 @@ import os, sqlite3, asyncio, uvicorn, logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ApplicationBuilder, CommandHandler, PreCheckoutQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, PreCheckoutQueryHandler, ContextTypes
 
-# --- CONFIGURATION DU STOCKAGE PERMANENT ---
+# --- CONFIGURATION (CONSERVÉE) ---
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 WEBAPP_URL = os.getenv("WEBAPP_URL")
 BOT_USERNAME = "OWPCsbot"
 
-# Utilisation du volume Railway monté sur /app/data
+# --- VOLUME RAILWAY (SÉCURISÉ) ---
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
+    os.makedirs(DATA_DIR, exist_ok=True)
 
 DB_PATH = os.path.join(DATA_DIR, "owpc_data.db")
 logging.basicConfig(level=logging.INFO)
-logging.info(f"💾 Database path: {DB_PATH}")
 
 app = FastAPI()
 
-# --- 🗄️ DATABASE (Initialisation) ---
+# --- 🗄️ DATABASE ---
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -34,12 +33,8 @@ def init_db():
 # --- 🤖 BOT LOGIC ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
+    ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
     
-    # Gestion du parrainage (Deep Link)
-    ref_id = None
-    if context.args and context.args[0].isdigit():
-        ref_id = int(context.args[0])
-
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT user_id FROM users WHERE user_id = ?", (uid,))
     if not c.fetchone():
@@ -48,53 +43,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute("UPDATE users SET points_unity = points_unity + 5.0, ref_count = ref_count + 1 WHERE user_id = ?", (ref_id,))
     conn.commit(); conn.close()
 
-    # Facture Stars (si l'utilisateur clique sur Boost dans l'app)
-    if context.args and "boost" in context.args[0]:
-        token_type = context.args[0].split('_')[1]
-        await update.message.reply_invoice(
-            title=f"🚀 {token_type.upper()} BOOST",
-            description=f"Add +10.00 {token_type.upper()} to your account!",
-            payload=f"boost_{token_type}",
-            provider_token="", currency="XTR",
-            prices=[LabeledPrice("Boost Extra", 50)]
-        )
-        return
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ ACCESS TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await update.message.reply_text(f"--- PROTOCOL OWPC v21 ---\nStatus: Encrypted\nVolume: Online", reply_markup=kb)
 
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to OWPC Protocol.\nMining Terminal is Active.", reply_markup=kb)
-
-# --- 🛰️ API ENDPOINTS (CORRIGÉS) ---
+# --- 🛰️ API ---
 @app.get("/api/user/{uid}")
 async def get_user_api(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("SELECT points_genesis, points_unity, points_veo, ref_count FROM users WHERE user_id=?", (uid,))
+    c.execute("SELECT points_genesis, points_unity, points_veo FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
     conn.close()
-    if r:
-        return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3]}
-    return {"g": 0.0, "u": 0.0, "v": 0.0, "rc": 0}
+    return {"g": r[0], "u": r[1], "v": r[2]} if r else {"g":0,"u":0,"v":0}
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
     data = await request.json()
-    uid = data.get("user_id")
-    t = data.get("token")
-    
+    uid, t = data.get("user_id"), data.get("token")
     gain = 0.01 if t == 'veo' else 0.05
-    col = f"points_{t}" # points_genesis, points_unity ou points_veo
+    col = {"genesis":"points_genesis", "unity":"points_unity", "veo":"points_veo"}.get(t)
     
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    try:
-        query = f"UPDATE users SET {col} = {col} + ? WHERE user_id = ?"
-        c.execute(query, (gain, uid))
-        conn.commit()
-    except Exception as e:
-        logging.error(f"SQL Error: {e}")
-    finally:
-        conn.close()
+    c.execute(f"UPDATE users SET {col} = {col} + ? WHERE user_id = ?", (gain, uid))
+    conn.commit(); conn.close()
     return {"ok": True}
 
-# --- 🌐 MINI APP (Interface Unifiée) ---
+# --- 🌐 WEB APP (DESIGN CYBERPUNK) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return f"""
@@ -104,69 +77,105 @@ async def web_ui():
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
-            body {{ background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; margin: 0; padding: 15px; }}
-            .card {{ background: #111; border: 1px solid #333; border-radius: 12px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }}
-            .btn-mine {{ width: 100%; padding: 15px; border-radius: 8px; border: none; font-weight: bold; margin-bottom: 20px; cursor: pointer; }}
-            .btn-boost {{ background: gold; color: #000; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; border: none; cursor: pointer; }}
+            :root {{ --neon-g: #0f0; --neon-u: #fff; --neon-v: #00e5ff; }}
+            body {{ background: #050505; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; margin: 0; padding: 20px; }}
+            
+            /* Scanline Effect */
+            body::before {{ content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 2; background-size: 100% 4px, 3px 100%; pointer-events: none; }}
+            
+            .header {{ border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; color: var(--neon-g); text-shadow: 0 0 5px var(--neon-g); }}
+            
+            .token-box {{ background: rgba(20,20,20,0.8); border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 15px; position: relative; overflow: hidden; }}
+            .token-label {{ font-size: 12px; color: #888; letter-spacing: 2px; }}
+            .token-val {{ font-size: 28px; font-weight: bold; margin: 5px 0; }}
+            
+            .progress-bg {{ background: #222; height: 4px; width: 100%; border-radius: 2px; margin-top: 10px; }}
+            .progress-fill {{ height: 100%; width: 0%; transition: width 0.3s; }}
+            
+            .btn-mine {{ width: 100%; padding: 18px; border: 1px solid #444; background: transparent; color: #fff; font-family: 'Courier New'; font-weight: bold; cursor: pointer; transition: 0.2s; }}
+            .btn-mine:active {{ transform: scale(0.98); background: rgba(255,255,255,0.1); }}
+            
+            #g-box {{ border-left: 4px solid var(--neon-g); }} .g-text {{ color: var(--neon-g); }}
+            #u-box {{ border-left: 4px solid var(--neon-u); }} .u-text {{ color: var(--neon-u); }}
+            #v-box {{ border-left: 4px solid var(--neon-v); }} .v-text {{ color: var(--neon-v); }}
+            
+            .floating-text {{ position: absolute; color: gold; font-weight: bold; pointer-events: none; animation: floatUp 0.8s forwards; }}
+            @keyframes floatUp {{ from {{ transform: translateY(0); opacity: 1; }} to {{ transform: translateY(-50px); opacity: 0; }} }}
         </style>
     </head>
     <body>
-        <h3>OWPC TERMINAL v2.0</h3>
+        <div class="header">>> OWPC_TERMINAL_v21.0</div>
         
-        <div class="card"><span>GENESIS</span><span id="bal_genesis">0.00</span></div>
-        <button class="btn-mine" style="background:#0f0; color:#000;" onclick="mine('genesis')">EXTRACT GENESIS</button>
+        <div class="token-box" id="g-box">
+            <div class="token-label">GENESIS_PROTOCOL</div>
+            <div class="token-val g-text" id="g_val">0.00</div>
+            <div class="progress-bg"><div id="g_bar" class="progress-fill" style="background:var(--neon-g)"></div></div>
+        </div>
+        <button class="btn-mine" onclick="mine('genesis', this)">[ INITIALIZE EXTRACTION ]</button>
 
-        <div class="card"><span>UNITY</span><span id="bal_unity">0.00</span></div>
-        <button class="btn-mine" style="background:#fff; color:#000;" onclick="mine('unity')">EXTRACT UNITY</button>
+        <div class="token-box" id="u-box">
+            <div class="token-label">UNITY_CORE</div>
+            <div class="token-val u-text" id="u_val">0.00</div>
+            <div class="progress-bg"><div id="u_bar" class="progress-fill" style="background:var(--neon-u)"></div></div>
+        </div>
+        <button class="btn-mine" onclick="mine('unity', this)">[ SYNC NODES ]</button>
 
-        <div class="card"><span>VEO AI</span><span id="bal_veo">0.00</span></div>
-        <button class="btn-mine" style="background:#00bcd4; color:#fff;" onclick="mine('veo')">EXTRACT VEO</button>
-
-        <button class="btn-boost" onclick="buyBoost('veo')">⭐ BOOST VEO (50 Stars)</button>
+        <div class="token-box" id="v-box">
+            <div class="token-label">VEO_AI_QUANTUM</div>
+            <div class="token-val v-text" id="v_val">0.00</div>
+            <div class="progress-bg"><div id="v_bar" class="progress-fill" style="background:var(--neon-v)"></div></div>
+        </div>
+        <button class="btn-mine" onclick="mine('veo', this)">[ COMPUTE NEURALS ]</button>
 
         <script>
             let tg = window.Telegram.WebApp; tg.expand();
             const uid = tg.initDataUnsafe.user.id;
 
-            async function loadData() {{
+            async function refresh() {{
                 const r = await fetch('/api/user/' + uid);
                 const d = await r.json();
-                document.getElementById('bal_genesis').innerText = d.g.toFixed(2);
-                document.getElementById('bal_unity').innerText = d.u.toFixed(2);
-                document.getElementById('bal_veo').innerText = d.v.toFixed(2);
+                document.getElementById('g_val').innerText = d.g.toFixed(2);
+                document.getElementById('u_val').innerText = d.u.toFixed(2);
+                document.getElementById('v_val').innerText = d.v.toFixed(2);
+                
+                // Update Progress Bars (loop effect)
+                document.getElementById('g_bar').style.width = (d.g % 1 * 100) + "%";
+                document.getElementById('u_bar').style.width = (d.u % 1 * 100) + "%";
+                document.getElementById('v_bar').style.width = (d.v % 1 * 100) + "%";
             }}
 
-            async function mine(t) {{
-                tg.HapticFeedback.impactOccurred('light');
+            async function mine(t, btn) {{
+                tg.HapticFeedback.impactOccurred('medium');
+                
+                // Animation flottante
+                let span = document.createElement('span');
+                span.className = 'floating-text';
+                span.innerText = (t === 'veo' ? '+0.01' : '+0.05');
+                span.style.left = Math.random() * 80 + 10 + '%';
+                btn.parentElement.appendChild(span);
+                setTimeout(() => span.remove(), 800);
+
                 await fetch('/api/mine', {{
                     method: 'POST',
                     headers: {{'Content-Type': 'application/json'}},
                     body: JSON.stringify({{user_id: uid, token: t}})
                 }});
-                loadData();
+                refresh();
             }}
 
-            function buyBoost(t) {{
-                tg.openTelegramLink("https://t.me/{BOT_USERNAME}?start=boost_" + t);
-                setTimeout(() => {{ tg.close(); }}, 100);
-            }}
-
-            loadData();
-            setInterval(loadData, 5000); // Refresh auto toutes les 5s
+            refresh();
+            setInterval(refresh, 3000);
         </script>
-    </body></html>
+    </body>
+    </html>
     """
 
-# --- SERVER START ---
 async def main():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
     bot.add_handler(CommandHandler("start", start))
-    bot.add_handler(PreCheckoutQueryHandler(lambda u, c: u.pre_checkout_query.answer(ok=True)))
-    
     await bot.initialize(); await bot.start()
     asyncio.create_task(bot.updater.start_polling())
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == "__main__": asyncio.run(main())
