@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v30.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v31.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -62,7 +62,7 @@ async def success_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("UPDATE users SET p_veo = p_veo + 10.0 WHERE user_id = ?", (uid,))
     conn.commit(); conn.close()
-    await update.message.reply_text("✅ Payment Successful! +10.00 VEO added to your account.")
+    await update.message.reply_text("✅ Payment Successful! +10.00 VEO added.")
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -143,8 +143,8 @@ async def web_ui():
         </div>
         <h2>ECOSYSTEM</h2>
         <div class="card"><div>Genesis<br><small>Blum Memepad</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
-        <div class="card"><div>Unity<br><small>Node Network</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_6vK2A-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
-        <div class="card"><div>Veo AI<br><small>Quantum Power</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_7zL3B-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+        <div class="card"><div>Unity<br><small>Node Network</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+        <div class="card"><div>Veo AI<br><small>Quantum Power</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
         <div class="card" style="border: 1px solid gold"><div>Boost +10 VEO<br><small style="color:gold">Stars Payment</small></div><div class="btn" style="background:gold; color:#000" onclick="donate()">BUY ⭐</div></div>
     </div>
     <div id="p-ranks" style="display:none">
