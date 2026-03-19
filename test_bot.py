@@ -12,7 +12,7 @@ TOKEN = os.getenv("TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 DB_PATH = "owpc_data.db"
 WEBAPP_URL = "https://veos-production.up.railway.app" 
-BOT_USERNAME = "TonBotUsername" # Remplace par l'ID de ton bot (ex: OWPC_Bot)
+BOT_USERNAME = "OWPCsbot" # Remplace par l'ID de ton bot (ex: OWPC_Bot)
 
 app = FastAPI()
 
