@@ -101,7 +101,7 @@ async def mine_api(request: Request):
         return {"ok": True}
     return {"ok": False}
 
-# --- WEB UI (AVEC ONGLETS PILLARS ET REFERRAL) ---
+# --- WEB UI (RETOUR DE L'HISTORIQUE + NOUVEAUX ONGLETS) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -112,7 +112,7 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
-        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
         .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; }
         .balance { text-align: center; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); margin-bottom: 15px; }
@@ -123,6 +123,7 @@ async def web_ui():
         .nav-item { font-size: 20px; opacity: 0.3; cursor: pointer; }
         .nav-item.active { opacity: 1; }
         .section-title { font-size: 11px; font-weight: 700; color: var(--text); margin: 20px 0 8px 5px; text-transform: uppercase; }
+        .history-item { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); padding: 8px 0; border-bottom: 1px solid #1c1c1e; }
     </style>
 </head>
 <body>
@@ -136,6 +137,9 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('genesis')">CLAIM</button></div>
         <div class="card"><div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
+        
+        <div class="section-title">Recent Activity</div>
+        <div id="history-list" style="background: var(--card); padding: 10px 15px; border-radius: 18px; border: 1px solid #1C1C1E;"></div>
     </div>
 
     <div id="p-pillars" style="display:none">
@@ -169,21 +173,35 @@ async def web_ui():
 
         async function refresh() {
             if(!uid) return;
-            const r = await fetch(`${apiBase}/api/user/${uid}`);
-            if(!r.ok) return;
-            const d = await r.json();
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
-            document.getElementById('u-ref').innerText = d.rc;
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
-            document.getElementById('ref-link').innerText = `https://t.me/your_bot_name?start=${uid}`; // À adapter avec ton bot
+            try {
+                const r = await fetch(`${apiBase}/api/user/${uid}`);
+                if(!r.ok) return;
+                const d = await r.json();
+                
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
+                document.getElementById('u-ref').innerText = d.rc;
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
+                
+                // Ton bot username pour le lien de parrainage
+                const botUsername = "TON_BOT_USERNAME"; // <-- METS TON NOM DE BOT ICI (ex: owpc_hub_bot)
+                document.getElementById('ref-link').innerText = `https://t.me/${botUsername}?start=${uid}`;
 
-            let r_html = "";
-            d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = r_html;
+                // Remplissage de l'historique
+                let h_html = "";
+                d.history.forEach(h => {
+                    let color = h.t.includes('REFERRAL') ? 'var(--gold)' : 'var(--text)';
+                    h_html += `<div class="history-item"><span style="color:${color}">${h.t}</span><b>+${h.a}</b></div>`;
+                });
+                document.getElementById('history-list').innerHTML = h_html || "<small>No activity yet</small>";
+
+                let r_html = "";
+                d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+                document.getElementById('rank-list').innerHTML = r_html;
+            } catch(e) { console.error("Refresh failed", e); }
         }
 
         async function mine(t) {
@@ -206,10 +224,13 @@ async def web_ui():
         }
 
         refresh();
+        // Rafraîchir toutes les 10 secondes pour voir les points de parrainage tomber
+        setInterval(refresh, 10000);
     </script>
 </body>
 </html>
     """
+
 
 async def main():
     global bot_app
