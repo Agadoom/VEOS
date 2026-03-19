@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v39.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v34.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
