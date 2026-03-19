@@ -253,4 +253,3 @@ async def main():
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
 
 if __name__ == "__main__": asyncio.run(main())
-Tant qu'il est on xhange juste le problème de base des données
