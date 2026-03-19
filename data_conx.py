@@ -1,62 +1,43 @@
 import os
 import psycopg2
 import logging
-import time
 
-# Récupération de l'URL (Assure-toi de coller l'URL publique en texte brut sur Railway)
+# On récupère la variable
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# DEBUG : Ceci apparaîtra dans tes logs Railway au démarrage
+print(f"--- DEBUG DATABASE ---")
+print(f"URL Trouvée: {bool(DATABASE_URL)}")
+if DATABASE_URL:
+    print(f"Début de l'URL: {DATABASE_URL[:15]}...")
+
 def get_db_conn():
-    """Établit la connexion à PostgreSQL avec gestion d'erreurs."""
-    if not DATABASE_URL:
-        logging.error("DATABASE_URL est absente des variables d'environnement !")
+    url = os.getenv("DATABASE_URL")
+    if not url:
         return None
-    
     try:
-        # sslmode='require' est obligatoire pour les connexions Railway hors réseau interne
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        return conn
+        # On force sslmode=require pour les connexions externes Railway
+        return psycopg2.connect(url, sslmode='require')
     except Exception as e:
-        logging.error(f"Erreur de connexion PG: {e}")
+        logging.error(f"Erreur PG: {e}")
         return None
 
 def init_db():
-    """Initialise les tables si elles n'existent pas au démarrage."""
-    # On attend 2 secondes pour laisser le temps à la base de respirer au reboot
-    time.sleep(2)
-    
     conn = get_db_conn()
     if not conn:
-        logging.error("Impossible d'initialiser la base : connexion échouée.")
+        logging.error("Échec initialisation : DATABASE_URL non reconnue ou inaccessible.")
         return
-
     try:
         c = conn.cursor()
-        
-        # Table Users (Note l'utilisation de BIGINT pour les ID Telegram)
         c.execute('''CREATE TABLE IF NOT EXISTS users 
-                     (user_id BIGINT PRIMARY KEY, 
-                      name TEXT, 
-                      p_genesis REAL DEFAULT 0, 
-                      p_unity REAL DEFAULT 0, 
-                      p_veo REAL DEFAULT 0, 
-                      ref_count INTEGER DEFAULT 0,
-                      total_clicks INTEGER DEFAULT 0,
-                      last_daily INTEGER DEFAULT 0, 
-                      referred_by BIGINT)''')
-        
-        # Table Logs (SERIAL permet l'auto-incrémentation sur Postgres)
+                     (user_id BIGINT PRIMARY KEY, name TEXT, 
+                      p_genesis REAL DEFAULT 0, p_unity REAL DEFAULT 0, 
+                      p_veo REAL DEFAULT 0, total_clicks INTEGER DEFAULT 0)''')
         c.execute('''CREATE TABLE IF NOT EXISTS logs 
-                     (id SERIAL PRIMARY KEY, 
-                      user_id BIGINT, 
-                      token TEXT, 
-                      amount REAL, 
-                      timestamp INTEGER)''')
-        
+                     (id SERIAL PRIMARY KEY, user_id BIGINT, token TEXT, amount REAL, timestamp INTEGER)''')
         conn.commit()
-        logging.info("✅ PostgreSQL Initialisé : Tables créées ou déjà présentes.")
+        logging.info("Base PostgreSQL connectée et prête.")
     except Exception as e:
-        logging.error(f"Erreur lors du CREATE TABLE : {e}")
+        logging.error(f"Erreur init_db: {e}")
     finally:
-        c.close()
         conn.close()
