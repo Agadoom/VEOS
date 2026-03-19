@@ -7,3 +7,4 @@ web3
 fastapi
 uvicorn
 psycopg2-binary
+httpx
