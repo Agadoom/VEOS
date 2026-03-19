@@ -25,13 +25,38 @@ def get_stats(uid):
     return {"total": 0, "g": 0, "u": 0, "v": 0.0}
 
 # --- MENU PRINCIPAL (Mapping Exact) ---
-def main_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="hof")],
-        [InlineKeyboardButton("🆔 Passport", callback_data="passport"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="lucky")],
-        [InlineKeyboardButton("📊 Stats", callback_data="stats"), InlineKeyboardButton("🔗 Invite", callback_data="invite")]
-    ])
+# ... (garde tout le reste du code identique) ...
+
+async def main():
+    # Configuration du Bot avec nettoyage des messages en attente
+    bot_app = ApplicationBuilder().token(TOKEN).build()
+    
+    # Handlers
+    bot_app.add_handler(CommandHandler("start", start))
+    bot_app.add_handler(CallbackQueryHandler(cb_handler))
+    
+    # INITIALISATION FORCÉE
+    await bot_app.initialize()
+    await bot_app.start()
+    
+    # drop_pending_updates=True est CRUCIAL ici : 
+    # il supprime tous les vieux messages qui bloquent la file d'attente
+    print("🧹 [CLEAN] Purging old pending updates...")
+    asyncio.create_task(bot_app.updater.start_polling(drop_pending_updates=True))
+    
+    print("✅ [READY] Bot is now responsive to new /start commands")
+
+    # Serveur Web
+    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, log_level="info")
+    server = uvicorn.Server(config)
+    await server.serve()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+
 
 # --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
