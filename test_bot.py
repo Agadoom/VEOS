@@ -2,15 +2,15 @@ import os, sqlite3, asyncio, uvicorn, logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
-from telegram.ext import ApplicationBuilder, CommandHandler, PreCheckoutQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# --- CONFIGURATION (CONSERVÉE) ---
+# --- CONFIGURATION ---
 TOKEN = os.getenv("TOKEN")
 PORT = int(os.getenv("PORT", 8080))
 WEBAPP_URL = os.getenv("WEBAPP_URL")
 BOT_USERNAME = "OWPCsbot"
 
-# --- VOLUME RAILWAY (SÉCURISÉ) ---
+# --- VOLUME RAILWAY ---
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -44,7 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit(); conn.close()
 
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ ACCESS TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"--- PROTOCOL OWPC v21 ---\nStatus: Encrypted\nVolume: Online", reply_markup=kb)
+    await update.message.reply_text(f"--- PROTOCOL OWPC ---\nUtilisateur: {name}\nSystème: Opérationnel", reply_markup=kb)
 
 # --- 🛰️ API ---
 @app.get("/api/user/{uid}")
@@ -78,80 +78,70 @@ async def web_ui():
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             :root {{ --neon-g: #0f0; --neon-u: #fff; --neon-v: #00e5ff; }}
-            body {{ background: #050505; color: #fff; font-family: 'Courier New', monospace; overflow: hidden; margin: 0; padding: 20px; }}
-            
-            /* Scanline Effect */
-            body::before {{ content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 2; background-size: 100% 4px, 3px 100%; pointer-events: none; }}
-            
-            .header {{ border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; color: var(--neon-g); text-shadow: 0 0 5px var(--neon-g); }}
-            
-            .token-box {{ background: rgba(20,20,20,0.8); border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 15px; position: relative; overflow: hidden; }}
-            .token-label {{ font-size: 12px; color: #888; letter-spacing: 2px; }}
-            .token-val {{ font-size: 28px; font-weight: bold; margin: 5px 0; }}
-            
-            .progress-bg {{ background: #222; height: 4px; width: 100%; border-radius: 2px; margin-top: 10px; }}
+            body {{ background: #050505; color: #fff; font-family: 'Courier New', monospace; margin: 0; padding: 20px; }}
+            body::before {{ content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 10; background-size: 100% 4px, 3px 100%; pointer-events: none; }}
+            .header {{ border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; color: var(--neon-g); text-shadow: 0 0 5px var(--neon-g); font-weight:bold; }}
+            .token-box {{ background: rgba(20,20,20,0.8); border: 1px solid #333; border-radius: 8px; padding: 15px; margin-bottom: 10px; border-left: 4px solid #444; }}
+            .token-label {{ font-size: 11px; color: #888; letter-spacing: 1px; }}
+            .token-val {{ font-size: 24px; font-weight: bold; margin: 5px 0; }}
+            .progress-bg {{ background: #222; height: 4px; width: 100%; border-radius: 2px; margin-top: 8px; overflow:hidden; }}
             .progress-fill {{ height: 100%; width: 0%; transition: width 0.3s; }}
-            
-            .btn-mine {{ width: 100%; padding: 18px; border: 1px solid #444; background: transparent; color: #fff; font-family: 'Courier New'; font-weight: bold; cursor: pointer; transition: 0.2s; }}
-            .btn-mine:active {{ transform: scale(0.98); background: rgba(255,255,255,0.1); }}
-            
-            #g-box {{ border-left: 4px solid var(--neon-g); }} .g-text {{ color: var(--neon-g); }}
-            #u-box {{ border-left: 4px solid var(--neon-u); }} .u-text {{ color: var(--neon-u); }}
-            #v-box {{ border-left: 4px solid var(--neon-v); }} .v-text {{ color: var(--neon-v); }}
-            
-            .floating-text {{ position: absolute; color: gold; font-weight: bold; pointer-events: none; animation: floatUp 0.8s forwards; }}
-            @keyframes floatUp {{ from {{ transform: translateY(0); opacity: 1; }} to {{ transform: translateY(-50px); opacity: 0; }} }}
+            .btn-mine {{ width: 100%; padding: 15px; border: 1px solid #444; background: #111; color: #fff; font-family: 'Courier New'; font-weight: bold; cursor: pointer; margin-bottom: 20px; }}
+            .btn-mine:active {{ background: #222; transform: translateY(2px); }}
+            .floating-text {{ position: absolute; color: gold; font-weight: bold; pointer-events: none; animation: floatUp 0.8s forwards; z-index:100; }}
+            @keyframes floatUp {{ from {{ transform: translateY(0); opacity: 1; }} to {{ transform: translateY(-40px); opacity: 0; }} }}
         </style>
     </head>
     <body>
-        <div class="header">>> OWPC_TERMINAL_v21.0</div>
+        <div class="header">>> OWPC_TERMINAL_v21.1</div>
         
-        <div class="token-box" id="g-box">
+        <div class="token-box" style="border-left-color:var(--neon-g)">
             <div class="token-label">GENESIS_PROTOCOL</div>
-            <div class="token-val g-text" id="g_val">0.00</div>
+            <div class="token-val" style="color:var(--neon-g)" id="g_val">0.00</div>
             <div class="progress-bg"><div id="g_bar" class="progress-fill" style="background:var(--neon-g)"></div></div>
         </div>
-        <button class="btn-mine" onclick="mine('genesis', this)">[ INITIALIZE EXTRACTION ]</button>
+        <button class="btn-mine" onclick="mine('genesis', this)">[ EXTRACT_GENESIS ]</button>
 
-        <div class="token-box" id="u-box">
+        <div class="token-box" style="border-left-color:var(--neon-u)">
             <div class="token-label">UNITY_CORE</div>
-            <div class="token-val u-text" id="u_val">0.00</div>
+            <div class="token-val" style="color:var(--neon-u)" id="u_val">0.00</div>
             <div class="progress-bg"><div id="u_bar" class="progress-fill" style="background:var(--neon-u)"></div></div>
         </div>
-        <button class="btn-mine" onclick="mine('unity', this)">[ SYNC NODES ]</button>
+        <button class="btn-mine" onclick="mine('unity', this)">[ SYNC_UNITY ]</button>
 
-        <div class="token-box" id="v-box">
+        <div class="token-box" style="border-left-color:var(--neon-v)">
             <div class="token-label">VEO_AI_QUANTUM</div>
-            <div class="token-val v-text" id="v_val">0.00</div>
+            <div class="token-val" style="color:var(--neon-v)" id="v_val">0.00</div>
             <div class="progress-bg"><div id="v_bar" class="progress-fill" style="background:var(--neon-v)"></div></div>
         </div>
-        <button class="btn-mine" onclick="mine('veo', this)">[ COMPUTE NEURALS ]</button>
+        <button class="btn-mine" onclick="mine('veo', this)">[ COMPUTE_VEO ]</button>
 
         <script>
             let tg = window.Telegram.WebApp; tg.expand();
-            const uid = tg.initDataUnsafe.user.id;
+            const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
 
             async function refresh() {{
-                const r = await fetch('/api/user/' + uid);
-                const d = await r.json();
-                document.getElementById('g_val').innerText = d.g.toFixed(2);
-                document.getElementById('u_val').innerText = d.u.toFixed(2);
-                document.getElementById('v_val').innerText = d.v.toFixed(2);
-                
-                // Update Progress Bars (loop effect)
-                document.getElementById('g_bar').style.width = (d.g % 1 * 100) + "%";
-                document.getElementById('u_bar').style.width = (d.u % 1 * 100) + "%";
-                document.getElementById('v_bar').style.width = (d.v % 1 * 100) + "%";
+                if(uid === 0) return;
+                try {{
+                    const r = await fetch('/api/user/' + uid);
+                    const d = await r.json();
+                    document.getElementById('g_val').innerText = d.g.toFixed(2);
+                    document.getElementById('u_val').innerText = d.u.toFixed(2);
+                    document.getElementById('v_val').innerText = d.v.toFixed(2);
+                    document.getElementById('g_bar').style.width = (d.g % 1 * 100) + "%";
+                    document.getElementById('u_bar').style.width = (d.u % 1 * 100) + "%";
+                    document.getElementById('v_bar').style.width = (d.v % 1 * 100) + "%";
+                }} catch(e) {{ console.error(e); }}
             }}
 
             async function mine(t, btn) {{
+                if(uid === 0) return;
                 tg.HapticFeedback.impactOccurred('medium');
                 
-                // Animation flottante
                 let span = document.createElement('span');
                 span.className = 'floating-text';
                 span.innerText = (t === 'veo' ? '+0.01' : '+0.05');
-                span.style.left = Math.random() * 80 + 10 + '%';
+                span.style.left = '50%';
                 btn.parentElement.appendChild(span);
                 setTimeout(() => span.remove(), 800);
 
@@ -164,7 +154,7 @@ async def web_ui():
             }}
 
             refresh();
-            setInterval(refresh, 3000);
+            setInterval(refresh, 4000);
         </script>
     </body>
     </html>
