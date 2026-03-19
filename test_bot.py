@@ -63,16 +63,11 @@ async def daily_checkin(request: Request):
     c = conn.cursor()
     c.execute("SELECT last_daily FROM users WHERE user_id=%s", (uid,))
     res = c.fetchone()
-    
     now = int(time.time())
     last = res[0] if res and res[0] else 0
-    
-    # Vérifier si 24h sont passées (86400 secondes)
     if (now - last) < 86400:
         c.close(); conn.close()
         return {"ok": False, "msg": "Come back tomorrow!"}
-    
-    # Récompense simple : 0.5 UNITY par jour
     c.execute("UPDATE users SET p_unity = p_unity + 0.5, last_daily = %s WHERE user_id = %s", (now, uid))
     c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (%s, 'DAILY_BONUS', 0.5, %s)", (uid, now))
     conn.commit(); c.close(); conn.close()
@@ -95,14 +90,16 @@ async def get_user(uid: int):
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
-    # Calcul temps restant pour le Daily
     now = int(time.time())
     wait = max(0, 86400 - (now - (r[4] or 0)))
     
     c.execute("SELECT token, amount, timestamp FROM logs WHERE user_id=%s ORDER BY id DESC LIMIT 5", (uid,))
     history = [{"t": x[0], "a": x[1], "ts": x[2]} for x in c.fetchall()]
+    
+    # CORRECTION LEADERBOARD : On récupère le total réel de chaque utilisateur
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
     top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
+    
     c.close(); conn.close()
     return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "history": history, "name": r[6], "top": top, "next_daily": wait}
 
@@ -143,6 +140,7 @@ async def web_ui():
         .nav-item.active { opacity: 1; }
         .section-title { font-size: 11px; font-weight: 700; color: var(--text); margin: 20px 0 8px 5px; text-transform: uppercase; }
         .history-item { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); padding: 8px 0; border-bottom: 1px solid #1c1c1e; }
+        a { text-decoration: none; color: inherit; }
     </style>
 </head>
 <body>
@@ -165,6 +163,11 @@ async def web_ui():
     </div>
 
     <div id="p-pillars" style="display:none">
+        <div class="section-title">Ecosystem Pillars (Blum)</div>
+        <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+
         <div class="section-title">Your Referral Link</div>
         <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px;">
             <small id="ref-link" style="color:var(--blue); font-size:11px;">https://t.me/owpcsbot?start=...</small>
@@ -189,41 +192,42 @@ async def web_ui():
 
         async function refresh() {
             if(!uid) return;
-            const r = await fetch(`${apiBase}/api/user/${uid}`);
-            const d = await r.json();
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
-            document.getElementById('u-ref').innerText = d.rc;
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
-            document.getElementById('ref-link').innerText = `https://t.me/owpcsbot?start=${uid}`;
+            try {
+                const r = await fetch(`${apiBase}/api/user/${uid}`);
+                const d = await r.json();
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
+                document.getElementById('u-ref').innerText = d.rc;
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
+                document.getElementById('ref-link').innerText = `https://t.me/owpcsbot?start=${uid}`;
 
-            // Gestion du timer Daily
-            const btn = document.getElementById('daily-btn');
-            const timer = document.getElementById('daily-timer');
-            if(d.next_daily > 0) {
-                btn.disabled = true;
-                let h = Math.floor(d.next_daily/3600), m = Math.floor((d.next_daily%3600)/60);
-                timer.innerText = `Next in ${h}h ${m}m`;
-            } else {
-                btn.disabled = false;
-                timer.innerText = "Ready to claim!";
-            }
+                const btn = document.getElementById('daily-btn');
+                const timer = document.getElementById('daily-timer');
+                if(d.next_daily > 0) {
+                    btn.disabled = true;
+                    let h = Math.floor(d.next_daily/3600), m = Math.floor((d.next_daily%3600)/60);
+                    timer.innerText = `Next in ${h}h ${m}m`;
+                } else {
+                    btn.disabled = false;
+                    timer.innerText = "Ready to claim!";
+                }
 
-            let h_html = "";
-            d.history.forEach(h => { h_html += `<div class="history-item"><span>${h.t}</span><b>+${h.a}</b></div>`; });
-            document.getElementById('history-list').innerHTML = h_html;
+                let h_html = "";
+                d.history.forEach(h => { h_html += `<div class="history-item"><span>${h.t}</span><b>+${h.a}</b></div>`; });
+                document.getElementById('history-list').innerHTML = h_html;
 
-            let r_html = "";
-            d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = r_html;
+                let r_html = "";
+                d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+                document.getElementById('rank-list').innerHTML = r_html;
+            } catch(e) {}
         }
 
         async function claimDaily() {
             confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-            const r = await fetch(`${apiBase}/api/daily`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            await fetch(`${apiBase}/api/daily`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
             refresh();
         }
 
