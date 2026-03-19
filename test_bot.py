@@ -2,7 +2,7 @@ import os, sqlite3, asyncio, uvicorn, logging
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from telegram import Update, LabeledPrice, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, PreCheckoutQueryHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, PreCheckoutQueryHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
@@ -12,63 +12,67 @@ WEBAPP_URL = os.getenv("WEBAPP_URL")
 
 app = FastAPI()
 
-# --- ⭐️ LOGIQUE BOOST (STARS) ---
-@app.post("/api/boost")
-async def api_boost(request: Request):
-    data = await request.json()
-    uid = data.get("user_id")
-    token_type = data.get("token") # 'genesis', 'unity' ou 'veo'
-    
-    # Ici, on génère un lien de paiement (Invoice) via le bot
-    # Pour simplifier, on va dire que 50 Stars = +10.00 Tokens
-    # Note: Dans une version réelle, on envoie un sendInvoice via le bot Telegram
-    return {"invoice_url": f"https://t.me/OWPCsbot?start=boost_{token_type}"}
+# --- 🤖 LOGIQUE TELEGRAM (Paiements) ---
 
-# --- 🤖 BOT LOGIC ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Gestion du retour de paiement ou Boost
+    # Si l'URL contient "boost_genesis", on envoie la facture
     if context.args and "boost" in context.args[0]:
-        token = context.args[0].split('_')[1]
-        await update.message.reply_text(f"🚀 Preparation of the {token.upper()} Boost with Telegram Stars...")
-        # Ici tu enverrais : await context.bot.send_invoice(...)
+        token_type = context.args[0].split('_')[1]
+        price = 50 # Prix en Telegram Stars
+        
+        await update.message.reply_invoice(
+            title=f"🚀 Boost {token_type.upper()}",
+            description=f"Get +10.00 {token_type.upper()} tokens immediately!",
+            payload=f"boost_{token_type}",
+            provider_token="", # Vide pour les Telegram Stars
+            currency="XTR",    # Code pour Telegram Stars
+            prices=[LabeledPrice("Boost Extra", price)]
+        )
         return
 
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text("Welcome to OWPC Hub. Use Stars to boost your extraction.", reply_markup=kb)
+    await update.message.reply_text("Welcome to OWPC Hub. High-speed mining active.", reply_markup=kb)
 
-# --- 🌐 WEB APP (Boutons Boost avec Stars) ---
+# Validation du paiement (étape obligatoire)
+async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    await query.answer(ok=True)
+
+# Crédit des points après succès
+async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payment = update.message.successful_payment
+    payload = payment.invoice_payload # ex: boost_genesis
+    token = payload.split('_')[1]
+    uid = update.effective_user.id
+    
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    col = f"points_{token}"
+    c.execute(f"UPDATE users SET {col} = {col} + 10.0 WHERE user_id = ?", (uid,))
+    conn.commit(); conn.close()
+    
+    await update.message.reply_text(f"✅ Payment Successful! +10.00 {token.upper()} added to your balance.")
+
+# --- 🌐 WEB APP (Lien vers le Boost) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return f"""
     <html>
-    <head>
-        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script src="https://telegram.org/js/telegram-web-app.js"></script>
-        <style>
-            body {{ background: #000; color: #fff; font-family: sans-serif; text-align: center; }}
-            .card {{ background: #111; border: 1px solid #333; border-radius: 15px; padding: 15px; margin: 10px; }}
-            .boost-btn {{ background: gold; color: #000; border: none; padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer; }}
-            .token-val {{ color: #0f0; font-size: 1.5em; }}
-        </style>
+    <head><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {{ background: #000; color: #fff; font-family: sans-serif; text-align: center; }}
+        .boost-btn {{ background: #0f0; color: #000; border: none; padding: 15px; border-radius: 10px; width: 90%; font-weight: bold; margin: 10px; }}
+    </style>
     </head>
     <body>
-        <h2>OWPC PREMIUM MINING</h2>
-        
-        <div class="card">
-            <p>GENESIS: <span class="token-val" id="g">0.00</span></p>
-            <button class="boost-btn" onclick="buyBoost('genesis')">⭐ BOOST WITH STARS</button>
-        </div>
-
-        <div class="card">
-            <p>UNITY: <span class="token-val" id="u">0.00</span></p>
-            <button class="boost-btn" onclick="buyBoost('unity')">⭐ BOOST WITH STARS</button>
-        </div>
-
+        <h2>PREMIUM BOOSTS</h2>
+        <button class="boost-btn" onclick="pay('genesis')">⭐ BOOST GENESIS (50 Stars)</button>
+        <button class="boost-btn" onclick="pay('unity')">⭐ BOOST UNITY (50 Stars)</button>
         <script>
             let tg = window.Telegram.WebApp;
-            function buyBoost(token) {{
-                // On ferme la webapp pour aller sur le paiement du bot
-                tg.openTelegramLink("https://t.me/OWPCsbot?start=boost_" + token);
+            function pay(t) {{
+                // Redirige vers le bot avec le paramètre de boost
+                tg.openTelegramLink("https://t.me/OWPCsbot?start=boost_" + t);
                 tg.close();
             }}
         </script>
@@ -78,9 +82,15 @@ async def web_ui():
 # --- SERVER ---
 async def main():
     bot = ApplicationBuilder().token(TOKEN).build()
+    
+    # Handlers pour les paiements
     bot.add_handler(CommandHandler("start", start))
+    bot.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    bot.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    
     await bot.initialize(); await bot.start()
     asyncio.create_task(bot.updater.start_polling())
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
 
-if __name__ == "__main__": asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
