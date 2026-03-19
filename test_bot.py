@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v38.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v37.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -52,7 +52,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to the Hub, {name}!", reply_markup=kb)
+    await update.message.reply_text(f"Welcome to the Ecosystem, {name}!", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -81,6 +81,20 @@ async def mine_api(request: Request):
     conn.commit(); conn.close()
     return {"ok": True}
 
+@app.post("/api/daily/{uid}")
+async def daily_api(uid: int):
+    now = int(time.time())
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("SELECT last_daily FROM users WHERE user_id=?", (uid,))
+    res = c.fetchone()
+    if res and (now - res[0]) > 86400:
+        c.execute("UPDATE users SET p_unity = p_unity + 1.0, last_daily = ?, total_clicks = total_clicks + 1 WHERE user_id = ?", (now, uid))
+        c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, "DAILY", 1.0, now))
+        conn.commit(); conn.close()
+        return {"ok": True}
+    conn.close()
+    return {"ok": False}
+
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -95,29 +109,27 @@ async def web_ui():
         :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 90px; overflow-x: hidden; }
         
+        /* User Profile Header */
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #161618; border-radius: 15px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
         .user-info { display: flex; align-items: center; gap: 10px; }
-        .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+        .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: #fff; }
+        .global-stats { display: flex; gap: 15px; font-size: 12px; }
         .stat-item { text-align: right; }
         .stat-label { color: var(--text); font-size: 10px; text-transform: uppercase; display: block; }
-        .stat-value { font-weight: 700; color: var(--gold); font-size: 12px; }
+        .stat-value { font-weight: 700; color: var(--gold); }
 
-        .balance { text-align: center; margin-bottom: 10px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); }
-        
-        /* ENERGY BAR */
-        .energy-container { width: 100%; height: 12px; background: #222; border-radius: 10px; margin-bottom: 20px; overflow: hidden; border: 1px solid #333; }
-        .energy-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #FFD700, #FFA500); transition: width 0.3s ease; }
-        .energy-text { text-align: center; font-size: 10px; color: var(--gold); margin-top: -15px; margin-bottom: 15px; font-weight: bold; }
-
+        .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
+        .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; position: relative; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; min-width: 85px; z-index: 2; }
-        .btn:disabled { background: #444; color: #888; cursor: not-allowed; }
-        
-        .section-title { font-size: 12px; font-weight: 700; color: var(--text); margin: 20px 0 10px 5px; text-transform: uppercase; letter-spacing: 1px; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; min-width: 85px; z-index: 2; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); }
+        .loader { width: 14px; height: 14px; border: 2px solid #000; border-bottom-color: transparent; border-radius: 50%; display: none; animation: rot 1s linear infinite; }
+        @keyframes rot { to { transform: rotate(360deg); } }
+        .cps-box { text-align: center; font-size: 11px; color: var(--gold); margin-bottom: 10px; font-weight: bold; }
+        .section-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 20px 0 10px 5px; text-transform: uppercase; }
         .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1c1c1e; font-size: 12px; color: var(--text); }
         .floating-text { position: absolute; font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 10; font-size: 18px; }
         @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-50px); } }
-        
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; z-index: 1000; }
         .nav-item { font-size: 24px; opacity: 0.3; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.2); }
@@ -131,40 +143,49 @@ async def web_ui():
             <div style="font-size: 14px; font-weight: 700;" id="u-name">User</div>
         </div>
         <div class="global-stats">
-            <div class="stat-item"><span class="stat-label">Clicks</span><span class="stat-value" id="total-clicks">0</span></div>
+            <div class="stat-item">
+                <span class="stat-label">Clicks</span>
+                <span class="stat-value" id="total-clicks">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Harvested</span>
+                <span class="stat-value" id="total-harvest">0.00</span>
+            </div>
         </div>
     </div>
 
     <div id="p-mine">
-        <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:42px; margin:5px 0">0.00</h1></div>
+        <div class="header">OWPC HUB</div>
+        <button id="daily-btn" class="btn" style="width:100%; background:var(--blue); color:#FFF; margin-bottom:15px; height:45px" onclick="claimDaily()">CLAIM DAILY REWARD</button>
         
-        <div class="energy-container"><div id="energy-bar" class="energy-fill"></div></div>
-        <div class="energy-text">⚡ ENERGY: <span id="energy-val">100</span>/100</div>
+        <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:42px; margin:5px 0">0.00</h1></div>
+        <div class="cps-box">STABILITY: <span id="cps-val">0</span> CLICKS/S</div>
 
         <div class="section-title">Mining Units</div>
         <div class="card">
             <div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn m-btn" onclick="mine('genesis', event)" style="background:var(--green)">CLAIM</button>
+            <button class="btn" id="btn-genesis" onclick="mine('genesis', event)" style="background:var(--green)">CLAIM</button>
         </div>
         <div class="card">
             <div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn m-btn" onclick="mine('unity', event)">SYNC</button>
+            <button class="btn" id="btn-unity" onclick="mine('unity', event)">SYNC</button>
         </div>
         <div class="card">
             <div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:18px; font-weight:700">0.00</div></div>
-            <button class="btn m-btn" onclick="mine('veo', event)" style="background:var(--blue);color:#FFF">COMPUTE</button>
+            <button class="btn" id="btn-veo" onclick="mine('veo', event)" style="background:var(--blue);color:#FFF">COMPUTE</button>
         </div>
 
         <div class="section-title">Ecosystem Pillars</div>
         <div class="card"><div><b>Genesis</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
+        <div class="card"><div><b>Unity</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
         <div class="card"><div><b>Veo AI</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="pill-link">OPEN ↗</a></div>
 
         <div class="section-title">Recent Activity</div>
-        <div id="history-list"></div>
+        <div id="history-list" style="margin-bottom:20px"></div>
     </div>
 
     <div id="p-tasks" style="display:none">
-        <div class="header" style="text-align:center; padding:20px">LEADERBOARD</div>
+        <div class="header">LEADERBOARD</div>
         <div id="rank-list"></div>
     </div>
 
@@ -176,34 +197,38 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
-        let energy = 100;
+        const clickSound = new Audio('https://www.soundjay.com/buttons/button-16.mp3');
+        let clickCount = 0;
 
-        // Energy Regeneration
-        setInterval(() => {
-            if(energy < 100) {
-                energy++;
-                updateEnergyUI();
-            }
-        }, 3000);
+        setInterval(() => { document.getElementById('cps-val').innerText = clickCount; clickCount = 0; }, 1000);
 
-        function updateEnergyUI() {
-            document.getElementById('energy-val').innerText = energy;
-            document.getElementById('energy-bar').style.width = energy + '%';
-            const btns = document.querySelectorAll('.m-btn');
-            btns.forEach(b => b.disabled = (energy <= 0));
+        function createFloatingText(e, text, color) {
+            const el = document.createElement('div');
+            el.className = 'floating-text'; el.innerText = text;
+            el.style.left = (e.clientX - 20) + 'px'; el.style.top = (e.clientY - 20) + 'px';
+            el.style.color = color; document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
         }
 
         async function refresh() {
             if(!uid) return;
             const r = await fetch('/api/user/' + uid);
             const d = await r.json();
+            
+            // Stats Profil
             document.getElementById('u-name').innerText = d.name;
             document.getElementById('u-avatar').innerText = d.name.charAt(0).toUpperCase();
             document.getElementById('total-clicks').innerText = d.clicks;
+            let totalVal = d.g + d.u + d.v;
+            document.getElementById('total-harvest').innerText = totalVal.toFixed(2);
+
+            // Interface
             document.getElementById('gv').innerText = d.g.toFixed(2);
             document.getElementById('uv').innerText = d.u.toFixed(2);
             document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
+            document.getElementById('tot').innerText = totalVal.toFixed(2);
+            document.getElementById('daily-btn').disabled = !d.can_daily;
+            if(!d.can_daily) document.getElementById('daily-btn').innerText = "DAILY CLAIMED";
 
             let h_html = "";
             d.history.forEach(h => {
@@ -218,22 +243,17 @@ async def web_ui():
         }
 
         async function mine(t, e) {
-            if(energy <= 0) return;
-            energy--;
-            updateEnergyUI();
-            
+            clickCount++;
+            clickSound.play();
             tg.HapticFeedback.impactOccurred('light');
-            const color = t === 'veo' ? '#007AFF' : '#34C759';
-            const val = t === 'veo' ? '+0.01' : '+0.05';
-            
-            const ft = document.createElement('div');
-            ft.className = 'floating-text'; ft.innerText = val;
-            ft.style.left = (e.clientX - 20) + 'px'; ft.style.top = (e.clientY - 20) + 'px';
-            ft.style.color = color; document.body.appendChild(ft);
-            setTimeout(() => ft.remove(), 800);
-
+            createFloatingText(e, t==='veo'?'+0.01':'+0.05', t==='veo'?'#007AFF':'#34C759');
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             refresh();
+        }
+
+        async function claimDaily() {
+            const r = await fetch('/api/daily/' + uid, {method:'POST'});
+            if((await r.json()).ok) { confetti({ particleCount: 150 }); refresh(); }
         }
 
         function show(p) {
@@ -242,7 +262,7 @@ async def web_ui():
             document.getElementById('n-mine').classList.toggle('active', p=='mine');
             document.getElementById('n-tasks').classList.toggle('active', p=='tasks');
         }
-        refresh();
+        refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
