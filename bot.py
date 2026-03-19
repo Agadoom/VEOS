@@ -24,23 +24,43 @@ def calculate_rank(points):
     if points >= 1000:   return "🛡️ GUARDIAN"
     return "🆕 SEEKER"
 
-# --- 📊 DATABASE ACCESS ---
+# --- 📊 DATABASE AUTO-REPAIR ---
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # On crée la table avec TOUTES les colonnes nécessaires si elle n'existe pas
+    c.execute('''CREATE TABLE IF NOT EXISTS users 
+                 (user_id INTEGER PRIMARY KEY, name TEXT, 
+                  points_genesis INTEGER DEFAULT 0, points_unity INTEGER DEFAULT 0,
+                  points_veo REAL DEFAULT 0.0, referrals INTEGER DEFAULT 0,
+                  rank TEXT DEFAULT '🆕 SEEKER', last_checkin TEXT DEFAULT '')''')
+    
+    # Sécurité : On vérifie si les colonnes spécifiques existent (au cas où la table était vieille)
+    c.execute("PRAGMA table_info(users)")
+    columns = [column[1] for column in c.fetchall()]
+    if 'points_genesis' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN points_genesis INTEGER DEFAULT 0")
+    if 'points_unity' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN points_unity INTEGER DEFAULT 0")
+    if 'points_veo' not in columns:
+        c.execute("ALTER TABLE users ADD COLUMN points_veo REAL DEFAULT 0.0")
+        
+    conn.commit()
+    conn.close()
+
 def get_user_full_data(user_id):
     try:
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         c.execute("SELECT points_genesis, points_unity, points_veo, last_checkin, referrals FROM users WHERE user_id = ?", (user_id,))
         res = c.fetchone(); conn.close()
         if res:
-            g = res[0] or 0
-            u = res[1] or 0
-            v = res[2] or 0.0
+            g, u, v = (res[0] or 0), (res[1] or 0), (res[2] or 0.0)
             total = g + u + v
             return {
                 "genesis": g, "unity": u, "veo": v, "total": int(total),
                 "last_checkin": res[3], "refs": res[4] or 0, "rank": calculate_rank(total)
             }
-    except Exception as e:
-        print(f"DB Error: {e}")
+    except: pass
     return {"genesis": 0, "unity": 0, "veo": 0, "total": 0, "last_checkin": None, "refs": 0, "rank": "🆕 SEEKER"}
 
 # --- ⌨️ KEYBOARDS ---
@@ -57,18 +77,17 @@ def back_btn(): return [InlineKeyboardButton("⬅️ Back to Menu", callback_dat
 # --- 🛠️ HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # Ensure user entry exists
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (user.id, user.first_name))
     conn.commit(); conn.close()
     
     data = get_user_full_data(user.id)
-    cap = (f"🕊️ **OWPC PROTOCOL**\n"
-           f"──────────────────\n"
+    cap = (f"🕊️ **OWPC PROTOCOL**\n\n"
            f"👤 **Commander:** {user.first_name}\n"
            f"🏆 **Rank:** {data['rank']}\n"
-           f"💰 **Balance:** {data['total']:,} OWPC")
+           f"💰 **Credits:** {data['total']:,} OWPC")
     
+    # On force l'envoi du menu
     if os.path.exists(LOGO_PATH):
         await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=main_menu_kb())
     else:
@@ -76,83 +95,49 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer() # Indispensable pour que le bouton ne "charge" pas dans le vide
+    
     uid, name = query.from_user.id, query.from_user.first_name
-    
-    # Validation tactile (petit feedback)
-    await query.answer()
-    
     data = get_user_full_data(uid)
 
     if query.data == "back_home":
-        cap = (f"🕊️ **Main Menu**\n"
-               f"Rank: {data['rank']}\n"
-               f"Balance: {data['total']:,} OWPC")
+        cap = f"🕊️ **Main Menu**\nRank: {data['rank']}\nCredits: {data['total']:,} OWPC"
         await query.message.edit_caption(caption=cap, reply_markup=main_menu_kb(), parse_mode="Markdown")
 
-    elif query.data == "invest_hub":
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🧬 GENESIS (Memepad)", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
-            [InlineKeyboardButton("🌍 UNITY (Memepad)", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
-            [InlineKeyboardButton("🤖 VEO AI (Memepad)", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
-            [back_btn()]
-        ])
-        await query.message.edit_caption(caption="💰 **INVEST HUB**\n\nUpgrade your protocol rank by acquiring assets.", reply_markup=kb)
-
     elif query.data == "view_stats":
-        stats_text = (f"📊 **TERMINAL DATA**\n"
-                      f"──────────────────\n"
-                      f"🧬 Genesis: {data['genesis']:,} OWPC\n"
-                      f"🌍 Unity: {data['unity']:,} OWPC\n"
-                      f"🤖 Veo AI: {data['veo']:.2f} OWPC\n"
-                      f"──────────────────\n"
-                      f"🔥 **TOTAL: {data['total']:,} OWPC**")
+        stats_text = (f"📊 **ASSETS DETAILS**\n\n"
+                      f"🧬 Genesis: {data['genesis']:,}\n"
+                      f"🌍 Unity: {data['unity']:,}\n"
+                      f"🤖 Veo AI: {data['veo']:.2f}\n"
+                      f"──────────────\n"
+                      f"💰 Total: {data['total']:,} OWPC")
         await query.message.edit_caption(caption=stats_text, reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "my_card":
-        card_text = (f"🆔 **OWPC PASSPORT**\n"
-                     f"──────────────────\n"
-                     f"Holder: {name}\n"
-                     f"Rank: {data['rank']}\n"
-                     f"Status: VERIFIED COMMANDER ✅\n"
-                     f"Network: {data['refs']} nodes connected")
-        await query.message.edit_caption(caption=card_text, reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"🆔 **PASSPORT**\n\nHolder: {name}\nRank: {data['rank']}\nStatus: ACTIVE ✅", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "get_invite":
         link = f"https://t.me/owpcsbot?start={uid}"
-        invite_text = (f"🔗 **HIVE REFERRAL**\n\n"
-                       f"Share your link to expand the network:\n"
-                       f"`{link}`\n\n"
-                       f"Current Hive Size: {data['refs']} members")
-        await query.message.edit_caption(caption=invite_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"🔗 **REFERRAL**\n\nInvite link:\n`{link}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
         if data['last_checkin'] == today:
-            await query.message.reply_text("⏳ Security Protocol: Already claimed. Come back in 24h.")
+            await query.message.reply_text("⏳ Already claimed today!")
         else:
-            win = random.randint(75, 200)
+            win = random.randint(50, 150)
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
             c.execute("UPDATE users SET points_genesis = points_genesis + ?, last_checkin = ? WHERE user_id = ?", (win, today, uid))
             conn.commit(); conn.close()
-            await query.message.reply_text(f"🎰 Lucky Draw Success!\n+{win} OWPC has been added to your Genesis balance.")
-            # Refresh menu
-            data_new = get_user_full_data(uid)
-            await query.message.edit_caption(caption=f"🕊️ **Main Menu**\nRank: {data_new['rank']}\nBalance: {data_new['total']:,} OWPC", reply_markup=main_menu_kb(), parse_mode="Markdown")
-
-    elif query.data == "view_lb":
-        await query.message.edit_caption(caption="🏛️ **HALL OF FAME**\n\nTop 10 Commanders ranking is currently being synchronized with the blockchain...", reply_markup=InlineKeyboardMarkup([back_btn()]))
+            await query.message.reply_text(f"🎰 Lucky Draw: +{win} OWPC!")
 
 # --- MAIN ---
 async def main():
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, name TEXT, points_genesis INTEGER DEFAULT 0, points_unity INTEGER DEFAULT 0, points_veo REAL DEFAULT 0.0, referrals INTEGER DEFAULT 0, rank TEXT, last_checkin TEXT)")
-    conn.commit(); conn.close()
-    
+    init_db() # On répare la DB au lancement
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    
-    print("OWPC Terminal Sync Bot Online...")
+    print("Bot One World Peace Coins Online & Synced...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
