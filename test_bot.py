@@ -11,7 +11,7 @@ WEBAPP_URL = os.getenv("WEBAPP_URL")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v42.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v43.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -57,8 +57,6 @@ async def get_user(uid: int):
 @app.post("/api/create-invoice/{uid}")
 async def create_invoice(uid: int):
     try:
-        # Génère un lien de facture réel pour 50 Stars (XTR)
-        # Indispensable pour que tg.openInvoice fonctionne
         link = await bot_app.bot.create_invoice_link(
             title="10 UNITY Points Boost",
             description="Félicitations pour votre achat de points UNITY !",
@@ -69,13 +67,11 @@ async def create_invoice(uid: int):
         )
         return {"invoice_url": link}
     except Exception as e:
-        logging.error(f"Invoice error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/reward-success/{uid}")
 async def reward_success(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    # Ajoute les 10 points Unity comme demandé
     c.execute("UPDATE users SET p_unity = p_unity + 10.0 WHERE user_id = ?", (uid,))
     c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, 'STARS_REWARD', 10.0, ?)", (uid, int(time.time())))
     conn.commit(); conn.close()
@@ -109,20 +105,18 @@ async def web_ui():
         .user-info { display: flex; align-items: center; gap: 10px; }
         .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; }
         
-        /* Style du bouton Payer inspiré de l'image */
-        .payer-btn { 
-            background: #87a05e; color: #FFF; border: none; width: 100%; padding: 14px; 
-            border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; 
-            display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px;
-        }
-        .payer-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
+        .payer-btn { background: #87a05e; color: #FFF; border: none; width: 100%; padding: 14px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
+        
         .balance { text-align: center; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); margin-bottom: 10px; }
         .energy-container { width: 100%; height: 8px; background: #222; border-radius: 4px; margin: 10px 0; overflow: hidden; }
         .energy-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #FFA500); width: 100%; transition: width 0.2s; }
+        
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
         .btn { background: #FFF; color: #000; border: none; padding: 8px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; }
-        .section-title { font-size: 11px; font-weight: 700; color: var(--text); margin: 15px 0 8px 5px; text-transform: uppercase; }
+        
+        .pill-link { background: #1C1C1E; color: #FFF; text-decoration: none; padding: 10px 15px; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid #333; display: inline-block; }
+        
+        .section-title { font-size: 11px; font-weight: 700; color: var(--text); margin: 20px 0 8px 5px; text-transform: uppercase; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 40px; border: 1px solid #333; }
         .nav-item { font-size: 22px; opacity: 0.3; }
         .nav-item.active { opacity: 1; }
@@ -151,6 +145,20 @@ async def web_ui():
         <div class="card"><div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
 
+        <div class="section-title">Ecosystem Pillars</div>
+        <div class="card">
+            <div><b>Genesis</b></div>
+            <a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="pill-link">OPEN BLUM ↗</a>
+        </div>
+        <div class="card">
+            <div><b>Unity</b></div>
+            <a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_v8fN2-ref_6VRKyJ9MZA" class="pill-link">OPEN BLUM ↗</a>
+        </div>
+        <div class="card">
+            <div><b>Veo AI</b></div>
+            <a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="pill-link">OPEN BLUM ↗</a>
+        </div>
+
         <div class="section-title">Activity History</div>
         <div id="history-list"></div>
     </div>
@@ -167,29 +175,21 @@ async def web_ui():
         async function runStarsPayment() {
             const btn = document.getElementById('payBtn');
             btn.disabled = true; btn.innerText = "Chargement...";
-            
             try {
-                // Étape 1 : Demander au backend de créer une vraie facture
                 const res = await fetch('/api/create-invoice/' + uid, {method:'POST'});
                 const data = await res.json();
-                
                 if(data.invoice_url) {
-                    // Étape 2 : Ouvrir l'interface native Telegram Stars
                     tg.openInvoice(data.invoice_url, async (status) => {
                         if(status == 'paid') {
-                            // Étape 3 : Donner la récompense
                             await fetch('/api/reward-success/' + uid, {method:'POST'});
                             tg.HapticFeedback.notificationOccurred('success');
-                            tg.showAlert("🎉 FÉLICITATIONS D'ACHAT !\n\nVotre compte a été crédité de 10 points UNITY.");
-                            // Fermeture de l'app comme demandé
+                            tg.showAlert("🎉 FÉLICITATIONS D'ACHAT !\n\nVous avez reçu 10 points UNITY.");
                             setTimeout(() => { tg.close(); }, 1500);
-                        } else {
-                            tg.showAlert("Paiement annulé.");
-                        }
+                        } else { tg.showAlert("Paiement non complété."); }
                         refresh();
                     });
                 }
-            } catch(e) { tg.showAlert("Erreur de connexion au serveur."); }
+            } catch(e) { tg.showAlert("Erreur serveur."); }
             btn.disabled = false; btn.innerText = "Payer ⚡ 50";
         }
 
