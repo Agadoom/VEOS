@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "OWPCsbot")
 
 DATA_DIR = "/app/data" if os.path.exists("/app") else "data"
 os.makedirs(DATA_DIR, exist_ok=True)
-DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v33.db")
+DB_PATH = os.path.join(DATA_DIR, "owpc_pro_v34.db")
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI()
@@ -25,6 +25,10 @@ def init_db():
                   p_genesis REAL DEFAULT 0, p_unity REAL DEFAULT 0, 
                   p_veo REAL DEFAULT 0, ref_count INTEGER DEFAULT 0,
                   last_daily INTEGER DEFAULT 0, referred_by INTEGER)''')
+    # Table pour l'historique des gains
+    c.execute('''CREATE TABLE IF NOT EXISTS logs 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, 
+                  token TEXT, amount REAL, timestamp INTEGER)''')
     conn.commit(); conn.close()
 
 # --- BOT FUNCTIONS ---
@@ -47,22 +51,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("UPDATE users SET name=? WHERE user_id=?", (name, uid))
     conn.commit(); conn.close()
     
-    if context.args and context.args[0] == "donate":
-        await update.message.reply_invoice(
-            title="🚀 VEO BOOST", description="Add +10.00 VEO!",
-            payload="boost_veo", provider_token="", currency="XTR", prices=[LabeledPrice("Payer", 50)]
-        )
-        return
-
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text(f"Welcome to the Hub, {name}!", reply_markup=kb)
-
-async def success_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("UPDATE users SET p_veo = p_veo + 10.0 WHERE user_id = ?", (uid,))
-    conn.commit(); conn.close()
-    await update.message.reply_text("✅ Payment Successful! +10.00 VEO added.")
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -70,25 +60,16 @@ async def get_user(uid: int):
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_daily FROM users WHERE user_id=?", (uid,))
     r = c.fetchone()
+    # Récupération de l'historique (5 derniers)
+    c.execute("SELECT token, amount, timestamp FROM logs WHERE user_id=? ORDER BY id DESC LIMIT 5", (uid,))
+    history = [{"t": x[0], "a": x[1], "ts": x[2]} for x in c.fetchall()]
+    
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 5")
     top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
     conn.close()
     if not r: return None
     can_daily = (int(time.time()) - r[4]) > 86400
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "top": top, "can_daily": can_daily}
-
-@app.post("/api/daily/{uid}")
-async def daily_api(uid: int):
-    now = int(time.time())
-    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("SELECT last_daily FROM users WHERE user_id=?", (uid,))
-    res = c.fetchone()
-    if res and (now - res[0]) > 86400:
-        c.execute("UPDATE users SET p_unity = p_unity + 1.0, last_daily = ? WHERE user_id = ?", (now, uid))
-        conn.commit(); conn.close()
-        return {"ok": True}
-    conn.close()
-    return {"ok": False}
+    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "top": top, "can_daily": can_daily, "history": history}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -98,13 +79,29 @@ async def mine_api(request: Request):
     col = {"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}.get(t)
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute(f"UPDATE users SET {col} = {col} + ? WHERE user_id = ?", (gain, uid))
+    # Ajout au log
+    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, t, gain, int(time.time())))
     conn.commit(); conn.close()
     return {"ok": True}
+
+@app.post("/api/daily/{uid}")
+async def daily_api(uid: int):
+    now = int(time.time())
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("SELECT last_daily FROM users WHERE user_id=?", (uid,))
+    res = c.fetchone()
+    if res and (now - res[0]) > 86400:
+        c.execute("UPDATE users SET p_unity = p_unity + 1.0, last_daily = ? WHERE user_id = ?", (now, uid))
+        c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (?, ?, ?, ?)", (uid, "DAILY", 1.0, now))
+        conn.commit(); conn.close()
+        return {"ok": True}
+    conn.close()
+    return {"ok": False}
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
-    html_raw = r"""
+    return r"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -117,19 +114,16 @@ async def web_ui():
         .header { font-weight: 800; font-size: 20px; color: var(--blue); text-align: center; margin-bottom: 15px; }
         .balance { text-align: center; margin-bottom: 20px; border: 1px solid #222; padding: 20px; border-radius: 25px; background: #050505; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        
-        /* Bouton et Spinner */
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; min-width: 80px; transition: 0.2s; }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .loader { width: 14px; height: 14px; border: 2px solid #000; border-bottom-color: transparent; border-radius: 50%; display: none; animation: rotation 1s linear infinite; }
-        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; min-width: 80px; }
+        .btn:disabled { opacity: 0.6; }
+        .loader { width: 14px; height: 14px; border: 2px solid #000; border-bottom-color: transparent; border-radius: 50%; display: none; animation: rot 1s linear infinite; }
+        @keyframes rot { to { transform: rotate(360deg); } }
+        .history-box { margin-top: 20px; font-size: 13px; color: #8E8E93; }
+        .history-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1c1c1e; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(10px); padding: 10px 30px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 1000; }
         .nav-item { font-size: 22px; opacity: 0.4; cursor: pointer; }
         .nav-item.active { opacity: 1; transform: scale(1.1); }
-        .rank-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #1c1c1e; }
-        .daily-btn { width: 100%; background: var(--blue); color: #FFF; padding: 12px; border-radius: 12px; border: none; font-weight: 700; margin-bottom: 15px; transition: 0.3s; }
-        .daily-btn:disabled { background: #222; color: #555; }
+        .daily-btn { width: 100%; background: var(--blue); color: #FFF; padding: 12px; border-radius: 12px; border: none; font-weight: 700; margin-bottom: 15px; }
     </style>
 </head>
 <body>
@@ -138,43 +132,30 @@ async def web_ui():
         <button id="daily-btn" class="daily-btn" onclick="claimDaily()">CLAIM DAILY REWARD (+1.0 Unity)</button>
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:40px; margin:5px 0">0.00</h1></div>
         
-        <div class="card">
-            <div><small>GENESIS</small><div id="gv">0.00</div></div>
-            <button class="btn" style="background:var(--green)" id="btn-genesis" onclick="mine('genesis')">
-                <span id="txt-genesis">CLAIM</span><div class="loader" id="ld-genesis"></div>
-            </button>
-        </div>
-        
-        <div class="card">
-            <div><small>UNITY</small><div id="uv">0.00</div></div>
-            <button class="btn" id="btn-unity" onclick="mine('unity')">
-                <span id="txt-unity">SYNC</span><div class="loader" id="ld-unity"></div>
-            </button>
-        </div>
-        
-        <div class="card">
-            <div><small>VEO AI</small><div id="vv">0.00</div></div>
-            <button class="btn" style="background:var(--blue);color:#FFF" id="btn-veo" onclick="mine('veo')">
-                <span id="txt-veo">COMPUTE</span><div class="loader" id="ld-veo" style="border-color:#FFF; border-bottom-color:transparent"></div>
-            </button>
+        <div class="card"><div><small>GENESIS</small><div id="gv">0.00</div></div><button class="btn" id="btn-genesis" onclick="mine('genesis')" style="background:var(--green)"><span id="tx-genesis">CLAIM</span><div class="loader" id="ld-genesis"></div></button></div>
+        <div class="card"><div><small>UNITY</small><div id="uv">0.00</div></div><button class="btn" id="btn-unity" onclick="mine('unity')"><span id="tx-unity">SYNC</span><div class="loader" id="ld-unity"></div></button></div>
+        <div class="card"><div><small>VEO AI</small><div id="vv">0.00</div></div><button class="btn" id="btn-veo" onclick="mine('veo')" style="background:var(--blue);color:#FFF"><span id="tx-veo">COMPUTE</span><div class="loader" id="ld-veo" style="border-color:#FFF; border-bottom-color:transparent"></div></button></div>
+
+        <div class="history-box">
+            <b>RECENTS GAINS</b>
+            <div id="history-list"></div>
         </div>
     </div>
 
     <div id="p-tasks" style="display:none">
         <h2>REFERRALS</h2>
         <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px">
-            <div><b>Invite Friends</b><br><small style="color:#8E8E93">Get +5.00 Genesis per friend</small></div>
-            <button class="btn" style="width:100%" onclick="copyRef()">COPY MY REF LINK</button>
-            <div style="font-size:12px; color:var(--green)">Total Referred: <span id="rc">0</span></div>
+            <button class="btn" style="width:100%" onclick="copyRef()">COPY REF LINK</button>
+            <div style="font-size:12px; color:var(--green)">Referred: <span id="rc">0</span></div>
         </div>
         <h2>ECOSYSTEM</h2>
-        <div class="card"><div>Genesis<br><small>Blum Memepad</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
-        <div class="card"><div>Unity<br><small>Node Network</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
-        <div class="card"><div>Veo AI<br><small>Quantum Power</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="btn" style="text-decoration:none">OPEN</a></div>
+        <div class="card"><div>Genesis</div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" class="btn">OPEN</a></div>
+        <div class="card"><div>Unity</div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" class="btn">OPEN</a></div>
+        <div class="card"><div>Veo AI</div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" class="btn">OPEN</a></div>
     </div>
     <div id="p-ranks" style="display:none">
         <h2>TOP MINERS</h2>
-        <div id="rank-list" style="background:var(--card); border-radius:15px; overflow:hidden"></div>
+        <div id="rank-list"></div>
     </div>
 
     <div class="nav">
@@ -186,14 +167,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
-        const botName = '""" + BOT_USERNAME + r"""';
-        
-        // Son de clic
         const clickSound = new Audio('https://www.soundjay.com/buttons/button-16.mp3');
-
-        function launchConfetti() {
-            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#007AFF', '#34C759', '#FFD700'] });
-        }
 
         async function refresh() {
             if(!uid) return;
@@ -205,52 +179,41 @@ async def web_ui():
             document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
             document.getElementById('rc').innerText = d.rc;
             document.getElementById('daily-btn').disabled = !d.can_daily;
-            if(!d.can_daily) document.getElementById('daily-btn').innerText = "DAILY CLAIMED";
-            let h = "";
-            d.top.forEach((u, i) => { h += `<div class="rank-row"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = h;
+
+            // Update History
+            let h_html = "";
+            d.history.forEach(h => {
+                let timeStr = new Date(h.ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                h_html += `<div class="history-item"><span>${h.t.toUpperCase()}</span><span>+${h.a}</span><span>${timeStr}</span></div>`;
+            });
+            document.getElementById('history-list').innerHTML = h_html || "No recent activity";
+            
+            // Update Ranks
+            let r_html = "";
+            d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+            document.getElementById('rank-list').innerHTML = r_html;
         }
 
         async function mine(t) {
-            // Effets immédiats
             clickSound.play();
             tg.HapticFeedback.impactOccurred('light');
-            
-            const btn = document.getElementById('btn-'+t);
-            const txt = document.getElementById('txt-'+t);
-            const loader = document.getElementById('ld-'+t);
-            
-            btn.disabled = true;
-            txt.style.display = 'none';
-            loader.style.display = 'block';
-
-            await fetch('/api/mine', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({user_id:uid, token:t})
-            });
-
-            // Petit délai pour laisser l'animation respirer
+            document.getElementById('tx-'+t).style.display = 'none';
+            document.getElementById('ld-'+t).style.display = 'block';
+            await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             setTimeout(() => {
-                btn.disabled = false;
-                txt.style.display = 'block';
-                loader.style.display = 'none';
+                document.getElementById('tx-'+t).style.display = 'block';
+                document.getElementById('ld-'+t).style.display = 'none';
                 refresh();
-            }, 300);
+            }, 400);
         }
 
         async function claimDaily() {
             const r = await fetch('/api/daily/' + uid, {method:'POST'});
-            const d = await r.json();
-            if(d.ok) { 
-                launchConfetti();
-                tg.HapticFeedback.notificationOccurred('success');
-                refresh(); 
-            }
+            if((await r.json()).ok) { confetti({ particleCount: 150 }); refresh(); }
         }
 
         function copyRef() {
-            const link = "https://t.me/" + botName + "?start=ref_" + uid;
+            const link = "https://t.me/" + '""" + BOT_USERNAME + r"""' + "?start=ref_" + uid;
             const el = document.createElement('textarea'); el.value = link; document.body.appendChild(el);
             el.select(); document.execCommand('copy'); document.body.removeChild(el);
             tg.showAlert("Link copied!");
@@ -267,14 +230,12 @@ async def web_ui():
 </body>
 </html>
     """
-    return html_raw
 
 async def main():
     init_db()
     bot = ApplicationBuilder().token(TOKEN).build()
     bot.add_handler(CommandHandler("start", start))
     bot.add_handler(PreCheckoutQueryHandler(lambda u,c: u.pre_checkout_query.answer(ok=True)))
-    bot.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, success_payment))
     await bot.initialize(); await bot.start()
     asyncio.create_task(bot.updater.start_polling(drop_pending_updates=True))
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
