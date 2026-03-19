@@ -24,29 +24,15 @@ def calculate_rank(points):
     if points >= 1000:   return "🛡️ GUARDIAN"
     return "🆕 SEEKER"
 
-# --- 📊 DATABASE AUTO-REPAIR ---
+# --- 📊 DATABASE ACCESS ---
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # On crée la table avec TOUTES les colonnes nécessaires si elle n'existe pas
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (user_id INTEGER PRIMARY KEY, name TEXT, 
                   points_genesis INTEGER DEFAULT 0, points_unity INTEGER DEFAULT 0,
                   points_veo REAL DEFAULT 0.0, referrals INTEGER DEFAULT 0,
                   rank TEXT DEFAULT '🆕 SEEKER', last_checkin TEXT DEFAULT '')''')
-    
-    # Sécurité : On vérifie si les colonnes spécifiques existent (au cas où la table était vieille)
-    c.execute("PRAGMA table_info(users)")
-    columns = [column[1] for column in c.fetchall()]
-    if 'points_genesis' not in columns:
-        c.execute("ALTER TABLE users ADD COLUMN points_genesis INTEGER DEFAULT 0")
-    if 'points_unity' not in columns:
-        c.execute("ALTER TABLE users ADD COLUMN points_unity INTEGER DEFAULT 0")
-    if 'points_veo' not in columns:
-        c.execute("ALTER TABLE users ADD COLUMN points_veo REAL DEFAULT 0.0")
-        
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
 
 def get_user_full_data(user_id):
     try:
@@ -87,7 +73,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
            f"🏆 **Rank:** {data['rank']}\n"
            f"💰 **Credits:** {data['total']:,} OWPC")
     
-    # On force l'envoi du menu
     if os.path.exists(LOGO_PATH):
         await update.message.reply_photo(photo=open(LOGO_PATH, "rb"), caption=cap, parse_mode="Markdown", reply_markup=main_menu_kb())
     else:
@@ -95,7 +80,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer() # Indispensable pour que le bouton ne "charge" pas dans le vide
+    await query.answer() # Vital : enlève l'icône de chargement sur le bouton
     
     uid, name = query.from_user.id, query.from_user.first_name
     data = get_user_full_data(uid)
@@ -104,8 +89,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cap = f"🕊️ **Main Menu**\nRank: {data['rank']}\nCredits: {data['total']:,} OWPC"
         await query.message.edit_caption(caption=cap, reply_markup=main_menu_kb(), parse_mode="Markdown")
 
+    # FIX : INVEST HUB OPERATIONNEL
+    elif query.data == "invest_hub":
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🧬 GENESIS (Blum)", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
+            [InlineKeyboardButton("🌍 UNITY (Blum)", url="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR")],
+            [InlineKeyboardButton("🤖 VEO AI (Blum)", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
+            [back_btn()]
+        ])
+        await query.message.edit_caption(caption="💰 **INVEST HUB**\n\nAcquérez des actifs pour augmenter votre rang dans le protocole.", reply_markup=kb)
+
+    # FIX : HALL OF FAME OPERATIONNEL
+    elif query.data == "view_lb":
+        conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+        c.execute("SELECT name, (points_genesis + points_unity + points_veo) as total FROM users ORDER BY total DESC LIMIT 5")
+        top_users = c.fetchall(); conn.close()
+        
+        lb_text = "🏛️ **HALL OF FAME**\n\n"
+        for i, u in enumerate(top_users, 1):
+            lb_text += f"{i}. {u[0]} - {int(u[1]):,} OWPC\n"
+            
+        await query.message.edit_caption(caption=lb_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
+
     elif query.data == "view_stats":
-        stats_text = (f"📊 **ASSETS DETAILS**\n\n"
+        stats_text = (f"📊 **DÉTAILS DES ACTIFS**\n\n"
                       f"🧬 Genesis: {data['genesis']:,}\n"
                       f"🌍 Unity: {data['unity']:,}\n"
                       f"🤖 Veo AI: {data['veo']:.2f}\n"
@@ -114,30 +121,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_caption(caption=stats_text, reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "my_card":
-        await query.message.edit_caption(caption=f"🆔 **PASSPORT**\n\nHolder: {name}\nRank: {data['rank']}\nStatus: ACTIVE ✅", reply_markup=InlineKeyboardMarkup([back_btn()]))
-
-    elif query.data == "get_invite":
-        link = f"https://t.me/owpcsbot?start={uid}"
-        await query.message.edit_caption(caption=f"🔗 **REFERRAL**\n\nInvite link:\n`{link}`", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup([back_btn()]))
+        await query.message.edit_caption(caption=f"🆔 **PASSPORT**\n\nNom: {name}\nRang: {data['rank']}\nStatut: ACTIF ✅", reply_markup=InlineKeyboardMarkup([back_btn()]))
 
     elif query.data == "daily":
         today = datetime.now().strftime("%Y-%m-%d")
         if data['last_checkin'] == today:
-            await query.message.reply_text("⏳ Already claimed today!")
+            await query.message.reply_text("⏳ Déjà réclamé aujourd'hui !")
         else:
             win = random.randint(50, 150)
             conn = sqlite3.connect(DB_PATH); c = conn.cursor()
             c.execute("UPDATE users SET points_genesis = points_genesis + ?, last_checkin = ? WHERE user_id = ?", (win, today, uid))
             conn.commit(); conn.close()
-            await query.message.reply_text(f"🎰 Lucky Draw: +{win} OWPC!")
+            await query.message.reply_text(f"🎰 Lucky Draw : +{win} OWPC !")
 
 # --- MAIN ---
 async def main():
-    init_db() # On répare la DB au lancement
+    init_db()
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
-    print("Bot One World Peace Coins Online & Synced...")
+    print("Bot OWPC Synced & Buttons Fixed...")
     await app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
