@@ -7,9 +7,10 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 # DEBUG : Ceci apparaîtra dans tes logs Railway au démarrage
 print(f"--- DEBUG DATABASE ---")
-print(f"URL Trouvée: {bool(DATABASE_URL)}")
 if DATABASE_URL:
-    print(f"Début de l'URL: {DATABASE_URL[:15]}...")
+    print(f"URL Trouvée: Oui (Début: {DATABASE_URL[:15]}...)")
+else:
+    print("URL Trouvée: NON (Vérifie tes variables Railway)")
 
 def get_db_conn():
     url = os.getenv("DATABASE_URL")
@@ -19,7 +20,7 @@ def get_db_conn():
         # On force sslmode=require pour les connexions externes Railway
         return psycopg2.connect(url, sslmode='require')
     except Exception as e:
-        logging.error(f"Erreur PG: {e}")
+        logging.error(f"Erreur PG Connection: {e}")
         return None
 
 def init_db():
@@ -29,7 +30,8 @@ def init_db():
         return
     try:
         c = conn.cursor()
-        # On crée la table avec TOUTES les colonnes nécessaires
+        
+        # 1. Création de la table USERS avec la colonne referred_by
         c.execute('''CREATE TABLE IF NOT EXISTS users 
                      (user_id BIGINT PRIMARY KEY, 
                       name TEXT, 
@@ -38,19 +40,29 @@ def init_db():
                       p_veo REAL DEFAULT 0, 
                       ref_count INTEGER DEFAULT 0,
                       last_daily INTEGER DEFAULT 0,
-                      total_clicks INTEGER DEFAULT 0)''')
+                      total_clicks INTEGER DEFAULT 0,
+                      referred_by BIGINT)''')
         
-        # --- SÉCURITÉ : On ajoute les colonnes si elles manquent (Migration) ---
+        # 2. MIGRATIONS : On ajoute les colonnes si elles manquent sur une base déjà existante
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_count INTEGER DEFAULT 0")
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily INTEGER DEFAULT 0")
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_clicks INTEGER DEFAULT 0")
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by BIGINT") # <-- AJOUT ICI
         
+        # 3. Création de la table LOGS
         c.execute('''CREATE TABLE IF NOT EXISTS logs 
-                     (id SERIAL PRIMARY KEY, user_id BIGINT, token TEXT, amount REAL, timestamp INTEGER)''')
+                     (id SERIAL PRIMARY KEY, 
+                      user_id BIGINT, 
+                      token TEXT, 
+                      amount REAL, 
+                      timestamp INTEGER)''')
+        
         conn.commit()
-        logging.info("✅ Base PostgreSQL mise à jour avec toutes les colonnes.")
+        logging.info("✅ Base PostgreSQL mise à jour (Colonnes : OK, Parrainage : OK)")
+        
     except Exception as e:
         logging.error(f"Erreur init_db: {e}")
     finally:
-        c.close()
-        conn.close()
-
+        if conn:
+            c.close()
+            conn.close()
