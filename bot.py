@@ -14,20 +14,20 @@ WEBAPP_URL = "https://veos-production.up.railway.app"
 
 app = FastAPI()
 
-# --- BASE DE DONNÉES ---
-def get_stats(uid):
+# --- DATABASE ENGINE ---
+def get_user_stats(uid):
     try:
         conn = sqlite3.connect(DB_PATH); c = conn.cursor()
         c.execute("SELECT points_genesis, points_unity, points_veo FROM users WHERE user_id=?", (uid,))
         res = c.fetchone(); conn.close()
         if res:
-            total = int((res[0] or 0) + (res[1] or 0) + (res[2] or 0))
-            return {"total": total, "g": res[0] or 0, "u": res[1] or 0, "v": res[2] or 0.0}
+            total = (res[0] or 0) + (res[1] or 0) + (res[2] or 0.0)
+            return {"total": int(total), "g": res[0] or 0, "u": res[1] or 0, "v": res[2] or 0.0}
     except: pass
     return {"total": 0, "g": 0, "u": 0, "v": 0.0}
 
-# --- LE MENU RICHE (Photo 1) ---
-def main_menu():
+# --- MENU COMPLET (PHOTO 1) ---
+def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("💰 Invest Hub", callback_data="invest"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="hof")],
@@ -35,41 +35,60 @@ def main_menu():
         [InlineKeyboardButton("📊 Stats", callback_data="stats"), InlineKeyboardButton("🔗 Invite", callback_data="invite")]
     ])
 
-# --- LOGIQUE DU BOT ---
+# --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    s = get_stats(user.id)
+    uid = user.id
     
-    # Enregistrement utilisateur
+    # Init User in DB
     conn = sqlite3.connect(DB_PATH); c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (user.id, user.first_name))
+    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (uid, user.first_name))
     conn.commit(); conn.close()
-
-    text = (f"🕊️ **OWPC PROTOCOL**\n\n"
-            f"👤 **Commander:** {user.first_name}\n"
-            f"💰 **Balance:** {s['total']:,} OWPC\n\n"
-            f"System Status: `OPERATIONAL` ✅")
     
-    await update.message.reply_text(text, reply_markup=main_menu(), parse_mode="Markdown")
+    stats = get_user_stats(uid)
+    
+    welcome_msg = (
+        f"🕊️ **OWPC PROTOCOL**\n\n"
+        f"👤 **Commander:** {user.first_name}\n"
+        f"🏆 **Rank:** SEEKER\n"
+        f"💰 **Balance:** {stats['total']:,} OWPC\n\n"
+        f"System Status: `OPERATIONAL` ✅"
+    )
+    
+    # On gère si c'est un nouveau message ou un callback (retour au menu)
+    if update.message:
+        await update.message.reply_text(welcome_msg, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+    else:
+        await update.callback_query.message.edit_text(welcome_msg, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
 
 async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     uid = query.from_user.id
-    s = get_stats(uid)
+    stats = get_user_stats(uid)
 
+    # Navigation : Retour au menu
     if query.data == "main_menu":
-        await query.message.edit_text(f"🕊️ **OWPC PROTOCOL**\n\nBalance: `{s['total']:,} OWPC`", 
-                                      reply_markup=main_menu(), parse_mode="Markdown")
-    
+        await start(update, context)
+
+    # Navigation : Stats
     elif query.data == "stats":
-        txt = f"📊 **ASSETS**\n\nGenesis: `{s['g']}`\nUnity: `{s['u']}`\nVeo AI: `{s['v']:.2f}`"
-        await query.message.edit_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]), parse_mode="Markdown")
+        txt = (f"📊 **ASSETS OVERVIEW**\n\n"
+               f"🧬 Genesis: `{stats['g']:,}`\n"
+               f"🌍 Unity: `{stats['u']:,}`\n"
+               f"🤖 Veo AI: `{stats['v']:.2f}`\n\n"
+               f"Total: `{stats['total']:,} OWPC`")
+        await query.message.edit_text(txt, parse_mode="Markdown", 
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
 
+    # Navigation : Passport
     elif query.data == "passport":
-        txt = f"🆔 **PASSPORT**\n\nHolder: `{query.from_user.first_name}`\nID: `{uid}`\nStatus: `VERIFIED ✅`"
-        await query.message.edit_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]), parse_mode="Markdown")
+        txt = (f"🆔 **OWPC PASSPORT**\n\nHolder: `{query.from_user.first_name}`\n"
+               f"ID: `{uid}`\nStatus: `VERIFIED ✅`")
+        await query.message.edit_text(txt, parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
 
+    # Navigation : Invest Hub (Liens opérationnels)
     elif query.data == "invest":
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1")],
@@ -77,28 +96,32 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🤖 VEO AI", url="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK")],
             [InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]
         ])
-        await query.message.edit_text("💰 **INVEST HUB**", reply_markup=kb)
+        await query.message.edit_text("💰 **INVEST HUB**\nSelect an asset to acquire:", reply_markup=kb)
+    
+    # Autres sections (Placeholder)
+    elif query.data in ["hof", "lucky", "invite"]:
+        await query.message.edit_text(f"🚧 Sector **{query.data.upper()}** is under maintenance.", 
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="main_menu")]]))
 
-# --- SERVEUR WEB ---
+# --- ENGINE ---
 @app.get("/")
-async def root(): return {"status": "online"}
+async def home(): return {"status": "terminal_online"}
 
-# --- LANCEMENT STABLE ---
-async def run_everything():
-    # Initialisation Bot
+async def run_main():
+    # Setup Bot
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
     bot_app.add_handler(CallbackQueryHandler(handle_callbacks))
     
     await bot_app.initialize()
     await bot_app.start()
-    # On lance le bot en polling (tâche de fond)
+    # Nettoyage et lancement
     asyncio.create_task(bot_app.updater.start_polling(drop_pending_updates=True))
     
-    # On lance le serveur Web
-    config = uvicorn.Config(app, host="0.0.0.0", port=PORT)
+    # Setup Web Server
+    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, log_level="info")
     server = uvicorn.Server(config)
     await server.serve()
 
 if __name__ == "__main__":
-    asyncio.run(run_everything())
+    asyncio.run(run_main())
