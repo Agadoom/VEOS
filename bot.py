@@ -1,8 +1,10 @@
 import os
 import asyncio
 import sqlite3
+import random
 import nest_asyncio
 import uvicorn
+from threading import Thread
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -18,55 +20,74 @@ PORT = int(os.getenv("PORT", 8080))
 
 app = FastAPI()
 
-# --- WEBAPP (L'écran que tu vois sur ta photo) ---
+# --- 🌐 WEBAPP INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return """
-    <html>
-        <body style="background:#000;color:#0f0;text-align:center;font-family:monospace;padding-top:100px;">
-            <h1 style="border:2px solid #0f0;display:inline-block;padding:20px;">🚀 OWPC TERMINAL ONLINE</h1>
-            <p style="font-size:20px;">Protocol Status: <span style="color:white;">STABLE</span></p>
-            <p>Le bot Telegram est maintenant synchronisé.</p>
-        </body>
-    </html>
+    <body style="background:#000;color:#0f0;text-align:center;font-family:monospace;padding-top:50px;">
+        <h1 style="border:1px solid #0f0;display:inline-block;padding:10px;">🚀 OWPC TERMINAL</h1>
+        <p>SYSTEM ONLINE | NODES SYNCED</p>
+    </body>
     """
 
-# --- LOGIQUE DU BOT ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Cette fonction DOIT être appelée quand tu fais /start
-    kb = InlineKeyboardMarkup([
+# --- 📊 DATA LOGIC ---
+def get_user_stats(uid):
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("SELECT points_genesis, points_unity, points_veo FROM users WHERE user_id=?", (uid,))
+    res = c.fetchone(); conn.close()
+    if res:
+        return {"total": int(res[0]+res[1]+res[2]), "g": res[0], "u": res[1], "v": res[2]}
+    return {"total": 0, "g": 0, "u": 0, "v": 0}
+
+# --- 🤖 BOT MENUS ---
+def main_kb():
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 LAUNCH TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton("🎰 Lucky Draw", callback_data="daily"), InlineKeyboardButton("📊 Stats", callback_data="view_stats")]
+        [InlineKeyboardButton("💰 Invest Hub", callback_data="invest"), InlineKeyboardButton("🏛️ Hall of Fame", callback_data="hof")],
+        [InlineKeyboardButton("🆔 Passport", callback_data="pass"), InlineKeyboardButton("🎰 Lucky Draw", callback_data="draw")],
+        [InlineKeyboardButton("📊 Stats", callback_data="stats"), InlineKeyboardButton("🔗 Invite", callback_data="ref")]
     ])
-    await update.message.reply_text("🕊️ **BIENVENUE COMMANDER**\n\nLe terminal OWPC est prêt.", reply_markup=kb, parse_mode="Markdown")
 
-async def run_bot():
-    try:
-        # On force la création de l'application avec le TOKEN
-        bot_app = ApplicationBuilder().token(TOKEN).build()
-        bot_app.add_handler(CommandHandler("start", start))
-        
-        await bot_app.initialize()
-        await bot_app.start()
-        # drop_pending_updates est CRUCIAL ici pour débloquer le conflit
-        print("✅ BOT TELEGRAM: OK (Listening...)")
-        await bot_app.updater.start_polling(drop_pending_updates=True)
-    except Exception as e:
-        print(f"❌ ERREUR BOT: {e}")
-
-# --- LANCEMENT ---
-async def main():
-    # Lancement du bot en tâche de fond
-    asyncio.create_task(run_bot())
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    conn = sqlite3.connect(DB_PATH); c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users (user_id, name) VALUES (?, ?)", (uid, update.effective_user.first_name))
+    conn.commit(); conn.close()
     
-    # Lancement du serveur Web
-    print(f"🌐 SERVEUR WEB: OK (Port {PORT})")
-    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")
-    server = uvicorn.Server(config)
-    await server.serve()
+    stats = get_user_stats(uid)
+    await update.message.reply_text(f"🕊️ **OWPC PROTOCOL**\n\nBalance: {stats['total']:,} OWPC", 
+                                  reply_markup=main_kb(), parse_mode="Markdown")
+
+async def btn_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query; await query.answer()
+    uid = query.from_user.id
+    stats = get_user_stats(uid)
+
+    if query.data == "back":
+        await query.message.edit_text(f"🕊️ **OWPC PROTOCOL**\n\nBalance: {stats['total']:,} OWPC", reply_markup=main_kb(), parse_mode="Markdown")
+    
+    elif query.data == "stats":
+        txt = f"📊 **ASSETS**\n\nGenesis: {stats['g']}\nUnity: {stats['u']}\nVeo: {stats['v']:.2f}"
+        await query.message.edit_text(txt, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Retour", callback_data="back")]]))
+    
+    elif query.data == "invest":
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🧬 GENESIS", url="https://t.me/blum")], [InlineKeyboardButton("⬅️ Retour", callback_data="back")]])
+        await query.message.edit_text("💰 **INVEST HUB**", reply_markup=kb)
+
+# --- 🚀 LE MOTEUR DOUBLE ---
+def start_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    bot_app = ApplicationBuilder().token(TOKEN).build()
+    bot_app.add_handler(CommandHandler("start", start))
+    bot_app.add_handler(CallbackQueryHandler(btn_handler))
+    print("✅ BOT TELEGRAM DÉMARRÉ")
+    bot_app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
-    if not TOKEN:
-        print("❌ ERREUR: Le TOKEN n'est pas configuré dans les variables Railway !")
-    else:
-        asyncio.run(main())
+    # 1. On lance le bot dans un thread séparé
+    Thread(target=start_bot, daemon=True).start()
+    
+    # 2. On lance le serveur Web normalement
+    print(f"🌐 SERVEUR WEB SUR PORT {PORT}")
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
