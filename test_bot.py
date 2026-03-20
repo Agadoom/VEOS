@@ -319,7 +319,7 @@ async def web_ui():
     </script>
 </body>
 </html>
-"""
+""""
 
 # ... (Le reste de ton code Python avec main() reste identique)
 """
