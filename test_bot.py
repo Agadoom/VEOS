@@ -54,8 +54,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit(); c.close(); conn.close()
         except Exception as e: logging.error(f"SQL Start Error: {e}")
     
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to the World Peace ecosystem, {name}! 🌍✨\n\nYour dashboard is ready.", reply_markup=kb)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 ENTER OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await update.message.reply_text(f"Welcome to the World Peace Hub, {name}!\n\nManage your $WPT assets and join the global movement.", reply_markup=kb)
 
 # --- API USER DATA ---
 @app.get("/api/user/{uid}")
@@ -97,7 +97,9 @@ async def get_user(uid: int):
     
     c.close(); conn.close()
 
+    # Prix simulé + Jackpot Dynamique
     market_wpt = round(0.00045 + (random.random() * 0.00005), 6)
+    jackpot_pool = round(total_mined * 0.1, 2) # 10% de la mine globale va au jackpot virtuel
 
     return {
         "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5], 
@@ -105,7 +107,7 @@ async def get_user(uid: int):
         "top": top, "badge": get_badge(score, current_streak),
         "streak": current_streak, "can_claim": can_claim,
         "global_users": total_users, "global_mined": round(total_mined, 2),
-        "price_wpt": market_wpt
+        "price_wpt": market_wpt, "jackpot": jackpot_pool
     }
 
 @app.post("/api/daily")
@@ -155,82 +157,85 @@ async def web_ui():
         :root { --bg: #050505; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         
-        .market-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 8px; font-size: 11px; color: var(--gold); border-bottom: 1px solid #333; display: flex; justify-content: space-around; font-weight: bold; }
-        
+        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 11px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .jackpot-badge { background: linear-gradient(90deg, #FFD700, #FFA500); color: #000; padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 10px; }
+
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .energy-container { margin: 10px 0; background: #222; border-radius: 10px; height: 6px; overflow: hidden; }
         .energy-bar { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
         
-        .balance { text-align: center; padding: 25px; border-radius: 25px; background: linear-gradient(180deg, #111 0%, #000 100%); margin-bottom: 15px; border: 1px solid #1a1a1a; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .streak-box { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; }
+        .balance { text-align: center; padding: 30px 20px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); margin-bottom: 15px; border: 1px solid #222; position: relative; overflow: hidden; }
+        .balance::after { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: conic-gradient(from 0deg, transparent, rgba(255,215,0,0.03), transparent); animation: rotate 10s linear infinite; pointer-events: none; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        .stat-card { background: #111; padding: 10px; border-radius: 12px; text-align: center; border: 1px solid #1c1c1e; }
-        .stat-card small { color: var(--text); font-size: 9px; text-transform: uppercase; }
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-item { background: #111; padding: 12px; border-radius: 15px; border: 1px solid #1c1c1e; text-align: center; }
+        .stat-item small { color: var(--text); font-size: 9px; display: block; margin-bottom: 4px; }
 
-        .card { background: var(--card); padding: 12px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; }
-        .btn:disabled { opacity: 0.2; }
+        .card { background: var(--card); padding: 12px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; transition: 0.2s; }
+        .card:active { background: #1a1a1a; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 12px; }
+        .btn:disabled { opacity: 0.1; }
         
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 999; }
-        .nav-item { font-size: 20px; opacity: 0.5; }
-        .nav-item.active { opacity: 1; transform: scale(1.2); }
-        .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.85); backdrop-filter: blur(20px); padding: 12px 30px; border-radius: 40px; display: flex; gap: 35px; border: 1px solid #333; z-index: 999; }
+        .nav-item { font-size: 22px; opacity: 0.4; }
+        .nav-item.active { opacity: 1; transform: scale(1.2); color: var(--gold); }
     </style>
 </head>
 <body>
-    <div class="market-ticker">
-        <span>$WPT: $<span id="m-price">0.000450</span></span>
-        <span id="m-sent" style="color:var(--green)">📈 BULLISH</span>
+    <div class="header-ticker">
+        <div>$WPT: <span id="m-price" style="color:var(--gold)">0.000450</span></div>
+        <div class="jackpot-badge">JACKPOT: <span id="jack-val">0</span> OWPC</div>
     </div>
 
     <div class="profile-bar">
         <div style="display:flex; align-items:center; gap:10px;">
-            <div id="u-name" style="font-weight:700">...</div><div id="u-badge" class="badge-tag">Bronze</div>
+            <div id="u-name" style="font-weight:700">...</div><div id="u-badge" style="font-size:10px; color:var(--gold)">Bronze</div>
         </div>
-        <div style="text-align:right; font-weight:bold; color:var(--gold)" id="u-ref">0 REFS</div>
+        <div id="u-ref" style="font-weight:bold; font-size:12px;">0 REFS</div>
     </div>
 
     <div id="p-mine">
-        <div id="streak-ui" class="streak-box" style="display:none">
-            <div style="font-size:13px; margin-bottom:10px; color:var(--gold); font-weight:bold;">🔥 <span id="stk-txt">Day 1</span> READY</div>
-            <button id="stk-btn" class="btn" style="width:100%; background:var(--gold); color:#000" onclick="claimDaily()">CLAIM BONUS</button>
+        <div id="streak-ui" style="display:none; background:linear-gradient(90deg, #FFD700, #FFA500); color:#000; padding:12px; border-radius:15px; text-align:center; margin-bottom:15px; font-weight:bold; cursor:pointer;" onclick="claimDaily()">
+            🎁 CLAIM DAY <span id="stk-txt">1</span> BONUS !
         </div>
 
         <div class="balance">
-            <small style="color:var(--text)">TOTAL ASSETS</small>
-            <h1 id="tot" style="font-size:38px; margin:5px 0;">0.00</h1>
+            <small style="color:var(--text); letter-spacing: 1px;">TOTAL BALANCE</small>
+            <h1 id="tot" style="font-size:42px; margin:8px 0; font-weight:900;">0.00</h1>
             <div class="energy-container"><div id="e-bar" class="energy-bar"></div></div>
-            <div id="e-text" style="font-size:10px; color:var(--gold);">⚡ 0 / 100</div>
+            <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                <span id="e-text" style="font-size:10px; color:var(--gold);">⚡ 0 / 100</span>
+                <span style="font-size:10px; color:var(--text);">Minage x1.0</span>
+            </div>
         </div>
 
-        <div class="stats-grid">
-            <div class="stat-card"><small>Global Mine</small><div id="g-mined">0.00</div></div>
-            <div class="stat-card"><small>Community</small><div id="g-users">0</div></div>
+        <div class="stats-row">
+            <div class="stat-item"><small>COMMUNITY</small><b id="g-users">0</b></div>
+            <div class="stat-item"><small>BURNED/MINED</small><b id="g-mined">0.00</b></div>
         </div>
 
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">CLAIM</button></div>
-        <div class="card"><div><small>UNITY</small><div id="uv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
     </div>
 
     <div id="p-pillars" style="display:none; padding-top:10px;">
         <div style="text-align:center; margin-bottom:20px;">
-            <h3 style="margin:0; color:var(--gold)">ECOSYSTEM PILLARS</h3>
-            <p style="font-size:11px; color:var(--text)">Fast access to all WPT assets</p>
+            <h3 style="margin:0; color:var(--gold)">OFFICIAL PILLARS</h3>
+            <p style="font-size:11px; color:var(--text)">Trade and track WPT ecosystem</p>
         </div>
         
         <div class="card" style="border: 1px solid var(--gold); background: rgba(255,215,0,0.05);">
-            <div><b>World Peace Token</b><br><small style="color:var(--gold)">Primary Pillar ($WPT)</small></div>
+            <div><b>World Peace Token</b><br><small style="color:var(--gold)">Main Trading Pair ($WPT)</small></div>
             <a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">FAST BUY</a>
         </div>
         
-        <div class="card"><div><b>Unity Asset</b><br><small>Secondary Pillar</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
-        <div class="card"><div><b>Veo AI Asset</b><br><small>Technology Pillar</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
-        <div class="card"><div><b>Genesis Asset</b><br><small>Legacy Pillar</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Unity Asset</b><br><small>Blum Memepad</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Veo AI Asset</b><br><small>Blum Memepad</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Genesis Asset</b><br><small>Blum Memepad</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
         
-        <div style="margin-top:20px; text-align:center; font-size:10px; color:var(--text)">🔥 Burn mechanism active: 1% per transaction</div>
-        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS</button>
+        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS & EARN</button>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
@@ -265,16 +270,11 @@ async def web_ui():
                 document.getElementById('g-mined').innerText = d.global_mined;
                 document.getElementById('g-users').innerText = d.global_users;
                 document.getElementById('m-price').innerText = d.price_wpt.toFixed(6);
-
-                // Sentiment random effect
-                if(Math.random() > 0.8) {
-                    const s = document.getElementById('m-sent');
-                    s.innerText = "🚀 BULLISH"; s.style.color = "var(--green)";
-                }
+                document.getElementById('jack-val').innerText = d.jackpot;
 
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
                 document.getElementById('streak-ui').style.display = d.can_claim ? 'block' : 'none';
-                document.getElementById('stk-txt').innerText = "Day " + (d.streak + 1);
+                document.getElementById('stk-txt').innerText = (d.streak + 1);
 
                 let r_html = "";
                 d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small>${u.b}</small></div><b>${u.p}</b></div>`; });
@@ -287,24 +287,24 @@ async def web_ui():
             const res = await fetch(`${apiBase}/api/daily`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
             const data = await res.json();
             if(data.ok) { 
-                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#FFD700', '#FFFFFF', '#FFA500'] }); 
-                tg.showAlert(`Amazing! Day ${data.streak} Streak: +${data.reward} OWPC!`); 
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); 
+                tg.showAlert(`Congrats! Streak Bonus claimed.`); 
                 refresh(); 
             }
         }
 
         async function mine(t) {
-            tg.HapticFeedback.impactOccurred('light');
+            tg.HapticFeedback.impactOccurred('medium');
             const res = await fetch(`${apiBase}/api/mine`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) { 
-                confetti({ particleCount: 5, spread: 20, origin: { y: 0.8 }, colors: ['#FFF', '#FFD700'] });
+                confetti({ particleCount: 5, spread: 20, origin: { y: 0.8 }, colors: ['#FFD700'] });
                 refresh(); 
             }
         }
 
         function shareInvite() {
             const url = `https://t.me/owpcsbot?start=${uid}`;
-            const text = "🌍 Access the $WPT Dashboard! Real-time tracking and daily rewards. 💎⚡";
+            const text = "🌍 Join the World Peace Hub! Track $WPT, mine assets and win the daily jackpot! 🚀";
             tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
         }
 
