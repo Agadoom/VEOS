@@ -1,4 +1,4 @@
-import os, asyncio, uvicorn, logging, time, datetime
+import os, asyncio, uvicorn, logging, time
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +18,8 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 bot_app = None 
+MAX_ENERGY = 100
+REGEN_RATE = 1 # 1 énergie par minute
 
 # --- UTILS ---
 def get_badge(score):
@@ -42,86 +44,67 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c = conn.cursor()
             c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
             if not c.fetchone():
-                c.execute("INSERT INTO users (user_id, name, referred_by) VALUES (%s, %s, %s)", (uid, name, referrer_id))
+                now = int(time.time())
+                c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update) VALUES (%s, %s, %s, %s, %s)", 
+                          (uid, name, referrer_id, MAX_ENERGY, now))
                 if referrer_id:
-                    c.execute("UPDATE users SET p_unity = p_unity + 1.0, ref_count = ref_count + 1 WHERE user_id = %s RETURNING ref_count", (referrer_id,))
-                    new_ref = c.fetchone()[0]
-                    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (%s, 'REFERRAL_REWARD', 1.0, %s)", (referrer_id, int(time.time())))
-                    if new_ref == 5:
-                        c.execute("UPDATE users SET p_genesis = p_genesis + 5.0 WHERE user_id = %s", (referrer_id,))
-                    elif new_ref == 10:
-                        c.execute("UPDATE users SET p_veo = p_veo + 10.0 WHERE user_id = %s", (referrer_id,))
+                    c.execute("UPDATE users SET p_unity = p_unity + 1.0, ref_count = ref_count + 1 WHERE user_id = %s", (referrer_id,))
             conn.commit(); c.close(); conn.close()
         except Exception as e: logging.error(f"SQL Start Error: {e}")
     
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton("📢 Invite Friends", switch_inline_query=f"\nJoin me on OWPC HUB! 🚀 https://t.me/owpcsbot?start={uid}")]
-    ])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text(f"Welcome to OWPC HUB, {name}!", reply_markup=kb)
 
-# --- API DAILY ---
-@app.post("/api/daily")
-async def daily_checkin(request: Request):
-    data = await request.json()
-    uid = data.get("user_id")
-    conn = get_db_conn()
-    if not conn: return {"ok": False}
-    c = conn.cursor()
-    c.execute("SELECT last_daily FROM users WHERE user_id=%s", (uid,))
-    res = c.fetchone()
-    now = int(time.time())
-    last = res[0] if res and res[0] else 0
-    if (now - last) < 86400:
-        c.close(); conn.close()
-        return {"ok": False}
-    c.execute("UPDATE users SET p_unity = p_unity + 0.5, last_daily = %s WHERE user_id = %s", (now, uid))
-    c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (%s, 'DAILY_BONUS', 0.5, %s)", (uid, now))
-    conn.commit(); c.close(); conn.close()
-    return {"ok": True}
-
-# --- API USER DATA ---
+# --- API USER DATA (Calcul de l'énergie en temps réel) ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn()
     c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_daily, total_clicks, name FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_daily, name, energy, last_energy_update FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
-    score = r[0] + r[1] + r[2]
     now = int(time.time())
-    wait = max(0, 86400 - (now - (r[4] or 0)))
+    # Calcul de la recharge : (secondes passées / 60) * REGEN_RATE
+    seconds_passed = now - r[7]
+    refill = int(seconds_passed / 60) * REGEN_RATE
+    current_energy = min(MAX_ENERGY, r[6] + refill)
     
-    c.execute("SELECT token, amount, timestamp FROM logs WHERE user_id=%s ORDER BY id DESC LIMIT 5", (uid,))
-    history = [{"t": x[0], "a": x[1], "ts": x[2]} for x in c.fetchall()]
+    # Update auto de l'énergie si elle a changé
+    if current_energy != r[6] and refill > 0:
+        c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (current_energy, now, uid))
+        conn.commit()
+
+    score = r[0] + r[1] + r[2]
+    wait = max(0, 86400 - (now - (r[4] or 0)))
     
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
     c.close(); conn.close()
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "history": history, "name": r[6], "top": top, "next_daily": wait, "badge": get_badge(score)}
+    return {
+        "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5], 
+        "energy": current_energy, "max_energy": MAX_ENERGY,
+        "top": top, "next_daily": wait, "badge": get_badge(score)
+    }
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    col = {"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}.get(t)
     conn = get_db_conn()
-    if conn and col:
-        c = conn.cursor(); c.execute(f"UPDATE users SET {col} = {col} + 0.05, total_clicks = total_clicks + 1 WHERE user_id = %s", (uid,))
-        c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (%s, %s, 0.05, %s)", (uid, t.upper(), int(time.time())))
+    c = conn.cursor()
+    c.execute("SELECT energy FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    
+    if res and res[0] >= 1:
+        col = {"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}.get(t)
+        c.execute(f"UPDATE users SET {col} = {col} + 0.05, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (int(time.time()), uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
-    return {"ok": False}
-
-@app.post("/api/donate")
-async def donate_stars(request: Request):
-    data = await request.json()
-    try:
-        link = await bot_app.bot.create_invoice_link(title="Support OWPC", description="50 Stars", payload="50", provider_token="", currency="XTR", prices=[LabeledPrice("Support", 50)])
-        return {"ok": True, "link": link}
-    except: return {"ok": False}
+    
+    c.close(); conn.close()
+    return {"ok": False, "msg": "Out of energy!"}
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
@@ -135,19 +118,21 @@ async def web_ui():
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
-        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 20px; border: 1px solid #2c2c2e; }
         .avatar { width: 35px; height: 35px; background: var(--blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; }
+        .energy-container { margin: 15px 0; background: #222; border-radius: 10px; height: 12px; position: relative; overflow: hidden; }
+        .energy-bar { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
+        .energy-text { font-size: 10px; font-weight: 800; text-align: center; margin-top: 5px; color: var(--gold); }
         .balance { text-align: center; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); margin-bottom: 15px; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
         .btn { background: #FFF; color: #000; border: none; padding: 8px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; }
-        .btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+        .btn:disabled { background: #333; color: #666; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 1000; }
-        .nav-item { font-size: 20px; opacity: 0.3; cursor: pointer; }
+        .nav-item { font-size: 20px; opacity: 0.3; }
         .nav-item.active { opacity: 1; }
-        .section-title { font-size: 11px; font-weight: 700; color: var(--text); margin: 20px 0 8px 5px; text-transform: uppercase; }
-        .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); margin-top: 4px; display: inline-block; }
-        a { text-decoration: none; color: inherit; }
+        .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); display: inline-block; }
+        a { text-decoration: none; }
     </style>
 </head>
 <body>
@@ -155,35 +140,28 @@ async def web_ui():
         <div style="display:flex; align-items:center; gap:10px;"><div class="avatar" id="u-avatar">?</div>
             <div><div id="u-name" style="font-weight:700">Loading...</div><div id="u-badge" class="badge-tag">Bronze</div></div>
         </div>
-        <div style="text-align:right"><small style="color:var(--text); font-size:9px">REFERRALS</small><div id="u-ref" style="color:var(--gold); font-weight:bold">0</div></div>
+        <div style="text-align:right"><small style="color:var(--text); font-size:9px">REFS</small><div id="u-ref" style="color:var(--gold); font-weight:bold">0</div></div>
     </div>
 
     <div id="p-mine">
-        <div class="card" style="background:var(--blue); margin-bottom:20px;">
-            <div style="color:#FFF"><b>Daily Bonus</b><br><small id="daily-timer">Ready to claim!</small></div>
-            <button class="btn" id="daily-btn" onclick="claimDaily()">CLAIM</button>
-        </div>
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:38px; margin:5px 0">0.00</h1></div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('genesis')">CLAIM</button></div>
-        <div class="card"><div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
+        
+        <div class="energy-container"><div id="e-bar" class="energy-bar"></div></div>
+        <div id="e-text" class="energy-text">⚡ 0 / 100</div>
+
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">CLAIM</button></div>
+        <div class="card"><div><small>UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
     </div>
 
     <div id="p-pillars" style="display:none">
-        <div class="section-title">Ecosystem Pillars (Blum)</div>
         <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
         <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
         <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <div class="section-title">Your Referral Link</div>
-        <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px;">
-            <small id="ref-link" style="color:var(--blue); font-size:11px;">https://t.me/owpcsbot?start=...</small>
-            <button class="btn" style="width:100%" onclick="copyRef()">Copy Link</button>
-        </div>
-        <div class="section-title">Support Project</div>
-        <div class="card"><div><b>Donate Stars</b></div><button class="btn" style="background:var(--gold)" onclick="donate()">⭐️ 50</button></div>
+        <button class="btn" style="width:100%; margin-top:20px;" onclick="copyRef()">Copy Referral Link</button>
     </div>
 
-    <div id="p-leader" style="display:none"><div class="section-title">Top Players</div><div id="rank-list"></div></div>
+    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
@@ -202,45 +180,38 @@ async def web_ui():
                 const r = await fetch(`${apiBase}/api/user/${uid}`);
                 const d = await r.json();
                 document.getElementById('u-name').innerText = d.name;
-                document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
                 document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('u-ref').innerText = d.rc;
                 document.getElementById('gv').innerText = d.g.toFixed(2);
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
-                document.getElementById('ref-link').innerText = `https://t.me/owpcsbot?start=${uid}`;
-                const btn = document.getElementById('daily-btn');
-                const timer = document.getElementById('daily-timer');
-                if(d.next_daily > 0) {
-                    btn.disabled = true;
-                    let h = Math.floor(d.next_daily/3600), m = Math.floor((d.next_daily%3600)/60);
-                    timer.innerText = `Next in ${h}h ${m}m`;
-                } else { btn.disabled = false; timer.innerText = "Ready to claim!"; }
+                
+                // Energy Update
+                const ePercent = (d.energy / d.max_energy) * 100;
+                document.getElementById('e-bar').style.width = ePercent + "%";
+                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+                
+                const btns = document.querySelectorAll('.m-btn');
+                btns.forEach(b => b.disabled = (d.energy < 1));
+
                 let r_html = "";
                 d.top.forEach((u, i) => { 
-                    r_html += `<div class="card"><div style="display:flex; flex-direction:column;"><span>${i+1}. ${u.n}</span><small style="color:var(--text); font-size:10px">${u.b}</small></div><b>${u.p}</b></div>`; 
+                    r_html += `<div class="card"><div><span>${i+1}. ${u.n}</span><br><small style="color:#666">${u.b}</small></div><b>${u.p}</b></div>`; 
                 });
                 document.getElementById('rank-list').innerHTML = r_html;
             } catch(e) {}
         }
 
-        async function claimDaily() {
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-            await fetch(`${apiBase}/api/daily`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            refresh();
-        }
         async function mine(t) {
-            confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } });
-            tg.HapticFeedback.impactOccurred('light');
-            await fetch(`${apiBase}/api/mine`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            refresh();
+            tg.HapticFeedback.impactOccurred('medium');
+            const res = await fetch(`${apiBase}/api/mine`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
+            const data = await res.json();
+            if(data.ok) {
+                confetti({ particleCount: 20, spread: 30, origin: { y: 0.9 } });
+                refresh();
+            } else { tg.showAlert("No energy left!"); }
         }
-        async function donate() {
-            const r = await fetch(`${apiBase}/api/donate`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            const data = await r.json();
-            if(data.ok) tg.openInvoice(data.link, (s) => { if(s=='paid') refresh(); });
-        }
+
         function show(p) {
             ['mine', 'pillars', 'leader'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id===p ? 'block' : 'none');
@@ -248,10 +219,10 @@ async def web_ui():
             });
         }
         function copyRef() {
-            navigator.clipboard.writeText(document.getElementById('ref-link').innerText);
+            navigator.clipboard.writeText(`https://t.me/owpcsbot?start=${uid}`);
             tg.showAlert("Link copied!");
         }
-        refresh(); setInterval(refresh, 10000);
+        refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
