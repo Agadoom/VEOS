@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Application
+from telegram.error import Forbidden
 
 from data_conx import init_db, get_db_conn
 
@@ -21,30 +22,15 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 MAX_ENERGY = 100
 REGEN_RATE = 1 
 
-# --- AUTO-PATCH DB (Sécurisé) ---
+# --- AUTO-PATCH DB ---
 def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        # On s'assure que toutes les colonnes nécessaires existent
-        columns = [
-            ("p_genesis", "DOUBLE PRECISION DEFAULT 0"),
-            ("p_unity", "DOUBLE PRECISION DEFAULT 0"),
-            ("p_veo", "DOUBLE PRECISION DEFAULT 0"),
-            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"), 
-            ("streak", "INTEGER DEFAULT 0"), 
-            ("last_streak_date", "TEXT"),
-            ("ref_count", "INTEGER DEFAULT 0"),
-            ("energy", "INTEGER DEFAULT 100"),
-            ("last_energy_update", "INTEGER")
-        ]
-        for col, dtype in columns:
-            try:
-                c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-                conn.commit()
-            except:
-                conn.rollback()
-        c.close(); conn.close()
+        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("last_streak_date", "TEXT")]:
+            try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+            except: pass
+        conn.commit(); c.close(); conn.close()
 
 patch_db()
 
@@ -69,72 +55,71 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
         if not c.fetchone():
-            c.execute("""INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, p_genesis, p_unity, p_veo, staked_amount, streak) 
-                         VALUES (%s, %s, %s, %s, %s, 0, 0, 0, 0, 0)""", 
+            c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
-                # Bonus immédiat au parrain
-                c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
+                c.execute("UPDATE users SET p_unity = p_unity + 10.0, ref_count = ref_count + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID: return
+    msg = " ".join(context.args)
+    if not msg: return
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT user_id FROM users"); users = c.fetchall(); c.close(); conn.close()
+    count = 0
+    for u in users:
+        try:
+            await context.bot.send_message(chat_id=u[0], text=msg)
+            count += 1; await asyncio.sleep(0.05)
+        except: continue
+    await update.message.reply_text(f"✅ Sent to {count} nodes.")
+
 # --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
-    try:
-        conn = get_db_conn(); c = conn.cursor()
-        # Utilisation de COALESCE pour éviter les erreurs de lecture JS sur les valeurs NULL
-        c.execute("""SELECT 
-            COALESCE(p_genesis,0), COALESCE(p_unity,0), COALESCE(p_veo,0), 
-            COALESCE(ref_count,0), COALESCE(last_streak_date,''), COALESCE(name,'Node'), 
-            COALESCE(energy,100), COALESCE(last_energy_update,0), 
-            COALESCE(streak,0), COALESCE(staked_amount,0) 
-            FROM users WHERE user_id=%s""", (uid,))
-        r = c.fetchone()
-        
-        if not r:
-            c.close(); conn.close()
-            return JSONResponse(status_code=404, content={})
-        
-        now = int(time.time())
-        last_upd = r[7] if r[7] and r[7] > 0 else now
-        current_e = min(MAX_ENERGY, r[6] + ((now - last_upd) // 60) * REGEN_RATE)
-        
-        score = r[0] + r[1] + r[2]
-        today = datetime.date.today().isoformat()
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
+    r = c.fetchone()
+    if not r: return JSONResponse(status_code=404, content={})
+    
+    now = int(time.time())
+    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
+    today = datetime.date.today().isoformat()
+    can_claim = (r[4] != today)
 
-        c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
-        top = [{"n": x[0] or "Anon", "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
-        
-        c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-        total_net = c.fetchone()[0] or 0
-        c.close(); conn.close()
+    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
+    top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
+    
+    c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
+    total_net = c.fetchone()[0] or 0
+    c.close(); conn.close()
 
-        return {
-            "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5],
-            "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
-            "top": top, "jackpot": round(total_net * 0.1, 2),
-            "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
-            "multiplier": round(1.0 + (r[9] / 100) * 0.1 + (score / 1000), 2),
-            "can_claim": (r[4] != today), "streak": r[8], "staked": r[9]
-        }
-    except Exception as e:
-        logging.error(f"API Error: {e}")
-        return JSONResponse(status_code=500, content={"error": "db_sync_issue"})
+    return {
+        "g": r[0], "u": r[1], "v": r[2], "rc": r[3] or 0, "name": r[5],
+        "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
+        "top": top, "jackpot": round(total_net * 0.1, 2),
+        "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
+        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
+        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0
+    }
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
+    data = await request.json()
+    uid, t = data.get("user_id"), data.get("token")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT COALESCE(energy,100), COALESCE(last_energy_update,0), COALESCE(staked_amount,0), (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT energy, last_energy_update, staked_amount, (p_genesis + p_unity + p_veo) FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    now = int(time.time()); current_e = min(MAX_ENERGY, res[0] + ((now - (res[1] or now)) // 60) * REGEN_RATE)
+    now = int(time.time()); current_e = min(MAX_ENERGY, res[0] + ((now - res[1]) // 60) * REGEN_RATE)
     if current_e >= 1:
-        mult = 1.0 + (res[2] / 100) * 0.1 + (res[3] / 1000)
+        mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
         gain = 0.05 * mult
-        c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
+        c.execute(f"UPDATE users SET p_{t} = p_{t} + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
@@ -143,11 +128,11 @@ async def mine_api(request: Request):
 async def daily_api(request: Request):
     data = await request.json(); uid = data.get("user_id"); today = datetime.date.today()
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT COALESCE(last_streak_date,''), COALESCE(streak,0) FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     if r[0] != today.isoformat():
         new_s = (r[1]+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
-        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
+        c.execute("UPDATE users SET p_genesis=p_genesis+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
@@ -155,9 +140,9 @@ async def daily_api(request: Request):
 async def stake_api(request: Request):
     data = await request.json(); uid = data.get("user_id")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
-    bal = c.fetchone()[0]
-    if bal >= 100:
+    c.execute("SELECT p_genesis, p_unity, p_veo FROM users WHERE user_id = %s", (uid,))
+    r = c.fetchone()
+    if (r[0]+r[1]+r[2]) >= 100:
         c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
@@ -180,7 +165,18 @@ async def web_ui():
         .status-led { height: 7px; width: 7px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; margin-right:5px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         
-        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; gap: 10px; }
+        /* FIX POSITION BUTTON GIFT */
+        .profile-bar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 12px; 
+            background: #161618; 
+            border-radius: 15px; 
+            margin-bottom: 15px; 
+            border: 1px solid #2c2c2e;
+            gap: 10px;
+        }
         .profile-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; white-space: nowrap; }
         .u-name-text { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -254,30 +250,26 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`);
-                if (!r.ok) return;
-                const d = await r.json();
-                if(!d.name) return;
-                document.getElementById('u-name').innerText = d.name;
-                document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('u-ref').innerText = d.rc + " REFS";
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
-                document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-                document.getElementById('u-streak').innerText = d.streak;
-                document.getElementById('staked-val').innerText = d.staked + " Staked";
-                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
-                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
-                document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
-                document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
-                let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
-                document.getElementById('rank-list').innerHTML = r_html;
-            } catch (e) { console.error("Refresh Error"); }
+            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+            if(!d.name) return;
+            document.getElementById('u-name').innerText = d.name;
+            document.getElementById('u-badge').innerText = d.badge;
+            document.getElementById('u-ref').innerText = d.rc + " REFS";
+            document.getElementById('gv').innerText = d.g.toFixed(2);
+            document.getElementById('uv').innerText = d.u.toFixed(2);
+            document.getElementById('vv').innerText = d.v.toFixed(2);
+            document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
+            document.getElementById('jack-val').innerText = d.jackpot;
+            document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
+            document.getElementById('u-streak').innerText = d.streak;
+            document.getElementById('staked-val').innerText = d.staked + " Staked";
+            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
+            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+            document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
+            document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
+            document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
+            let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
+            document.getElementById('rank-list').innerHTML = r_html;
         }
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('medium');
@@ -302,18 +294,18 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        refresh(); setInterval(refresh, 8000);
+        refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
 """
 
 async def main():
+    global bot_app
     init_db()
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
-    await bot_app.initialize()
-    await bot_app.start()
+    await bot_app.initialize(); await bot_app.start()
     await bot_app.bot.delete_webhook(drop_pending_updates=True)
     asyncio.create_task(bot_app.updater.start_polling())
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
