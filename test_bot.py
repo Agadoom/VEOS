@@ -61,13 +61,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
         conn.commit(); c.close(); conn.close()
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
+    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
 # --- API ---
 @app.get("/tonconnect-manifest.json")
 async def manifest():
     return {
-        "url": WEBAPP_URL, "name": "One World Peace Coins",
+        "url": WEBAPP_URL, "name": "OWPC Hub",
         "iconUrl": "https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png"
     }
 
@@ -77,6 +77,7 @@ async def get_user(uid: int):
     c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, wallet_address FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
+    
     now = int(time.time())
     last_upd = r[7] if r[7] else now
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
@@ -84,52 +85,44 @@ async def get_user(uid: int):
     
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
+    
+    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+    total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
+
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8] or 0),
-        "top": top, "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
+        "top": top, "jackpot": round(total_net * 0.1, 2),
+        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
         "can_claim": (r[4] != datetime.date.today().isoformat()), "streak": r[8] or 0, "staked": r[9] or 0,
-        "wallet": r[10], "machine_load": random.randint(88, 99)
+        "wallet": r[10]
     }
+
+@app.post("/api/connect-wallet")
+async def connect_wallet(request: Request):
+    data = await request.json()
+    uid, addr = data.get("user_id"), data.get("address")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (addr, uid))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    try:
-        data = await request.json()
-        uid, t = data.get("user_id"), data.get("token")
-        conn = get_db_conn(); c = conn.cursor()
-        
-        # On récupère les valeurs avec COALESCE pour éviter les None
-        c.execute("""
-            SELECT energy, last_energy_update, 
-                   COALESCE(staked_amount, 0), 
-                   (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) 
-            FROM users WHERE user_id = %s
-        """, (uid,))
-        
-        res = c.fetchone()
-        if not res: 
-            return JSONResponse(status_code=404, content={"ok": False, "msg": "User not found"})
-        
-        energy = res[0]
-        if energy < 1:
-            return JSONResponse(status_code=400, content={"ok": False, "msg": "No energy"})
-
-        # Calcul sécurisé du multiplicateur
-        staked = res[2]
-        total_assets = res[3]
-        mult = 1.0 + (staked / 100) * 0.1 + (total_assets / 1000)
-        gain = 0.05 * mult
-        
-        now = int(time.time())
-        c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (gain, now, uid))
-        conn.commit(); c.close(); conn.close()
-        
-        return {"ok": True, "gain": round(gain, 3)}
-    except Exception as e:
-        logging.error(f"Mine error: {e}")
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    data = await request.json()
+    uid, t = data.get("user_id"), data.get("token")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    if not res or res[0] < 1: return JSONResponse(status_code=400, content={"ok": False})
+    
+    now = int(time.time())
+    mult = 1.0 + (res[2]/100)*0.1 + (res[3]/1000)
+    gain = 0.05 * mult
+    c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, res[0]-1, now, uid))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True, "gain": round(gain, 3)}
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
@@ -144,28 +137,25 @@ async def web_ui():
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; }
-        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
-        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
+        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
-        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
-        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
+        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
+        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
-        .gain-anim { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 1s forwards; z-index: 1000; }
+        .gain-anim { position: fixed; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 1s forwards; z-index: 9999; }
         @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-50px); opacity: 0; } }
     </style>
 </head>
 <body>
-    <div class="header-ticker"><span>$WPT: $0.00045</span><span style="color:var(--gold)">NODE ACTIVE</span></div>
-    
     <div class="profile-bar">
         <div style="display:flex; align-items:center; gap:8px;">
-            <div id="u-name" style="font-weight:bold; font-size:13px;">Loading...</div>
-            <div id="u-badge" style="font-size:9px; padding:2px 6px; background:#222; color:var(--gold); border-radius:5px;">-</div>
+            <div id="u-name" style="font-weight:700;">Loading...</div>
+            <div id="u-badge" class="badge-tag" style="font-size:9px; background:#222; padding:2px 5px; border-radius:5px; color:var(--gold);">...</div>
         </div>
         <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold);">0 REFS</div>
     </div>
@@ -178,28 +168,21 @@ async def web_ui():
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine('genesis', event)">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine('unity', event)">SYNC</button></div>
-        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine('veo', event)" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
+        <div class="card"><div>GENESIS<br><small id="gv">0.00</small></div><button class="btn" onclick="mine('genesis', event)">MINE</button></div>
+        <div class="card"><div>UNITY<br><small id="uv">0.00</small></div><button class="btn" onclick="mine('unity', event)">MINE</button></div>
+        <div class="card"><div>VEO AI<br><small id="vv">0.00</small></div><button class="btn" onclick="mine('veo', event)" style="background:#A259FF; color:#FFF">MINE</button></div>
     </div>
 
-    <div id="p-pillars" style="display:none">
-        <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
-        <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
-        <div class="card"><b>Unity Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
-        <div class="card"><b>Veo AI Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
-        <div class="card"><b>Genesis Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
+    <div id="p-mission" style="display:none">
+        <h3 style="color:var(--gold)">CONNECT WALLET</h3>
+        <div id="ton-connect-button" style="display:flex; justify-content:center; margin-bottom:15px;"></div>
+        <div id="wallet-status" style="text-align:center; font-size:11px; color:var(--text); margin-bottom:15px;">Checking wallet...</div>
+        <button id="change-w" class="btn" style="width:100%; display:none; background:#cc2929; color:#fff;" onclick="disconnectWallet()">CHANGE WALLET</button>
+        <div class="card" style="margin-top:20px;"><div>Active Nodes<br><small>Streak: <span id="u-streak">0</span></small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
-
-    <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold)">WALLET & NODES</h3>
-        <div id="ton-connect-button" style="display:flex; justify-content:center; margin-bottom:10px;"></div>
-        <div id="wallet-status" style="text-align:center; font-size:11px; color:var(--text); margin-bottom:20px;">Checking...</div>
-        <button id="change-wallet" class="btn" style="width:100%; margin-bottom:15px; display:none; background:#cc2929; color:white;" onclick="disconnectWallet()">CHANGE WALLET</button>
-        <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
-    </div>
+    <div id="p-pillars" style="display:none"><h3 style="text-align:center;">📊 $WPT PILLARS</h3><div id="pillars-list"></div></div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
@@ -212,12 +195,12 @@ async def web_ui():
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
 
-        const tonConnectUI = new TONConnectUI.TonConnectUI({
+        const tonUI = new TONConnectUI.TonConnectUI({
             manifestUrl: window.location.origin + '/tonconnect-manifest.json',
             buttonRootId: 'ton-connect-button'
         });
 
-        tonConnectUI.onStatusChange(async (wallet) => {
+        tonUI.onStatusChange(async (wallet) => {
             if (wallet) {
                 await fetch('/api/connect-wallet', {
                     method: 'POST',
@@ -229,12 +212,8 @@ async def web_ui():
         });
 
         async function disconnectWallet() {
-            await tonConnectUI.disconnect();
-            await fetch('/api/connect-wallet', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, address: null })
-            });
+            await tonUI.disconnect();
+            await fetch('/api/connect-wallet', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, address:null})});
             refresh();
         }
 
@@ -243,30 +222,23 @@ async def web_ui():
             try {
                 const r = await fetch(`/api/user/${uid}`); 
                 const d = await r.json();
-                if(!d.name) return;
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('u-ref').innerText = d.rc + " REFS";
                 document.getElementById('gv').innerText = d.g.toFixed(2);
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
                 document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-                document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
+                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 
                 if(d.wallet) {
-                    document.getElementById('wallet-status').innerText = "✅ Connected: " + d.wallet.substring(0,6)+"..."+d.wallet.substring(d.wallet.length-4);
-                    document.getElementById('wallet-status').style.color = "var(--green)";
-                    document.getElementById('change-wallet').style.display = "block";
+                    document.getElementById('wallet-status').innerText = "✅ " + d.wallet.substring(0,8)+"...";
+                    document.getElementById('change-w').style.display = "block";
                 } else {
-                    document.getElementById('wallet-status').innerText = "Not Connected";
-                    document.getElementById('change-wallet').style.display = "none";
+                    document.getElementById('wallet-status').innerText = "Wallet Not Linked";
+                    document.getElementById('change-w').style.display = "none";
                 }
-
-                let r_html = ""; 
-                d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}</div><b>${u.p}</b></div>`; });
-                document.getElementById('rank-list').innerHTML = r_html;
             } catch(e) {}
         }
 
@@ -274,20 +246,16 @@ async def web_ui():
             const res = await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) {
                 const data = await res.json();
-                showGainAnim(e, data.gain);
+                const anim = document.createElement('div');
+                anim.className = 'gain-anim';
+                anim.innerText = '+' + data.gain;
+                anim.style.left = (e.clientX || e.touches[0].clientX) + 'px';
+                anim.style.top = (e.clientY || e.touches[0].clientY) + 'px';
+                document.body.appendChild(anim);
+                setTimeout(() => anim.remove(), 1000);
                 tg.HapticFeedback.impactOccurred('light');
                 refresh();
             }
-        }
-
-        function showGainAnim(e, val) {
-            const anim = document.createElement('div');
-            anim.className = 'gain-anim';
-            anim.innerText = '+' + val;
-            anim.style.left = e.pageX + 'px';
-            anim.style.top = e.pageY + 'px';
-            document.body.appendChild(anim);
-            setTimeout(() => anim.remove(), 1000);
         }
 
         function show(p) {
@@ -296,31 +264,20 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        
-        // CORRECTION DÉMARRAGE : Forcer plusieurs tentatives de refresh
-        window.onload = () => {
-            let attempts = 0;
-            let check = setInterval(() => {
-                refresh();
-                attempts++;
-                if (attempts > 5) clearInterval(check);
-            }, 1000);
-            setInterval(refresh, 5000);
-        };
+
+        window.onload = () => { refresh(); setInterval(refresh, 5000); };
     </script>
 </body>
 </html>
 """
 
 async def main():
-    global bot_app
     init_db()
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
     await bot_app.initialize(); await bot_app.start()
-    await bot_app.bot.delete_webhook(drop_pending_updates=True)
     asyncio.create_task(bot_app.updater.start_polling())
-    await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
+    await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
 
 if __name__ == "__main__":
     asyncio.run(main())
