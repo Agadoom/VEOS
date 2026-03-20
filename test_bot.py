@@ -92,7 +92,6 @@ async def stake_api(request: Request):
     c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
     total = c.fetchone()[0] or 0
     if total >= 100:
-        # On déduit 34/33/33 pour faire 100 au total
         c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
@@ -139,19 +138,27 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --purple: #A259FF; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --purple: #A259FF; --fire: #FF4500; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
         .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 9px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; }
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
+        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
+        
+        /* Combo UI */
+        #combo-ui { position: absolute; top: 10px; left: 10px; color: var(--fire); font-weight: bold; font-size: 12px; display: none; text-shadow: 0 0 5px var(--fire); }
+        
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
         .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
-        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
+        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; transition: transform 0.1s; }
+        .card:active { transform: scale(0.98); }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .btn:disabled { opacity: 0.5; filter: grayscale(1); }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; } .nav-item.active { opacity: 1; color: var(--gold); }
+        
+        .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.6s ease-out forwards; font-size: 14px; }
+        @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-40px); } }
     </style>
 </head>
 <body>
@@ -168,15 +175,16 @@ async def web_ui():
 
     <div id="p-mine">
         <div class="balance">
+            <div id="combo-ui">🔥 COMBO x2</div>
             <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
     <div id="p-pillars" style="display:none">
@@ -187,18 +195,14 @@ async def web_ui():
         <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">CLAIM</button></div>
         <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
     </div>
-
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
-
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">STAKING & NODES</h3>
         <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
-        
         <div class="card" style="border-color:var(--gold)">
             <div><b>Lock 100 Assets</b><br><small>+0.1x Multiplier</small></div>
             <button class="btn" id="stake-btn" onclick="stake()">LOCK</button>
         </div>
-
         <div class="card"><div><b>Energy Drink ⚡</b><br><small>Cost: 50 Assets</small></div><button class="btn" id="drink-btn" onclick="buyDrink()">BUY</button></div>
         <div class="card"><div><b>Community Hub</b></div><button class="btn" onclick="tg.openLink('https://t.me/owpc_co')">JOIN</button></div>
     </div>
@@ -213,6 +217,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         const LOCK_TIME = 12 * 60 * 60 * 1000;
+        let lastClick = 0, comboCount = 0;
 
         async function refresh() {
             const r = await fetch(`/api/user/${uid}`); const d = await r.json();
@@ -223,7 +228,7 @@ async def web_ui():
             document.getElementById('gv').innerText = d.g.toFixed(2);
             document.getElementById('uv').innerText = d.u.toFixed(2);
             document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = d.score;
+            document.getElementById('tot').innerText = d.score.toFixed(2);
             document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
             document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
             document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
@@ -231,7 +236,6 @@ async def web_ui():
             document.getElementById('staked-val').innerText = d.staked + " Staked";
             document.getElementById('jack-val').innerText = d.jackpot;
 
-            // Logique activation boutons
             document.getElementById('drink-btn').disabled = (d.score < 50);
             document.getElementById('stake-btn').disabled = (d.score < 100);
             
@@ -239,6 +243,42 @@ async def web_ui():
             document.getElementById('rank-list').innerHTML = r_html;
             updateGiftTimer();
         }
+
+        function mine(e, t) {
+            const now = Date.now();
+            // Combo Logic
+            if(now - lastClick < 400) {
+                comboCount++;
+                if(comboCount > 5) document.getElementById('combo-ui').style.display = 'block';
+            } else {
+                comboCount = 0;
+                document.getElementById('combo-ui').style.display = 'none';
+            }
+            lastClick = now;
+
+            // Floating Text Effect
+            const rect = e.target.getBoundingClientRect();
+            const txt = document.createElement('div');
+            txt.className = 'floating-text';
+            txt.innerText = '+0.05';
+            txt.style.left = rect.left + (rect.width/2) + 'px';
+            txt.style.top = rect.top + 'px';
+            document.body.appendChild(txt);
+            setTimeout(() => txt.remove(), 600);
+
+            fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
+            refresh(); 
+            tg.HapticFeedback.impactOccurred('light');
+        }
+
+        // Simuler un Auto-mining visuel (monte de 0.01/min pour l'effet)
+        setInterval(() => {
+            let el = document.getElementById('tot');
+            if(el) {
+                let val = parseFloat(el.innerText);
+                el.innerText = (val + 0.0001).toFixed(4);
+            }
+        }, 2000);
 
         function updateGiftTimer() {
             const last = localStorage.getItem('lock_' + uid);
@@ -261,11 +301,6 @@ async def web_ui():
             if(r.ok) { localStorage.setItem('lock_'+uid, Date.now()); confetti(); refresh(); }
         }
 
-        async function mine(t) {
-            await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            refresh(); tg.HapticFeedback.impactOccurred('light');
-        }
-
         async function stake() {
             const r = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
             if(r.ok) { confetti(); refresh(); }
@@ -280,10 +315,13 @@ async def web_ui():
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         
         refresh(); setInterval(updateGiftTimer, 60000);
+        tg.expand();
     </script>
 </body>
 </html>
+"""
 
+# ... (Le reste de ton code Python avec main() reste identique)
 """
 
 async def main():
