@@ -102,11 +102,13 @@ async def daily_api(request: Request):
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
+    # Sécurité Serveur : On vérifie que la date n'est pas aujourd'hui
     if not r or r[0] != today.isoformat():
         new_s = (r[1]+1) if r and r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
         c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
+    c.close(); conn.close()
+    return JSONResponse(status_code=400, content={"ok": False, "msg": "Already claimed"})
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -124,17 +126,6 @@ async def mine_api(request: Request):
         c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-@app.post("/api/stake")
-async def stake_api(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
-    total = c.fetchone()[0] or 0
-    if total >= 100:
-        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
 # --- WEB UI ---
@@ -167,7 +158,6 @@ async def web_ui():
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } .nav-item.active { opacity: 1; color: var(--gold); }
-        
         .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; font-size: 14px; }
         @keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
     </style>
@@ -246,10 +236,9 @@ async def web_ui():
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
                 document.getElementById('jack-val').innerText = d.jackpot;
                 
-                // On n'affiche le bouton QUE si can_claim est vrai
                 const btn = document.getElementById('daily-btn');
                 btn.style.display = d.can_claim ? 'block' : 'none';
-                btn.disabled = false; // Réactiver au cas où
+                if(d.can_claim) btn.disabled = false; // Réactiver si le serveur dit que c'est ok
 
                 document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
@@ -269,27 +258,27 @@ async def web_ui():
 
         async function claimDaily() {
             const btn = document.getElementById('daily-btn');
-            if (btn.disabled) return; // Sécurité double clic
+            if (btn.disabled) return; // Sécurité JS
             
-            btn.disabled = true; // Désactivation immédiate
+            btn.disabled = true; // Désactivation immédiate au clic
             tg.HapticFeedback.notificationOccurred('success');
             confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
             
             try {
-                const res = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+                const res = await fetch('/api/daily', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({user_id:uid})
+                });
                 if(res.ok) {
-                    refresh();
+                    setTimeout(refresh, 500); // Rafraîchir pour cacher le bouton définitivement
                 } else {
-                    btn.disabled = false; // Réactiver si erreur serveur
+                    // Si erreur (ex: déjà cliqué côté serveur), le bouton restera caché via refresh
+                    refresh();
                 }
             } catch(e) {
                 btn.disabled = false;
             }
-        }
-
-        async function stake() {
-            const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { confetti(); refresh(); }
         }
 
         function share() {
