@@ -179,14 +179,15 @@ async def web_ui():
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } .nav-item.active { opacity: 1; color: var(--gold); }
         
-        /* Animation Click */
         .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; font-size: 14px; }
         @keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
         
-        /* Wallet Box Style */
-        .wallet-box { background: #1a1a1c; border-radius: 15px; padding: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border: 1px solid #333; width: 100%; box-sizing: border-box; }
-        .wallet-info { display: flex; align-items: center; gap: 10px; }
-        .wallet-icon { width: 32px; height: 32px; background: #007AFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        /* DESIGN WALLET SUR TA PHOTO */
+        .wallet-container { margin-bottom: 20px; width: 100%; }
+        .wallet-box { background: #1a1a1c; border-radius: 15px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; }
+        .wallet-info { display: flex; align-items: center; gap: 12px; }
+        .wallet-icon-circle { width: 35px; height: 35px; background: #007AFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .wallet-text { display: flex; flex-direction: column; }
     </style>
 </head>
 <body>
@@ -218,16 +219,20 @@ async def web_ui():
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">STAKING & NODES</h3>
         
-        <div id="ton-connect-button" style="display:flex; justify-content:center; margin-bottom:15px;"></div>
-        <div id="wallet-connected" class="wallet-box" style="display:none;">
-            <div class="wallet-info">
-                <div class="wallet-icon"><img src="https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png" width="20"></div>
-                <div>
-                    <div style="font-size:12px; font-weight:bold;">TON Wallet</div>
-                    <div id="wallet-addr" style="font-size:10px; color:var(--text);">...</div>
+        <div class="wallet-container">
+            <div id="ton-connect-button" style="display:flex; justify-content:center;"></div>
+            <div id="wallet-connected-ui" class="wallet-box" style="display:none;">
+                <div class="wallet-info">
+                    <div class="wallet-icon-circle">
+                        <img src="https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png" width="20">
+                    </div>
+                    <div class="wallet-text">
+                        <span style="font-size:13px; font-weight:bold;">TON Wallet</span>
+                        <span id="wallet-addr-display" style="font-size:11px; color:var(--text);">UQ...</span>
+                    </div>
                 </div>
+                <button onclick="disconnectWallet()" style="background:none; border:none; color:#FF4D4D; font-size:20px; cursor:pointer;">✕</button>
             </div>
-            <button onclick="disconnectWallet()" style="background:none; border:none; color:#FF3B30; font-size:18px; font-weight:bold; cursor:pointer;">✕</button>
         </div>
 
         <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
@@ -258,20 +263,28 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
-        const tonUI = new TONConnectUI.TonConnectUI({ manifestUrl: window.location.origin + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
+        
+        const tonUI = new TONConnectUI.TonConnectUI({ 
+            manifestUrl: window.location.origin + '/tonconnect-manifest.json', 
+            buttonRootId: 'ton-connect-button' 
+        });
 
-        tonUI.onStatusChange(async (w) => {
-            if(w) {
-                const addr = w.account.address;
-                document.getElementById('ton-connect-button').style.display = 'none';
-                document.getElementById('wallet-connected').style.display = 'flex';
-                document.getElementById('wallet-addr').innerText = addr.substring(0,4) + "..." + addr.substring(addr.length-4);
+        tonUI.onStatusChange(async (wallet) => {
+            const connectBtn = document.getElementById('ton-connect-button');
+            const connectedUI = document.getElementById('wallet-connected-ui');
+            
+            if(wallet) {
+                const addr = wallet.account.address;
+                connectBtn.style.display = 'none';
+                connectedUI.style.display = 'flex';
+                document.getElementById('wallet-addr-display').innerText = addr.substring(0,4) + "..." + addr.substring(addr.length-4);
                 await fetch('/api/connect-wallet', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, address:addr})});
             } else {
-                document.getElementById('ton-connect-button').style.display = 'flex';
-                document.getElementById('wallet-connected').style.display = 'none';
+                connectBtn.style.display = 'flex';
+                connectedUI.style.display = 'none';
             }
         });
+
         async function disconnectWallet() { await tonUI.disconnect(); }
 
         async function refresh() {
