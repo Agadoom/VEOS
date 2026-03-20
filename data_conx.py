@@ -48,6 +48,9 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily INTEGER DEFAULT 0")
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_clicks INTEGER DEFAULT 0")
         c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by BIGINT") # <-- AJOUT ICI
+# Dans init_db(), ajoutez cette ligne dans la section MIGRATIONS
+c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet_address TEXT")
+
         
         # 3. Création de la table LOGS
         c.execute('''CREATE TABLE IF NOT EXISTS logs 
