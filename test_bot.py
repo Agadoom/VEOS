@@ -93,28 +93,43 @@ async def get_user(uid: int):
         "wallet": r[10], "machine_load": random.randint(88, 99)
     }
 
-@app.post("/api/connect-wallet")
-async def connect_wallet(request: Request):
-    data = await request.json()
-    uid, addr = data.get("user_id"), data.get("address")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (addr, uid))
-    conn.commit(); c.close(); conn.close()
-    return {"ok": True}
-
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    data = await request.json()
-    uid, t = data.get("user_id"), data.get("token")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    if not res or res[0] < 1: return JSONResponse(status_code=400, content={"ok": False})
-    mult = 1.0 + (res[2]/100)*0.1 + (res[3]/1000)
-    gain = 0.05 * mult
-    c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (gain, int(time.time()), uid))
-    conn.commit(); c.close(); conn.close()
-    return {"ok": True, "gain": round(gain, 3)}
+    try:
+        data = await request.json()
+        uid, t = data.get("user_id"), data.get("token")
+        conn = get_db_conn(); c = conn.cursor()
+        
+        # On récupère les valeurs avec COALESCE pour éviter les None
+        c.execute("""
+            SELECT energy, last_energy_update, 
+                   COALESCE(staked_amount, 0), 
+                   (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) 
+            FROM users WHERE user_id = %s
+        """, (uid,))
+        
+        res = c.fetchone()
+        if not res: 
+            return JSONResponse(status_code=404, content={"ok": False, "msg": "User not found"})
+        
+        energy = res[0]
+        if energy < 1:
+            return JSONResponse(status_code=400, content={"ok": False, "msg": "No energy"})
+
+        # Calcul sécurisé du multiplicateur
+        staked = res[2]
+        total_assets = res[3]
+        mult = 1.0 + (staked / 100) * 0.1 + (total_assets / 1000)
+        gain = 0.05 * mult
+        
+        now = int(time.time())
+        c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (gain, now, uid))
+        conn.commit(); c.close(); conn.close()
+        
+        return {"ok": True, "gain": round(gain, 3)}
+    except Exception as e:
+        logging.error(f"Mine error: {e}")
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
