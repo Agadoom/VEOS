@@ -27,17 +27,25 @@ def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        for col, dtype in [
+        # Liste des colonnes nécessaires
+        columns = [
             ("staked_amount", "DOUBLE PRECISION DEFAULT 0"), 
             ("streak", "INTEGER DEFAULT 0"), 
             ("last_streak_date", "TEXT"),
-            ("missions_done", "TEXT DEFAULT ''") # Nouvelle colonne pour les missions
-        ]:
-            try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            except: pass
-        conn.commit(); c.close(); conn.close()
+            ("missions_done", "TEXT DEFAULT ''")
+        ]
+        for col, dtype in columns:
+            try:
+                # On vérifie si la colonne existe avant d'essayer de l'ajouter
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+                logging.info(f"Colonne {col} ajoutée avec succès.")
+            except Exception as e:
+                # Si elle existe déjà, l'erreur est normale, on ignore
+                pass
+        conn.commit()
+        c.close()
+        conn.close()
 
-patch_db()
 
 # --- UTILS ---
 def get_badge(score, streak=0):
