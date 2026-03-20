@@ -59,30 +59,45 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, last_energy_update, staked_amount, ref_claimed, auto_rate FROM users WHERE user_id=%s", (uid,))
-    r = c.fetchone()
-    if not r: return JSONResponse(status_code=404, content={})
-    
-    now = int(time.time())
-    current_e = min(MAX_ENERGY, (r[5] or 0) + ((now - (r[6] or now)) // 60) * REGEN_RATE)
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    badge, next_goal, b_color = get_badge_info(score)
+    conn = get_db_conn()
+    if not conn: return JSONResponse(status_code=500, content={"error": "DB Connection failed"})
+    c = conn.cursor()
+    try:
+        c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, last_energy_update, staked_amount, ref_claimed, auto_rate FROM users WHERE user_id=%s", (uid,))
+        r = c.fetchone()
+        if not r: return JSONResponse(status_code=404, content={"error": "User not found"})
+        
+        # Sécurité : On remplace les None par des valeurs par défaut
+        g, u, v = r[0] or 0.0, r[1] or 0.0, r[2] or 0.0
+        rc, name = r[3] or 0, r[4] or "Unknown"
+        energy, last_upd = r[5] or 100, r[6] or int(time.time())
+        staked, claimed = r[7] or 0.0, r[8] or 0
+        auto_rate = r[9] or 0.01
 
-    c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 5")
-    top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
-    
-    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-    total_net = c.fetchone()[0] or 0
-    c.close(); conn.close()
+        now = int(time.time())
+        current_e = min(MAX_ENERGY, energy + ((now - last_upd) // 60) * REGEN_RATE)
+        score = round(g + u + v, 2)
+        badge, next_goal, b_color = get_badge_info(score)
 
-    return {
-        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
-        "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": badge, "next_goal": next_goal, "badge_color": b_color,
-        "top": top, "jackpot": round(total_net * 0.1, 2), "score": round(score, 2),
-        "multiplier": round(1.0 + ((r[7] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "staked": r[7] or 0, "pending_refs": max(0, (r[3] or 0) - (r[8] or 0)), "auto_rate": r[9] or 0.01
-    }
+        c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 5")
+        top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
+        
+        c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+        total_net = c.fetchone()[0] or 0
+        
+        return {
+            "g": g, "u": u, "v": v, "rc": rc, "name": name,
+            "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": badge, "next_goal": next_goal, "badge_color": b_color,
+            "top": top, "jackpot": round(total_net * 0.1, 2), "score": score,
+            "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
+            "staked": staked, "pending_refs": max(0, rc - claimed), "auto_rate": auto_rate
+        }
+    except Exception as e:
+        logging.error(f"Error in get_user: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    finally:
+        c.close(); conn.close()
+
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
