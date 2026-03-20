@@ -3,14 +3,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
-from telegram.error import Forbidden, TelegramError
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.error import Forbidden
 
 from data_conx import init_db, get_db_conn
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", 1414016840)) # Mets ton ID Telegram ici pour le broadcast
+ADMIN_ID = int(os.getenv("ADMIN_ID", 0)) # IMPORTANT: Mets ton ID ici
 PORT = int(os.getenv("PORT", 8080))
 RAW_URL = os.getenv("WEBAPP_URL", "")
 WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
@@ -33,9 +33,7 @@ def get_badge(score, streak=0):
 # --- BOT COMMANDS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
-    # Gestion groupe vs Privé
-    if update.effective_chat.type in ['group', 'supergroup']:
-        return # On ne répond pas au /start dans le groupe pour éviter le spam
+    if update.effective_chat.type in ['group', 'supergroup']: return 
 
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
     conn = get_db_conn()
@@ -50,36 +48,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text("Your Node is Synchronized. Start Mining $WPT.", reply_markup=kb)
+    await update.message.reply_text("Node Synchronized. Ready to Mine.", reply_markup=kb)
 
-# --- FONCTION BROADCAST (ADMIN SEULEMENT) ---
+# --- BROADCAST AVEC FEEDBACK ---
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Reserved for Admin.")
+        await update.message.reply_text("❌ Admin only.")
         return
 
-    message_to_send = " ".join(context.args)
-    if not message_to_send:
-        await update.message.reply_text("📝 Usage: /broadcast [votre message]")
+    msg = " ".join(context.args)
+    if not msg:
+        await update.message.reply_text("📝 Usage: /broadcast [message]")
         return
 
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT user_id FROM users")
-    users = c.fetchall()
-    c.close(); conn.close()
+    users = c.fetchall(); c.close(); conn.close()
 
-    count = 0
-    await update.message.reply_text(f"🚀 Sending to {len(users)} users...")
-    
-    for user in users:
+    total = len(users)
+    await update.message.reply_text(f"🚀 Broadcast started for {total} users...")
+
+    success = 0
+    for u in users:
         try:
-            await context.bot.send_message(chat_id=user[0], text=message_to_send)
-            count += 1
-            await asyncio.sleep(0.05) # Petit délai pour éviter le flood
-        except Forbidden: pass # L'utilisateur a bloqué le bot
-        except Exception: pass
+            await context.bot.send_message(chat_id=u[0], text=msg)
+            success += 1
+            await asyncio.sleep(0.05) 
+        except Forbidden: pass # Bot bloqué par l'user
+        except Exception as e: logging.error(f"Send error to {u[0]}: {e}")
 
-    await update.message.reply_text(f"✅ Broadcast finished: {count} received.")
+    # C'est ici que tu reçois la confirmation finale
+    await update.message.reply_text(f"✅ DONE! {success}/{total} users received the update.")
 
 # --- API ---
 @app.get("/api/user/{uid}")
