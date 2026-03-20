@@ -82,14 +82,6 @@ async def get_user(uid: int):
         "streak": r[7] or 0, "staked": r[8] or 0
     }
 
-@app.post("/api/daily")
-async def daily_api(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("UPDATE users SET p_genesis = COALESCE(p_genesis,0) + 5, streak = COALESCE(streak,0) + 1 WHERE user_id = %s", (uid,))
-    conn.commit(); c.close(); conn.close()
-    return {"ok": True}
-
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json(); uid, t, is_turbo = data.get("user_id"), data.get("token"), data.get("turbo", False)
@@ -99,12 +91,19 @@ async def mine_api(request: Request):
     now = int(time.time())
     current_e = min(MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
     if current_e >= 1:
-        # Gain aléatoire entre 0.04 et 0.07 (moyenne 0.055) + Multiplicateur Turbo
         base_gain = random.uniform(0.04, 0.07)
         mult = (1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)) * (10 if is_turbo else 1)
         c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s WHERE user_id=%s", (base_gain*mult, current_e-1, now, uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True, "gain": round(base_gain*mult, 2)}
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
+
+@app.post("/api/daily")
+async def daily_api(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("UPDATE users SET p_genesis = COALESCE(p_genesis,0) + 5, streak = COALESCE(streak,0) + 1 WHERE user_id = %s", (uid,))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True}
 
 @app.post("/api/stake")
 async def stake_api(request: Request):
@@ -129,7 +128,7 @@ async def web_ui():
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --red: #FF3B30; }
-        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow: hidden; }
+        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow: hidden; position: relative; }
         
         #matrix-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.1; pointer-events: none; }
         
@@ -144,6 +143,7 @@ async def web_ui():
         
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
         .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
+        
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .btn:disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
@@ -166,7 +166,7 @@ async def web_ui():
     <div class="header-ticker">
         <span>$WPT: <span id="wpt-price">$0.000450</span></span>
         <button id="w-btn" class="wallet-btn" onclick="connW()">Connect Wallet</button>
-        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span></span>
+        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span>
     </div>
     
     <div class="profile-bar">
@@ -181,7 +181,7 @@ async def web_ui():
 
     <div id="p-mine">
         <div class="balance" id="main-bal">
-            <div id="turbo-label">⚡ TURBO ACTIVE</div>
+            <div id="turbo-label">⚡ TURBO x10</div>
             <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
@@ -220,9 +220,10 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
+        const LOCK_TIME = 12 * 60 * 60 * 1000;
         let isTurbo = false, basePrice = 0.000450;
 
-        // --- MATRIX BACKGROUND ---
+        // --- MATRIX ---
         const canvas = document.getElementById('matrix-bg');
         const ctx = canvas.getContext('2d');
         canvas.width = window.innerWidth; canvas.height = window.innerHeight;
@@ -240,12 +241,7 @@ async def web_ui():
         }
         setInterval(drawMatrix, 50);
 
-        function connW() {
-            const b = document.getElementById('w-btn');
-            b.innerText = "0x4F...3B9"; b.classList.add('connected');
-            tg.HapticFeedback.notificationOccurred('success');
-        }
-
+        // --- PRIX ---
         function updatePrice() {
             const change = (Math.random() - 0.48) * 0.00001; 
             basePrice += change;
@@ -256,8 +252,46 @@ async def web_ui():
         }
         setInterval(updatePrice, 3000);
 
+        // --- TIMER GIFT (LOCALSTORAGE) ---
+        function checkDailyLock() {
+            const last = localStorage.getItem('lock_' + uid);
+            const btn = document.getElementById('daily-btn');
+            if (last) {
+                const diff = Date.now() - parseInt(last);
+                if (diff < LOCK_TIME) {
+                    const remaining = LOCK_TIME - diff;
+                    const h = Math.floor(remaining / 3600000);
+                    const m = Math.floor((remaining % 3600000) / 60000);
+                    const s = Math.floor((remaining % 60000) / 1000);
+                    btn.innerText = `⏳ ${h}h ${m}m ${s}s`;
+                    btn.disabled = true;
+                    btn.style.opacity = "0.6";
+                    return;
+                }
+            }
+            btn.innerText = "🎁 GIFT";
+            btn.disabled = false;
+            btn.style.opacity = "1";
+        }
+        setInterval(checkDailyLock, 1000);
+
+        async function claimDaily() {
+            const r = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            if(r.ok) {
+                localStorage.setItem('lock_' + uid, Date.now().toString());
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                refresh();
+            }
+        }
+
+        // --- ACTIONS ---
+        function connW() {
+            const b = document.getElementById('w-btn');
+            b.innerText = "0x4F...3B9"; b.classList.add('connected');
+            tg.HapticFeedback.notificationOccurred('success');
+        }
+
         async function mine(e, t) {
-            // Turbo Mode (1/100 chance)
             if (!isTurbo && Math.random() < 0.01) {
                 isTurbo = true;
                 document.getElementById('main-bal').classList.add('turbo-glow');
@@ -269,13 +303,11 @@ async def web_ui():
                     document.getElementById('turbo-label').style.display = 'none';
                 }, 5000);
             }
-
             const rect = e.target.getBoundingClientRect();
             const txt = document.createElement('div'); txt.className = 'floating-text';
             txt.innerText = isTurbo ? '+0.50 🔥' : '+0.05';
             txt.style.left = rect.left + 'px'; txt.style.top = rect.top + 'px';
             document.body.appendChild(txt); setTimeout(() => txt.remove(), 800);
-            
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t, turbo:isTurbo})});
             refresh(); tg.HapticFeedback.impactOccurred(isTurbo ? 'heavy' : 'light');
         }
@@ -287,6 +319,7 @@ async def web_ui():
                 document.getElementById('u-badge').innerText = d.badge;
                 document.getElementById('u-badge').style.color = d.badge_color;
                 document.getElementById('lvl-fill').style.width = Math.min(100, (d.score/d.next_goal)*100) + "%";
+                document.getElementById('u-ref').innerText = d.rc + " REFS";
                 document.getElementById('gv').innerText = d.g.toFixed(2);
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
@@ -301,11 +334,6 @@ async def web_ui():
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
             } catch(e) {}
-        }
-
-        async function claimDaily() {
-            const r = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(r.ok) { localStorage.setItem('lock_'+uid, Date.now()); confetti(); refresh(); }
         }
 
         async function stake() {
