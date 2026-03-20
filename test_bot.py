@@ -4,7 +4,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Application
-from telegram.error import Forbidden
 
 from data_conx import init_db, get_db_conn
 
@@ -27,7 +26,12 @@ def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("last_streak_date", "TEXT")]:
+        for col, dtype in [
+            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"), 
+            ("streak", "INTEGER DEFAULT 0"), 
+            ("last_streak_date", "TEXT"),
+            ("ref_claimed", "INTEGER DEFAULT 0") # Nouvelle colonne pour suivre les bonus de parrainage récupérés
+        ]:
             try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except: pass
         conn.commit(); c.close(); conn.close()
@@ -58,7 +62,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
-                c.execute("UPDATE users SET p_unity = p_unity + 10.0, ref_count = ref_count + 1 WHERE user_id = %s", (ref_id,))
+                c.execute("UPDATE users SET ref_count = ref_count + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
@@ -82,7 +86,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, ref_claimed FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
@@ -90,7 +94,9 @@ async def get_user(uid: int):
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     today = datetime.date.today().isoformat()
-    can_claim = (r[4] != today)
+    
+    # Calcul des refs non réclamées
+    pending_refs = (r[3] or 0) - (r[10] or 0)
 
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
@@ -105,7 +111,8 @@ async def get_user(uid: int):
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0
+        "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
+        "pending_refs": max(0, pending_refs)
     }
 
 @app.post("/api/mine")
@@ -122,6 +129,19 @@ async def mine_api(request: Request):
         c.execute(f"UPDATE users SET p_{t} = p_{t} + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False})
+
+@app.post("/api/claim_ref")
+async def claim_ref_api(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id = %s", (uid,))
+    r = c.fetchone()
+    pending = r[0] - r[1]
+    if pending > 0:
+        bonus = pending * 10.0
+        c.execute("UPDATE users SET p_unity = p_unity + %s, ref_claimed = ref_count WHERE user_id = %s", (bonus, uid))
+        conn.commit(); c.close(); conn.close(); return {"ok": True, "bonus": bonus}
     return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/daily")
@@ -165,21 +185,10 @@ async def web_ui():
         .status-led { height: 7px; width: 7px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; margin-right:5px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         
-        /* FIX POSITION BUTTON GIFT */
-        .profile-bar { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 12px; 
-            background: #161618; 
-            border-radius: 15px; 
-            margin-bottom: 15px; 
-            border: 1px solid #2c2c2e;
-            gap: 10px;
-        }
-        .profile-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
-        .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; white-space: nowrap; }
-        .u-name-text { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; gap: 8px; }
+        .profile-info { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+        .u-name-text { font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .badge-tag { font-size: 8px; padding: 2px 5px; border-radius: 5px; background: #222; color: var(--gold); border: 1px solid #333; white-space: nowrap; }
         
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .energy-bar { background: #222; border-radius: 10px; height: 6px; margin: 15px 0; overflow: hidden; }
@@ -187,7 +196,7 @@ async def web_ui():
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .btn:disabled { opacity: 0.2; }
-        .gift-btn { background: var(--gold); min-width: 60px; padding: 8px 12px; }
+        .gift-btn { background: var(--gold); padding: 6px 10px; font-size: 10px; border-radius: 8px; flex-shrink: 0; }
         
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; } .nav-item.active { opacity: 1; color: var(--gold); }
@@ -203,7 +212,7 @@ async def web_ui():
             <div id="u-badge" class="badge-tag">...</div>
         </div>
         <button id="daily-btn" class="btn gift-btn" style="display:none;" onclick="claimDaily()">🎁 GIFT</button>
-        <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold); white-space:nowrap;">0 REFS</div>
+        <div id="u-ref" style="font-weight:bold; font-size:10px; color:var(--gold); white-space:nowrap; flex-shrink: 0;">0 REFS</div>
     </div>
 
     <div id="p-mine">
@@ -233,11 +242,17 @@ async def web_ui():
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">STAKING & NODES</h3>
         <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
-        <div class="card"><div><b>Community Hub</b></div><button class="btn" onclick="window.open('https://t.me/OWPC_Co')">JOIN</button></div>
+        
+        <div class="card" id="ref-bonus-card" style="border-color:var(--green); display:none;">
+            <div><b>Referral Reward</b><br><small id="ref-pending-text">+0 UNITY Pending</small></div>
+            <button class="btn" onclick="claimRef()" style="background:var(--green); color:white">CLAIM</button>
+        </div>
+
         <div class="card" style="margin-top:10px; border-color:var(--gold)">
             <div><b>Stake 100 Assets</b><br><small>+0.1x Multiplier</small></div>
             <button class="btn" id="stake-btn" onclick="stake()">LOCK</button>
         </div>
+        <div class="card"><div><b>Community Hub</b></div><button class="btn" onclick="window.open('https://t.me/OWPC_Co')">JOIN</button></div>
     </div>
 
     <div class="nav">
@@ -266,6 +281,15 @@ async def web_ui():
             document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
             document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
             document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
+            
+            // Gestion Bonus Ref
+            if(d.pending_refs > 0) {
+                document.getElementById('ref-bonus-card').style.display = 'flex';
+                document.getElementById('ref-pending-text').innerText = `+${d.pending_refs * 10} UNITY Pending`;
+            } else {
+                document.getElementById('ref-bonus-card').style.display = 'none';
+            }
+
             document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
             document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
             let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
@@ -278,6 +302,10 @@ async def web_ui():
         }
         async function claimDaily() {
             const res = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            if(res.ok) { confetti(); refresh(); }
+        }
+        async function claimRef() {
+            const res = await fetch('/api/claim_ref', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
             if(res.ok) { confetti(); refresh(); }
         }
         async function stake() {
