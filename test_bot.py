@@ -314,14 +314,11 @@ async def web_ui():
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}&text=🚀 Sync your Node!`); }
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         
-        refresh(); setInterval(updateGiftTimer, 60000);
+                refresh(); setInterval(updateGiftTimer, 60000);
         tg.expand();
     </script>
 </body>
 </html>
-""""
-
-# ... (Le reste de ton code Python avec main() reste identique)
 """
 
 async def main():
@@ -329,10 +326,19 @@ async def main():
     init_db()
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
-    await bot_app.initialize(); await bot_app.start()
+    await bot_app.initialize()
+    await bot_app.start()
     await bot_app.bot.delete_webhook(drop_pending_updates=True)
     asyncio.create_task(bot_app.updater.start_polling())
-    await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
+    
+    # Configuration Uvicorn
+    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+
