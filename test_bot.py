@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Application
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.error import Forbidden
 
 from data_conx import init_db, get_db_conn
@@ -27,9 +27,18 @@ def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("last_streak_date", "TEXT")]:
-            try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            except: pass
+        # Ajout des colonnes manquantes pour le staking, les streaks et le wallet
+        cols = [
+            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"), 
+            ("streak", "INTEGER DEFAULT 0"), 
+            ("last_streak_date", "TEXT"),
+            ("wallet_address", "TEXT")
+        ]
+        for col, dtype in cols:
+            try: 
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+            except: 
+                pass
         conn.commit(); c.close(); conn.close()
 
 patch_db()
@@ -65,15 +74,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
 # --- API ---
+
+@app.get("/tonconnect-manifest.json")
+async def manifest():
+    return {
+        "url": WEBAPP_URL,
+        "name": "One World Peace Coins",
+        "iconUrl": "https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png" # Remplacez par votre icône
+    }
+
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, wallet_address FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    # Correction calcul Energie : s'assurer que r[7] existe
     last_upd = r[7] if r[7] else now
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
     
@@ -94,8 +111,21 @@ async def get_user(uid: int):
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0
+        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0,
+        "wallet": r[10] # Adresse du wallet
     }
+
+@app.post("/api/connect-wallet")
+async def connect_wallet(request: Request):
+    data = await request.json()
+    uid, address = data.get("user_id"), data.get("address")
+    conn = get_db_conn()
+    if conn:
+        c = conn.cursor()
+        c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (address, uid))
+        conn.commit(); c.close(); conn.close()
+        return {"ok": True}
+    return JSONResponse(status_code=500, content={"ok": False})
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -136,7 +166,6 @@ async def stake_api(request: Request):
     c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
     total = c.fetchone()[0] or 0
     if total >= 100:
-        # On retire 100 équitablement (environ 33.3 par asset)
         c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
@@ -151,6 +180,7 @@ async def web_ui():
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
@@ -167,7 +197,6 @@ async def web_ui():
         
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         
-        /* Correction Barre Energie */
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
         .energy-fill { 
             background: linear-gradient(90deg, #FFD700, #FFA500); 
@@ -186,6 +215,8 @@ async def web_ui():
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
+
+        #ton-connect-button { display: flex; justify-content: center; margin-bottom: 15px; }
     </style>
 </head>
 <body>
@@ -226,13 +257,16 @@ async def web_ui():
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold)">STAKING & NODES</h3>
+        <h3 style="color:var(--gold)">WALLET & NODES</h3>
+        <div id="ton-connect-button"></div>
+        <div id="wallet-status" style="text-align:center; font-size:10px; margin-bottom:15px; color:var(--text)">Not Connected</div>
+        
         <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
-        <div class="card"><div><b>Community Hub</b></div><button class="btn" onclick="window.open('https://t.me/OWPC_Co')">JOIN</button></div>
         <div class="card" style="margin-top:10px; border-color:var(--gold)">
             <div><b>Stake 100 Assets</b><br><small>+0.1x Multiplier</small></div>
             <button class="btn" id="stake-btn" onclick="stake()">LOCK</button>
         </div>
+        <div class="card"><div><b>Community Hub</b></div><button class="btn" onclick="window.open('https://t.me/OWPC_Co')">JOIN</button></div>
     </div>
 
     <div class="nav">
@@ -246,6 +280,24 @@ async def web_ui():
         let tg = window.Telegram.WebApp; 
         tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
+
+        // Configuration TON Connect
+        const tonConnectUI = new TONConnectUI.TonConnectUI({
+            manifestUrl: window.location.origin + '/tonconnect-manifest.json',
+            buttonRootId: 'ton-connect-button'
+        });
+
+        tonConnectUI.onStatusChange(async (wallet) => {
+            if (wallet) {
+                const addr = wallet.account.address;
+                document.getElementById('wallet-status').innerText = "Linked: " + addr.substring(0,6) + "..." + addr.substring(addr.length-4);
+                await fetch('/api/connect-wallet', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: uid, address: addr })
+                });
+            }
+        });
 
         async function refresh() {
             try {
@@ -265,15 +317,16 @@ async def web_ui():
                 document.getElementById('u-streak').innerText = d.streak;
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
                 
-                // Mise à jour visuelle fluide de la barre
+                if(d.wallet) {
+                    document.getElementById('wallet-status').innerText = "Linked: " + d.wallet.substring(0,6) + "...";
+                }
+
                 const energyPct = (d.energy / d.max_energy) * 100;
                 document.getElementById('e-bar').style.width = energyPct + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 
                 document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
-                
-                // Bouton Stake activé si total >= 100
                 document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
 
                 let r_html = ""; 
@@ -326,7 +379,7 @@ async def web_ui():
         }
 
         refresh(); 
-        setInterval(refresh, 4000); // Mise à jour toutes les 4 secondes
+        setInterval(refresh, 4000); 
     </script>
 </body>
 </html>
