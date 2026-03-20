@@ -67,71 +67,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
-# --- API (CORRIGÉ POUR LIRE TES 73.56 ASSETS) ---
+
+# --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
-    conn = get_db_conn()
-    if not conn:
-        return JSONResponse(status_code=500, content={"error": "DB Connection Failed"})
-    
-    c = conn.cursor()
-    # On utilise COALESCE pour chaque valeur afin d'éviter le "0" par défaut si la case est NULL
-    c.execute("""SELECT 
-        COALESCE(p_genesis, 0.0), 
-        COALESCE(p_unity, 0.0), 
-        COALESCE(p_veo, 0.0), 
-        COALESCE(ref_count, 0), 
-        COALESCE(last_streak_date, ''), 
-        COALESCE(name, 'Node'), 
-        COALESCE(energy, 100), 
-        COALESCE(last_energy_update, 0), 
-        COALESCE(streak, 0), 
-        COALESCE(staked_amount, 0.0) 
-        FROM users WHERE user_id=%s""", (uid,))
-    
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
-    if not r: 
-        c.close(); conn.close()
-        return JSONResponse(status_code=404, content={})
+    if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    # Calcul de l'énergie en temps réel
-    last_upd = r[7] if r[7] > 0 else now
-    current_e = min(MAX_ENERGY, r[6] + ((now - last_upd) // 60) * REGEN_RATE)
-    
-    # Somme totale des assets (le fameux 73.56 de ta photo)
-    total_assets = float(r[0]) + float(r[1]) + float(r[2])
-    
+    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     today = datetime.date.today().isoformat()
     can_claim = (r[4] != today)
 
-    # Leaderboard : On s'assure que le calcul du total est fait par la DB
-    c.execute("""SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total 
-                 FROM users ORDER BY total DESC LIMIT 8""")
-    top = [{"n": x[0] or "Anon", "p": round(float(x[1]), 2), "b": get_badge(float(x[1]))} for x in c.fetchall()]
+    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
+    top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
-    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+    c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
     total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
 
     return {
-        "g": float(r[0]), 
-        "u": float(r[1]), 
-        "v": float(r[2]), 
-        "rc": r[3], 
-        "name": r[5],
-        "energy": int(current_e), 
-        "max_energy": MAX_ENERGY, 
-        "badge": get_badge(total_assets, r[8]),
-        "top": top, 
-        "jackpot": round(float(total_net) * 0.1, 2),
-        "machine_load": random.randint(88, 99), 
-        "price_wpt": 0.00045,
-        "multiplier": round(1.0 + (float(r[9]) / 100) * 0.1 + (total_assets / 1000), 2),
-        "can_claim": can_claim, 
-        "streak": r[8], 
-        "staked": float(r[9])
+        "g": r[0], "u": r[1], "v": r[2], "rc": r[3] or 0, "name": r[5],
+        "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
+        "top": top, "jackpot": round(total_net * 0.1, 2),
+        "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
+        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
+        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0
     }
+
 
 
 @app.post("/api/mine")
