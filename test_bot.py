@@ -51,19 +51,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Admin Only.")
-        return
+    if update.effective_user.id != ADMIN_ID: return
     msg = " ".join(context.args)
-    if not msg:
-        await update.message.reply_text("📝 Usage: /broadcast [votre message]")
-        return
-
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT user_id FROM users")
-    users = c.fetchall(); c.close(); conn.close()
+    if not msg: return
     
-    await update.message.reply_text(f"🚀 Sending to {len(users)} nodes...")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT user_id FROM users"); users = c.fetchall(); c.close(); conn.close()
+    
+    await update.message.reply_text(f"🚀 Broadcast started...")
     count = 0
     for u in users:
         try:
@@ -71,7 +66,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             count += 1
             await asyncio.sleep(0.05)
         except: continue
-    await update.message.reply_text(f"✅ Broadcast Done: {count} received.")
+    await update.message.reply_text(f"✅ Sent to {count} nodes.")
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -83,7 +78,8 @@ async def get_user(uid: int):
     
     now = int(time.time())
     current_e = min(MAX_ENERGY, r[6] + ((now - r[7]) // 60) * REGEN_RATE)
-    
+    score = r[0] + r[1] + r[2]
+
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
@@ -93,9 +89,10 @@ async def get_user(uid: int):
 
     return {
         "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5],
-        "energy": current_e, "max_energy": MAX_ENERGY, "badge": get_badge(r[0]+r[1]+r[2], r[8]),
+        "energy": current_e, "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
         "top": top, "jackpot": round(total_net * 0.1, 2),
-        "machine_load": random.randint(88, 99), "price_wpt": 0.00045
+        "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
+        "multiplier": 1.0 + (score / 1000) # Multiplicateur basé sur le score
     }
 
 @app.post("/api/mine")
@@ -109,12 +106,13 @@ async def mine_api(request: Request):
     current_e = min(MAX_ENERGY, res[0] + ((now - res[1]) // 60) * REGEN_RATE)
 
     if current_e >= 1:
+        # Gain de base 0.05 multiplié par un bonus léger
         c.execute(f"UPDATE users SET p_{t} = p_{t} + 0.05, energy = %s, last_energy_update = %s WHERE user_id = %s", (current_e - 1, now, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
-# --- WEB UI (HTML/CSS/JS) ---
+# --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -147,16 +145,25 @@ async def web_ui():
 <body>
     <div class="header-ticker"><span>$WPT: $<span id="m-price">0.00045</span></span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span></div>
     <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
+    
     <div class="profile-bar">
         <div style="display:flex; align-items:center; gap:10px;"><div id="u-name" style="font-weight:700">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <div id="u-ref" style="font-weight:bold; font-size:12px; color:var(--gold)">0 REFS</div>
     </div>
+
     <div id="p-mine">
-        <div class="balance"><small style="color:var(--text)">NETWORK ASSETS</small><h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1><div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div><div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div></div>
+        <div class="balance">
+            <small style="color:var(--text)">TOTAL ASSETS</small>
+            <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
+            <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
+            <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
+            <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
+        </div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">MINE</button></div>
         <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
     </div>
+
     <div id="p-pillars" style="display:none">
         <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
         <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">BUY</a></div>
@@ -165,18 +172,30 @@ async def web_ui():
         <div class="card"><b>Genesis Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
         <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
     </div>
+
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
+
     <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold)">MISSION</h3>
+        <h3 style="color:var(--gold)">MISSION & DEPIN</h3>
         <div class="card" onclick="window.open('https://t.me/OWPC_Co', '_blank')"><b>Community Hub</b><span>💬</span></div>
-        <div style="background:#111; padding:15px; border-radius:15px; border:1px solid #222; font-size:12px;"><p>1. Alpha Launch (Done)</p><p>2. DePIN Hardware Sync (2026)</p><p>3. Global Listing</p></div>
+        <div style="background:#111; padding:15px; border-radius:15px; border:1px solid #222; font-size:12px;">
+            <p>● Stage 1: Social Mining (Live)</p>
+            <p>● Stage 2: Node Validation (Coming Q3)</p>
+            <p>● Stage 3: Hardware Integration (2026)</p>
+        </div>
+        <div class="card" style="margin-top:10px; border-color:var(--gold)">
+            <div><b>Stake Assets</b><br><small>Earn +20% APR (Soon)</small></div>
+            <button class="btn" disabled>LOCK</button>
+        </div>
     </div>
+
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
         <div onclick="show('mission')" id="n-mission" class="nav-item">🗺️</div>
     </div>
+
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         async function refresh() {
@@ -191,6 +210,7 @@ async def web_ui():
             document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
             document.getElementById('jack-val').innerText = d.jackpot;
             document.getElementById('m-load').innerText = d.machine_load;
+            document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier.toFixed(2)}`;
             document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
             document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
             document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
