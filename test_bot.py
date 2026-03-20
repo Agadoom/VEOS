@@ -10,7 +10,7 @@ from data_conx import init_db, get_db_conn
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", 0)) # Mets ton ID Telegram ici pour le broadcast
+ADMIN_ID = int(os.getenv("ADMIN_ID", 1414016840)) # Mets ton ID Telegram ici pour le broadcast
 PORT = int(os.getenv("PORT", 8080))
 RAW_URL = os.getenv("WEBAPP_URL", "")
 WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
