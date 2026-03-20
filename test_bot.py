@@ -171,7 +171,7 @@ async def web_ui():
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">MISSION & ROADMAP</h3>
         
-        <div class="card" style="background:var(--blue); color:#FFF; border:none;" onclick="window.open('https://t.me/OWPC_Community', '_blank')">
+        <div class="card" style="background:var(--blue); color:#FFF; border:none;" onclick="window.open('https://t.me/OWPC_co', '_blank')">
             <div><b>Join Community</b><br><small style="color:#e0e0e0">Get latest updates & help</small></div>
             <span style="font-size:20px;">💬</span>
         </div>
