@@ -87,7 +87,6 @@ async def get_user(uid: int):
 
     score = r[0] + r[1] + r[2]
     
-    # Global Stats for "Value" feel
     c.execute("SELECT COUNT(*) FROM users")
     total_users = c.fetchone()[0]
     c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
@@ -96,18 +95,14 @@ async def get_user(uid: int):
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
-    c.execute("SELECT u.name, l.token, l.timestamp FROM logs l JOIN users u ON l.user_id = u.user_id ORDER BY l.id DESC LIMIT 5")
-    feed = [{"n": x[0], "t": x[1], "ts": x[2]} for x in c.fetchall()]
-    
     c.close(); conn.close()
 
-    # Simulated Market Data for WPT
     market_wpt = round(0.00045 + (random.random() * 0.00005), 6)
 
     return {
         "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5], 
         "energy": current_energy, "max_energy": MAX_ENERGY,
-        "top": top, "badge": get_badge(score, current_streak), "feed": feed,
+        "top": top, "badge": get_badge(score, current_streak),
         "streak": current_streak, "can_claim": can_claim,
         "global_users": total_users, "global_mined": round(total_mined, 2),
         "price_wpt": market_wpt
@@ -141,7 +136,6 @@ async def mine_api(request: Request):
         col = {"genesis":"p_genesis", "unity":"p_unity", "veo":"p_veo"}.get(t)
         now = int(time.time())
         c.execute(f"UPDATE users SET {col} = {col} + 0.05, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (now, uid))
-        c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (%s, %s, 0.05, %s)", (uid, t.upper(), now))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
     c.close(); conn.close()
@@ -168,21 +162,18 @@ async def web_ui():
         .energy-bar { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
         
         .balance { text-align: center; padding: 25px; border-radius: 25px; background: linear-gradient(180deg, #111 0%, #000 100%); margin-bottom: 15px; border: 1px solid #1a1a1a; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        .streak-box { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; animation: glow 2s infinite alternate; }
-        @keyframes glow { from { box-shadow: 0 0 5px rgba(255,215,0,0.1); } to { box-shadow: 0 0 15px rgba(255,215,0,0.3); } }
+        .streak-box { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; }
 
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .stat-card { background: #111; padding: 10px; border-radius: 12px; text-align: center; border: 1px solid #1c1c1e; }
         .stat-card small { color: var(--text); font-size: 9px; text-transform: uppercase; }
-        .stat-card div { font-size: 14px; font-weight: bold; margin-top: 4px; }
 
         .card { background: var(--card); padding: 12px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; transition: transform 0.1s; }
-        .btn:active { transform: scale(0.95); }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; }
         .btn:disabled { opacity: 0.2; }
         
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 999; }
-        .nav-item { font-size: 20px; opacity: 0.5; cursor: pointer; }
+        .nav-item { font-size: 20px; opacity: 0.5; }
         .nav-item.active { opacity: 1; transform: scale(1.2); }
         .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); }
     </style>
@@ -190,7 +181,7 @@ async def web_ui():
 <body>
     <div class="market-ticker">
         <span>$WPT: $<span id="m-price">0.000450</span></span>
-        <span style="color:var(--green)">📈 Live Status: Stable</span>
+        <span id="m-sent" style="color:var(--green)">📈 BULLISH</span>
     </div>
 
     <div class="profile-bar">
@@ -202,7 +193,7 @@ async def web_ui():
 
     <div id="p-mine">
         <div id="streak-ui" class="streak-box" style="display:none">
-            <div style="font-size:13px; margin-bottom:10px; color:var(--gold); font-weight:bold;">🔥 <span id="stk-txt">Day 1</span> REWARD READY</div>
+            <div style="font-size:13px; margin-bottom:10px; color:var(--gold); font-weight:bold;">🔥 <span id="stk-txt">Day 1</span> READY</div>
             <button id="stk-btn" class="btn" style="width:100%; background:var(--gold); color:#000" onclick="claimDaily()">CLAIM BONUS</button>
         </div>
 
@@ -225,18 +216,20 @@ async def web_ui():
 
     <div id="p-pillars" style="display:none; padding-top:10px;">
         <div style="text-align:center; margin-bottom:20px;">
-            <h3 style="margin:0; color:var(--gold)">WPT UTILITY HUB</h3>
-            <p style="font-size:11px; color:var(--text)">Fast access to ecosystem pillars</p>
+            <h3 style="margin:0; color:var(--gold)">ECOSYSTEM PILLARS</h3>
+            <p style="font-size:11px; color:var(--text)">Fast access to all WPT assets</p>
         </div>
         
         <div class="card" style="border: 1px solid var(--gold); background: rgba(255,215,0,0.05);">
-            <div><b>$WPT Memepad</b><br><small style="color:var(--gold)">Price & Trading</small></div>
+            <div><b>World Peace Token</b><br><small style="color:var(--gold)">Primary Pillar ($WPT)</small></div>
             <a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">FAST BUY</a>
         </div>
         
-        <div class="card"><div><b>Ecosystem Chat</b><br><small>Community Insight</small></div><button class="btn" onclick="tg.showAlert('Join the WPT chat in Blum for live alpha!')">JOIN</button></div>
-        <div class="card"><div><b>Genesis Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Unity Asset</b><br><small>Secondary Pillar</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Veo AI Asset</b><br><small>Technology Pillar</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Genesis Asset</b><br><small>Legacy Pillar</small></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
         
+        <div style="margin-top:20px; text-align:center; font-size:10px; color:var(--text)">🔥 Burn mechanism active: 1% per transaction</div>
         <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS</button>
     </div>
 
@@ -269,10 +262,15 @@ async def web_ui():
                 document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 
-                // New Stats
                 document.getElementById('g-mined').innerText = d.global_mined;
                 document.getElementById('g-users').innerText = d.global_users;
                 document.getElementById('m-price').innerText = d.price_wpt.toFixed(6);
+
+                // Sentiment random effect
+                if(Math.random() > 0.8) {
+                    const s = document.getElementById('m-sent');
+                    s.innerText = "🚀 BULLISH"; s.style.color = "var(--green)";
+                }
 
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
                 document.getElementById('streak-ui').style.display = d.can_claim ? 'block' : 'none';
@@ -299,8 +297,7 @@ async def web_ui():
             tg.HapticFeedback.impactOccurred('light');
             const res = await fetch(`${apiBase}/api/mine`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) { 
-                // Small celebration for every click to keep it "fun"
-                confetti({ particleCount: 10, spread: 20, origin: { y: 0.8 }, colors: ['#FFF', '#FFD700'] });
+                confetti({ particleCount: 5, spread: 20, origin: { y: 0.8 }, colors: ['#FFF', '#FFD700'] });
                 refresh(); 
             }
         }
