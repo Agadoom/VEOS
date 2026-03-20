@@ -247,7 +247,22 @@ async def web_ui():
 
         async function mine(t) { await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})}); refresh(); tg.HapticFeedback.impactOccurred('light'); }
         async function stake() { const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})}); if(res.ok) { confetti(); refresh(); } }
-        function share() { const url = `https://t.me/owpcsbot?start=${uid}`; tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Join my DePIN Node and earn OWPC!`); }
+        // Remplace ta fonction share() par celle-ci pour plus de fun :
+function share() {
+    const url = `https://t.me/owpcsbot?start=${uid}`;
+    // Animation de succès locale avant l'ouverture du lien
+    confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#FFD700', '#ffffff', '#007AFF']
+    });
+    
+    setTimeout(() => {
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=🚀 Join my OWPC Node! High-speed DePIN mining is live. Get +10 Unity assets on start!`);
+    }, 500);
+}
+
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         
         refresh(); setInterval(refresh, 5000);
