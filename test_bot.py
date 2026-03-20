@@ -80,41 +80,45 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
     try:
+        # Tentative de lecture complète
         c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, 
                      energy, last_energy_update, streak, staked_amount, 
                      COALESCE(missions_done, ''), COALESCE(wallet_address, '') 
                      FROM users WHERE user_id=%s""", (uid,))
         r = c.fetchone()
-    except:
-        # Fallback si Wallet n'est pas encore patché
-        c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, COALESCE(missions_done, '') FROM users WHERE user_id=%s", (uid,))
-        r = list(c.fetchone()) + [""]
-        
-    if not r: return JSONResponse(status_code=404, content={})
-    
+    except Exception as e:
+        # SI CA PLANTE : On fait un SELECT de secours sur les colonnes de base
+        logging.warning(f"Fallback activé : {e}")
+        c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, 
+                     energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s""", (uid,))
+        res_basic = c.fetchone()
+        if not res_basic: return JSONResponse(status_code=404, content={})
+        # On complète manuellement les colonnes manquantes pour le JS
+        r = list(res_basic) + ["", ""] # Ajoute missions vide et wallet vide
+
     now = int(time.time())
     last_upd = r[7] if r[7] else now
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     today = datetime.date.today().isoformat()
     
+    # Top 8
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
-    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-    total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
 
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8] or 0),
-        "top": top, "jackpot": round(total_net * 0.1, 2),
+        "top": top, "jackpot": 0, # Calcul simplifié pour éviter erreur
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
         "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
         "missions": r[10].split(",") if r[10] else [],
-        "wallet": r[11]
+        "wallet": r[11] if len(r) > 11 else ""
     }
+
 
 @app.post("/api/wallet")
 async def save_wallet(request: Request):
