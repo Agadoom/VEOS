@@ -92,16 +92,18 @@ async def daily_api(request: Request):
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
+    data = await request.json(); uid, t, is_turbo = data.get("user_id"), data.get("token"), data.get("turbo", False)
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
     now = int(time.time())
     current_e = min(MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
     if current_e >= 1:
-        mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
-        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s WHERE user_id=%s", (0.05*mult, current_e-1, now, uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
+        # Gain aléatoire entre 0.04 et 0.07 (moyenne 0.055) + Multiplicateur Turbo
+        base_gain = random.uniform(0.04, 0.07)
+        mult = (1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)) * (10 if is_turbo else 1)
+        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s WHERE user_id=%s", (base_gain*mult, current_e-1, now, uid))
+        conn.commit(); c.close(); conn.close(); return {"ok": True, "gain": round(base_gain*mult, 2)}
     return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/stake")
@@ -127,29 +129,44 @@ async def web_ui():
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --red: #FF3B30; }
-        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
-        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
+        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow: hidden; }
+        
+        #matrix-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; opacity: 0.1; pointer-events: none; }
+        
+        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; align-items: center; }
         #wpt-price { font-weight: bold; transition: color 0.3s; }
+        
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; }
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
+        
+        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
+        .balance.turbo-glow { border-color: var(--red); box-shadow: 0 0 15px var(--red); }
+        
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
         .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .btn:disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+        
+        .wallet-btn { background: transparent; border: 1px solid var(--blue); color: var(--blue); padding: 4px 8px; border-radius: 8px; font-size: 9px; }
+        .wallet-btn.connected { border-color: var(--green); color: var(--green); }
+
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } .nav-item.active { opacity: 1; color: var(--gold); }
-        .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; }
+        .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 1000; }
         @keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
+        
         .lvl-progress { height: 4px; background: #222; border-radius: 2px; margin-top: 5px; width: 80px; overflow: hidden; }
         .lvl-fill { height: 100%; background: var(--blue); width: 0%; transition: 0.5s; }
+        #turbo-label { position: absolute; top: 10px; right: 10px; color: var(--red); font-size: 10px; font-weight: bold; display: none; }
     </style>
 </head>
 <body>
+    <canvas id="matrix-bg"></canvas>
     <div class="header-ticker">
         <span>$WPT: <span id="wpt-price">$0.000450</span></span>
-        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span>
+        <button id="w-btn" class="wallet-btn" onclick="connW()">Connect Wallet</button>
+        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span></span>
     </div>
     
     <div class="profile-bar">
@@ -163,7 +180,8 @@ async def web_ui():
     </div>
 
     <div id="p-mine">
-        <div class="balance">
+        <div class="balance" id="main-bal">
+            <div id="turbo-label">⚡ TURBO ACTIVE</div>
             <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
@@ -202,8 +220,31 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
-        const LOCK_TIME = 12 * 60 * 60 * 1000;
-        let basePrice = 0.000450;
+        let isTurbo = false, basePrice = 0.000450;
+
+        // --- MATRIX BACKGROUND ---
+        const canvas = document.getElementById('matrix-bg');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        const columns = Math.floor(canvas.width / 15);
+        const drops = Array(columns).fill(1);
+        function drawMatrix() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#0F0"; ctx.font = "15px monospace";
+            drops.forEach((y, i) => {
+                const text = String.fromCharCode(Math.random() * 128);
+                ctx.fillText(text, i * 15, y * 15);
+                if (y * 15 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            });
+        }
+        setInterval(drawMatrix, 50);
+
+        function connW() {
+            const b = document.getElementById('w-btn');
+            b.innerText = "0x4F...3B9"; b.classList.add('connected');
+            tg.HapticFeedback.notificationOccurred('success');
+        }
 
         function updatePrice() {
             const change = (Math.random() - 0.48) * 0.00001; 
@@ -215,30 +256,28 @@ async def web_ui():
         }
         setInterval(updatePrice, 3000);
 
-        function checkDailyLock() {
-            const last = localStorage.getItem('lock_' + uid);
-            const btn = document.getElementById('daily-btn');
-            if (last) {
-                const diff = Date.now() - parseInt(last);
-                if (diff < LOCK_TIME) {
-                    const hours = Math.ceil((LOCK_TIME - diff) / (1000 * 60 * 60));
-                    btn.innerText = "⏳ " + hours + "H"; btn.disabled = true; return;
-                }
+        async function mine(e, t) {
+            // Turbo Mode (1/100 chance)
+            if (!isTurbo && Math.random() < 0.01) {
+                isTurbo = true;
+                document.getElementById('main-bal').classList.add('turbo-glow');
+                document.getElementById('turbo-label').style.display = 'block';
+                tg.HapticFeedback.notificationOccurred('warning');
+                setTimeout(() => {
+                    isTurbo = false;
+                    document.getElementById('main-bal').classList.remove('turbo-glow');
+                    document.getElementById('turbo-label').style.display = 'none';
+                }, 5000);
             }
-            btn.innerText = "🎁 GIFT"; btn.disabled = false;
-        }
 
-        async function claimDaily() {
-            const btn = document.getElementById('daily-btn'); btn.disabled = true;
-            try {
-                const r = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-                if(r.ok) {
-                    localStorage.setItem('lock_' + uid, Date.now().toString());
-                    tg.HapticFeedback.notificationOccurred('success');
-                    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-                    checkDailyLock(); refresh();
-                }
-            } catch(e) { btn.disabled = false; }
+            const rect = e.target.getBoundingClientRect();
+            const txt = document.createElement('div'); txt.className = 'floating-text';
+            txt.innerText = isTurbo ? '+0.50 🔥' : '+0.05';
+            txt.style.left = rect.left + 'px'; txt.style.top = rect.top + 'px';
+            document.body.appendChild(txt); setTimeout(() => txt.remove(), 800);
+            
+            await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t, turbo:isTurbo})});
+            refresh(); tg.HapticFeedback.impactOccurred(isTurbo ? 'heavy' : 'light');
         }
 
         async function refresh() {
@@ -248,7 +287,6 @@ async def web_ui():
                 document.getElementById('u-badge').innerText = d.badge;
                 document.getElementById('u-badge').style.color = d.badge_color;
                 document.getElementById('lvl-fill').style.width = Math.min(100, (d.score/d.next_goal)*100) + "%";
-                document.getElementById('u-ref').innerText = d.rc + " REFS";
                 document.getElementById('gv').innerText = d.g.toFixed(2);
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
@@ -260,20 +298,14 @@ async def web_ui():
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('stake-btn').disabled = (d.score < 100);
-                
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
-                checkDailyLock();
             } catch(e) {}
         }
 
-        async function mine(e, t) {
-            const rect = e.target.getBoundingClientRect();
-            const txt = document.createElement('div'); txt.className = 'floating-text';
-            txt.innerText = '+0.05'; txt.style.left = rect.left + 'px'; txt.style.top = rect.top + 'px';
-            document.body.appendChild(txt); setTimeout(() => txt.remove(), 800);
-            await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            refresh(); tg.HapticFeedback.impactOccurred('light');
+        async function claimDaily() {
+            const r = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            if(r.ok) { localStorage.setItem('lock_'+uid, Date.now()); confetti(); refresh(); }
         }
 
         async function stake() {
@@ -281,14 +313,10 @@ async def web_ui():
             if(r.ok) { confetti(); refresh(); }
         }
 
-        function share() {
-            const url = `https://t.me/owpcsbot?start=${uid}`;
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=🚀 Join my Node!`);
-        }
-
+        function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}&text=🚀 Sync your Node!`); }
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         
-        refresh(); setInterval(checkDailyLock, 60000);
+        refresh();
     </script>
 </body>
 </html>
