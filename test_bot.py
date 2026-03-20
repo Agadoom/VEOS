@@ -54,8 +54,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.commit(); c.close(); conn.close()
         except Exception as e: logging.error(f"SQL Start Error: {e}")
     
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 ENTER OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to the World Peace Hub!\n\nYour node is connected to the hardware network.", reply_markup=kb)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 ENTER WORLD PEACE HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await update.message.reply_text(f"Welcome {name}!\n\nYour node is connected. Start mining $WPT and explore the roadmap.", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -71,16 +71,14 @@ async def get_user(uid: int):
     seconds_passed = now - r[7]
     current_energy = min(MAX_ENERGY, r[6] + int(seconds_passed / 60) * REGEN_RATE)
     
-    # Leaderboard & Feed
-    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
+    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
-    c.execute("SELECT u.name, l.token, l.timestamp FROM logs l JOIN users u ON l.user_id = u.user_id ORDER BY l.id DESC LIMIT 5")
+    c.execute("SELECT u.name, l.token FROM logs l JOIN users u ON l.user_id = u.user_id ORDER BY l.id DESC LIMIT 4")
     feed = [{"n": x[0], "t": x[1]} for x in c.fetchall()]
 
     c.execute("SELECT COUNT(*), SUM(p_genesis + p_unity + p_veo) FROM users")
     stats = c.fetchone()
-    
     c.close(); conn.close()
 
     return {
@@ -91,37 +89,18 @@ async def get_user(uid: int):
         "top": top, "feed": feed,
         "price_wpt": round(0.00045 + (random.random() * 0.00005), 6),
         "jackpot": round((stats[1] or 0) * 0.1, 2),
-        "machine_load": random.randint(80, 99)
+        "machine_load": random.randint(85, 99)
     }
-
-@app.post("/api/daily")
-async def claim_daily(request: Request):
-    data = await request.json()
-    uid = data.get("user_id")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
-    r = c.fetchone()
-    now = int(time.time())
-    if r and (now - (r[0] or 0)) >= 86400:
-        new_streak = (r[1] % 7) + 1
-        reward = STREAK_REWARDS[new_streak-1]
-        c.execute("UPDATE users SET p_genesis = p_genesis + %s, streak = %s, last_streak_date = %s WHERE user_id = %s", (reward, new_streak, now, uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True, "reward": reward, "streak": new_streak}
-    return {"ok": False}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy FROM users WHERE user_id = %s", (uid,))
-    if c.fetchone()[0] >= 1:
-        c.execute(f"UPDATE users SET p_{t} = p_{t} + 0.05, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (int(time.time()), uid))
-        c.execute("INSERT INTO logs (user_id, token, timestamp) VALUES (%s, %s, %s)", (uid, t.upper(), int(time.time())))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True}
-    return {"ok": False}
+    c.execute(f"UPDATE users SET p_{t} = p_{t} + 0.05, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (int(time.time()), uid))
+    c.execute("INSERT INTO logs (user_id, token, timestamp) VALUES (%s, %s, %s)", (uid, t.upper(), int(time.time())))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True}
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
@@ -141,20 +120,20 @@ async def web_ui():
         .machine-status { font-size: 9px; color: var(--text); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; background: #111; padding: 8px; border-radius: 10px; border: 1px solid #222; }
         .status-dot { height: 6px; width: 6px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 5px var(--green); }
 
-        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
-        .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); }
-
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); margin-bottom: 15px; border: 1px solid #222; position: relative; }
-        .energy-bar { background: #222; border-radius: 10px; height: 6px; margin: 15px 0; overflow: hidden; }
+        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); margin-bottom: 15px; border: 1px solid #222; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: 0.3s; }
+        .energy-bar { background: #222; border-radius: 10px; height: 6px; margin: 15px 0; overflow: hidden; }
 
-        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
+        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 12px; }
-        .btn:disabled { opacity: 0.1; }
         
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.85); backdrop-filter: blur(20px); padding: 12px 30px; border-radius: 40px; display: flex; gap: 35px; border: 1px solid #333; z-index: 999; }
-        .nav-item { font-size: 22px; opacity: 0.4; }
-        .nav-item.active { opacity: 1; color: var(--gold); }
+        /* Roadmap Styling */
+        .roadmap-item { border-left: 2px solid var(--gold); padding-left: 15px; margin-bottom: 20px; position: relative; }
+        .roadmap-item::before { content: ''; position: absolute; left: -6px; top: 0; width: 10px; height: 10px; background: var(--gold); border-radius: 50%; }
+        
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 25px; border: 1px solid #333; z-index: 999; }
+        .nav-item { font-size: 20px; opacity: 0.4; }
+        .nav-item.active { opacity: 1; color: var(--gold); transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -164,47 +143,55 @@ async def web_ui():
     </div>
 
     <div class="machine-status">
-        <span><span class="status-dot"></span> HARDWARE: ONLINE (H-Node 1)</span>
+        <span><span class="status-dot"></span> NODE: OWPC-H1 ONLINE</span>
         <span>LOAD: <span id="m-load">0</span>%</span>
     </div>
 
-    <div class="profile-bar">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <div id="u-name" style="font-weight:700">...</div><div id="u-badge" class="badge-tag">...</div>
-        </div>
-        <div id="u-ref" style="font-weight:bold; font-size:12px; color:var(--gold)">0 REFS</div>
-    </div>
-
     <div id="p-mine">
-        <div id="streak-ui" style="display:none; background:var(--gold); color:#000; padding:12px; border-radius:15px; text-align:center; margin-bottom:15px; font-weight:900;" onclick="claimDaily()">🎁 CLAIM DAILY BONUS !</div>
-
         <div class="balance">
-            <small style="color:var(--text)">TOTAL NETWORK ASSETS</small>
+            <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">CLAIM</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
-
-        <div style="margin-top:15px; background:#080808; padding:12px; border-radius:15px; border:1px solid #111;">
-            <div style="font-size:10px; color:var(--text); text-transform:uppercase; margin-bottom:8px;">Live Network Feed</div>
-            <div id="activity-feed" style="font-size:10px;"></div>
-        </div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-weight:700">0.00</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv" style="font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv" style="font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
+        <div id="activity-feed" style="font-size:10px; color:var(--text); margin-top:10px; background:#111; padding:10px; border-radius:10px;"></div>
     </div>
 
-    <div id="p-pillars" style="display:none; padding-top:10px;">
-        <h3 style="text-align:center; color:var(--gold)">WPT PILLARS</h3>
-        <div class="card" style="border:1px solid var(--gold); background:rgba(255,215,0,0.05);">
-            <div><b>World Peace Token</b><br><small style="color:var(--gold)">Primary Asset</small></div>
-            <a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">FAST BUY</a>
+    <div id="p-pillars" style="display:none">
+        <h3 style="text-align:center; color:var(--gold)">$WPT ECOSYSTEM</h3>
+        <div class="card" style="border:1px solid var(--gold)"><div><b>World Peace Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">BUY</a></div>
+        <div class="card"><div><b>Unity Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Veo AI Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+        <div class="card"><div><b>Genesis Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
+    </div>
+
+    <div id="p-mission" style="display:none">
+        <h3 style="color:var(--gold)">MISSION & ROADMAP</h3>
+        
+        <div class="card" style="background:var(--blue); color:#FFF; border:none;" onclick="window.open('https://t.me/OWPC_Community', '_blank')">
+            <div><b>Join Community</b><br><small style="color:#e0e0e0">Get latest updates & help</small></div>
+            <span style="font-size:20px;">💬</span>
         </div>
-        <div class="card"><div><b>Unity</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
-        <div class="card"><div><b>Veo AI</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
-        <div class="card"><div><b>Genesis</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
-        <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS</button>
+
+        <div style="margin-top:20px; background:#111; padding:15px; border-radius:20px; border:1px solid #222;">
+            <div class="roadmap-item">
+                <b style="color:var(--gold)">Phase 1: Alpha Launch</b><br>
+                <small>Dashboard release, user onboarding and asset distribution.</small>
+            </div>
+            <div class="roadmap-item">
+                <b>Phase 2: Hardware Sync</b><br>
+                <small>Integration with physical mining nodes (DePIN infrastructure).</small>
+            </div>
+            <div class="roadmap-item" style="border-left:2px solid #333;">
+                <b style="color:var(--text)">Phase 3: Global Hub</b><br>
+                <small>Listing on major DEX and full ecosystem utility activation.</small>
+            </div>
+        </div>
+        
+        <p style="text-align:center; font-size:11px; color:var(--text); margin-top:20px;">Need help? Contact @Support_OWPC</p>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
@@ -213,60 +200,43 @@ async def web_ui():
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
+        <div onclick="show('mission')" id="n-mission" class="nav-item">🗺️</div>
     </div>
 
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : 0;
-        const apiBase = window.location.origin;
 
         async function refresh() {
             if(!uid) return;
-            const r = await fetch(`${apiBase}/api/user/${uid}`);
+            const r = await fetch(`${window.location.origin}/api/user/${uid}`);
             const d = await r.json();
-            
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('u-badge').innerText = d.badge;
             document.getElementById('gv').innerText = d.g.toFixed(2);
             document.getElementById('uv').innerText = d.u.toFixed(2);
             document.getElementById('vv').innerText = d.v.toFixed(2);
             document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
-            document.getElementById('u-ref').innerText = `${d.rc} REFS`;
             document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
             document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
             document.getElementById('m-price').innerText = d.price_wpt.toFixed(6);
             document.getElementById('jack-val').innerText = d.jackpot;
             document.getElementById('m-load').innerText = d.machine_load;
-            document.getElementById('streak-ui').style.display = d.can_claim ? 'block' : 'none';
 
-            let f_html = "";
-            d.feed.forEach(f => { f_html += `<div style="padding:3px 0; border-bottom:1px solid #111;"><b>${f.n}</b> processed ${f.t}</div>`; });
+            let f_html = ""; d.feed.forEach(f => { f_html += `<div>• ${f.n} mined ${f.t}</div>`; });
             document.getElementById('activity-feed').innerHTML = f_html;
 
-            let r_html = "";
-            d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small>${u.b}</small></div><b>${u.p}</b></div>`; });
+            let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}</div><b>${u.p}</b></div>`; });
             document.getElementById('rank-list').innerHTML = r_html;
-            document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
         }
 
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('medium');
-            const res = await fetch(`${apiBase}/api/mine`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            if(res.ok) { confetti({ particleCount: 10, spread: 20, origin: { y: 0.8 }, colors:[t==='veo'?'#A259FF':'#FFD700'] }); refresh(); }
-        }
-
-        async function claimDaily() {
-            const res = await fetch(`${apiBase}/api/daily`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { confetti({ particleCount: 100, spread: 70 }); refresh(); }
-        }
-
-        function shareInvite() {
-            const url = `https://t.me/owpcsbot?start=${uid}`;
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Join the DePIN World Peace Hub!`);
+            await fetch(`${window.location.origin}/api/mine`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
+            confetti({ particleCount: 15, spread: 30, origin: { y: 0.8 }, colors:['#FFD700'] });
+            refresh();
         }
 
         function show(p) {
-            ['mine', 'pillars', 'leader'].forEach(id => {
+            ['mine', 'pillars', 'leader', 'mission'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id===p ? 'block' : 'none');
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
