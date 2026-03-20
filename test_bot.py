@@ -20,7 +20,6 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 bot_app = None 
 MAX_ENERGY = 100
 REGEN_RATE = 1 
-# Récompenses du Jour 1 à Jour 7
 STREAK_REWARDS = [0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0]
 
 # --- UTILS ---
@@ -56,7 +55,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e: logging.error(f"SQL Start Error: {e}")
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Ready for your daily reward, {name}? ⚡", reply_markup=kb)
+    await update.message.reply_text(f"Welcome to the World Peace ecosystem, {name}! 🌍✨", reply_markup=kb)
 
 # --- API USER DATA ---
 @app.get("/api/user/{uid}")
@@ -69,7 +68,6 @@ async def get_user(uid: int):
     if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    # Régénération Énergie
     seconds_passed = now - r[7]
     refill = int(seconds_passed / 60) * REGEN_RATE
     current_energy = min(MAX_ENERGY, r[6] + refill)
@@ -78,10 +76,9 @@ async def get_user(uid: int):
         c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (current_energy, now, uid))
         conn.commit()
 
-    # Logique de Streak (Bonus Quotidien)
     last_claim = r[4] or 0
-    can_claim = (now - last_claim) >= 86400  # Dispo après 24h
-    is_broken = (now - last_claim) >= 172800 # Perdu après 48h
+    can_claim = (now - last_claim) >= 86400
+    is_broken = (now - last_claim) >= 172800
     
     current_streak = r[8] if not is_broken else 0
     if is_broken and r[8] > 0:
@@ -111,14 +108,12 @@ async def claim_daily(request: Request):
     c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     now = int(time.time())
-    
     if r and (now - (r[0] or 0)) >= 86400:
         new_streak = (r[1] % 7) + 1
         reward = STREAK_REWARDS[new_streak-1]
         c.execute("UPDATE users SET p_genesis = p_genesis + %s, streak = %s, last_streak_date = %s WHERE user_id = %s", (reward, new_streak, now, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True, "reward": reward, "streak": new_streak}
-    
     c.close(); conn.close()
     return {"ok": False}
 
@@ -158,7 +153,7 @@ async def web_ui():
         .balance { text-align: center; padding: 20px; border-radius: 25px; background: radial-gradient(circle at top, #111, #000); margin-bottom: 15px; border: 1px solid #1a1a1a; }
         .streak-box { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); }
         .card { background: var(--card); padding: 12px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; display: inline-block; }
         .btn:disabled { opacity: 0.2; cursor: default; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 999; }
         .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); }
@@ -196,10 +191,20 @@ async def web_ui():
     </div>
 
     <div id="p-pillars" style="display:none; padding-top:10px;">
-        <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS</button>
+        <div style="text-align:center; margin-bottom:20px;">
+            <h3 style="margin:0; color:var(--gold)">$WPT MAIN PILLAR</h3>
+            <p style="font-size:11px; color:var(--text)">Support World Peace on Blum Memepad</p>
+        </div>
+        
+        <div class="card" style="border: 1px solid var(--gold);">
+            <div><b>World Peace Token</b><br><small style="color:var(--gold)">Official $WPT</small></div>
+            <a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">BUY / VIEW</a>
+        </div>
+        
+        <div class="card"><div><b>Genesis Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        <div class="card"><div><b>Unity Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        
+        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS TO HUB</button>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
@@ -230,14 +235,12 @@ async def web_ui():
                 document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
-
-                // Daily Streak UI
                 document.getElementById('streak-ui').style.display = d.can_claim ? 'block' : 'none';
                 document.getElementById('stk-txt').innerText = "Day " + (d.streak + 1);
 
                 let f_html = "";
                 d.feed.forEach(f => { f_html += `<div style="padding:4px 0; border-bottom:1px solid #111;"><b>${f.n}</b> mined ${f.t}</div>`; });
-                document.getElementById('activity-feed').innerHTML = f_html || "Waiting for activity...";
+                document.getElementById('activity-feed').innerHTML = f_html || "Waiting...";
 
                 let r_html = "";
                 d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small>${u.b}</small></div><b>${u.p}</b></div>`; });
@@ -251,7 +254,7 @@ async def web_ui():
             const data = await res.json();
             if(data.ok) { 
                 confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#FFD700', '#FFFFFF', '#FFA500'] }); 
-                tg.showAlert(`Amazing! Day ${data.streak} Streak: +${data.reward} OWPC Genesis!`); 
+                tg.showAlert(`Amazing! Day ${data.streak} Streak: +${data.reward} OWPC!`); 
                 refresh(); 
             }
         }
@@ -264,7 +267,7 @@ async def web_ui():
 
         function shareInvite() {
             const url = `https://t.me/owpcsbot?start=${uid}`;
-            const text = "🚀 Mine assets on OWPC HUB and get your daily streak bonus! 💎⚡";
+            const text = "🌍 Help me build the World Peace ecosystem! Mine $WPT assets and get daily rewards! 💎⚡";
             tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
         }
 
