@@ -27,7 +27,7 @@ def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("last_streak_date", "TEXT"), ("wallet_address", "TEXT")]:
+        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("last_streak_date", "TEXT")]:
             try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except: pass
         conn.commit(); c.close(); conn.close()
@@ -153,7 +153,7 @@ async def web_ui():
     
     <div class="profile-bar">
         <div><div id="u-name" style="font-weight:700; font-size:13px;">...</div><div id="u-badge" class="badge-tag">...</div></div>
-        <button id="daily-btn" class="btn" style="background:var(--gold); box-shadow: 0 0 10px rgba(255,215,0,0.3);" onclick="claimDaily()">🎁 GIFT</button>
+        <button id="daily-btn" class="btn" style="background:var(--gold);" onclick="claimDaily()">🎁 GIFT</button>
         <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold);">0 REFS</div>
     </div>
 
@@ -174,6 +174,7 @@ async def web_ui():
         <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
         <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">CLAIM</a></div>
         <div class="card"><b>Unity Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
+        <div class="card"><b>Veo AI Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
@@ -195,7 +196,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
-        const LOCK_TIME = 12 * 60 * 60 * 1000; // 12 Heures
+        const LOCK_TIME = 12 * 60 * 60 * 1000;
 
         function checkDailyLock() {
             const last = localStorage.getItem('lock_' + uid);
@@ -267,7 +268,7 @@ async def web_ui():
 
         function share() {
             const url = `https://t.me/owpcsbot?start=${uid}`;
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=🚀 Sync your Node!`);
+            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=🚀 Join my OWPC Node!`);
         }
 
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
