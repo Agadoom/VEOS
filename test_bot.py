@@ -14,8 +14,7 @@ PORT = int(os.getenv("PORT", 8080))
 RAW_URL = os.getenv("WEBAPP_URL", "")
 WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
 
-# Configuration des logs pour Railway
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
@@ -55,7 +54,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
 # --- API ---
-
 @app.get("/tonconnect-manifest.json")
 async def manifest():
     return {
@@ -76,11 +74,9 @@ async def get_user(uid: int):
     now = int(time.time())
     last_upd = r[7] if r[7] else now
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
-    
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     today = datetime.date.today().isoformat()
-    can_claim = (r[4] != today)
-
+    
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
@@ -94,7 +90,7 @@ async def get_user(uid: int):
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0,
+        "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
         "wallet": r[10]
     }
 
@@ -189,10 +185,7 @@ async def web_ui():
     <div class="header-ticker"><span>$WPT: $<span id="m-price">0.00045</span></span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span></div>
     <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
     <div class="profile-bar">
-        <div class="profile-info">
-            <div id="u-name" class="u-name-text">...</div>
-            <div id="u-badge" class="badge-tag">...</div>
-        </div>
+        <div class="profile-info"><div id="u-name" class="u-name-text">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <button id="daily-btn" class="btn" style="display:none; background:var(--gold)" onclick="claimDaily()">🎁 GIFT</button>
         <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold);">0 REFS</div>
     </div>
@@ -214,6 +207,8 @@ async def web_ui():
         <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
         <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">CLAIM</a></div>
         <div class="card"><b>Unity Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
+        <div class="card"><b>Veo AI Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
+        <div class="card"><b>Genesis Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
         <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF;" onclick="share()">🚀 INVITE FRIENDS</button>
     </div>
 
@@ -271,8 +266,13 @@ async def web_ui():
                 document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
                 document.getElementById('u-streak').innerText = d.streak;
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
-                if(d.wallet) document.getElementById('wallet-status').innerText = "Linked: " + d.wallet.substring(0,8) + "...";
                 
+                if(d.wallet) {
+                    const shortAddr = d.wallet.substring(0,6) + "..." + d.wallet.substring(d.wallet.length-4);
+                    document.getElementById('wallet-status').innerText = "Connected: " + shortAddr;
+                    document.getElementById('wallet-status').style.color = "var(--green)";
+                }
+
                 document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
@@ -313,7 +313,9 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        refresh(); setInterval(refresh, 5000);
+        
+        // CORRECTION : Lancement immédiat au démarrage
+        window.onload = () => { refresh(); setInterval(refresh, 5000); };
     </script>
 </body>
 </html>
@@ -326,7 +328,6 @@ async def main():
     await bot_app.initialize()
     await bot_app.start()
     asyncio.create_task(bot_app.updater.start_polling())
-    logger.info("Bot & Server Starting...")
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
 
 if __name__ == "__main__":
