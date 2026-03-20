@@ -2,7 +2,7 @@ import os, asyncio, uvicorn, logging, time
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from data_conx import init_db, get_db_conn
@@ -75,7 +75,6 @@ async def get_user(uid: int):
         conn.commit()
 
     score = r[0] + r[1] + r[2]
-    
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
@@ -133,6 +132,7 @@ async def web_ui():
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 999; }
         .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); }
         .dot { height: 6px; width: 6px; background-color: var(--green); border-radius: 50%; display: inline-block; margin-right: 5px; }
+        a { text-decoration: none; }
     </style>
 </head>
 <body>
@@ -162,12 +162,10 @@ async def web_ui():
     </div>
 
     <div id="p-pillars" style="display:none; padding-top:10px;">
-        <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" style="background:#FFF; color:#000; padding:10px 15px; border-radius:12px; font-weight:700; text-decoration:none; font-size:13px;">OPEN</a></div>
-        <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" style="background:#FFF; color:#000; padding:10px 15px; border-radius:12px; font-weight:700; text-decoration:none; font-size:13px;">OPEN</a></div>
-        <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" style="background:#FFF; color:#000; padding:10px 15px; border-radius:12px; font-weight:700; text-decoration:none; font-size:13px;">OPEN</a></div>
-        
-        <div class="section-title" style="margin-top:20px; font-size:11px; color:var(--text)">COMMUNITY</div>
-        <button class="btn" style="width:100%; margin-top:10px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 SHARE WITH FRIENDS</button>
+        <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 SHARE WITH FRIENDS</button>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
@@ -195,7 +193,6 @@ async def web_ui():
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = (d.g + d.u + d.v).toFixed(2);
                 document.getElementById('u-ref').innerText = `${d.rc} REFS`;
-                
                 document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
@@ -219,7 +216,6 @@ async def web_ui():
         function shareInvite() {
             const url = `https://t.me/owpcsbot?start=${uid}`;
             const text = "🚀 Join me on OWPC HUB! Mine tokens, climb the leaderboard and get ready for the next big thing! 💎⚡";
-            // Native Telegram Share
             tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
         }
 
@@ -229,8 +225,22 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        
         refresh(); setInterval(refresh, 7000);
     </script>
 </body>
 </html>
+"""
+
+async def main():
+    global bot_app
+    init_db()
+    bot_app = ApplicationBuilder().token(TOKEN).build()
+    bot_app.add_handler(CommandHandler("start", start))
+    await bot_app.initialize()
+    await bot_app.start()
+    await bot_app.bot.delete_webhook(drop_pending_updates=True)
+    asyncio.create_task(bot_app.updater.start_polling())
+    await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
+
+if __name__ == "__main__":
+    asyncio.run(main())
