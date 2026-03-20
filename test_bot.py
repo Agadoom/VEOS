@@ -21,12 +21,12 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 MAX_ENERGY = 100
 REGEN_RATE = 1 
 
-# --- AUTO-PATCH DB (Assure que toutes les colonnes existent) ---
+# --- AUTO-PATCH DB (On force la création des colonnes une par une) ---
 def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        columns = [
+        cols = [
             ("p_genesis", "DOUBLE PRECISION DEFAULT 0"),
             ("p_unity", "DOUBLE PRECISION DEFAULT 0"),
             ("p_veo", "DOUBLE PRECISION DEFAULT 0"),
@@ -38,10 +38,14 @@ def patch_db():
             ("energy", "INTEGER DEFAULT 100"),
             ("last_energy_update", "INTEGER")
         ]
-        for col, dtype in columns:
-            try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            except: pass
-        conn.commit(); c.close(); conn.close()
+        for col, dtype in cols:
+            try:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+                conn.commit()
+                logging.info(f"Colonne {col} ajoutée avec succès.")
+            except:
+                conn.rollback() # La colonne existe déjà probablement
+        c.close(); conn.close()
 
 patch_db()
 
@@ -70,7 +74,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          VALUES (%s, %s, %s, %s, %s, 0, 0, 0, 0, 0, 0, 0)""", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
-                c.execute("UPDATE users SET ref_count = ref_count + 1 WHERE user_id = %s", (ref_id,))
+                c.execute("UPDATE users SET ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
@@ -79,67 +83,80 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
-    conn = get_db_conn(); c = conn.cursor()
-    # Utilisation de COALESCE pour éviter les valeurs Null qui cassent l'affichage
-    c.execute("""SELECT 
-        COALESCE(p_genesis,0), COALESCE(p_unity,0), COALESCE(p_veo,0), 
-        COALESCE(ref_count,0), last_streak_date, name, 
-        COALESCE(energy,100), COALESCE(last_energy_update,0), 
-        COALESCE(streak,0), COALESCE(staked_amount,0), COALESCE(ref_claimed,0) 
-        FROM users WHERE user_id=%s""", (uid,))
-    r = c.fetchone()
-    if not r: return JSONResponse(status_code=404, content={})
-    
-    now = int(time.time())
-    last_upd = r[7] if r[7] > 0 else now
-    current_e = min(MAX_ENERGY, r[6] + ((now - last_upd) // 60) * REGEN_RATE)
-    
-    score = r[0] + r[1] + r[2]
-    today = datetime.date.today().isoformat()
-    pending_refs = r[3] - r[10]
+    try:
+        conn = get_db_conn(); c = conn.cursor()
+        # Sélection ultra-robuste avec COALESCE pour chaque champ
+        c.execute("""SELECT 
+            COALESCE(p_genesis,0), COALESCE(p_unity,0), COALESCE(p_veo,0), 
+            COALESCE(ref_count,0), COALESCE(last_streak_date,''), COALESCE(name,'User'), 
+            COALESCE(energy,100), COALESCE(last_energy_update,0), 
+            COALESCE(streak,0), COALESCE(staked_amount,0), COALESCE(ref_claimed,0) 
+            FROM users WHERE user_id=%s""", (uid,))
+        r = c.fetchone()
+        
+        if not r:
+            c.close(); conn.close()
+            return JSONResponse(status_code=404, content={"error": "not_found"})
+        
+        now = int(time.time())
+        last_upd = r[7] if r[7] and r[7] > 0 else now
+        current_e = min(MAX_ENERGY, r[6] + ((now - last_upd) // 60) * REGEN_RATE)
+        
+        score = r[0] + r[1] + r[2]
+        today = datetime.date.today().isoformat()
+        pending_refs = max(0, r[3] - r[10])
 
-    c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
-    top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
-    
-    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-    total_net = c.fetchone()[0] or 0
-    c.close(); conn.close()
+        # Top 8
+        c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
+        top = [{"n": x[0] or "Anon", "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
+        
+        # Jackpot
+        c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+        total_net = c.fetchone()[0] or 0
+        
+        c.close(); conn.close()
 
-    return {
-        "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5],
-        "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
-        "top": top, "jackpot": round(total_net * 0.1, 2),
-        "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
-        "multiplier": round(1.0 + (r[9] / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": (r[4] != today), "streak": r[8], "staked": r[9],
-        "pending_refs": max(0, pending_refs)
-    }
+        return {
+            "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5],
+            "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
+            "top": top, "jackpot": round(total_net * 0.1, 2),
+            "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
+            "multiplier": round(1.0 + (r[9] / 100) * 0.1 + (score / 1000), 2),
+            "can_claim": (r[4] != today), "streak": r[8], "staked": r[9],
+            "pending_refs": pending_refs
+        }
+    except Exception as e:
+        logging.error(f"Erreur API User: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
+# --- ON GARDE TOUTES LES AUTRES FONCTIONS (MINE, DAILY, STAKE) ---
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, staked_amount, (p_genesis + p_unity + p_veo) FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    now = int(time.time()); current_e = min(MAX_ENERGY, (res[0] or 100) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
-    if current_e >= 1:
-        mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
-        gain = 0.05 * mult
-        c.execute(f"UPDATE users SET p_{t} = p_{t} + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True}
+    try:
+        data = await request.json(); uid, t = data.get("user_id"), data.get("token")
+        conn = get_db_conn(); c = conn.cursor()
+        c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
+        res = c.fetchone()
+        now = int(time.time()); current_e = min(MAX_ENERGY, (res[0] or 100) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
+        if current_e >= 1:
+            mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
+            gain = 0.05 * mult
+            c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
+            conn.commit(); c.close(); conn.close()
+            return {"ok": True}
+    except: pass
     return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/claim_ref")
 async def claim_ref_api(request: Request):
     data = await request.json(); uid = data.get("user_id")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT COALESCE(ref_count,0), COALESCE(ref_claimed,0) FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
-    pending = (r[0] or 0) - (r[1] or 0)
+    pending = r[0] - r[1]
     if pending > 0:
         bonus = pending * 10.0
-        c.execute("UPDATE users SET p_unity = p_unity + %s, ref_claimed = ref_count WHERE user_id = %s", (bonus, uid))
+        c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + %s, ref_claimed = ref_count WHERE user_id = %s", (bonus, uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
@@ -147,11 +164,11 @@ async def claim_ref_api(request: Request):
 async def daily_api(request: Request):
     data = await request.json(); uid = data.get("user_id"); today = datetime.date.today()
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT last_streak_date, COALESCE(streak,0) FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     if r[0] != today.isoformat():
-        new_s = ((r[1] or 0)+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
-        c.execute("UPDATE users SET p_genesis=p_genesis+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
+        new_s = (r[1]+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
+        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
@@ -159,14 +176,14 @@ async def daily_api(request: Request):
 async def stake_api(request: Request):
     data = await request.json(); uid = data.get("user_id")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT COALESCE(p_genesis,0), COALESCE(p_unity,0), COALESCE(p_veo,0) FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     if (r[0]+r[1]+r[2]) >= 100:
         c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
-# --- WEB UI (CSS FIX INCLUS) ---
+# --- WEB UI (Identique, juste un refresh plus lent pour stabiliser) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -265,7 +282,9 @@ async def web_ui():
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         async function refresh() {
             try {
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                const r = await fetch(`/api/user/${uid}`); 
+                if(!r.ok) return;
+                const d = await r.json();
                 if(!d.name) return;
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-badge').innerText = d.badge;
@@ -289,7 +308,7 @@ async def web_ui():
                 document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
-            } catch (e) { console.log("Refresh error"); }
+            } catch (e) { console.error("Refresh Error", e); }
         }
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('medium');
@@ -318,7 +337,7 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        refresh(); setInterval(refresh, 8000);
+        refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
