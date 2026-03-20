@@ -50,22 +50,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not c.fetchone():
             c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
                       (uid, name, ref_id if ref_id != uid else None, MAX_ENERGY, int(time.time())))
-            if ref_id and ref_id != uid:
-                c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
+    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
+    current_e = min(MAX_ENERGY, (r[5] or 0) + ((now - (r[6] or now)) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, next_goal, b_color = get_badge_info(score)
 
@@ -77,11 +75,11 @@ async def get_user(uid: int):
     c.close(); conn.close()
 
     return {
-        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[5],
+        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": badge, "next_goal": next_goal, "badge_color": b_color,
         "top": top, "jackpot": round(total_net * 0.1, 2), "score": round(score, 2),
-        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "streak": r[8] or 0, "staked": r[9] or 0
+        "multiplier": round(1.0 + ((r[8] or 0) / 100) * 0.1 + (score / 1000), 2),
+        "streak": r[7] or 0, "staked": r[8] or 0
     }
 
 @app.post("/api/daily")
@@ -106,6 +104,17 @@ async def mine_api(request: Request):
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
+@app.post("/api/stake")
+async def stake_api(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id=%s", (uid,))
+    bal = c.fetchone()[0] or 0
+    if bal >= 100:
+        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False})
+
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -117,12 +126,13 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --red: #FF3B30; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
+        #wpt-price { font-weight: bold; transition: color 0.3s; }
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; }
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
+        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
         .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
@@ -137,7 +147,10 @@ async def web_ui():
     </style>
 </head>
 <body>
-    <div class="header-ticker"><span>$WPT: $0.00045</span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span></div>
+    <div class="header-ticker">
+        <span>$WPT: <span id="wpt-price">$0.000450</span></span>
+        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span>
+    </div>
     
     <div class="profile-bar">
         <div>
@@ -164,7 +177,7 @@ async def web_ui():
 
     <div id="p-pillars" style="display:none">
         <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
-        <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">CLAIM</a></div>
+        <div class="card"><b>WPT Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">CLAIM</a></div>
         <div class="card"><b>Unity Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
         <div class="card"><b>Veo AI Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
         <div class="card"><b>Genesis Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
@@ -175,6 +188,7 @@ async def web_ui():
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">STAKING & NODES</h3>
         <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
+        <div class="card"><div><b>Stake 100 Assets</b><br><small>+0.1x Multiplier</small></div><button class="btn" id="stake-btn" onclick="stake()">LOCK</button></div>
         <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
     </div>
 
@@ -189,6 +203,17 @@ async def web_ui():
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
         const LOCK_TIME = 12 * 60 * 60 * 1000;
+        let basePrice = 0.000450;
+
+        function updatePrice() {
+            const change = (Math.random() - 0.48) * 0.00001; 
+            basePrice += change;
+            const priceEl = document.getElementById('wpt-price');
+            priceEl.innerText = "$" + basePrice.toFixed(6);
+            priceEl.style.color = change > 0 ? "var(--green)" : "var(--red)";
+            setTimeout(() => priceEl.style.color = "white", 800);
+        }
+        setInterval(updatePrice, 3000);
 
         function checkDailyLock() {
             const last = localStorage.getItem('lock_' + uid);
@@ -197,17 +222,14 @@ async def web_ui():
                 const diff = Date.now() - parseInt(last);
                 if (diff < LOCK_TIME) {
                     const hours = Math.ceil((LOCK_TIME - diff) / (1000 * 60 * 60));
-                    btn.innerText = "⏳ " + hours + "H";
-                    btn.disabled = true;
-                    return;
+                    btn.innerText = "⏳ " + hours + "H"; btn.disabled = true; return;
                 }
             }
             btn.innerText = "🎁 GIFT"; btn.disabled = false;
         }
 
         async function claimDaily() {
-            const btn = document.getElementById('daily-btn');
-            btn.disabled = true;
+            const btn = document.getElementById('daily-btn'); btn.disabled = true;
             try {
                 const r = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
                 if(r.ok) {
@@ -237,6 +259,7 @@ async def web_ui():
                 document.getElementById('u-streak').innerText = d.streak;
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
                 document.getElementById('jack-val').innerText = d.jackpot;
+                document.getElementById('stake-btn').disabled = (d.score < 100);
                 
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
@@ -251,6 +274,11 @@ async def web_ui():
             document.body.appendChild(txt); setTimeout(() => txt.remove(), 800);
             await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             refresh(); tg.HapticFeedback.impactOccurred('light');
+        }
+
+        async function stake() {
+            const r = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            if(r.ok) { confetti(); refresh(); }
         }
 
         function share() {
