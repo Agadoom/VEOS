@@ -27,14 +27,12 @@ def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        # Ajout de la colonne pour suivre les missions complétées
-        columns = [
-            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
-            ("streak", "INTEGER DEFAULT 0"),
+        for col, dtype in [
+            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"), 
+            ("streak", "INTEGER DEFAULT 0"), 
             ("last_streak_date", "TEXT"),
-            ("missions_done", "TEXT DEFAULT ''") # Format: "m1,m2,m3"
-        ]
-        for col, dtype in columns:
+            ("missions_done", "TEXT DEFAULT ''")
+        ]:
             try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except: pass
         conn.commit(); c.close(); conn.close()
@@ -62,10 +60,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
         if not c.fetchone():
-            c.execute("""INSERT INTO users 
-                (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak, missions_done) 
-                VALUES (%s, %s, %s, %s, %s, 0, 0, '')""", 
-                (uid, name, ref_id, MAX_ENERGY, int(time.time())))
+            c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak, missions_done) VALUES (%s, %s, %s, %s, %s, 0, 0, '')", 
+                      (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
                 c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
@@ -73,13 +69,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
-# --- API ---
+# --- API (TON CODE OPÉRATIONNEL) ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, 
-                 energy, last_energy_update, streak, staked_amount, COALESCE(missions_done, '') 
-                 FROM users WHERE user_id=%s""", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, COALESCE(missions_done, '') FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
@@ -88,7 +82,8 @@ async def get_user(uid: int):
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     today = datetime.date.today().isoformat()
-    
+    can_claim = (r[4] != today)
+
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
@@ -102,32 +97,27 @@ async def get_user(uid: int):
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
+        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0,
         "missions": r[10].split(",") if r[10] else []
     }
 
+# --- NOUVELLES ROUTES (MISSIONS & ACTIONS) ---
 @app.post("/api/mission")
-async def do_mission(request: Request):
-    data = await request.json()
-    uid, mid = data.get("user_id"), data.get("mission_id")
+async def mission_api(request: Request):
+    data = await request.json(); uid, mid = data.get("user_id"), data.get("mission_id")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT missions_done FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT missions_done FROM users WHERE user_id=%s", (uid,))
     res = c.fetchone()
     done = res[0].split(",") if res[0] else []
-    
     if mid not in done:
         done.append(mid)
-        # Récompense : +20 Genesis pour une mission
-        c.execute("UPDATE users SET p_genesis = COALESCE(p_genesis,0) + 20, missions_done = %s WHERE user_id = %s", 
-                  (",".join(done), uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True}
+        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+20, missions_done=%s WHERE user_id=%s", (",".join(done), uid))
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    data = await request.json()
-    uid, t = data.get("user_id"), data.get("token")
+    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
@@ -136,19 +126,6 @@ async def mine_api(request: Request):
         mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
         gain = 0.05 * mult
         c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-@app.post("/api/daily")
-async def daily_api(request: Request):
-    data = await request.json(); uid = data.get("user_id"); today = datetime.date.today()
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
-    r = c.fetchone()
-    if r[0] != today.isoformat():
-        new_s = (r[1]+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
-        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
@@ -183,10 +160,9 @@ async def web_ui():
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; gap: 10px; }
         .profile-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; }
-        .u-name-text { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
-        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
-        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
+        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s ease; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .btn:disabled { opacity: 0.2; }
@@ -199,7 +175,7 @@ async def web_ui():
     <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
     
     <div class="profile-bar">
-        <div class="profile-info"><div id="u-name" class="u-name-text">...</div><div id="u-badge" class="badge-tag">...</div></div>
+        <div class="profile-info"><div id="u-name" style="font-weight:700;font-size:13px;">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <button id="daily-btn" class="btn" style="display:none; background:var(--gold)" onclick="claimDaily()">🎁 GIFT</button>
         <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold);">0 REFS</div>
     </div>
@@ -219,7 +195,6 @@ async def web_ui():
     <div id="p-pillars" style="display:none">
         <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
         <div class="card"><b>World Peace Token</b><button class="btn" onclick="window.open('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">CLAIM</button></div>
-        <div class="card"><b>Unity Asset</b><button class="btn" onclick="window.open('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">CLAIM</button></div>
         <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
     </div>
 
@@ -228,17 +203,10 @@ async def web_ui():
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">MISSIONS</h3>
         <div id="mission-list">
-            <div class="card" id="m-task1">
-                <div><b>Join OWPC Community</b><br><small>+20 Genesis</small></div>
-                <button class="btn" onclick="doTask('task1', 'https://t.me/OWPC_Co')">GO</button>
-            </div>
-            <div class="card" id="m-task2">
-                <div><b>Join Announcement</b><br><small>+20 Genesis</small></div>
-                <button class="btn" onclick="doTask('task2', 'https://t.me/OWPC_News')">GO</button>
-            </div>
+            <div class="card" id="m-task1"><div><b>Join Community</b><br><small>+20 Genesis</small></div><button class="btn" onclick="doTask('task1', 'https://t.me/OWPC_Co')">GO</button></div>
         </div>
         <h3 style="color:var(--gold); margin-top:25px;">STAKING</h3>
-        <div class="card"><div><b>Locked Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
+        <div class="card"><div><b>Locked Assets</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
         <button class="btn" id="stake-btn" style="width:100%; padding:15px; background:var(--green); color:#000" onclick="stake()">LOCK 100 ASSETS</button>
     </div>
 
@@ -270,10 +238,7 @@ async def web_ui():
                 document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
                 document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
-                
-                // Cache les missions déjà faites
                 if(d.missions) d.missions.forEach(m => { if(document.getElementById('m-'+m)) document.getElementById('m-'+m).style.display = 'none'; });
-
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
             } catch(e) {}
@@ -281,26 +246,18 @@ async def web_ui():
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('light');
             const res = await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            if(res.ok) { refresh(); }
+            if(res.ok) refresh();
         }
         async function doTask(id, url) {
             window.open(url);
             setTimeout(async () => {
                 const res = await fetch('/api/mission', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, mission_id:id})});
                 if(res.ok) { confetti(); refresh(); }
-            }, 5000);
-        }
-        async function claimDaily() {
-            const res = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { confetti(); refresh(); }
+            }, 4000);
         }
         async function stake() {
             const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { confetti({particleCount:150}); refresh(); }
-        }
-        function share() {
-            const url = `https://t.me/owpcsbot?start=${uid}`;
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Join my DePIN Node!`);
+            if(res.ok) { confetti({particleCount:100}); refresh(); }
         }
         function show(p) {
             ['mine', 'pillars', 'leader', 'mission'].forEach(id => {
