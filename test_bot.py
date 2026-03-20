@@ -65,10 +65,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
 # --- API ---
-@app.get("/tonconnect-manifest.json")
-async def manifest():
-    return {"url": WEBAPP_URL, "name": "OWPC Hub", "iconUrl": "https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png"}
-
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
@@ -82,6 +78,7 @@ async def get_user(uid: int):
     
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     today = datetime.date.today().isoformat()
+    # can_claim est vrai si le dernier streak n'est pas aujourd'hui
     can_claim = (r[4] != today)
 
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
@@ -97,15 +94,8 @@ async def get_user(uid: int):
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0, "wallet": r[10]
+        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0
     }
-
-@app.post("/api/connect-wallet")
-async def connect_wallet(request: Request):
-    data = await request.json(); uid, addr = data.get("user_id"), data.get("address")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (addr, uid))
-    conn.commit(); c.close(); conn.close(); return {"ok": True}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -131,8 +121,8 @@ async def daily_api(request: Request):
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
-    if r[0] != today.isoformat():
-        new_s = (r[1]+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
+    if not r or r[0] != today.isoformat():
+        new_s = (r[1]+1) if r and r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
         c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
@@ -158,7 +148,6 @@ async def web_ui():
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
@@ -181,13 +170,6 @@ async def web_ui():
         
         .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; font-size: 14px; }
         @keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
-        
-        /* DESIGN WALLET SUR TA PHOTO */
-        .wallet-container { margin-bottom: 20px; width: 100%; }
-        .wallet-box { background: #1a1a1c; border-radius: 15px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; }
-        .wallet-info { display: flex; align-items: center; gap: 12px; }
-        .wallet-icon-circle { width: 35px; height: 35px; background: #007AFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        .wallet-text { display: flex; flex-direction: column; }
     </style>
 </head>
 <body>
@@ -199,7 +181,7 @@ async def web_ui():
             <div id="u-name" class="u-name-text">...</div>
             <div id="u-badge" class="badge-tag">...</div>
         </div>
-        <button id="daily-btn" class="btn" style="display:none; background:var(--gold); padding:8px 12px;" onclick="claimDaily()">🎁 GIFT</button>
+        <button id="daily-btn" class="btn" style="display:none; background:var(--gold); padding:8px 12px; box-shadow: 0 0 10px var(--gold);" onclick="claimDaily()">🎁 GIFT</button>
         <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold); white-space:nowrap;">0 REFS</div>
     </div>
 
@@ -218,23 +200,6 @@ async def web_ui():
 
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">STAKING & NODES</h3>
-        
-        <div class="wallet-container">
-            <div id="ton-connect-button" style="display:flex; justify-content:center;"></div>
-            <div id="wallet-connected-ui" class="wallet-box" style="display:none;">
-                <div class="wallet-info">
-                    <div class="wallet-icon-circle">
-                        <img src="https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png" width="20">
-                    </div>
-                    <div class="wallet-text">
-                        <span style="font-size:13px; font-weight:bold;">TON Wallet</span>
-                        <span id="wallet-addr-display" style="font-size:11px; color:var(--text);">UQ...</span>
-                    </div>
-                </div>
-                <button onclick="disconnectWallet()" style="background:none; border:none; color:#FF4D4D; font-size:20px; cursor:pointer;">✕</button>
-            </div>
-        </div>
-
         <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
         <div class="card" style="border-color:var(--gold)">
             <div><b>Stake 100 Assets</b><br><small>+0.1x Multiplier</small></div>
@@ -263,29 +228,6 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; tg.expand();
         const uid = tg.initDataUnsafe.user?.id || 0;
-        
-        const tonUI = new TONConnectUI.TonConnectUI({ 
-            manifestUrl: window.location.origin + '/tonconnect-manifest.json', 
-            buttonRootId: 'ton-connect-button' 
-        });
-
-        tonUI.onStatusChange(async (wallet) => {
-            const connectBtn = document.getElementById('ton-connect-button');
-            const connectedUI = document.getElementById('wallet-connected-ui');
-            
-            if(wallet) {
-                const addr = wallet.account.address;
-                connectBtn.style.display = 'none';
-                connectedUI.style.display = 'flex';
-                document.getElementById('wallet-addr-display').innerText = addr.substring(0,4) + "..." + addr.substring(addr.length-4);
-                await fetch('/api/connect-wallet', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, address:addr})});
-            } else {
-                connectBtn.style.display = 'flex';
-                connectedUI.style.display = 'none';
-            }
-        });
-
-        async function disconnectWallet() { await tonUI.disconnect(); }
 
         async function refresh() {
             try {
@@ -303,7 +245,10 @@ async def web_ui():
                 document.getElementById('u-streak').innerText = d.streak;
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
                 document.getElementById('jack-val').innerText = d.jackpot;
+                
+                // Si can_claim est vrai, on affiche le bouton cadeau
                 document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
+                
                 document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
@@ -320,9 +265,29 @@ async def web_ui():
             refresh(); tg.HapticFeedback.impactOccurred('light');
         }
 
+        // FONCTION CADEAU CORRIGÉE
         async function claimDaily() {
-            const res = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { confetti(); refresh(); }
+            tg.HapticFeedback.notificationOccurred('success');
+            // Animation immédiate pour le feedback utilisateur
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#FFD700', '#ffffff']
+            });
+            
+            try {
+                const res = await fetch('/api/daily', {
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({user_id:uid})
+                });
+                if(res.ok) {
+                    refresh(); // Met à jour les scores et cache le bouton
+                }
+            } catch(err) {
+                console.error("Erreur claim", err);
+            }
         }
 
         async function stake() {
