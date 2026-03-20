@@ -76,11 +76,9 @@ async def get_user(uid: int):
 
     score = r[0] + r[1] + r[2]
     
-    # Leaderboard
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
-    # NEW: Global Activity Feed
     c.execute("SELECT u.name, l.token, l.timestamp FROM logs l JOIN users u ON l.user_id = u.user_id ORDER BY l.id DESC LIMIT 5")
     feed = [{"n": x[0], "t": x[1], "ts": x[2]} for x in c.fetchall()]
     
@@ -129,7 +127,7 @@ async def web_ui():
         .energy-bar { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
         .balance { text-align: center; padding: 25px; border-radius: 25px; background: radial-gradient(circle at top, #111, #000); margin-bottom: 15px; border: 1px solid #1a1a1a; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 8px 15px; border-radius: 10px; font-weight: 700; font-size: 13px; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; font-size: 13px; cursor: pointer; }
         .btn:disabled { opacity: 0.2; }
         .feed-item { font-size: 11px; color: var(--text); padding: 5px 0; border-bottom: 1px solid #111; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 999; }
@@ -163,11 +161,13 @@ async def web_ui():
         </div>
     </div>
 
-    <div id="p-pillars" style="display:none;">
-        <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF" onclick="copyRef()">INVITE FRIENDS</button>
+    <div id="p-pillars" style="display:none; padding-top:10px;">
+        <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" style="background:#FFF; color:#000; padding:10px 15px; border-radius:12px; font-weight:700; text-decoration:none; font-size:13px;">OPEN</a></div>
+        <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" style="background:#FFF; color:#000; padding:10px 15px; border-radius:12px; font-weight:700; text-decoration:none; font-size:13px;">OPEN</a></div>
+        <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" style="background:#FFF; color:#000; padding:10px 15px; border-radius:12px; font-weight:700; text-decoration:none; font-size:13px;">OPEN</a></div>
+        
+        <div class="section-title" style="margin-top:20px; font-size:11px; color:var(--text)">COMMUNITY</div>
+        <button class="btn" style="width:100%; margin-top:10px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 SHARE WITH FRIENDS</button>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
@@ -200,7 +200,6 @@ async def web_ui():
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
 
-                // Live Feed Update
                 let f_html = "";
                 d.feed.forEach(f => { f_html += `<div class="feed-item"><b>${f.n}</b> mined ${f.t} <span style="float:right">just now</span></div>`; });
                 document.getElementById('activity-feed').innerHTML = f_html || "Waiting for activity...";
@@ -217,37 +216,21 @@ async def web_ui():
             if(res.ok) { confetti({ particleCount: 15, spread: 20, origin: { y: 0.8 } }); refresh(); }
         }
 
+        function shareInvite() {
+            const url = `https://t.me/owpcsbot?start=${uid}`;
+            const text = "🚀 Join me on OWPC HUB! Mine tokens, climb the leaderboard and get ready for the next big thing! 💎⚡";
+            // Native Telegram Share
+            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
+        }
+
         function show(p) {
             ['mine', 'pillars', 'leader'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id===p ? 'block' : 'none');
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        function copyRef() {
-            navigator.clipboard.writeText(`https://t.me/owpcsbot?start=${uid}`);
-            tg.showAlert("Referral link copied!");
-        }
+        
         refresh(); setInterval(refresh, 7000);
     </script>
 </body>
 </html>
-"""
-
-async def main():
-    global bot_app
-    init_db()
-    bot_app = ApplicationBuilder().token(TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    await bot_app.initialize()
-    await bot_app.start()
-    
-    # Sécurité anti-conflit : on essaie de supprimer le webhook avant de lancer le polling
-    await bot_app.bot.delete_webhook(drop_pending_updates=True)
-    asyncio.create_task(bot_app.updater.start_polling())
-    
-    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")
-    server = uvicorn.Server(config)
-    await server.serve()
-
-if __name__ == "__main__":
-    asyncio.run(main())
