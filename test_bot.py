@@ -78,7 +78,6 @@ async def get_user(uid: int):
     
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     today = datetime.date.today().isoformat()
-    # can_claim est vrai si le dernier streak n'est pas aujourd'hui
     can_claim = (r[4] != today)
 
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
@@ -97,6 +96,18 @@ async def get_user(uid: int):
         "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0
     }
 
+@app.post("/api/daily")
+async def daily_api(request: Request):
+    data = await request.json(); uid = data.get("user_id"); today = datetime.date.today()
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
+    r = c.fetchone()
+    if not r or r[0] != today.isoformat():
+        new_s = (r[1]+1) if r and r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
+        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False})
+
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json()
@@ -113,18 +124,6 @@ async def mine_api(request: Request):
         c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-@app.post("/api/daily")
-async def daily_api(request: Request):
-    data = await request.json(); uid = data.get("user_id"); today = datetime.date.today()
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
-    r = c.fetchone()
-    if not r or r[0] != today.isoformat():
-        new_s = (r[1]+1) if r and r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
-        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/stake")
@@ -165,6 +164,7 @@ async def web_ui():
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; position: relative; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; transition: 0.2s; }
         .btn:active { transform: scale(0.95); opacity: 0.8; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } .nav-item.active { opacity: 1; color: var(--gold); }
         
@@ -181,7 +181,7 @@ async def web_ui():
             <div id="u-name" class="u-name-text">...</div>
             <div id="u-badge" class="badge-tag">...</div>
         </div>
-        <button id="daily-btn" class="btn" style="display:none; background:var(--gold); padding:8px 12px; box-shadow: 0 0 10px var(--gold);" onclick="claimDaily()">🎁 GIFT</button>
+        <button id="daily-btn" class="btn" style="display:none; background:var(--gold); padding:8px 12px;" onclick="claimDaily()">🎁 GIFT</button>
         <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold); white-space:nowrap;">0 REFS</div>
     </div>
 
@@ -246,9 +246,11 @@ async def web_ui():
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
                 document.getElementById('jack-val').innerText = d.jackpot;
                 
-                // Si can_claim est vrai, on affiche le bouton cadeau
-                document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
-                
+                // On n'affiche le bouton QUE si can_claim est vrai
+                const btn = document.getElementById('daily-btn');
+                btn.style.display = d.can_claim ? 'block' : 'none';
+                btn.disabled = false; // Réactiver au cas où
+
                 document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
@@ -265,28 +267,23 @@ async def web_ui():
             refresh(); tg.HapticFeedback.impactOccurred('light');
         }
 
-        // FONCTION CADEAU CORRIGÉE
         async function claimDaily() {
+            const btn = document.getElementById('daily-btn');
+            if (btn.disabled) return; // Sécurité double clic
+            
+            btn.disabled = true; // Désactivation immédiate
             tg.HapticFeedback.notificationOccurred('success');
-            // Animation immédiate pour le feedback utilisateur
-            confetti({
-                particleCount: 150,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#FFD700', '#ffffff']
-            });
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
             
             try {
-                const res = await fetch('/api/daily', {
-                    method:'POST', 
-                    headers:{'Content-Type':'application/json'}, 
-                    body:JSON.stringify({user_id:uid})
-                });
+                const res = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
                 if(res.ok) {
-                    refresh(); // Met à jour les scores et cache le bouton
+                    refresh();
+                } else {
+                    btn.disabled = false; // Réactiver si erreur serveur
                 }
-            } catch(err) {
-                console.error("Erreur claim", err);
+            } catch(e) {
+                btn.disabled = false;
             }
         }
 
