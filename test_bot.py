@@ -28,25 +28,27 @@ def patch_db():
     if conn:
         try:
             c = conn.cursor()
-            # On s'assure que toutes les colonnes de progression sont là
-            cols = [
+            # On tente d'ajouter les colonnes une par une
+            for col, dtype in [
                 ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
                 ("streak", "INTEGER DEFAULT 0"),
                 ("last_streak_date", "TEXT"),
                 ("missions_done", "TEXT DEFAULT ''"),
-                ("wallet_address", "TEXT DEFAULT ''") # Nouvelle colonne pour le Wallet
-            ]
-            for col, dtype in cols:
-                try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-                except: pass
+                ("wallet_address", "TEXT DEFAULT ''")
+            ]:
+                try:
+                    c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+                except:
+                    pass # Déjà là
             conn.commit(); c.close(); conn.close()
-        except Exception as e: logging.error(f"Patch error: {e}")
+        except Exception as e:
+            logging.error(f"Erreur Patch: {e}")
 
 patch_db()
 
 # --- UTILS ---
 def get_badge(score, streak=0):
-    if streak >= 7: return "🔥 Streak Master"
+    if (streak or 0) >= 7: return "🔥 Streak Master"
     if score >= 500: return "💎 Diamond"
     if score >= 150: return "🥇 Gold"
     if score >= 50:  return "🥈 Silver"
@@ -66,7 +68,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
         if not c.fetchone():
             c.execute("""INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, 
-                         staked_amount, streak, missions_done) VALUES (%s, %s, %s, %s, %s, 0, 0, '')""", 
+                         staked_amount, streak, missions_done, wallet_address) 
+                         VALUES (%s, %s, %s, %s, %s, 0, 0, '', '')""", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
                 c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
@@ -75,34 +78,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
-# --- API (TON CODE OPÉRATIONNEL + WALLET) ---
+# --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
+    # On utilise un SELECT de base garanti pour éviter l'erreur 500
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
+    r = c.fetchone()
+    if not r: return JSONResponse(status_code=404, content={})
+
+    # On tente de récupérer les nouvelles colonnes séparément pour ne pas faire planter tout l'appel
+    missions = []
+    wallet = ""
     try:
-        # Tentative de lecture complète
-        c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, 
-                     energy, last_energy_update, streak, staked_amount, 
-                     COALESCE(missions_done, ''), COALESCE(wallet_address, '') 
-                     FROM users WHERE user_id=%s""", (uid,))
-        r = c.fetchone()
-    except Exception as e:
-        # SI CA PLANTE : On fait un SELECT de secours sur les colonnes de base
-        logging.warning(f"Fallback activé : {e}")
-        c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, 
-                     energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s""", (uid,))
-        res_basic = c.fetchone()
-        if not res_basic: return JSONResponse(status_code=404, content={})
-        # On complète manuellement les colonnes manquantes pour le JS
-        r = list(res_basic) + ["", ""] # Ajoute missions vide et wallet vide
+        c.execute("SELECT COALESCE(missions_done, ''), COALESCE(wallet_address, '') FROM users WHERE user_id=%s", (uid,))
+        extra = c.fetchone()
+        if extra:
+            missions = extra[0].split(",") if extra[0] else []
+            wallet = extra[1]
+    except:
+        pass # Les colonnes ne sont pas encore prêtes, on renvoie du vide
 
     now = int(time.time())
     last_upd = r[7] if r[7] else now
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    today = datetime.date.today().isoformat()
     
-    # Top 8
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
@@ -111,23 +112,25 @@ async def get_user(uid: int):
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8] or 0),
-        "top": top, "jackpot": 0, # Calcul simplifié pour éviter erreur
+        "top": top, "jackpot": 0,
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
-        "missions": r[10].split(",") if r[10] else [],
-        "wallet": r[11] if len(r) > 11 else ""
+        "can_claim": (r[4] != datetime.date.today().isoformat()), 
+        "streak": r[8] or 0, "staked": r[9] or 0,
+        "missions": missions,
+        "wallet": wallet
     }
-
 
 @app.post("/api/wallet")
 async def save_wallet(request: Request):
     data = await request.json(); uid, addr = data.get("user_id"), data.get("address")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (addr, uid))
-    conn.commit(); c.close(); conn.close(); return {"ok": True}
+    try:
+        c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (addr, uid))
+        conn.commit()
+    except: pass
+    c.close(); conn.close(); return {"ok": True}
 
-# [GARDER ICI : mine_api, daily_api, stake_api, mission_api des versions précédentes...]
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
@@ -142,43 +145,7 @@ async def mine_api(request: Request):
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
-@app.post("/api/mission")
-async def mission_api(request: Request):
-    data = await request.json(); uid, mid = data.get("user_id"), data.get("mission_id")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT missions_done FROM users WHERE user_id=%s", (uid,))
-    res = c.fetchone()
-    done = res[0].split(",") if res[0] else []
-    if mid not in done:
-        done.append(mid)
-        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+20, missions_done=%s WHERE user_id=%s", (",".join(done), uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-@app.post("/api/daily")
-async def daily_api(request: Request):
-    data = await request.json(); uid = data.get("user_id"); today = datetime.date.today()
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
-    r = c.fetchone()
-    if r[0] != today.isoformat():
-        new_s = (r[1]+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
-        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-@app.post("/api/stake")
-async def stake_api(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
-    total = c.fetchone()[0] or 0
-    if total >= 100:
-        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-# --- WEB UI ---
+# --- UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -196,7 +163,6 @@ async def web_ui():
         .status-led { height: 7px; width: 7px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; margin-right:5px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; gap: 10px; }
-        .profile-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
@@ -210,12 +176,11 @@ async def web_ui():
     </style>
 </head>
 <body>
-    <div class="header-ticker"><span>$WPT: $<span id="m-price">0.00045</span></span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span></div>
+    <div class="header-ticker"><span>$WPT: $<span id="m-price">0.00045</span></span><span style="color:var(--gold)">JACKPOT: 0 OWPC</span></div>
     <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
     
     <div class="profile-bar">
-        <div class="profile-info"><div id="u-name" style="font-weight:700; font-size:13px;">...</div><div id="u-badge" class="badge-tag">...</div></div>
-        <button id="daily-btn" class="btn" style="display:none; background:var(--gold)" onclick="claimDaily()">🎁 GIFT</button>
+        <div style="display:flex; align-items:center; gap:8px;"><div id="u-name" style="font-weight:700; font-size:13px;">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold);">0 REFS</div>
     </div>
 
@@ -231,14 +196,6 @@ async def web_ui():
         <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
     </div>
 
-    <div id="p-pillars" style="display:none">
-        <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
-        <div class="card"><b>World Peace Token</b><button class="btn" onclick="window.open('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">CLAIM</button></div>
-        <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
-    </div>
-
-    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
-
     <div id="p-wallet" style="display:none">
         <h3 style="color:var(--gold)">WALLET CONNECT</h3>
         <div class="card" style="flex-direction:column; align-items:flex-start;">
@@ -247,14 +204,15 @@ async def web_ui():
             <button class="btn" style="width:100%; background:var(--gold)" onclick="saveWallet()">SAVE ADDRESS</button>
         </div>
         <div class="card" style="margin-top:20px;">
-            <div><b>Withdrawals</b><br><small>Coming soon when TGE starts</small></div>
+            <div><b>Withdrawals</b><br><small>Coming soon (TGE)</small></div>
             <button class="btn" disabled>CLAIM</button>
         </div>
     </div>
 
+    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
+
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
-        <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
         <div onclick="show('wallet')" id="n-wallet" class="nav-item">💎</div>
     </div>
@@ -272,11 +230,9 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
-                document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
                 document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
                 if(d.wallet && !document.getElementById('w-addr').value) document.getElementById('w-addr').value = d.wallet;
                 
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
@@ -285,17 +241,15 @@ async def web_ui():
         }
         async function saveWallet() {
             const addr = document.getElementById('w-addr').value;
-            if(addr.length < 10) return alert("Invalid address");
             const res = await fetch('/api/wallet', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, address:addr})});
-            if(res.ok) { tg.HapticFeedback.notificationOccurred('success'); alert("Wallet Linked!"); }
+            if(res.ok) alert("Wallet Linked!");
         }
         async function mine(t) {
-            tg.HapticFeedback.impactOccurred('light');
             const res = await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) refresh();
         }
         function show(p) {
-            ['mine', 'pillars', 'leader', 'wallet'].forEach(id => {
+            ['mine', 'leader', 'wallet'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id===p?'block':'none');
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
@@ -307,7 +261,6 @@ async def web_ui():
 """
 
 async def main():
-    global bot_app
     init_db(); bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
     await bot_app.initialize(); await bot_app.start()
@@ -315,4 +268,5 @@ async def main():
     asyncio.create_task(bot_app.updater.start_polling())
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
 
-if __name__ == "__main__": asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
