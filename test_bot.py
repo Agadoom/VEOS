@@ -2,15 +2,15 @@ import os, asyncio, uvicorn, logging, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Application
 from telegram.error import Forbidden
 
 from data_conx import init_db, get_db_conn
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = 1414016840  # Ton ID est maintenant configuré ici
+ADMIN_ID = 1414016840 
 PORT = int(os.getenv("PORT", 8080))
 RAW_URL = os.getenv("WEBAPP_URL", "")
 WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
@@ -48,14 +48,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text("Node Synchronized. Start Mining $WPT.", reply_markup=kb)
+    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Sécurité ID Admin
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Reserved for Admin.")
+        await update.message.reply_text("❌ Admin Only.")
         return
-
     msg = " ".join(context.args)
     if not msg:
         await update.message.reply_text("📝 Usage: /broadcast [votre message]")
@@ -64,20 +62,16 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT user_id FROM users")
     users = c.fetchall(); c.close(); conn.close()
-
-    total = len(users)
-    await update.message.reply_text(f"🚀 Sending to {total} users...")
-
-    success = 0
+    
+    await update.message.reply_text(f"🚀 Sending to {len(users)} nodes...")
+    count = 0
     for u in users:
         try:
             await context.bot.send_message(chat_id=u[0], text=msg)
-            success += 1
-            await asyncio.sleep(0.05) 
-        except Forbidden: pass 
-        except Exception as e: logging.error(f"Error {u[0]}: {e}")
-
-    await update.message.reply_text(f"✅ Broadcast finished: {success}/{total} received.")
+            count += 1
+            await asyncio.sleep(0.05)
+        except: continue
+    await update.message.reply_text(f"✅ Broadcast Done: {count} received.")
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -116,12 +110,11 @@ async def mine_api(request: Request):
 
     if current_e >= 1:
         c.execute(f"UPDATE users SET p_{t} = p_{t} + 0.05, energy = %s, last_energy_update = %s WHERE user_id = %s", (current_e - 1, now, uid))
-        c.execute("INSERT INTO logs (user_id, token, timestamp) VALUES (%s, %s, %s)", (uid, t.upper(), now))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
-# --- WEB UI (HTML) ---
+# --- WEB UI (HTML/CSS/JS) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -158,14 +151,12 @@ async def web_ui():
         <div style="display:flex; align-items:center; gap:10px;"><div id="u-name" style="font-weight:700">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <div id="u-ref" style="font-weight:bold; font-size:12px; color:var(--gold)">0 REFS</div>
     </div>
-
     <div id="p-mine">
-        <div class="balance"><small style="color:var(--text)">TOTAL ASSETS</small><h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1><div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div><div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div></div>
+        <div class="balance"><small style="color:var(--text)">NETWORK ASSETS</small><h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1><div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div><div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div></div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">MINE</button></div>
         <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
     </div>
-
     <div id="p-pillars" style="display:none">
         <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
         <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">BUY</a></div>
@@ -174,25 +165,23 @@ async def web_ui():
         <div class="card"><b>Genesis Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
         <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
     </div>
-
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">MISSION</h3>
-        <div class="card" onclick="window.open('https://t.me/OWPC_Co', '_blank')"><b>Community</b><span>💬</span></div>
+        <div class="card" onclick="window.open('https://t.me/OWPC_Co', '_blank')"><b>Community Hub</b><span>💬</span></div>
         <div style="background:#111; padding:15px; border-radius:15px; border:1px solid #222; font-size:12px;"><p>1. Alpha Launch (Done)</p><p>2. DePIN Hardware Sync (2026)</p><p>3. Global Listing</p></div>
     </div>
-
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
         <div onclick="show('mission')" id="n-mission" class="nav-item">🗺️</div>
     </div>
-
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         async function refresh() {
             const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+            if(!d.name) return;
             document.getElementById('u-name').innerText = d.name;
             document.getElementById('u-badge').innerText = d.badge;
             document.getElementById('u-ref').innerText = d.rc + " REFS";
@@ -215,7 +204,7 @@ async def web_ui():
         }
         function share() {
             const url = `https://t.me/owpcsbot?start=${uid}`;
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Join OWPC DePIN Hub!`);
+            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Join the DePIN Network!`);
         }
         function show(p) {
             ['mine', 'pillars', 'leader', 'mission'].forEach(id => {
