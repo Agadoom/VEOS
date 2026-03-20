@@ -22,24 +22,25 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 MAX_ENERGY = 100
 REGEN_RATE = 1 
 
-# --- AUTO-PATCH DB (FORCÉ) ---
+# --- AUTO-PATCH DB ---
 def patch_db():
     conn = get_db_conn()
     if conn:
         try:
             c = conn.cursor()
-            # On force l'ajout de missions_done
-            try:
-                c.execute("ALTER TABLE users ADD COLUMN missions_done TEXT DEFAULT '';")
-                logging.info("!!! Colonne missions_done ajoutée avec succès !!!")
-            except:
-                logging.info("La colonne missions_done existe déjà ou erreur mineure.")
-            
-            conn.commit()
-            c.close()
-            conn.close()
-        except Exception as e:
-            logging.error(f"Erreur patch_db: {e}")
+            # On s'assure que toutes les colonnes de progression sont là
+            cols = [
+                ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
+                ("streak", "INTEGER DEFAULT 0"),
+                ("last_streak_date", "TEXT"),
+                ("missions_done", "TEXT DEFAULT ''"),
+                ("wallet_address", "TEXT DEFAULT ''") # Nouvelle colonne pour le Wallet
+            ]
+            for col, dtype in cols:
+                try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+                except: pass
+            conn.commit(); c.close(); conn.close()
+        except Exception as e: logging.error(f"Patch error: {e}")
 
 patch_db()
 
@@ -64,7 +65,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
         if not c.fetchone():
-            c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak, missions_done) VALUES (%s, %s, %s, %s, %s, 0, 0, '')", 
+            c.execute("""INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, 
+                         staked_amount, streak, missions_done) VALUES (%s, %s, %s, %s, %s, 0, 0, '')""", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
                 c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
@@ -73,24 +75,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
-# --- API ---
+# --- API (TON CODE OPÉRATIONNEL + WALLET) ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
     try:
-        # SELECT sécurisé avec COALESCE pour éviter l'erreur 500
         c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, 
                      energy, last_energy_update, streak, staked_amount, 
-                     COALESCE(missions_done, '') FROM users WHERE user_id=%s""", (uid,))
+                     COALESCE(missions_done, ''), COALESCE(wallet_address, '') 
+                     FROM users WHERE user_id=%s""", (uid,))
         r = c.fetchone()
-    except Exception as e:
-        logging.error(f"Erreur SQL SELECT: {e}")
-        # Fallback au cas où la colonne n'est vraiment pas là
-        c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
-        r_list = list(c.fetchone())
-        r_list.append("") # On simule une colonne missions_done vide
-        r = tuple(r_list)
-
+    except:
+        # Fallback si Wallet n'est pas encore patché
+        c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, COALESCE(missions_done, '') FROM users WHERE user_id=%s", (uid,))
+        r = list(c.fetchone()) + [""]
+        
     if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
@@ -113,22 +112,18 @@ async def get_user(uid: int):
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
         "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
-        "missions": r[10].split(",") if len(r) > 10 and r[10] else []
+        "missions": r[10].split(",") if r[10] else [],
+        "wallet": r[11]
     }
 
-@app.post("/api/mission")
-async def mission_api(request: Request):
-    data = await request.json(); uid, mid = data.get("user_id"), data.get("mission_id")
+@app.post("/api/wallet")
+async def save_wallet(request: Request):
+    data = await request.json(); uid, addr = data.get("user_id"), data.get("address")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT missions_done FROM users WHERE user_id=%s", (uid,))
-    res = c.fetchone()
-    done = res[0].split(",") if res[0] else []
-    if mid not in done:
-        done.append(mid)
-        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+20, missions_done=%s WHERE user_id=%s", (",".join(done), uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
+    c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (addr, uid))
+    conn.commit(); c.close(); conn.close(); return {"ok": True}
 
+# [GARDER ICI : mine_api, daily_api, stake_api, mission_api des versions précédentes...]
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
@@ -140,6 +135,19 @@ async def mine_api(request: Request):
         mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
         gain = 0.05 * mult
         c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False})
+
+@app.post("/api/mission")
+async def mission_api(request: Request):
+    data = await request.json(); uid, mid = data.get("user_id"), data.get("mission_id")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT missions_done FROM users WHERE user_id=%s", (uid,))
+    res = c.fetchone()
+    done = res[0].split(",") if res[0] else []
+    if mid not in done:
+        done.append(mid)
+        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+20, missions_done=%s WHERE user_id=%s", (",".join(done), uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
@@ -188,12 +196,13 @@ async def web_ui():
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
-        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s ease; box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); }
+        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s ease; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .btn:disabled { opacity: 0.2; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } .nav-item.active { opacity: 1; color: var(--gold); }
+        input { background: #111; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin: 10px 0; }
     </style>
 </head>
 <body>
@@ -226,21 +235,24 @@ async def web_ui():
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
-    <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold)">MISSIONS</h3>
-        <div id="mission-list">
-            <div class="card" id="m-task1"><div><b>Join Community</b><br><small>+20 Genesis</small></div><button class="btn" onclick="doTask('task1', 'https://t.me/OWPC_Co')">GO</button></div>
+    <div id="p-wallet" style="display:none">
+        <h3 style="color:var(--gold)">WALLET CONNECT</h3>
+        <div class="card" style="flex-direction:column; align-items:flex-start;">
+            <small style="color:var(--text)">TON Wallet Address</small>
+            <input type="text" id="w-addr" placeholder="UQC123...456">
+            <button class="btn" style="width:100%; background:var(--gold)" onclick="saveWallet()">SAVE ADDRESS</button>
         </div>
-        <h3 style="color:var(--gold); margin-top:25px;">STAKING & NODES</h3>
-        <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
-        <button class="btn" id="stake-btn" style="width:100%; padding:15px; background:var(--green); color:#000" onclick="stake()">LOCK 100 ASSETS</button>
+        <div class="card" style="margin-top:20px;">
+            <div><b>Withdrawals</b><br><small>Coming soon when TGE starts</small></div>
+            <button class="btn" disabled>CLAIM</button>
+        </div>
     </div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
-        <div onclick="show('mission')" id="n-mission" class="nav-item">⚙️</div>
+        <div onclick="show('wallet')" id="n-wallet" class="nav-item">💎</div>
     </div>
 
     <script>
@@ -258,45 +270,28 @@ async def web_ui():
                 document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-                document.getElementById('u-streak').innerText = d.streak;
-                document.getElementById('staked-val').innerText = d.staked + " Staked";
                 document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
-                document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
-                document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
-                if(d.missions) d.missions.forEach(m => { if(document.getElementById('m-'+m)) document.getElementById('m-'+m).style.display = 'none'; });
+                if(d.wallet && !document.getElementById('w-addr').value) document.getElementById('w-addr').value = d.wallet;
+                
                 let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = r_html;
-                document.getElementById('m-load').innerText = d.machine_load;
             } catch(e) {}
         }
-        async function doTask(id, url) {
-            window.open(url);
-            setTimeout(async () => {
-                const res = await fetch('/api/mission', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, mission_id:id})});
-                if(res.ok) { confetti(); refresh(); }
-            }, 5000);
+        async function saveWallet() {
+            const addr = document.getElementById('w-addr').value;
+            if(addr.length < 10) return alert("Invalid address");
+            const res = await fetch('/api/wallet', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, address:addr})});
+            if(res.ok) { tg.HapticFeedback.notificationOccurred('success'); alert("Wallet Linked!"); }
         }
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('light');
             const res = await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) refresh();
         }
-        async function claimDaily() {
-            const res = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { confetti(); refresh(); }
-        }
-        async function stake() {
-            const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { confetti({particleCount:100}); refresh(); }
-        }
-        function share() {
-            const url = `https://t.me/owpcsbot?start=${uid}`;
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Join my DePIN Node!`);
-        }
         function show(p) {
-            ['mine', 'pillars', 'leader', 'mission'].forEach(id => {
+            ['mine', 'pillars', 'leader', 'wallet'].forEach(id => {
                 document.getElementById('p-'+id).style.display = (id===p?'block':'none');
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
@@ -309,13 +304,11 @@ async def web_ui():
 
 async def main():
     global bot_app
-    init_db()
-    bot_app = ApplicationBuilder().token(TOKEN).build()
+    init_db(); bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
     await bot_app.initialize(); await bot_app.start()
     await bot_app.bot.delete_webhook(drop_pending_updates=True)
     asyncio.create_task(bot_app.updater.start_polling())
     await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == "__main__": asyncio.run(main())
