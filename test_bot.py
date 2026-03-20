@@ -22,7 +22,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 MAX_ENERGY = 100
 REGEN_RATE = 1 
 
-# --- AUTO-PATCH DB (Sécurité pour éviter Erreur 500) ---
+# --- AUTO-PATCH DB ---
 def patch_db():
     conn = get_db_conn()
     if conn:
@@ -58,7 +58,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
-                # Bonus parrainage : +10 Unity au parrain
                 c.execute("UPDATE users SET p_unity = p_unity + 10.0, ref_count = ref_count + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
     
@@ -90,7 +89,6 @@ async def get_user(uid: int):
     now = int(time.time())
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    
     today = datetime.date.today().isoformat()
     can_claim = (r[4] != today)
 
@@ -102,7 +100,7 @@ async def get_user(uid: int):
     c.close(); conn.close()
 
     return {
-        "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5],
+        "g": r[0], "u": r[1], "v": r[2], "rc": r[3] or 0, "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
@@ -118,7 +116,6 @@ async def mine_api(request: Request):
     c.execute("SELECT energy, last_energy_update, staked_amount, (p_genesis + p_unity + p_veo) FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
     now = int(time.time()); current_e = min(MAX_ENERGY, res[0] + ((now - res[1]) // 60) * REGEN_RATE)
-
     if current_e >= 1:
         mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
         gain = 0.05 * mult
@@ -167,13 +164,31 @@ async def web_ui():
         .machine-status { font-size: 9px; color: var(--text); margin-bottom: 12px; display: flex; justify-content: space-between; background: #111; padding: 8px; border-radius: 10px; border: 1px solid #222; align-items: center; }
         .status-led { height: 7px; width: 7px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; margin-right:5px; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
+        
+        /* FIX POSITION BUTTON GIFT */
+        .profile-bar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 12px; 
+            background: #161618; 
+            border-radius: 15px; 
+            margin-bottom: 15px; 
+            border: 1px solid #2c2c2e;
+            gap: 10px;
+        }
+        .profile-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
+        .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; white-space: nowrap; }
+        .u-name-text { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .energy-bar { background: #222; border-radius: 10px; height: 6px; margin: 15px 0; overflow: hidden; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 0%; transition: 0.3s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
         .btn:disabled { opacity: 0.2; }
+        .gift-btn { background: var(--gold); min-width: 60px; padding: 8px 12px; }
+        
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; } .nav-item.active { opacity: 1; color: var(--gold); }
     </style>
@@ -183,9 +198,12 @@ async def web_ui():
     <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
     
     <div class="profile-bar">
-        <div style="display:flex; align-items:center; gap:10px;"><div id="u-name" style="font-weight:700">...</div><div id="u-badge" class="badge-tag">...</div></div>
-        <button id="daily-btn" class="btn" style="background:var(--gold); display:none;" onclick="claimDaily()">🎁 GIFT</button>
-        <div id="u-ref" style="font-weight:bold; font-size:12px; color:var(--gold)">0 REFS</div>
+        <div class="profile-info">
+            <div id="u-name" class="u-name-text">...</div>
+            <div id="u-badge" class="badge-tag">...</div>
+        </div>
+        <button id="daily-btn" class="btn gift-btn" style="display:none;" onclick="claimDaily()">🎁 GIFT</button>
+        <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold); white-space:nowrap;">0 REFS</div>
     </div>
 
     <div id="p-mine">
