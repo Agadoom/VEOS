@@ -19,13 +19,14 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 MAX_ENERGY = 100
 REGEN_RATE = 1 
+PASSIVE_MINING_RATE = 0.01 # Gain par minute d'absence
 
 def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
         for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), 
-                           ("last_streak_date", "TEXT"), ("wallet_address", "TEXT")]:
+                           ("last_streak_date", "TEXT"), ("wallet_address", "TEXT"), ("last_claim", "INTEGER")]:
             try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except: pass
         conn.commit(); c.close(); conn.close()
@@ -37,95 +38,71 @@ def get_badge(score, streak=0):
     if score >= 150: return "🥇 Gold"
     return "🥉 Bronze"
 
-# --- BOT COMMANDS AVEC SYSTÈME DE PARRAINAGE ---
+# --- BOT COMMANDS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
-    if update.effective_chat.type in ['group', 'supergroup']: return 
-
-    # Logique de parrainage
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
-    if ref_id == uid: ref_id = None # Pas d'auto-parrainage
-
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
         if not c.fetchone():
-            # Création du nouvel utilisateur
-            c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
-                      (uid, name, ref_id, MAX_ENERGY, int(time.time())))
-            
-            # Créditer le parrain s'il existe
+            c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, last_claim) VALUES (%s, %s, %s, %s, %s, %s)", 
+                      (uid, name, ref_id, MAX_ENERGY, int(time.time()), int(time.time())))
             if ref_id:
                 c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
-        
         conn.commit(); c.close(); conn.close()
-    
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"✨ Welcome {name} to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
+    await update.message.reply_text("✨ Node Online.", reply_markup=kb)
 
-@app.get("/tonconnect-manifest.json")
-async def manifest():
-    return {"url": WEBAPP_URL, "name": "OWPC Hub", "iconUrl": "https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png"}
-
+# --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, wallet_address FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, wallet_address, last_claim FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
-    now = int(time.time()); last_upd = r[7] if r[7] else now
-    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
+    now = int(time.time())
+    # Calcul Minage Passif
+    last_c = r[11] or now
+    minutes_away = (now - last_c) // 60
+    passive_gain = round(minutes_away * PASSIVE_MINING_RATE, 4) if minutes_away > 5 else 0
+
+    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
-    
-    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-    total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
 
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8] or 0),
-        "top": top, "jackpot": round(total_net * 0.1, 2),
-        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": (r[4] != datetime.date.today().isoformat()), "streak": r[8] or 0, "staked": r[9] or 0,
-        "wallet": r[10], "machine_load": random.randint(88, 99)
+        "top": top, "staked": r[9] or 0, "wallet": r[10], "passive": passive_gain
     }
 
-@app.post("/api/connect-wallet")
-async def connect_wallet(request: Request):
-    data = await request.json(); uid, addr = data.get("user_id"), data.get("address")
+@app.post("/api/claim-passive")
+async def claim_passive(request: Request):
+    data = await request.json(); uid = data.get("user_id")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (addr, uid))
-    conn.commit(); c.close(); conn.close(); return {"ok": True}
+    c.execute("SELECT last_claim FROM users WHERE user_id=%s", (uid,))
+    last_c = c.fetchone()[0] or int(time.time())
+    now = int(time.time()); mins = (now - last_c) // 60
+    gain = mins * PASSIVE_MINING_RATE
+    if mins > 5:
+        c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_claim=%s WHERE user_id=%s", (gain, now, uid))
+        conn.commit()
+    c.close(); conn.close(); return {"ok": True}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id=%s", (uid,))
-    res = c.fetchone()
-    now = int(time.time()); curr_e = min(MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
-    if curr_e >= 1:
-        mult = 1.0 + ((res[2] or 0)/100)*0.1 + ((res[3] or 0)/1000)
-        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s WHERE user_id=%s", (0.05*mult, curr_e-1, now, uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
+    c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=energy-1, last_energy_update=%s, last_claim=%s WHERE user_id=%s AND energy > 0", (int(time.time()), int(time.time()), uid))
+    conn.commit(); c.close(); conn.close(); return {"ok": True}
 
-@app.post("/api/stake")
-async def stake_api(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
-    total = c.fetchone()[0] or 0
-    if total >= 100:
-        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
+# --- UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -137,74 +114,58 @@ async def web_ui():
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
-        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; }
-        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
-        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
-        .machine-status { font-size: 9px; color: var(--text); margin-bottom: 12px; display: flex; justify-content: space-between; background: #111; padding: 8px; border-radius: 10px; border: 1px solid #222; align-items: center; }
-        .status-led { height: 7px; width: 7px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; margin-right:5px; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
-        .u-name-text { font-weight: 700; font-size: 13px; }
-        .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; }
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
-        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
-        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --text: #8E8E93; --green: #34C759; }
+        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
+        .balance { text-align: center; padding: 25px; border-radius: 20px; background: #111; border: 1px solid #222; margin-bottom: 15px; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
+        .energy-bar { background: #222; border-radius: 10px; height: 6px; margin: 10px 0; overflow: hidden; }
+        .energy-fill { background: var(--gold); height: 100%; width: 0%; transition: width 0.5s; }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } .nav-item.active { opacity: 1; color: var(--gold); }
+        
+        /* Animation de clic */
+        .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.8s ease-out forwards; z-index: 1000; }
+        @keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-50px); opacity: 0; } }
+        
+        #afk-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: none; align-items: center; justify-content: center; text-align: center; }
     </style>
 </head>
 <body>
-    <div class="header-ticker"><span>$WPT: $0.00045</span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span></div>
-    <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
-
-    <div class="profile-bar">
-        <div style="display:flex; align-items:center; gap:8px; margin-left:10px;">
-            <div id="u-name" class="u-name-text">Loading...</div>
-            <div id="u-badge" class="badge-tag">...</div>
+    <div id="afk-modal">
+        <div style="background:#111; padding:30px; border-radius:20px; border:1px solid var(--gold); width:80%;">
+            <h2 style="color:var(--gold)">Welcome Back!</h2>
+            <p>Your node mined while you were away:</p>
+            <h1 id="afk-val">0.00</h1>
+            <button class="btn" onclick="claimAFK()" style="width:100%; padding:15px; background:var(--gold)">CLAIM ASSETS</button>
         </div>
-        <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold); margin-right:10px;">0 REFS</div>
     </div>
 
     <div id="p-mine">
         <div class="balance">
-            <small style="color:var(--text)">TOTAL ASSETS</small>
-            <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
-            <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
+            <h1 id="tot" style="font-size:45px; margin:0;">0.00</h1>
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
-            <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
+            <div id="e-text" style="font-size:10px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
+        <div class="card"><div>GENESIS<br><small id="gv">0.00</small></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
+        <div class="card"><div>UNITY<br><small id="uv">0.00</small></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
+        <div class="card"><div>VEO AI<br><small id="vv">0.00</small></div><button class="btn" onclick="mine(event, 'veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
     </div>
 
     <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">STAKING & WALLET</h3>
+        <h3 style="text-align:center; color:var(--gold)">STAKING & WALLET</h3>
         <div id="ton-connect-button" style="display:flex; justify-content:center; margin-bottom:10px;"></div>
-        <div id="wallet-addr" style="text-align:center; font-size:10px; color:var(--text); margin-bottom:20px;">Checking wallet...</div>
-        
         <div class="card" style="border-color:var(--gold)">
-            <div><b>Stake 100 Assets</b><br><small>+0.1x Multiplier</small></div>
-            <button class="btn" id="stake-btn" onclick="stake()">LOCK</button>
+            <div><b>Stake 100 Assets</b><br><small>+0.1x Boost</small></div>
+            <button class="btn" onclick="stake()">LOCK</button>
         </div>
-        <div class="card"><div><b>Active Nodes</b><br><small id="u-streak">Streak: 0 Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
-        <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
-    </div>
-
-    <div id="p-pillars" style="display:none">
-        <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
-        <div class="card"><b>Genesis Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">CLAIM</a></div>
-        <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
-        <div class="card"><b>Unity Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
+        <button class="btn" style="width:100%; margin-top:10px; background:#007AFF; color:#FFF" onclick="share()">INVITE FRIENDS</button>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
-        <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
         <div onclick="show('mission')" id="n-mission" class="nav-item">⚙️</div>
     </div>
@@ -213,59 +174,49 @@ async def web_ui():
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         const tonUI = new TONConnectUI.TonConnectUI({ manifestUrl: window.location.origin + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
 
-        tonUI.onStatusChange(async (w) => {
-            if(w) await fetch('/api/connect-wallet', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, address:w.account.address})});
-            refresh();
-        });
-
         async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                document.getElementById('u-name').innerText = d.name;
-                document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('u-ref').innerText = d.rc + " REFS";
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
-                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
-                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-                document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('m-load').innerText = d.machine_load;
-                document.getElementById('staked-val').innerText = d.staked + " Staked";
-                document.getElementById('u-streak').innerText = "Streak: " + d.streak + " Days";
-                document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
-                if(d.wallet) document.getElementById('wallet-addr').innerText = "✅ Linked: " + d.wallet.substring(0,8) + "...";
-                
-                let r_html = ""; d.top.forEach((u, i) => { 
-                    r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; 
-                });
-                document.getElementById('rank-list').innerHTML = r_html;
-            } catch(e) {}
+            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+            document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
+            document.getElementById('gv').innerText = d.g.toFixed(2);
+            document.getElementById('uv').innerText = d.u.toFixed(2);
+            document.getElementById('vv').innerText = d.v.toFixed(2);
+            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
+            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+            
+            if(d.passive > 0.01 && document.getElementById('afk-modal').style.display !== 'flex') {
+                document.getElementById('afk-val').innerText = "+" + d.passive.toFixed(2);
+                document.getElementById('afk-modal').style.display = 'flex';
+            }
         }
 
-        async function mine(t) { await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})}); refresh(); tg.HapticFeedback.impactOccurred('light'); }
-        async function stake() { const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})}); if(res.ok) { confetti(); refresh(); } }
-        // Remplace ta fonction share() par celle-ci pour plus de fun :
-function share() {
-    const url = `https://t.me/owpcsbot?start=${uid}`;
-    // Animation de succès locale avant l'ouverture du lien
-    confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#FFD700', '#ffffff', '#007AFF']
-    });
-    
-    setTimeout(() => {
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=🚀 Join my OWPC Node! High-speed DePIN mining is live. Get +10 Unity assets on start!`);
-    }, 500);
-}
+        async function mine(e, t) {
+            // Animation de texte volant
+            const rect = e.target.getBoundingClientRect();
+            const text = document.createElement('div');
+            text.className = 'floating-text';
+            text.innerText = '+0.05';
+            text.style.left = rect.left + 'px';
+            text.style.top = rect.top + 'px';
+            document.body.appendChild(text);
+            setTimeout(() => text.remove(), 800);
 
-        function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
-        
-        refresh(); setInterval(refresh, 5000);
+            await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
+            refresh(); tg.HapticFeedback.impactOccurred('light');
+        }
+
+        async function claimAFK() {
+            await fetch('/api/claim-passive', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            document.getElementById('afk-modal').style.display = 'none';
+            confetti(); refresh();
+        }
+
+        function share() {
+            const url = `https://t.me/owpcsbot?start=${uid}`;
+            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Mine OWPC Assets with me!`);
+        }
+
+        function show(p) { ['mine','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+        refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
