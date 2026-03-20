@@ -21,17 +21,24 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 MAX_ENERGY = 100
 REGEN_RATE = 1 
 
-# --- AUTO-PATCH DB ---
+# --- AUTO-PATCH DB (Assure que toutes les colonnes existent) ---
 def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        for col, dtype in [
+        columns = [
+            ("p_genesis", "DOUBLE PRECISION DEFAULT 0"),
+            ("p_unity", "DOUBLE PRECISION DEFAULT 0"),
+            ("p_veo", "DOUBLE PRECISION DEFAULT 0"),
             ("staked_amount", "DOUBLE PRECISION DEFAULT 0"), 
             ("streak", "INTEGER DEFAULT 0"), 
             ("last_streak_date", "TEXT"),
-            ("ref_claimed", "INTEGER DEFAULT 0") # Nouvelle colonne pour suivre les bonus de parrainage récupérés
-        ]:
+            ("ref_claimed", "INTEGER DEFAULT 0"),
+            ("ref_count", "INTEGER DEFAULT 0"),
+            ("energy", "INTEGER DEFAULT 100"),
+            ("last_energy_update", "INTEGER")
+        ]
+        for col, dtype in columns:
             try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except: pass
         conn.commit(); c.close(); conn.close()
@@ -59,7 +66,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
         if not c.fetchone():
-            c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
+            c.execute("""INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, p_genesis, p_unity, p_veo, staked_amount, streak, ref_claimed, ref_count) 
+                         VALUES (%s, %s, %s, %s, %s, 0, 0, 0, 0, 0, 0, 0)""", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
                 c.execute("UPDATE users SET ref_count = ref_count + 1 WHERE user_id = %s", (ref_id,))
@@ -68,61 +76,52 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    msg = " ".join(context.args)
-    if not msg: return
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT user_id FROM users"); users = c.fetchall(); c.close(); conn.close()
-    count = 0
-    for u in users:
-        try:
-            await context.bot.send_message(chat_id=u[0], text=msg)
-            count += 1; await asyncio.sleep(0.05)
-        except: continue
-    await update.message.reply_text(f"✅ Sent to {count} nodes.")
-
 # --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, ref_claimed FROM users WHERE user_id=%s", (uid,))
+    # Utilisation de COALESCE pour éviter les valeurs Null qui cassent l'affichage
+    c.execute("""SELECT 
+        COALESCE(p_genesis,0), COALESCE(p_unity,0), COALESCE(p_veo,0), 
+        COALESCE(ref_count,0), last_streak_date, name, 
+        COALESCE(energy,100), COALESCE(last_energy_update,0), 
+        COALESCE(streak,0), COALESCE(staked_amount,0), COALESCE(ref_claimed,0) 
+        FROM users WHERE user_id=%s""", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    today = datetime.date.today().isoformat()
+    last_upd = r[7] if r[7] > 0 else now
+    current_e = min(MAX_ENERGY, r[6] + ((now - last_upd) // 60) * REGEN_RATE)
     
-    # Calcul des refs non réclamées
-    pending_refs = (r[3] or 0) - (r[10] or 0)
+    score = r[0] + r[1] + r[2]
+    today = datetime.date.today().isoformat()
+    pending_refs = r[3] - r[10]
 
-    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
+    c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
-    c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
+    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
     total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
 
     return {
-        "g": r[0], "u": r[1], "v": r[2], "rc": r[3] or 0, "name": r[5],
+        "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
-        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
+        "multiplier": round(1.0 + (r[9] / 100) * 0.1 + (score / 1000), 2),
+        "can_claim": (r[4] != today), "streak": r[8], "staked": r[9],
         "pending_refs": max(0, pending_refs)
     }
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    data = await request.json()
-    uid, t = data.get("user_id"), data.get("token")
+    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, staked_amount, (p_genesis + p_unity + p_veo) FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    now = int(time.time()); current_e = min(MAX_ENERGY, res[0] + ((now - res[1]) // 60) * REGEN_RATE)
+    now = int(time.time()); current_e = min(MAX_ENERGY, (res[0] or 100) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
     if current_e >= 1:
         mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
         gain = 0.05 * mult
@@ -137,11 +136,11 @@ async def claim_ref_api(request: Request):
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
-    pending = r[0] - r[1]
+    pending = (r[0] or 0) - (r[1] or 0)
     if pending > 0:
         bonus = pending * 10.0
         c.execute("UPDATE users SET p_unity = p_unity + %s, ref_claimed = ref_count WHERE user_id = %s", (bonus, uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True, "bonus": bonus}
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/daily")
@@ -151,7 +150,7 @@ async def daily_api(request: Request):
     c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     if r[0] != today.isoformat():
-        new_s = (r[1]+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
+        new_s = ((r[1] or 0)+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
         c.execute("UPDATE users SET p_genesis=p_genesis+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
@@ -167,7 +166,7 @@ async def stake_api(request: Request):
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
-# --- WEB UI ---
+# --- WEB UI (CSS FIX INCLUS) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -265,35 +264,32 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         async function refresh() {
-            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-            if(!d.name) return;
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('u-badge').innerText = d.badge;
-            document.getElementById('u-ref').innerText = d.rc + " REFS";
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
-            document.getElementById('jack-val').innerText = d.jackpot;
-            document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-            document.getElementById('u-streak').innerText = d.streak;
-            document.getElementById('staked-val').innerText = d.staked + " Staked";
-            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
-            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-            document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
-            
-            // Gestion Bonus Ref
-            if(d.pending_refs > 0) {
-                document.getElementById('ref-bonus-card').style.display = 'flex';
-                document.getElementById('ref-pending-text').innerText = `+${d.pending_refs * 10} UNITY Pending`;
-            } else {
-                document.getElementById('ref-bonus-card').style.display = 'none';
-            }
-
-            document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
-            document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
-            let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = r_html;
+            try {
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                if(!d.name) return;
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-badge').innerText = d.badge;
+                document.getElementById('u-ref').innerText = d.rc + " REFS";
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
+                document.getElementById('jack-val').innerText = d.jackpot;
+                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
+                document.getElementById('u-streak').innerText = d.streak;
+                document.getElementById('staked-val').innerText = d.staked + " Staked";
+                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
+                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+                document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
+                if(d.pending_refs > 0) {
+                    document.getElementById('ref-bonus-card').style.display = 'flex';
+                    document.getElementById('ref-pending-text').innerText = `+${d.pending_refs * 10} UNITY Pending`;
+                } else { document.getElementById('ref-bonus-card').style.display = 'none'; }
+                document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
+                document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
+                let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; });
+                document.getElementById('rank-list').innerHTML = r_html;
+            } catch (e) { console.log("Refresh error"); }
         }
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('medium');
@@ -322,7 +318,7 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        refresh(); setInterval(refresh, 5000);
+        refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
