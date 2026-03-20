@@ -4,7 +4,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from telegram.error import Forbidden
 
 from data_conx import init_db, get_db_conn
 
@@ -41,6 +40,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c = conn.cursor()
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
         if not c.fetchone():
+            # Initialisation avec les nouvelles colonnes
             c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
         conn.commit(); c.close(); conn.close()
@@ -64,32 +64,41 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
-    r = c.fetchone()
-    if not r: return JSONResponse(status_code=404, content={})
-    
-    now = int(time.time())
-    current_e = min(MAX_ENERGY, r[6] + ((now - r[7]) // 60) * REGEN_RATE)
-    score = r[0] + r[1] + r[2]
-    multiplier = 1.0 + (r[9] / 100) * 0.1
+    try:
+        c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
+        r = c.fetchone()
+        if not r: return JSONResponse(status_code=404, content={})
+        
+        # Sécurité pour éviter le plantage si None
+        p_gen, p_uni, p_veo, refs, l_streak, name, en, l_en, streak, staked = r
+        streak = streak or 0
+        staked = staked or 0
+        
+        now = int(time.time())
+        current_e = min(MAX_ENERGY, (en or 0) + ((now - (l_en or now)) // 60) * REGEN_RATE)
+        score = (p_gen or 0) + (p_uni or 0) + (p_veo or 0)
+        multiplier = 1.0 + (staked / 100) * 0.1
 
-    # Check Daily Reward Status
-    today = datetime.date.today().isoformat()
-    can_claim = (r[4] != today)
+        today = datetime.date.today().isoformat()
+        can_claim = (l_streak != today)
 
-    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
-    top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
-    
-    c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
-    total_net = c.fetchone()[0] or 0
-    c.close(); conn.close()
-
-    return {
-        "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5], "energy": current_e, 
-        "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]), "top": top, 
-        "jackpot": round(total_net * 0.1, 2), "multiplier": round(multiplier, 2), 
-        "staked": r[9], "streak": r[8], "can_claim": can_claim
-    }
+        c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
+        top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
+        
+        c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
+        total_net = c.fetchone()[0] or 0
+        
+        return {
+            "g": p_gen, "u": p_uni, "v": p_veo, "rc": refs, "name": name, "energy": int(current_e), 
+            "max_energy": MAX_ENERGY, "badge": get_badge(score, streak), "top": top, 
+            "jackpot": round(total_net * 0.1, 2), "multiplier": round(multiplier, 2), 
+            "staked": staked, "streak": streak, "can_claim": can_claim
+        }
+    except Exception as e:
+        logging.error(f"API Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    finally:
+        c.close(); conn.close()
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -102,7 +111,7 @@ async def mine_api(request: Request):
     current_e = min(MAX_ENERGY, r[0] + ((now - r[1]) // 60) * REGEN_RATE)
 
     if current_e >= 1:
-        mult = 1.0 + (r[2] / 100) * 0.1
+        mult = 1.0 + ((r[2] or 0) / 100) * 0.1
         gain = 0.05 * mult
         c.execute(f"UPDATE users SET p_{token_type} = p_{token_type} + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
         conn.commit(); c.close(); conn.close()
@@ -134,12 +143,12 @@ async def stake_api(request: Request):
     c.execute("SELECT p_genesis, p_unity, p_veo FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     if (r[0]+r[1]+r[2]) >= 100:
-        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=staked_amount+100 WHERE user_id=%s", (uid,))
+        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
-# --- WEB UI ---
+# --- WEB UI (HTML) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -151,7 +160,7 @@ async def web_ui():
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; }
-        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
+        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
         .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
         .machine-status { font-size: 9px; color: var(--text); margin-bottom: 12px; display: flex; justify-content: space-between; background: #111; padding: 8px; border-radius: 10px; border: 1px solid #222; align-items: center; }
         .status-led { height: 7px; width: 7px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; margin-right:5px; }
@@ -215,22 +224,23 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         async function refresh() {
-            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
-            document.getElementById('jack-val').innerText = d.jackpot;
-            document.getElementById('u-mult').innerText = d.multiplier;
-            document.getElementById('u-streak').innerText = d.streak;
-            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
-            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-            document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
-            document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
-            document.getElementById('stake-btn').disabled = (d.g+d.u+d.v < 100);
-            let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}</div><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = r_html;
+            try {
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                if(d.error) { console.error(d.error); return; }
+                document.getElementById('u-name').innerText = d.name || "User";
+                document.getElementById('gv').innerText = (d.g || 0).toFixed(2);
+                document.getElementById('uv').innerText = (d.u || 0).toFixed(2);
+                document.getElementById('vv').innerText = (d.v || 0).toFixed(2);
+                document.getElementById('tot').innerText = ((d.g||0)+(d.u||0)+(d.v||0)).toFixed(2);
+                document.getElementById('jack-val').innerText = d.jackpot || 0;
+                document.getElementById('u-mult').innerText = d.multiplier || 1.0;
+                document.getElementById('u-streak').innerText = d.streak || 0;
+                document.getElementById('e-bar').style.width = ((d.energy||0)/(d.max_energy||100)*100)+"%";
+                document.getElementById('e-text').innerText = `⚡ ${d.energy||0} / ${d.max_energy||100}`;
+                document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
+                document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
+                document.getElementById('stake-btn').disabled = ((d.g||0)+(d.u||0)+(d.v||0) < 100);
+            } catch(e) { console.log("Refresh error"); }
         }
         async function mine(t) {
             const res = await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
@@ -251,7 +261,7 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        refresh(); setInterval(refresh, 8000);
+        refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
