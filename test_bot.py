@@ -20,6 +20,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 bot_app = None 
 MAX_ENERGY = 100
 REGEN_RATE = 1 
+# Récompenses du Jour 1 à Jour 7
 STREAK_REWARDS = [0.5, 1.0, 2.0, 3.0, 5.0, 7.0, 10.0]
 
 # --- UTILS ---
@@ -68,7 +69,7 @@ async def get_user(uid: int):
     if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    # Energy Regen
+    # Régénération Énergie
     seconds_passed = now - r[7]
     refill = int(seconds_passed / 60) * REGEN_RATE
     current_energy = min(MAX_ENERGY, r[6] + refill)
@@ -77,13 +78,13 @@ async def get_user(uid: int):
         c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (current_energy, now, uid))
         conn.commit()
 
-    # Streak Logic
+    # Logique de Streak (Bonus Quotidien)
     last_claim = r[4] or 0
-    can_claim = (now - last_claim) >= 86400 # 24h
-    is_broken = (now - last_claim) >= 172800 # 48h (streak perdu)
+    can_claim = (now - last_claim) >= 86400  # Dispo après 24h
+    is_broken = (now - last_claim) >= 172800 # Perdu après 48h
     
     current_streak = r[8] if not is_broken else 0
-    if is_broken:
+    if is_broken and r[8] > 0:
         c.execute("UPDATE users SET streak = 0 WHERE user_id = %s", (uid,))
         conn.commit()
 
@@ -110,12 +111,14 @@ async def claim_daily(request: Request):
     c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     now = int(time.time())
+    
     if r and (now - (r[0] or 0)) >= 86400:
         new_streak = (r[1] % 7) + 1
         reward = STREAK_REWARDS[new_streak-1]
         c.execute("UPDATE users SET p_genesis = p_genesis + %s, streak = %s, last_streak_date = %s WHERE user_id = %s", (reward, new_streak, now, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True, "reward": reward, "streak": new_streak}
+    
     c.close(); conn.close()
     return {"ok": False}
 
@@ -153,11 +156,10 @@ async def web_ui():
         .energy-container { margin: 10px 0; background: #222; border-radius: 10px; height: 6px; overflow: hidden; }
         .energy-bar { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
         .balance { text-align: center; padding: 20px; border-radius: 25px; background: radial-gradient(circle at top, #111, #000); margin-bottom: 15px; border: 1px solid #1a1a1a; }
-        .streak-box { background: #111; border: 1px dashed var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; }
+        .streak-box { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); }
         .card { background: var(--card); padding: 12px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; }
         .btn:disabled { opacity: 0.2; cursor: default; }
-        .feed-item { font-size: 10px; color: var(--text); padding: 4px 0; border-bottom: 1px solid #111; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 999; }
         .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); }
     </style>
@@ -172,8 +174,8 @@ async def web_ui():
 
     <div id="p-mine">
         <div id="streak-ui" class="streak-box" style="display:none">
-            <div style="font-size:12px; margin-bottom:8px">📅 <span id="stk-txt">Day 0</span> Streak</div>
-            <button id="stk-btn" class="btn" style="width:100%; background:var(--gold)" onclick="claimDaily()">CLAIM DAILY BONUS</button>
+            <div style="font-size:13px; margin-bottom:10px; color:var(--gold); font-weight:bold;">🔥 <span id="stk-txt">Day 1</span> REWARD READY</div>
+            <button id="stk-btn" class="btn" style="width:100%; background:var(--gold); color:#000" onclick="claimDaily()">CLAIM BONUS</button>
         </div>
 
         <div class="balance">
@@ -188,8 +190,8 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
 
         <div style="margin-top:15px;">
-            <div style="font-size:9px; color:var(--text); text-transform:uppercase; margin-bottom:8px;">Live Activity</div>
-            <div id="activity-feed" style="background:#080808; padding:10px; border-radius:15px; border:1px solid #111;"></div>
+            <div style="font-size:9px; color:var(--text); text-transform:uppercase; margin-bottom:8px;">Live Feed</div>
+            <div id="activity-feed" style="background:#080808; padding:10px; border-radius:15px; border:1px solid #111; font-size:10px;"></div>
         </div>
     </div>
 
@@ -197,7 +199,7 @@ async def web_ui():
         <div class="card"><div><b>Genesis Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
         <div class="card"><div><b>Unity Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
         <div class="card"><div><b>Veo AI Token</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 SHARE WITH FRIENDS</button>
+        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS</button>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
@@ -229,13 +231,13 @@ async def web_ui():
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
 
-                // Streak UI
+                // Daily Streak UI
                 document.getElementById('streak-ui').style.display = d.can_claim ? 'block' : 'none';
                 document.getElementById('stk-txt').innerText = "Day " + (d.streak + 1);
 
                 let f_html = "";
-                d.feed.forEach(f => { f_html += `<div class="feed-item"><b>${f.n}</b> mined ${f.t}</div>`; });
-                document.getElementById('activity-feed').innerHTML = f_html || "Waiting...";
+                d.feed.forEach(f => { f_html += `<div style="padding:4px 0; border-bottom:1px solid #111;"><b>${f.n}</b> mined ${f.t}</div>`; });
+                document.getElementById('activity-feed').innerHTML = f_html || "Waiting for activity...";
 
                 let r_html = "";
                 d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small>${u.b}</small></div><b>${u.p}</b></div>`; });
@@ -244,9 +246,14 @@ async def web_ui():
         }
 
         async function claimDaily() {
+            tg.HapticFeedback.notificationOccurred('success');
             const res = await fetch(`${apiBase}/api/daily`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
             const data = await res.json();
-            if(data.ok) { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); tg.showAlert(`Daily Bonus: +${data.reward} OWPC!`); refresh(); }
+            if(data.ok) { 
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#FFD700', '#FFFFFF', '#FFA500'] }); 
+                tg.showAlert(`Amazing! Day ${data.streak} Streak: +${data.reward} OWPC Genesis!`); 
+                refresh(); 
+            }
         }
 
         async function mine(t) {
@@ -257,7 +264,7 @@ async def web_ui():
 
         function shareInvite() {
             const url = `https://t.me/owpcsbot?start=${uid}`;
-            const text = "🚀 Join me on OWPC HUB! Mine tokens and get daily rewards! 💎⚡";
+            const text = "🚀 Mine assets on OWPC HUB and get your daily streak bonus! 💎⚡";
             tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
         }
 
