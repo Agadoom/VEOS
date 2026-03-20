@@ -313,10 +313,22 @@ async def web_ui():
             }
         }
 
-        function share() {
-            const url = `https://t.me/owpcsbot?start=${uid}`;
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=Join my DePIN Node and earn OWPC!`);
-        }
+        // Remplace ta fonction share() par celle-ci pour plus de fun :
+function share() {
+    const url = `https://t.me/owpcsbot?start=${uid}`;
+    // Animation de succès locale avant l'ouverture du lien
+    confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#FFD700', '#ffffff', '#007AFF']
+    });
+    
+    setTimeout(() => {
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=🚀 Join my OWPC Node! High-speed DePIN mining is live. Get +10 Unity assets on start!`);
+    }, 500);
+}
+
 
         function show(p) {
             ['mine', 'pillars', 'leader', 'mission'].forEach(id => {
