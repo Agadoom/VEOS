@@ -15,8 +15,6 @@ RAW_URL = os.getenv("WEBAPP_URL", "")
 WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -35,10 +33,8 @@ def get_badge(score, streak=0):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
     if update.effective_chat.type in ['group', 'supergroup']: return 
-
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
-    if ref_id == uid: ref_id = None
-
+    
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
@@ -46,8 +42,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not c.fetchone():
             c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
-            if ref_id:
-                c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
@@ -57,8 +51,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @app.get("/tonconnect-manifest.json")
 async def manifest():
     return {
-        "url": WEBAPP_URL,
-        "name": "One World Peace Coins",
+        "url": WEBAPP_URL, "name": "One World Peace Coins",
         "iconUrl": "https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png"
     }
 
@@ -75,13 +68,12 @@ async def get_user(uid: int):
     last_upd = r[7] if r[7] else now
     current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    today = datetime.date.today().isoformat()
     
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
     c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-    total_net = c.fetchone()[0] or 0
+    total_net = (c.fetchone()[0] or 0)
     c.close(); conn.close()
 
     return {
@@ -90,7 +82,7 @@ async def get_user(uid: int):
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
         "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": (r[4] != today), "streak": r[8] or 0, "staked": r[9] or 0,
+        "can_claim": (r[4] != datetime.date.today().isoformat()), "streak": r[8] or 0, "staked": r[9] or 0,
         "wallet": r[10]
     }
 
@@ -113,41 +105,14 @@ async def mine_api(request: Request):
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    if not res: return JSONResponse(status_code=404, content={"ok": False})
+    if not res or res[0] < 1: return JSONResponse(status_code=400, content={"ok": False})
     
     now = int(time.time())
-    current_e = min(MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
-    
-    if current_e >= 1:
-        mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
-        gain = 0.05 * mult
-        c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-@app.post("/api/daily")
-async def daily_api(request: Request):
-    data = await request.json(); uid = data.get("user_id"); today = datetime.date.today()
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT last_streak_date, streak FROM users WHERE user_id = %s", (uid,))
-    r = c.fetchone()
-    if r[0] != today.isoformat():
-        new_s = (r[1]+1) if r[0] == (today - datetime.timedelta(days=1)).isoformat() else 1
-        c.execute("UPDATE users SET p_genesis=COALESCE(p_genesis,0)+5, streak=%s, last_streak_date=%s WHERE user_id=%s", (new_s, today.isoformat(), uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
-
-@app.post("/api/stake")
-async def stake_api(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
-    total = c.fetchone()[0] or 0
-    if total >= 100:
-        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
+    mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
+    gain = 0.05 * mult
+    c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = energy - 1, last_energy_update = %s WHERE user_id = %s", (gain, now, uid))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True, "gain": round(gain, 3)}
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
@@ -171,7 +136,7 @@ async def web_ui():
         .profile-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; }
         .u-name-text { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
+        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position:relative;}
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
         .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
@@ -179,6 +144,10 @@ async def web_ui():
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
+        
+        /* Animation Mine */
+        .gain-anim { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 1s forwards; font-size: 14px; z-index: 100; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-50px); opacity: 0; } }
     </style>
 </head>
 <body>
@@ -191,16 +160,16 @@ async def web_ui():
     </div>
 
     <div id="p-mine">
-        <div class="balance">
+        <div class="balance" id="balance-area">
             <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn m-btn" onclick="mine('genesis', event)">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn m-btn" onclick="mine('unity', event)">SYNC</button></div>
+        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo', event)" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
     </div>
 
     <div id="p-pillars" style="display:none">
@@ -217,7 +186,7 @@ async def web_ui():
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">WALLET & NODES</h3>
         <div id="ton-connect-button" style="display:flex; justify-content:center; margin-bottom:15px;"></div>
-        <div id="wallet-status" style="text-align:center; font-size:10px; margin-bottom:15px; color:var(--text)">Not Connected</div>
+        <div id="wallet-status" style="text-align:center; font-size:11px; margin-bottom:15px; color:var(--text); background:#1a1a1c; padding:10px; border-radius:10px;">Not Connected</div>
         <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
         <div class="card"><div><b>Stake 100 Assets</b><br><small>+0.1x Multiplier</small></div><button class="btn" id="stake-btn" onclick="stake()">LOCK</button></div>
     </div>
@@ -268,17 +237,17 @@ async def web_ui():
                 document.getElementById('staked-val').innerText = d.staked + " Staked";
                 
                 if(d.wallet) {
-                    const shortAddr = d.wallet.substring(0,6) + "..." + d.wallet.substring(d.wallet.length-4);
-                    document.getElementById('wallet-status').innerText = "Connected: " + shortAddr;
+                    const shortAddr = d.wallet.substring(0,8) + "..." + d.wallet.substring(d.wallet.length-8);
+                    document.getElementById('wallet-status').innerText = "✅ Connected: " + shortAddr;
                     document.getElementById('wallet-status').style.color = "var(--green)";
+                    document.getElementById('wallet-status').style.border = "1px solid var(--green)";
                 }
 
                 document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
                 document.getElementById('daily-btn').style.display = d.can_claim ? 'block' : 'none';
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = (d.energy < 1));
-                document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
-
+                
                 let r_html = ""; 
                 d.top.forEach((u, i) => { 
                     r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; 
@@ -287,19 +256,29 @@ async def web_ui():
             } catch(e) {}
         }
 
-        async function mine(t) {
+        async function mine(t, event) {
             const res = await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
+            if(res.ok) { 
+                const data = await res.json();
+                tg.HapticFeedback.impactOccurred('light');
+                showGainAnim(event, data.gain);
+                refresh(); 
+            }
+        }
+
+        function showGainAnim(e, val) {
+            const anim = document.createElement('div');
+            anim.className = 'gain-anim';
+            anim.innerText = '+' + val;
+            anim.style.left = (e.pageX - 10) + 'px';
+            anim.style.top = (e.pageY - 20) + 'px';
+            document.body.appendChild(anim);
+            setTimeout(() => anim.remove(), 1000);
         }
 
         async function claimDaily() {
             const res = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
             if(res.ok) { confetti(); refresh(); }
-        }
-
-        async function stake() {
-            const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
-            if(res.ok) { alert("Assets Locked!"); refresh(); }
         }
 
         function share() {
@@ -314,7 +293,6 @@ async def web_ui():
             });
         }
         
-        // CORRECTION : Lancement immédiat au démarrage
         window.onload = () => { refresh(); setInterval(refresh, 5000); };
     </script>
 </body>
