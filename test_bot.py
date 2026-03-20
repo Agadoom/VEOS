@@ -19,6 +19,13 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 bot_app = None 
 
+# --- UTILS ---
+def get_badge(score):
+    if score >= 500: return "💎 Diamond"
+    if score >= 150: return "🥇 Gold"
+    if score >= 50:  return "🥈 Silver"
+    return "🥉 Bronze"
+
 # --- BOT FUNCTIONS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
@@ -51,9 +58,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton("📢 Invite Friends", switch_inline_query=f"\nJoin me on OWPC HUB! 🚀 https://t.me/owpcsbot?start={uid}")]
     ])
-    await update.message.reply_text(f"Welcome {name}!", reply_markup=kb)
+    await update.message.reply_text(f"Welcome to OWPC HUB, {name}!", reply_markup=kb)
 
-# --- API DAILY CHECK-IN ---
+# --- API DAILY ---
 @app.post("/api/daily")
 async def daily_checkin(request: Request):
     data = await request.json()
@@ -67,21 +74,13 @@ async def daily_checkin(request: Request):
     last = res[0] if res and res[0] else 0
     if (now - last) < 86400:
         c.close(); conn.close()
-        return {"ok": False, "msg": "Come back tomorrow!"}
+        return {"ok": False}
     c.execute("UPDATE users SET p_unity = p_unity + 0.5, last_daily = %s WHERE user_id = %s", (now, uid))
     c.execute("INSERT INTO logs (user_id, token, amount, timestamp) VALUES (%s, 'DAILY_BONUS', 0.5, %s)", (uid, now))
     conn.commit(); c.close(); conn.close()
-    return {"ok": True, "amount": 0.5}
+    return {"ok": True}
 
-# --- AUTRES API ---
-@app.post("/api/donate")
-async def donate_stars(request: Request):
-    data = await request.json()
-    try:
-        link = await bot_app.bot.create_invoice_link(title="Support", description="50 Stars", payload="50", provider_token="", currency="XTR", prices=[LabeledPrice("Support", 50)])
-        return {"ok": True, "link": link}
-    except: return {"ok": False}
-
+# --- API USER DATA ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn()
@@ -90,18 +89,19 @@ async def get_user(uid: int):
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
+    score = r[0] + r[1] + r[2]
     now = int(time.time())
     wait = max(0, 86400 - (now - (r[4] or 0)))
     
     c.execute("SELECT token, amount, timestamp FROM logs WHERE user_id=%s ORDER BY id DESC LIMIT 5", (uid,))
     history = [{"t": x[0], "a": x[1], "ts": x[2]} for x in c.fetchall()]
     
-    # CORRECTION LEADERBOARD : On récupère le total réel de chaque utilisateur
+    # Leaderboard avec calcul des badges côté serveur
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
-    top = [{"n": x[0], "p": round(x[1], 2)} for x in c.fetchall()]
+    top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
     c.close(); conn.close()
-    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "history": history, "name": r[6], "top": top, "next_daily": wait}
+    return {"g": r[0], "u": r[1], "v": r[2], "rc": r[3], "history": history, "name": r[6], "top": top, "next_daily": wait, "badge": get_badge(score)}
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
@@ -115,6 +115,14 @@ async def mine_api(request: Request):
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
     return {"ok": False}
+
+@app.post("/api/donate")
+async def donate_stars(request: Request):
+    data = await request.json()
+    try:
+        link = await bot_app.bot.create_invoice_link(title="Support OWPC", description="50 Stars", payload="50", provider_token="", currency="XTR", prices=[LabeledPrice("Support", 50)])
+        return {"ok": True, "link": link}
+    except: return {"ok": False}
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
@@ -134,32 +142,36 @@ async def web_ui():
         .balance { text-align: center; border: 1px solid #222; padding: 20px; border-radius: 25px; background: linear-gradient(145deg, #050505, #111); margin-bottom: 15px; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
         .btn { background: #FFF; color: #000; border: none; padding: 8px 15px; border-radius: 10px; font-weight: 700; cursor: pointer; }
-        .btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+        .btn:disabled { background: #333; color: #666; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 1000; }
-        .nav-item { font-size: 20px; opacity: 0.3; cursor: pointer; }
+        .nav-item { font-size: 20px; opacity: 0.3; }
         .nav-item.active { opacity: 1; }
         .section-title { font-size: 11px; font-weight: 700; color: var(--text); margin: 20px 0 8px 5px; text-transform: uppercase; }
-        .history-item { display: flex; justify-content: space-between; font-size: 12px; color: var(--text); padding: 8px 0; border-bottom: 1px solid #1c1c1e; }
+        .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); margin-top: 4px; display: inline-block; }
         a { text-decoration: none; color: inherit; }
     </style>
 </head>
 <body>
     <div class="profile-bar">
-        <div style="display:flex; align-items:center; gap:10px;"><div class="avatar" id="u-avatar">?</div><div id="u-name" style="font-weight:700">Loading...</div></div>
-        <div style="text-align:right"><small style="color:var(--text); font-size:9px">REFERRALS</small><div id="u-ref" style="color:var(--gold); font-weight:bold">0</div></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="avatar" id="u-avatar">?</div>
+            <div>
+                <div id="u-name" style="font-weight:700; font-size:14px;">Loading...</div>
+                <div id="u-badge" class="badge-tag">Bronze</div>
+            </div>
+        </div>
+        <div style="text-align:right"><small style="color:var(--text); font-size:9px">REFS</small><div id="u-ref" style="color:var(--gold); font-weight:bold">0</div></div>
     </div>
 
     <div id="p-mine">
         <div class="card" style="background:var(--blue); margin-bottom:20px;">
-            <div style="color:#FFF"><b>Daily Bonus</b><br><small id="daily-timer">Ready to claim!</small></div>
+            <div style="color:#FFF"><b>Daily Bonus</b><br><small id="daily-timer">Ready!</small></div>
             <button class="btn" id="daily-btn" onclick="claimDaily()">CLAIM</button>
         </div>
         <div class="balance"><span>TOTAL ASSETS</span><h1 id="tot" style="font-size:38px; margin:5px 0">0.00</h1></div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('genesis')">CLAIM</button></div>
         <div class="card"><div><small style="color:#FFF">UNITY</small><div id="uv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-size:16px; font-weight:700">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
-        <div class="section-title">Recent Activity</div>
-        <div id="history-list"></div>
     </div>
 
     <div id="p-pillars" style="display:none">
@@ -197,6 +209,7 @@ async def web_ui():
                 const d = await r.json();
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-avatar').innerText = d.name[0].toUpperCase();
+                document.getElementById('u-badge').innerText = d.badge;
                 document.getElementById('u-ref').innerText = d.rc;
                 document.getElementById('gv').innerText = d.g.toFixed(2);
                 document.getElementById('uv').innerText = d.u.toFixed(2);
@@ -209,18 +222,19 @@ async def web_ui():
                 if(d.next_daily > 0) {
                     btn.disabled = true;
                     let h = Math.floor(d.next_daily/3600), m = Math.floor((d.next_daily%3600)/60);
-                    timer.innerText = `Next in ${h}h ${m}m`;
-                } else {
-                    btn.disabled = false;
-                    timer.innerText = "Ready to claim!";
-                }
-
-                let h_html = "";
-                d.history.forEach(h => { h_html += `<div class="history-item"><span>${h.t}</span><b>+${h.a}</b></div>`; });
-                document.getElementById('history-list').innerHTML = h_html;
+                    timer.innerText = `${h}h ${m}m left`;
+                } else { btn.disabled = false; timer.innerText = "Ready!"; }
 
                 let r_html = "";
-                d.top.forEach((u, i) => { r_html += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+                d.top.forEach((u, i) => { 
+                    r_html += `<div class="card">
+                        <div style="display:flex; flex-direction:column;">
+                            <span>${i+1}. ${u.n}</span>
+                            <small style="color:var(--text); font-size:10px">${u.b}</small>
+                        </div>
+                        <b>${u.p}</b>
+                    </div>`; 
+                });
                 document.getElementById('rank-list').innerHTML = r_html;
             } catch(e) {}
         }
@@ -254,21 +268,7 @@ async def web_ui():
             navigator.clipboard.writeText(document.getElementById('ref-link').innerText);
             tg.showAlert("Link copied!");
         }
-        refresh();
-        setInterval(refresh, 10000);
+        refresh(); setInterval(refresh, 10000);
     </script>
 </body>
 </html>
-    """
-
-async def main():
-    global bot_app
-    init_db()
-    bot_app = ApplicationBuilder().token(TOKEN).build()
-    bot_app.add_handler(CommandHandler("start", start))
-    await bot_app.initialize(); await bot_app.start()
-    asyncio.create_task(bot_app.updater.start_polling())
-    await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT)).serve()
-
-if __name__ == "__main__":
-    asyncio.run(main())
