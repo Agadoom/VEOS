@@ -1,4 +1,4 @@
-import os, asyncio, uvicorn, logging, time
+import os, asyncio, uvicorn, logging, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,7 +55,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e: logging.error(f"SQL Start Error: {e}")
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome to the World Peace ecosystem, {name}! 🌍✨", reply_markup=kb)
+    await update.message.reply_text(f"Welcome to the World Peace ecosystem, {name}! 🌍✨\n\nYour dashboard is ready.", reply_markup=kb)
 
 # --- API USER DATA ---
 @app.get("/api/user/{uid}")
@@ -86,6 +86,13 @@ async def get_user(uid: int):
         conn.commit()
 
     score = r[0] + r[1] + r[2]
+    
+    # Global Stats for "Value" feel
+    c.execute("SELECT COUNT(*) FROM users")
+    total_users = c.fetchone()[0]
+    c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
+    total_mined = c.fetchone()[0] or 0
+
     c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 10")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
@@ -93,11 +100,17 @@ async def get_user(uid: int):
     feed = [{"n": x[0], "t": x[1], "ts": x[2]} for x in c.fetchall()]
     
     c.close(); conn.close()
+
+    # Simulated Market Data for WPT
+    market_wpt = round(0.00045 + (random.random() * 0.00005), 6)
+
     return {
         "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5], 
         "energy": current_energy, "max_energy": MAX_ENERGY,
         "top": top, "badge": get_badge(score, current_streak), "feed": feed,
-        "streak": current_streak, "can_claim": can_claim
+        "streak": current_streak, "can_claim": can_claim,
+        "global_users": total_users, "global_mined": round(total_mined, 2),
+        "price_wpt": market_wpt
     }
 
 @app.post("/api/daily")
@@ -145,21 +158,41 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #000; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
+        :root { --bg: #050505; --card: #111; --blue: #007AFF; --green: #34C759; --gold: #FFD700; --text: #8E8E93; }
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
+        
+        .market-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 8px; font-size: 11px; color: var(--gold); border-bottom: 1px solid #333; display: flex; justify-content: space-around; font-weight: bold; }
+        
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .energy-container { margin: 10px 0; background: #222; border-radius: 10px; height: 6px; overflow: hidden; }
         .energy-bar { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
-        .balance { text-align: center; padding: 20px; border-radius: 25px; background: radial-gradient(circle at top, #111, #000); margin-bottom: 15px; border: 1px solid #1a1a1a; }
-        .streak-box { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; box-shadow: 0 0 15px rgba(255, 215, 0, 0.2); }
+        
+        .balance { text-align: center; padding: 25px; border-radius: 25px; background: linear-gradient(180deg, #111 0%, #000 100%); margin-bottom: 15px; border: 1px solid #1a1a1a; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .streak-box { background: linear-gradient(135deg, #1a1a1a, #000); border: 1px solid var(--gold); border-radius: 15px; padding: 15px; margin-bottom: 15px; text-align: center; animation: glow 2s infinite alternate; }
+        @keyframes glow { from { box-shadow: 0 0 5px rgba(255,215,0,0.1); } to { box-shadow: 0 0 15px rgba(255,215,0,0.3); } }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: #111; padding: 10px; border-radius: 12px; text-align: center; border: 1px solid #1c1c1e; }
+        .stat-card small { color: var(--text); font-size: 9px; text-transform: uppercase; }
+        .stat-card div { font-size: 14px; font-weight: bold; margin-top: 4px; }
+
         .card { background: var(--card); padding: 12px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1C1C1E; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; display: inline-block; }
-        .btn:disabled { opacity: 0.2; cursor: default; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 13px; transition: transform 0.1s; }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.2; }
+        
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(15px); padding: 10px 25px; border-radius: 35px; display: flex; gap: 30px; border: 1px solid #333; z-index: 999; }
+        .nav-item { font-size: 20px; opacity: 0.5; cursor: pointer; }
+        .nav-item.active { opacity: 1; transform: scale(1.2); }
         .badge-tag { font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #333; color: var(--gold); }
     </style>
 </head>
 <body>
+    <div class="market-ticker">
+        <span>$WPT: $<span id="m-price">0.000450</span></span>
+        <span style="color:var(--green)">📈 Live Status: Stable</span>
+    </div>
+
     <div class="profile-bar">
         <div style="display:flex; align-items:center; gap:10px;">
             <div id="u-name" style="font-weight:700">...</div><div id="u-badge" class="badge-tag">Bronze</div>
@@ -180,38 +213,38 @@ async def web_ui():
             <div id="e-text" style="font-size:10px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
 
+        <div class="stats-grid">
+            <div class="stat-card"><small>Global Mine</small><div id="g-mined">0.00</div></div>
+            <div class="stat-card"><small>Community</small><div id="g-users">0</div></div>
+        </div>
+
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">CLAIM</button></div>
         <div class="card"><div><small>UNITY</small><div id="uv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:var(--blue)">VEO AI</small><div id="vv" style="font-weight:700">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:var(--blue);color:#FFF">COMPUTE</button></div>
-
-        <div style="margin-top:15px;">
-            <div style="font-size:9px; color:var(--text); text-transform:uppercase; margin-bottom:8px;">Live Feed</div>
-            <div id="activity-feed" style="background:#080808; padding:10px; border-radius:15px; border:1px solid #111; font-size:10px;"></div>
-        </div>
     </div>
 
     <div id="p-pillars" style="display:none; padding-top:10px;">
         <div style="text-align:center; margin-bottom:20px;">
-            <h3 style="margin:0; color:var(--gold)">$WPT MAIN PILLAR</h3>
-            <p style="font-size:11px; color:var(--text)">Support World Peace on Blum Memepad</p>
+            <h3 style="margin:0; color:var(--gold)">WPT UTILITY HUB</h3>
+            <p style="font-size:11px; color:var(--text)">Fast access to ecosystem pillars</p>
         </div>
         
-        <div class="card" style="border: 1px solid var(--gold);">
-            <div><b>World Peace Token</b><br><small style="color:var(--gold)">Official $WPT</small></div>
-            <a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">BUY / VIEW</a>
+        <div class="card" style="border: 1px solid var(--gold); background: rgba(255,215,0,0.05);">
+            <div><b>$WPT Memepad</b><br><small style="color:var(--gold)">Price & Trading</small></div>
+            <a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">FAST BUY</a>
         </div>
         
-        <div class="card"><div><b>Genesis Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
-        <div class="card"><div><b>Unity Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">OPEN</a></div>
+        <div class="card"><div><b>Ecosystem Chat</b><br><small>Community Insight</small></div><button class="btn" onclick="tg.showAlert('Join the WPT chat in Blum for live alpha!')">JOIN</button></div>
+        <div class="card"><div><b>Genesis Asset</b></div><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn">VIEW</a></div>
         
-        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS TO HUB</button>
+        <button class="btn" style="width:100%; margin-top:20px; background:var(--blue); color:#FFF; padding:15px;" onclick="shareInvite()">🚀 INVITE FRIENDS</button>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
-        <div onclick="show('pillars')" id="n-pillars" class="nav-item">💎</div>
+        <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
     </div>
 
@@ -225,6 +258,7 @@ async def web_ui():
             try {
                 const r = await fetch(`${apiBase}/api/user/${uid}`);
                 const d = await r.json();
+                
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-badge').innerText = d.badge;
                 document.getElementById('gv').innerText = d.g.toFixed(2);
@@ -234,13 +268,15 @@ async def web_ui():
                 document.getElementById('u-ref').innerText = `${d.rc} REFS`;
                 document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+                
+                // New Stats
+                document.getElementById('g-mined').innerText = d.global_mined;
+                document.getElementById('g-users').innerText = d.global_users;
+                document.getElementById('m-price').innerText = d.price_wpt.toFixed(6);
+
                 document.querySelectorAll('.m-btn').forEach(b => b.disabled = d.energy < 1);
                 document.getElementById('streak-ui').style.display = d.can_claim ? 'block' : 'none';
                 document.getElementById('stk-txt').innerText = "Day " + (d.streak + 1);
-
-                let f_html = "";
-                d.feed.forEach(f => { f_html += `<div style="padding:4px 0; border-bottom:1px solid #111;"><b>${f.n}</b> mined ${f.t}</div>`; });
-                document.getElementById('activity-feed').innerHTML = f_html || "Waiting...";
 
                 let r_html = "";
                 d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small>${u.b}</small></div><b>${u.p}</b></div>`; });
@@ -262,12 +298,16 @@ async def web_ui():
         async function mine(t) {
             tg.HapticFeedback.impactOccurred('light');
             const res = await fetch(`${apiBase}/api/mine`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            if(res.ok) { confetti({ particleCount: 15, spread: 20, origin: { y: 0.8 } }); refresh(); }
+            if(res.ok) { 
+                // Small celebration for every click to keep it "fun"
+                confetti({ particleCount: 10, spread: 20, origin: { y: 0.8 }, colors: ['#FFF', '#FFD700'] });
+                refresh(); 
+            }
         }
 
         function shareInvite() {
             const url = `https://t.me/owpcsbot?start=${uid}`;
-            const text = "🌍 Help me build the World Peace ecosystem! Mine $WPT assets and get daily rewards! 💎⚡";
+            const text = "🌍 Access the $WPT Dashboard! Real-time tracking and daily rewards. 💎⚡";
             tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`);
         }
 
@@ -277,7 +317,7 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active', id===p);
             });
         }
-        refresh(); setInterval(refresh, 8000);
+        refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
