@@ -2,7 +2,7 @@ import os, asyncio, uvicorn, logging, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from telegram.error import Forbidden
 
@@ -10,7 +10,7 @@ from data_conx import init_db, get_db_conn
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", 1414016840)) # IMPORTANT: Mets ton ID ici
+ADMIN_ID = 1414016840  # Ton ID est maintenant configuré ici
 PORT = int(os.getenv("PORT", 8080))
 RAW_URL = os.getenv("WEBAPP_URL", "")
 WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
@@ -48,17 +48,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text("Node Synchronized. Ready to Mine.", reply_markup=kb)
+    await update.message.reply_text("Node Synchronized. Start Mining $WPT.", reply_markup=kb)
 
-# --- BROADCAST AVEC FEEDBACK ---
 async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Sécurité ID Admin
     if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Admin only.")
+        await update.message.reply_text("❌ Reserved for Admin.")
         return
 
     msg = " ".join(context.args)
     if not msg:
-        await update.message.reply_text("📝 Usage: /broadcast [message]")
+        await update.message.reply_text("📝 Usage: /broadcast [votre message]")
         return
 
     conn = get_db_conn(); c = conn.cursor()
@@ -66,7 +66,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = c.fetchall(); c.close(); conn.close()
 
     total = len(users)
-    await update.message.reply_text(f"🚀 Broadcast started for {total} users...")
+    await update.message.reply_text(f"🚀 Sending to {total} users...")
 
     success = 0
     for u in users:
@@ -74,11 +74,10 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(chat_id=u[0], text=msg)
             success += 1
             await asyncio.sleep(0.05) 
-        except Forbidden: pass # Bot bloqué par l'user
-        except Exception as e: logging.error(f"Send error to {u[0]}: {e}")
+        except Forbidden: pass 
+        except Exception as e: logging.error(f"Error {u[0]}: {e}")
 
-    # C'est ici que tu reçois la confirmation finale
-    await update.message.reply_text(f"✅ DONE! {success}/{total} users received the update.")
+    await update.message.reply_text(f"✅ Broadcast finished: {success}/{total} received.")
 
 # --- API ---
 @app.get("/api/user/{uid}")
@@ -153,28 +152,15 @@ async def web_ui():
     </style>
 </head>
 <body>
-    <div class="header-ticker">
-        <span>$WPT: $<span id="m-price">0.00045</span></span>
-        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span>
-    </div>
-
-    <div class="machine-status">
-        <span><span class="status-led"></span> NODE: ONLINE</span>
-        <span>LOAD: <span id="m-load">0</span>%</span>
-    </div>
-
+    <div class="header-ticker"><span>$WPT: $<span id="m-price">0.00045</span></span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span></div>
+    <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
     <div class="profile-bar">
         <div style="display:flex; align-items:center; gap:10px;"><div id="u-name" style="font-weight:700">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <div id="u-ref" style="font-weight:bold; font-size:12px; color:var(--gold)">0 REFS</div>
     </div>
 
     <div id="p-mine">
-        <div class="balance">
-            <small style="color:var(--text)">TOTAL ASSETS</small>
-            <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
-            <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
-            <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
-        </div>
+        <div class="balance"><small style="color:var(--text)">TOTAL ASSETS</small><h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1><div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div><div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div></div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">MINE</button></div>
         <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
         <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
@@ -190,15 +176,10 @@ async def web_ui():
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
-
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold)">MISSION</h3>
         <div class="card" onclick="window.open('https://t.me/OWPC_Co', '_blank')"><b>Community</b><span>💬</span></div>
-        <div style="background:#111; padding:15px; border-radius:15px; border:1px solid #222; font-size:12px;">
-            <p>1. Alpha Launch (Done)</p>
-            <p>2. DePIN Hardware Sync (2026)</p>
-            <p>3. Global Listing</p>
-        </div>
+        <div style="background:#111; padding:15px; border-radius:15px; border:1px solid #222; font-size:12px;"><p>1. Alpha Launch (Done)</p><p>2. DePIN Hardware Sync (2026)</p><p>3. Global Listing</p></div>
     </div>
 
     <div class="nav">
