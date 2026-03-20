@@ -58,71 +58,75 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
             if ref_id:
-                c.execute("UPDATE users SET p_unity = p_unity + 10.0, ref_count = ref_count + 1 WHERE user_id = %s", (ref_id,))
+                # Correction ici pour éviter le crash si p_unity est NULL
+                c.execute("UPDATE users SET p_unity = COALESCE(p_unity,0) + 10.0, ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
         conn.commit(); c.close(); conn.close()
     
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
 
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID: return
-    msg = " ".join(context.args)
-    if not msg: return
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT user_id FROM users"); users = c.fetchall(); c.close(); conn.close()
-    count = 0
-    for u in users:
-        try:
-            await context.bot.send_message(chat_id=u[0], text=msg)
-            count += 1; await asyncio.sleep(0.05)
-        except: continue
-    await update.message.reply_text(f"✅ Sent to {count} nodes.")
-
-# --- API ---
+# --- API (C'est ICI que le 0 se corrige) ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount FROM users WHERE user_id=%s", (uid,))
+    # Utilisation de COALESCE pour forcer la lecture si la case est vide
+    c.execute("""SELECT 
+        COALESCE(p_genesis,0), COALESCE(p_unity,0), COALESCE(p_veo,0), 
+        COALESCE(ref_count,0), COALESCE(last_streak_date,''), COALESCE(name,'User'), 
+        COALESCE(energy,100), COALESCE(last_energy_update,0), 
+        COALESCE(streak,0), COALESCE(staked_amount,0) 
+        FROM users WHERE user_id=%s""", (uid,))
     r = c.fetchone()
-    if not r: return JSONResponse(status_code=404, content={})
+    if not r: 
+        c.close(); conn.close()
+        return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
+    last_upd = r[7] if r[7] and r[7] > 0 else now
+    current_e = min(MAX_ENERGY, r[6] + ((now - last_upd) // 60) * REGEN_RATE)
+    
+    score = r[0] + r[1] + r[2]
     today = datetime.date.today().isoformat()
     can_claim = (r[4] != today)
 
-    c.execute("SELECT name, (p_genesis + p_unity + p_veo) as total FROM users ORDER BY total DESC LIMIT 8")
-    top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
+    # Leaderboard sécurisé
+    c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
+    top = [{"n": x[0] or "Anon", "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
     
-    c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
+    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
     total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
 
     return {
-        "g": r[0], "u": r[1], "v": r[2], "rc": r[3] or 0, "name": r[5],
+        "g": r[0], "u": r[1], "v": r[2], "rc": r[3], "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8]),
         "top": top, "jackpot": round(total_net * 0.1, 2),
         "machine_load": random.randint(88, 99), "price_wpt": 0.00045,
-        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": can_claim, "streak": r[8] or 0, "staked": r[9] or 0
+        "multiplier": round(1.0 + (r[9] / 100) * 0.1 + (score / 1000), 2),
+        "can_claim": can_claim, "streak": r[8], "staked": r[9]
     }
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
-    data = await request.json()
-    uid, t = data.get("user_id"), data.get("token")
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, staked_amount, (p_genesis + p_unity + p_veo) FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    now = int(time.time()); current_e = min(MAX_ENERGY, res[0] + ((now - res[1]) // 60) * REGEN_RATE)
-    if current_e >= 1:
-        mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
-        gain = 0.05 * mult
-        c.execute(f"UPDATE users SET p_{t} = p_{t} + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True}
+    try:
+        data = await request.json()
+        uid, t = data.get("user_id"), data.get("token")
+        conn = get_db_conn(); c = conn.cursor()
+        c.execute("SELECT COALESCE(energy,100), COALESCE(last_energy_update,0), COALESCE(staked_amount,0), (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
+        res = c.fetchone()
+        now = int(time.time()); current_e = min(MAX_ENERGY, res[0] + ((now - (res[1] or now)) // 60) * REGEN_RATE)
+        if current_e >= 1:
+            mult = 1.0 + (res[2] / 100) * 0.1 + (res[3] / 1000)
+            gain = 0.05 * mult
+            c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t},0) + %s, energy = %s, last_energy_update = %s WHERE user_id = %s", (gain, current_e - 1, now, uid))
+            conn.commit(); c.close(); conn.close()
+            return {"ok": True}
+    except: pass
     return JSONResponse(status_code=400, content={"ok": False})
+
+# --- GARDER TOUT LE RESTE DU CODE (Daily, Stake, Web UI, Main) ---
+# ... (Copie ici le reste de ton code Daily, Stake, et la partie HTML)
+
 
 @app.post("/api/daily")
 async def daily_api(request: Request):
