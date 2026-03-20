@@ -9,7 +9,6 @@ from data_conx import init_db, get_db_conn
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
-ADMIN_ID = 1414016840 
 PORT = int(os.getenv("PORT", 8080))
 RAW_URL = os.getenv("WEBAPP_URL", "")
 WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
@@ -21,35 +20,25 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 MAX_ENERGY = 100
 REGEN_RATE = 1 
 
-# --- AUTO-PATCH DB ---
 def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        for col, dtype in [
-            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"), 
-            ("streak", "INTEGER DEFAULT 0"), 
-            ("last_streak_date", "TEXT"),
-            ("wallet_address", "TEXT")
-        ]:
+        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), 
+                           ("last_streak_date", "TEXT"), ("wallet_address", "TEXT")]:
             try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except: pass
         conn.commit(); c.close(); conn.close()
-
 patch_db()
 
-# --- UTILS ---
 def get_badge(score, streak=0):
     if (streak or 0) >= 7: return "🔥 Streak Master"
     if score >= 500: return "💎 Diamond"
     if score >= 150: return "🥇 Gold"
-    if score >= 50:  return "🥈 Silver"
     return "🥉 Bronze"
 
-# --- BOT COMMANDS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
-    if update.effective_chat.type in ['group', 'supergroup']: return 
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
     conn = get_db_conn()
     if conn:
@@ -60,9 +49,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                       (uid, name, ref_id, MAX_ENERGY, int(time.time())))
         conn.commit(); c.close(); conn.close()
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.\nNode Synchronized.", reply_markup=kb)
+    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
-# --- API ---
 @app.get("/tonconnect-manifest.json")
 async def manifest():
     return {"url": WEBAPP_URL, "name": "OWPC Hub", "iconUrl": "https://raw.githubusercontent.com/ton-blockchain/tutorials/main/03-client/test/public/ton.png"}
@@ -73,26 +61,18 @@ async def get_user(uid: int):
     c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, last_streak_date, name, energy, last_energy_update, streak, staked_amount, wallet_address FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
-    
-    now = int(time.time())
-    last_upd = r[7] if r[7] else now
-    current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - last_upd) // 60) * REGEN_RATE)
+    now = int(time.time()); current_e = min(MAX_ENERGY, (r[6] or 0) + ((now - (r[7] or now)) // 60) * REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    
     c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
     top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge(x[1])} for x in c.fetchall()]
-    
     c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
     total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
-
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[5],
         "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": get_badge(score, r[8] or 0),
-        "top": top, "jackpot": round(total_net * 0.1, 2),
-        "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
-        "can_claim": (r[4] != datetime.date.today().isoformat()), "streak": r[8] or 0, "staked": r[9] or 0,
-        "wallet": r[10]
+        "top": top, "jackpot": round(total_net * 0.1, 2), "multiplier": round(1.0 + ((r[9] or 0) / 100) * 0.1 + (score / 1000), 2),
+        "can_claim": (r[4] != datetime.date.today().isoformat()), "streak": r[8] or 0, "staked": r[9] or 0, "wallet": r[10]
     }
 
 @app.post("/api/connect-wallet")
@@ -126,7 +106,6 @@ async def stake_api(request: Request):
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
-# --- WEB UI (REPRIS DE TON CODE STABLE) ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -141,72 +120,59 @@ async def web_ui():
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
-        .machine-status { font-size: 9px; color: var(--text); margin-bottom: 12px; display: flex; justify-content: space-between; background: #111; padding: 8px; border-radius: 10px; border: 1px solid #222; align-items: center; }
-        .status-led { height: 7px; width: 7px; background: var(--green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--green); animation: pulse 1.5s infinite; margin-right:5px; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; gap: 10px; }
-        .profile-info { display: flex; align-items: center; gap: 8px; flex: 1; overflow: hidden; }
+        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; color: var(--gold); border: 1px solid #333; }
-        .u-name-text { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
-        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; border: 1px solid #333; }
-        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); }
+        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
+        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; transition: 0.2s; }
-        .btn:active { transform: scale(0.95); opacity: 0.8; }
-        .btn:disabled { opacity: 0.2; transform: none; }
-        .gift-btn { background: var(--gold); min-width: 60px; padding: 8px 12px; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
-        .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } 
-        .nav-item.active { opacity: 1; color: var(--gold); }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 999; }
+        .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } .nav-item.active { opacity: 1; color: var(--gold); }
     </style>
 </head>
 <body>
-    <div class="header-ticker"><span>$WPT: $0.00045</span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span> OWPC</span></div>
-    <div class="machine-status"><span><span class="status-led"></span> NODE: ONLINE</span><span>LOAD: <span id="m-load">0</span>%</span></div>
+    <div class="header-ticker"><span>$WPT: $0.00045</span><span style="color:var(--gold)">JACKPOT: <span id="jack-val">...</span></span></div>
     
     <div class="profile-bar">
-        <div class="profile-info">
-            <div id="u-name" class="u-name-text">...</div>
+        <div style="display:flex; align-items:center; gap:8px; padding-left:5px;">
+            <div id="u-name" style="font-weight:700; font-size:13px;">Loading...</div>
             <div id="u-badge" class="badge-tag">...</div>
         </div>
-        <button id="daily-btn" class="btn gift-btn" style="display:none;" onclick="claimDaily()">🎁 GIFT</button>
-        <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold);">0 REFS</div>
+        <div id="u-ref" style="font-weight:bold; font-size:11px; color:var(--gold); padding-right:10px;">0 REFS</div>
     </div>
 
     <div id="p-mine">
         <div class="balance">
             <small style="color:var(--text)">TOTAL ASSETS</small>
-            <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
-            <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
+            <h1 id="tot" style="font-size:45px; margin:8px 0;">...</h1>
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
-            <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
+            <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ ... / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn m-btn" onclick="mine('genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn m-btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">0.00</div></div><button class="btn m-btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">...</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">...</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:#A259FF">VEO AI</small><div id="vv">...</div></div><button class="btn" onclick="mine('veo')" style="background:#A259FF; color:#FFF">COMPUTE</button></div>
     </div>
-
-    <div id="p-pillars" style="display:none">
-        <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
-        <div class="card"><b>World Peace Token</b><a href="#" class="btn" style="background:var(--gold)">CLAIM</a></div>
-        <div class="card"><b>Unity Asset</b><a href="#" class="btn">CLAIM</a></div>
-        <div class="card"><b>Veo AI Asset</b><a href="#" class="btn">CLAIM</a></div>
-    </div>
-
-    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold)">STAKING & WALLET</h3>
+        <h3 style="color:var(--gold); text-align:center;">STAKING & WALLET</h3>
         <div id="ton-connect-button" style="display:flex; justify-content:center; margin-bottom:10px;"></div>
-        <div id="wallet-addr" style="text-align:center; font-size:10px; color:var(--text); margin-bottom:20px;">Check status...</div>
-        
+        <div id="wallet-addr" style="text-align:center; font-size:10px; color:var(--text); margin-bottom:20px;">Checking wallet...</div>
         <div class="card" style="border-color:var(--gold)">
             <div><b>Stake 100 Assets</b><br><small>+0.1x Multiplier</small></div>
             <button class="btn" id="stake-btn" onclick="stake()">LOCK</button>
         </div>
         <div class="card"><div><b>Active Nodes</b><br><small id="u-streak">Streak: 0 Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
     </div>
+
+    <div id="p-pillars" style="display:none">
+        <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
+        <div class="card"><b>Genesis Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA" target="_blank" class="btn" style="background:var(--gold)">CLAIM</a></div>
+        <div class="card"><b>World Peace Token</b><a href="https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
+        <div class="card"><b>Unity Asset</b><a href="https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA" target="_blank" class="btn">CLAIM</a></div>
+    </div>
+
+    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
@@ -234,15 +200,13 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = (d.g+d.u+d.v).toFixed(2);
-                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-                document.getElementById('u-streak').innerText = "Streak: " + d.streak + " Days";
-                document.getElementById('staked-val').innerText = d.staked + " Staked";
                 document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100)+"%";
                 document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('m-load').innerText = d.machine_load || 95;
+                document.getElementById('jack-val').innerText = d.jackpot + " OWPC";
+                document.getElementById('staked-val').innerText = d.staked + " Staked";
+                document.getElementById('u-streak').innerText = "Streak: " + d.streak + " Days";
                 document.getElementById('stake-btn').disabled = ((d.g+d.u+d.v) < 100);
-                if(d.wallet) document.getElementById('wallet-addr').innerText = "Linked: " + d.wallet.substring(0,8) + "...";
+                document.getElementById('wallet-addr').innerText = d.wallet ? "✅ Linked: " + d.wallet.substring(0,8) + "..." : "Wallet not connected";
                 
                 let r_html = ""; d.top.forEach((u, i) => { 
                     r_html += `<div class="card"><div>${i+1}. ${u.n}<br><small style="color:var(--gold)">${u.b}</small></div><b>${u.p}</b></div>`; 
@@ -252,12 +216,12 @@ async def web_ui():
         }
 
         async function mine(t) { await fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})}); refresh(); tg.HapticFeedback.impactOccurred('light'); }
-        async function stake() { 
-            const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})}); 
-            if(res.ok) { confetti(); refresh(); }
-        }
+        async function stake() { const res = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})}); if(res.ok) { confetti(); refresh(); } }
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
-        refresh(); setInterval(refresh, 5000);
+        
+        // Exécuter refresh immédiatement au démarrage
+        window.onload = refresh;
+        setInterval(refresh, 5000);
     </script>
 </body>
 </html>
