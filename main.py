@@ -20,31 +20,37 @@ async def api_get_user(uid: int):
     
     now = int(time.time())
     last_update = r[6] or now
-    seconds_passed = now - last_update
-    minutes_passed = seconds_passed // 60
+    minutes_passed = (now - last_update) // 60
     
-    # 1. Calcul de l'énergie (Régénération automatique)
+    # Calcul de l'énergie régénérée
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # 2. Calcul du MINING PASSIF (Auto-Mining si l'utilisateur a du Staking)
-    # On donne par exemple 0.01 asset par minute par tranche de 100 stakés
+    # Calcul du gain passif (ex: 0.01 par minute pour 100 assets stakés)
     staked = r[8] or 0
-    passive_gain = 0
+    offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
-        passive_gain = (staked / 100) * 0.01 * minutes_passed
-        # On met à jour la DB pour ajouter les gains passifs
+        offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
+        # On met à jour la DB immédiatement pour éviter le double-claim
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
-                  (passive_gain, now, current_e, uid))
+                  (offline_reward, now, current_e, uid))
         conn.commit()
         c.close(); conn.close()
 
-    # On recalcule le score total après gain passif
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + passive_gain
+    # On récupère les données fraîches pour le score total
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     badge, next_goal, b_color = missions.get_badge_info(score)
     
-    # ... (reste du code pour le leaderboard et le retour JSON)
+    # On ajoute 'off_rw' dans le JSON pour que le JS puisse l'afficher
+    return {
+        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
+        "score": round(score, 2), "off_rw": offline_reward, "min_off": minutes_passed,
+        "top": [...], # Ton code leaderboard actuel
+        # ... reste des données
+    }
+
 
     
     now = int(time.time())
