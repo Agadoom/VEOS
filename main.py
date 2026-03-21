@@ -265,46 +265,7 @@ async def web_ui():
 }
 
 
-async def notification_loop(bot_app):
-    """Vérifie toutes les 5 minutes qui a son énergie pleine"""
-    while True:
-        await asyncio.sleep(300) # Attendre 5 minutes
-        now = int(time.time())
-        conn = database.get_db_conn()
-        if not conn: continue
-        c = conn.cursor()
-        
-        # On cherche les users dont l'énergie devrait être pleine (basé sur le temps passé)
-        # Formule : temps_nécessaire = (MAX - énergie_actuelle) / REGEN_RATE
-        c.execute("SELECT user_id, energy, last_energy_update FROM users")
-        users = list(c.fetchall()) # On fait une liste pour fermer la connexion vite
-        
-        for uid, energy, last_up in users:
-            minutes_passed = (now - (last_up or now)) // 60
-            if energy < config.MAX_ENERGY and (energy + minutes_passed) >= config.MAX_ENERGY:
-                try:
-                    await bot_app.bot.send_message(
-                        chat_id=uid, 
-                        text="⚡ **Full Energy!** Your mining node is recharged. Come back and collect your assets! 🚀"
-                    )
-                    # On met l'énergie à 100 en DB pour ne pas renvoyer la notification en boucle
-                    c.execute("UPDATE users SET energy=%s, last_energy_update=%s WHERE user_id=%s", 
-                              (config.MAX_ENERGY, now, uid))
-                except:
-                    pass # L'utilisateur a peut-être bloqué le bot
-        
-        conn.commit()
-        c.close(); conn.close()
 
-# Dans ta fonction main(), lance la boucle :
-async def main():
-    bot_app = ApplicationBuilder().token(config.TOKEN).build()
-    # ... tes handlers ...
-    
-    # LANCEMENT DE LA BOUCLE DE NOTIFICATION
-    asyncio.create_task(notification_loop(bot_app))
-    
-    # ... reste du main ...
 
 
         function show(p) { 
@@ -359,7 +320,46 @@ async function buyBoost() {
 </body>
 </html>
 """
+async def notification_loop(bot_app):
+    """Vérifie toutes les 5 minutes qui a son énergie pleine"""
+    while True:
+        await asyncio.sleep(300) # Attendre 5 minutes
+        now = int(time.time())
+        conn = database.get_db_conn()
+        if not conn: continue
+        c = conn.cursor()
+        
+        # On cherche les users dont l'énergie devrait être pleine (basé sur le temps passé)
+        # Formule : temps_nécessaire = (MAX - énergie_actuelle) / REGEN_RATE
+        c.execute("SELECT user_id, energy, last_energy_update FROM users")
+        users = list(c.fetchall()) # On fait une liste pour fermer la connexion vite
+        
+        for uid, energy, last_up in users:
+            minutes_passed = (now - (last_up or now)) // 60
+            if energy < config.MAX_ENERGY and (energy + minutes_passed) >= config.MAX_ENERGY:
+                try:
+                    await bot_app.bot.send_message(
+                        chat_id=uid, 
+                        text="⚡ **Full Energy!** Your mining node is recharged. Come back and collect your assets! 🚀"
+                    )
+                    # On met l'énergie à 100 en DB pour ne pas renvoyer la notification en boucle
+                    c.execute("UPDATE users SET energy=%s, last_energy_update=%s WHERE user_id=%s", 
+                              (config.MAX_ENERGY, now, uid))
+                except:
+                    pass # L'utilisateur a peut-être bloqué le bot
+        
+        conn.commit()
+        c.close(); conn.close()
 
+# Dans ta fonction main(), lance la boucle :
+async def main():
+    bot_app = ApplicationBuilder().token(config.TOKEN).build()
+    # ... tes handlers ...
+    
+    # LANCEMENT DE LA BOUCLE DE NOTIFICATION
+    asyncio.create_task(notification_loop(bot_app))
+    
+    # ... reste du main ...
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
