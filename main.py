@@ -51,6 +51,8 @@ async def api_mine(request: Request):
 
 # ... (Gardez le début du fichier main.py identique)
 
+# ... (Gardez le début du fichier main.py identique)
+
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -216,9 +218,6 @@ async def web_ui():
     </script>
 </body>
 </html>
-"""
-# ... (Gardez la fin du fichier main.py identique)
-
 """
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
