@@ -18,3 +18,23 @@ async def register_user(uid, name, ref_id):
         if ref_id and ref_id != uid:
             c.execute("UPDATE users SET ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
     conn.commit(); c.close(); conn.close()
+async def process_boost_energy(uid, max_energy):
+    conn = get_db_conn()
+    c = conn.cursor()
+    # Vérifier le solde total
+    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id=%s", (uid,))
+    balance = c.fetchone()[0] or 0
+    
+    if balance >= 50: # Prix du boost
+        # On déduit le prix (réparti sur les 3 assets) et on remet l'énergie au max
+        c.execute("""UPDATE users SET 
+                     p_genesis=p_genesis-17, p_unity=p_unity-17, p_veo=p_veo-16, 
+                     energy=%s, last_energy_update=%s 
+                     WHERE user_id=%s""", (max_energy, int(time.time()), uid))
+        conn.commit()
+        success = True
+    else:
+        success = False
+    
+    c.close(); conn.close()
+    return success
