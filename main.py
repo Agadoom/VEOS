@@ -16,22 +16,23 @@ database.init_db_structure()
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
-    if not r: return JSONResponse(status_code=404, content={})
+    if not r:
+        return JSONResponse(status_code=404, content={})
     
-        now = int(time.time())
-    last_update = r[6] if r[6] is not None else now # Sécurité ici
+    now = int(time.time())
+    # Sécurité pour éviter le None sur le premier lancement
+    last_update = r[6] if r[6] is not None else now
     minutes_passed = (now - last_update) // 60
-
     
-    # Calcul de l'énergie régénérée
+    # 1. Calcul Énergie
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # Calcul du gain passif (ex: 0.01 par minute pour 100 assets stakés)
+    # 2. Calcul Gain Hors-ligne (si > 100 stakés)
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        # On met à jour la DB immédiatement pour éviter le double-claim
+        # Mise à jour silencieuse en DB
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
@@ -39,18 +40,22 @@ async def api_get_user(uid: int):
         conn.commit()
         c.close(); conn.close()
 
-    # On récupère les données fraîches pour le score total
+    # 3. Préparation du score final
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     badge, next_goal, b_color = missions.get_badge_info(score)
     
-    # On ajoute 'off_rw' dans le JSON pour que le JS puisse l'afficher
+    top_raw = database.get_leaderboard()
+    top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
+    
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
         "score": round(score, 2), "off_rw": offline_reward, "min_off": minutes_passed,
-        "top": [...], # Ton code leaderboard actuel
-        # ... reste des données
+        "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
+        "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
+        "streak": r[7] or 0, "staked": staked
     }
+
 
 
     
