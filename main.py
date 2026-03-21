@@ -255,17 +255,39 @@ async def web_ui():
             } catch(e) {}
         }
 
-        function mine(e, t) {
-            const rect = e.target.getBoundingClientRect();
-            const plus = document.createElement('div');
-            plus.innerText = '+0.05'; plus.style.position = 'absolute';
-            plus.style.left = (e.clientX || rect.left+20) + 'px'; plus.style.top = (e.clientY || rect.top) + 'px';
-            plus.style.color = 'var(--gold)'; plus.style.fontWeight = 'bold';
-            plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}],600);
-            document.body.appendChild(plus); setTimeout(()=>plus.remove(),600);
-            fetch('/api/mine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid,token:t})});
-            refresh(); tg.HapticFeedback.impactOccurred('light');
-        }
+        let lastClick = 0; // Variable globale pour suivre le temps
+
+function mine(e, t) {
+    const now = Date.now();
+    // Bloque le clic si moins de 80ms se sont écoulées (Anti-Spam local)
+    if (now - lastClick < 80) return; 
+    lastClick = now;
+
+    const rect = e.target.getBoundingClientRect();
+    const plus = document.createElement('div');
+    plus.innerText = '+0.05'; 
+    plus.style.position = 'absolute';
+    plus.style.left = (e.clientX || rect.left+20) + 'px'; 
+    plus.style.top = (e.clientY || rect.top) + 'px';
+    plus.style.color = 'var(--gold)'; 
+    plus.style.fontWeight = 'bold';
+    plus.style.zIndex = '1000';
+    plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
+    document.body.appendChild(plus); 
+    setTimeout(() => plus.remove(), 600);
+
+    fetch('/api/mine', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_id: uid, token: t})
+    }).then(res => {
+        if (res.status === 429) console.warn("Serveur : Clic trop rapide !");
+    });
+    
+    refresh(); 
+    if (window.tg) tg.HapticFeedback.impactOccurred('light');
+}
+
 
         async function buyBoost() {
             const res = await fetch('/api/boost/energy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid})});
