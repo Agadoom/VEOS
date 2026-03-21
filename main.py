@@ -92,6 +92,17 @@ async def web_ui():
         .nav-item.active { opacity: 1; color: var(--gold); }
 
         .rank-item { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+
+
+@keyframes energyFlash {
+    0% { filter: brightness(1); shadow: none; }
+    50% { filter: brightness(2); box-shadow: 0 0 20px var(--gold); }
+    100% { filter: brightness(1); shadow: none; }
+}
+.energy-boost-anim {
+    animation: energyFlash 0.8s ease-out;
+}
+
     </style>
 </head>
 <body>
@@ -194,9 +205,36 @@ async def web_ui():
         }
 
         function mine(e, t) {
-            fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            refresh(); tg.HapticFeedback.impactOccurred('light');
-        }
+    // Création du petit texte flottant
+    const rect = e.target.getBoundingClientRect();
+    const plus = document.createElement('div');
+    plus.innerText = '+0.05';
+    plus.style.position = 'absolute';
+    plus.style.left = (e.clientX || rect.left + 20) + 'px';
+    plus.style.top = (e.clientY || rect.top) + 'px';
+    plus.style.color = 'var(--gold)';
+    plus.style.fontWeight = 'bold';
+    plus.style.pointerEvents = 'none';
+    plus.style.zIndex = '1000';
+    plus.animate([
+        { transform: 'translateY(0)', opacity: 1 },
+        { transform: 'translateY(-50px)', opacity: 0 }
+    ], { duration: 600, easing: 'ease-out' });
+    
+    document.body.appendChild(plus);
+    setTimeout(() => plus.remove(), 600);
+
+    // Envoi à l'API
+    fetch('/api/mine', {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body:JSON.stringify({user_id:uid, token:t})
+    });
+    
+    refresh(); 
+    tg.HapticFeedback.impactOccurred('light');
+}
+
 
         function show(p) { 
             ['mine','pillars','leader','mission'].forEach(id=>{
@@ -205,19 +243,43 @@ async def web_ui():
             });
         }
 async function buyBoost() {
-    const res = await fetch('/api/boost/energy', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({user_id: uid})
-    });
+    const btn = document.getElementById('boost-btn');
+    btn.disabled = true; // Évite le double-clic
     
-    if(res.ok) {
-        alert("⚡ Energy Refilled!");
-        refresh();
-    } else {
-        alert("❌ Not enough assets (Need 50)");
+    try {
+        const res = await fetch('/api/boost/energy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({user_id: uid})
+        });
+
+        if(res.ok) {
+            // Effet visuel
+            const bar = document.getElementById('e-bar');
+            bar.classList.add('energy-boost-anim');
+            
+            // Simulation de remplissage fluide côté client
+            bar.style.transition = "width 1s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+            bar.style.width = "100%";
+            
+            setTimeout(() => {
+                bar.classList.remove('energy-boost-anim');
+                bar.style.transition = "width 0.5s"; // Retour à la normale
+                refresh(); // On synchronise avec la DB
+                tg.HapticFeedback.notificationOccurred('success');
+            }, 1000);
+            
+        } else {
+            tg.HapticFeedback.notificationOccurred('error');
+            alert("❌ Not enough assets (Need 50)");
+        }
+    } catch (err) {
+        console.error(err);
+    } finally {
+        btn.disabled = false;
     }
 }
+
 
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}&text=🚀 Join my mining node on OWPC!`); }
 
