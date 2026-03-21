@@ -21,8 +21,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
+    # 1. Connexion et récupération
     conn = database.get_db_conn()
-    # Utilisation du RealDictCursor pour lire les colonnes par nom
+    # Utilisation obligatoire de RealDictCursor pour que r['colonne'] fonctionne
     c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute("SELECT * FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
@@ -31,53 +32,60 @@ async def api_get_user(uid: int):
     if not r:
         return JSONResponse(status_code=404, content={})
     
-    # 1. Login Quotidien
+    # 2. Login Quotidien (récupère le bonus du jour s'il existe)
     daily_reward, final_streak = missions.process_daily_login(uid)
 
+    # 3. Calcul Temps et Énergie
     now = int(time.time())
-    last_update = r['last_energy_update'] if r['last_energy_update'] is not None else now
-    minutes_passed = (now - last_update) // 60
+    last_upd = r['last_energy_update'] if r['last_energy_update'] is not None else now
+    mins = (now - last_upd) // 60
+    current_e = min(config.MAX_ENERGY, (r['energy'] or 0) + (mins * config.REGEN_RATE))
     
-    # 2. Énergie
-    current_e = min(config.MAX_ENERGY, (r['energy'] or 0) + (minutes_passed * config.REGEN_RATE))
-    
-    # 3. Offline Gains
+    # 4. Gains Hors-ligne (Staking)
     staked = r['staked_amount'] or 0
-    offline_reward = 0
-    if staked >= 100 and minutes_passed > 0:
-        offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
+    off_rw = 0
+    if staked >= 100 and mins > 0:
+        off_rw = round((staked / 100) * 0.01 * mins, 2)
+        # Mise à jour immédiate pour ne pas perdre les gains au prochain refresh
         conn = database.get_db_conn(); c = conn.cursor()
-        c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
-                  (offline_reward, now, current_e, uid))
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s, last_energy_update = %s, energy = %s WHERE user_id = %s", 
+                  (off_rw, now, current_e, uid))
         conn.commit(); c.close(); conn.close()
 
-    # 4. Calcul du score TOTAL
-    score = (r['p_genesis'] or 0) + (r['p_unity'] or 0) + (r['p_veo'] or 0) + offline_reward + daily_reward
-    badge, _, _ = missions.get_badge_info(score)
+    # 5. Calcul du Score TOTAL (C'est ici que ça pointait mal)
+    # On additionne tout : DB + Gains du moment + Bonus du jour
+    base_g = r['p_genesis'] or 0
+    base_u = r['p_unity'] or 0
+    base_v = r['p_veo'] or 0
     
+    total_score = base_g + base_u + base_v + off_rw + daily_reward
+    badge, _, _ = missions.get_badge_info(total_score)
+    
+    # Leaderboard
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
-    # On renvoie les clés exactes que le JavaScript attend
+    # 6. Retour JSON (Le dictionnaire que le JS va lire)
     return {
-        "g": (r['p_genesis'] or 0) + daily_reward,
-        "u": r['p_unity'] or 0,
-        "v": r['p_veo'] or 0,
+        "g": round(base_g + daily_reward, 2), # Genesis + bonus
+        "u": round(base_u, 2),
+        "v": round(base_v, 2),
         "rc": r['ref_count'] or 0,
-        "name": r['username'],
+        "name": r['username'] or "Unknown",
         "energy": int(current_e),
         "max_energy": config.MAX_ENERGY,
         "badge": badge,
-        "score": round(score, 2),
-        "off_rw": offline_reward,
+        "score": round(total_score, 2), # Le chiffre central de l'app
+        "off_rw": off_rw,
         "daily_rw": daily_reward,
         "streak": final_streak,
         "top": top,
         "staked": staked,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
+        "multiplier": round(1.0 + (staked / 100) * 0.1 + (total_score / 1000), 2),
         "pending_refs": max(0, (r['ref_count'] or 0) - (r['ref_claimed'] or 0))
     }
+
 
 
 @app.post("/api/mine")
