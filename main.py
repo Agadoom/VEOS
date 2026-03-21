@@ -161,6 +161,19 @@ async def web_ui():
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
+
+<div id="daily-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:3000; display:none; align-items:center; justify-content:center;">
+    <div class="modal-content" style="border: 2px solid var(--green); background: #111; padding: 30px; border-radius: 25px; text-align: center; width: 80%;">
+        <div style="font-size: 50px;">🌟</div>
+        <h2 style="color:var(--green); margin: 10px 0;">Daily Reward!</h2>
+        <p style="color:var(--text);">Day <span id="streak-num" style="color:#FFF; font-weight:bold;">1</span> Streak</p>
+        <div style="font-size:35px; font-weight:900; margin:20px 0; color:#FFF;">+ <span id="daily-amt">0</span> <small style="font-size:15px;">WPT</small></div>
+        <button class="btn" style="background:var(--green); color:#FFF; width:100%; padding:15px; border-radius:15px; font-size:16px;" onclick="closeDaily()">COLLECT BONUS</button>
+    </div>
+</div>
+
+
+
         #offline-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: none; align-items: center; justify-content: center; }
         .modal-content { background: var(--card); border: 2px solid var(--gold); padding: 30px; border-radius: 30px; text-align: center; width: 80%; }
         @keyframes energyFlash { 0% { filter: brightness(1); } 50% { filter: brightness(2); box-shadow: 0 0 20px var(--gold); } 100% { filter: brightness(1); } }
@@ -233,16 +246,6 @@ async def web_ui():
             </div>
         </div>
     </div>
-
-<div id="daily-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:3000; display:none; align-items:center; justify-content:center;">
-    <div class="modal-content" style="border-color:var(--green)">
-        <div style="font-size: 50px;">📅</div>
-        <h2 style="color:var(--green)">Daily Bonus!</h2>
-        <p>Day <span id="streak-num">1</span> reached.</p>
-        <div style="font-size:32px; font-weight:900; margin:15px 0;">+ <span id="daily-amt">0</span> Assets</div>
-        <button class="btn" style="background:var(--green); width:100%; padding:15px; color:#FFF" onclick="closeDaily()">AWESOME</button>
-    </div>
-</div>
 
 
     <div class="nav">
