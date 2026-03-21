@@ -38,3 +38,33 @@ async def process_boost_energy(uid, max_energy):
     
     c.close(); conn.close()
     return success
+
+async def claim_referral_rewards(uid):
+    conn = get_db_conn()
+    c = conn.cursor()
+    
+    # Récupérer le nombre total d'invités et ceux déjà payés
+    c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id=%s", (uid,))
+    res = c.fetchone()
+    if not res: return 0, "User not found"
+    
+    total_refs = res[0] or 0
+    already_claimed = res[1] or 0
+    
+    # Calculer combien de nouveaux amis n'ont pas encore été payés
+    pending_refs = total_refs - already_claimed
+    
+    if pending_refs > 0:
+        reward = pending_refs * 10  # 10 assets par ami
+        # On ajoute la récompense au Genesis et on met à jour le compteur de claims
+        c.execute("""UPDATE users SET 
+                     p_genesis = p_genesis + %s, 
+                     ref_claimed = ref_claimed + %s 
+                     WHERE user_id = %s""", (reward, pending_refs, uid))
+        conn.commit()
+        c.close(); conn.close()
+        return reward, f"Success: +{reward} Assets!"
+    
+    c.close(); conn.close()
+    return 0, "No pending referrals to claim"
+
