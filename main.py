@@ -49,6 +49,17 @@ async def api_mine(request: Request):
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     return JSONResponse(status_code=400, content={"ok": False})
 
+@app.post("/api/boost/energy")
+async def api_boost_energy(request: Request):
+    data = await request.json()
+    uid = data.get("user_id")
+    success = await missions.process_boost_energy(uid, config.MAX_ENERGY)
+    if success:
+        return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False, "error": "Pas assez d'assets"})
+
+
+
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
