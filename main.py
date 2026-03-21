@@ -27,19 +27,23 @@ async def api_get_user(uid: int):
     if not r:
         return JSONResponse(status_code=404, content={})
     
+    # --- 1. Login Quotidien ---
+    # Cette fonction vérifie si c'est un nouveau jour et donne le bonus
+    daily_reward, final_streak = missions.process_daily_login(uid)
+
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
     minutes_passed = (now - last_update) // 60
     
-    # 1. Calcul Énergie
+    # --- 2. Calcul Énergie ---
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # 2. Calcul Gain Hors-ligne (si > 100 stakés)
+    # --- 3. Calcul Gain Hors-ligne (si > 100 stakés) ---
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        # Mise à jour silencieuse en DB pour éviter le double claim
+        # Mise à jour de l'énergie et des gains offline en une seule fois
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
@@ -47,22 +51,34 @@ async def api_get_user(uid: int):
         conn.commit()
         c.close(); conn.close()
 
-    # 3. Préparation des données de retour
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
+    # --- 4. Préparation du Score et Badge ---
+    # Note : On ajoute le daily_reward au score affiché immédiatement
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward + daily_reward
     badge, next_goal, b_color = missions.get_badge_info(score)
     
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
     return {
-        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
-        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
-        "score": round(score, 2), "off_rw": offline_reward, 
-        "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
+        "g": (r[0] or 0) + daily_reward, # On montre le Genesis avec le bonus inclus
+        "u": r[1] or 0, 
+        "v": r[2] or 0, 
+        "rc": r[3] or 0, 
+        "name": r[4],
+        "energy": int(current_e), 
+        "max_energy": config.MAX_ENERGY, 
+        "badge": badge,
+        "score": round(score, 2), 
+        "off_rw": offline_reward, 
+        "daily_rw": daily_reward,    # <--- INDISPENSABLE pour le pop-up JS
+        "streak": final_streak,      # <--- INDISPENSABLE pour afficher le jour
+        "top": top, 
+        "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
-        "streak": r[7] or 0, "staked": staked,
+        "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
+
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
@@ -218,6 +234,17 @@ async def web_ui():
         </div>
     </div>
 
+<div id="daily-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:3000; display:none; align-items:center; justify-content:center;">
+    <div class="modal-content" style="border-color:var(--green)">
+        <div style="font-size: 50px;">📅</div>
+        <h2 style="color:var(--green)">Daily Bonus!</h2>
+        <p>Day <span id="streak-num">1</span> reached.</p>
+        <div style="font-size:32px; font-weight:900; margin:15px 0;">+ <span id="daily-amt">0</span> Assets</div>
+        <button class="btn" style="background:var(--green); width:100%; padding:15px; color:#FFF" onclick="closeDaily()">AWESOME</button>
+    </div>
+</div>
+
+
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
@@ -230,6 +257,19 @@ async def web_ui():
         
         async function refresh() {
             try {
+// À l'intérieur du try de refresh()
+if (data.daily_rw > 0) {
+    document.getElementById('daily-amt').innerText = data.daily_rw;
+    document.getElementById('streak-num').innerText = data.streak;
+    document.getElementById('daily-modal').style.display = 'flex';
+    tg.HapticFeedback.notificationOccurred('success');
+}
+
+// Fonction pour fermer
+function closeDaily() {
+    document.getElementById('daily-modal').style.display = 'none';
+}
+
                 const r = await fetch(`/api/user/${uid}`); const d = await r.json();
                 if (!d.name) return;
                 if (d.off_rw > 0) { 
