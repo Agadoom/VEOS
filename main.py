@@ -18,9 +18,10 @@ async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
     
-    now = int(time.time())
-    last_update = r[6] or now
+        now = int(time.time())
+    last_update = r[6] if r[6] is not None else now # Sécurité ici
     minutes_passed = (now - last_update) // 60
+
     
     # Calcul de l'énergie régénérée
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
