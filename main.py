@@ -239,29 +239,96 @@ async def web_ui():
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         
         async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                if(!d.name) return;
-                document.getElementById('u-name').innerText = d.name;
-                document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('u-ref-top').innerText = d.rc; 
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
-                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('u-streak').innerText = d.streak;
-                document.getElementById('staked-val').innerText = d.staked + " Staked";
+    try {
+        // 1. Appel à l'API pour récupérer les données utilisateur
+        const response = await fetch(`/api/user/${uid}`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (!data.name) return;
 
-                let r_html = ""; d.top.forEach((u, i) => { 
-                    r_html += `<div class="card"><div class="rank-item"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div></div>`; 
-                });
-                document.getElementById('rank-list').innerHTML = r_html;
-            } catch(e) {}
+        // 2. Gestion du Pop-up de Bienvenue (Gains hors-ligne)
+        // On vérifie si off_rw existe et est supérieur à 0
+        if (data.off_rw && data.off_rw > 0) {
+            document.getElementById('rw-amt').innerText = data.off_rw.toFixed(2);
+            document.getElementById('offline-modal').style.display = 'flex';
+            
+            // Petit retour haptique pour signaler le gain
+            if (window.Telegram && Telegram.WebApp.HapticFeedback) {
+                Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            }
         }
+
+        // 3. Mise à jour des informations de profil
+        document.getElementById('u-name').innerText = data.name;
+        document.getElementById('u-badge').innerText = data.badge;
+        document.getElementById('u-ref-top').innerText = data.rc; // Nombre de parrainages
+        
+        // 4. Mise à jour des soldes (Tokens individuels)
+        document.getElementById('gv').innerText = data.g.toFixed(2); // Genesis
+        document.getElementById('uv').innerText = data.u.toFixed(2); // Unity
+        document.getElementById('vv').innerText = data.v.toFixed(2); // Veo AI
+        
+        // 5. Score Total et Multiplicateur
+        document.getElementById('tot').innerText = data.score.toFixed(2);
+        document.getElementById('u-mult').innerText = `⚡ Multiplier: x${data.multiplier.toFixed(2)}`;
+        
+        // 6. Barre d'énergie et Texte
+        const energyPercent = (data.energy / data.max_energy) * 100;
+        document.getElementById('e-bar').style.width = energyPercent + "%";
+        document.getElementById('e-text').innerText = `⚡ ${data.energy} / ${data.max_energy}`;
+        
+        // Couleur de la barre d'énergie (devient rouge si basse)
+        if (data.energy < 10) {
+            document.getElementById('e-bar').style.background = "linear-gradient(90deg, #ff4b2b, #ff416c)";
+        } else {
+            document.getElementById('e-bar').style.background = "linear-gradient(90deg, #FFD700, #FFA500)";
+        }
+
+        // 7. Jackpot Global
+        if (document.getElementById('jack-val')) {
+            document.getElementById('jack-val').innerText = data.jackpot.toFixed(2);
+        }
+
+        // 8. Section Mission & Staking
+        if (document.getElementById('u-streak')) {
+            document.getElementById('u-streak').innerText = data.streak;
+        }
+        if (document.getElementById('staked-val')) {
+            document.getElementById('staked-val').innerText = data.staked.toFixed(0) + " Staked";
+        }
+
+        // 9. Mise à jour du Leaderboard (Ranking)
+        if (data.top && data.top.length > 0) {
+            let rankHTML = "";
+            data.top.forEach((user, index) => {
+                // On met en gras si c'est l'utilisateur actuel (optionnel)
+                const isMe = user.n === data.name ? "border: 1px solid var(--gold);" : "";
+                
+                rankHTML += `
+                    <div class="card" style="${isMe}">
+                        <div class="rank-item">
+                            <span>${index + 1}. ${user.n} <small style="font-size:8px; opacity:0.6;">${user.b}</small></span>
+                            <b style="color:var(--gold)">${user.p.toFixed(2)}</b>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('rank-list').innerHTML = rankHTML;
+        }
+
+    } catch (error) {
+        console.error("Erreur lors du refresh:", error);
+    }
+}
+
+// Fonction pour fermer le pop-up
+function closeModal() {
+    document.getElementById('offline-modal').style.display = 'none';
+    if (window.Telegram && Telegram.WebApp.HapticFeedback) {
+        Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
+}
+
 
         function mine(e, t) {
     // Création du petit texte flottant
