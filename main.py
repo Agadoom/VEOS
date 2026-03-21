@@ -37,7 +37,6 @@ async def api_get_user(uid: int):
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        # Mise à jour silencieuse en DB pour éviter le double claim
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
@@ -62,73 +61,46 @@ async def api_get_user(uid: int):
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
 
-
 @app.post("/api/mine")
 async def api_mine(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    
-    # On récupère l'énergie et le temps via les index
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
     
     now_ms = int(time.time() * 1000)
-    # r[10] serait ton last_click_time si ajouté, sinon on gère à 0
     last_click = r[10] if len(r) > 10 else 0 
-    
     if (now_ms - last_click) < 80:
         return JSONResponse(status_code=429, content={})
     
     now_s = now_ms // 1000
-    # Calcul énergie (r[5]=energy, r[6]=last_update)
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now_s - (r[6] or now_s)) // 60) * config.REGEN_RATE)
     
     if current_e >= 1:
         conn = database.get_db_conn(); c = conn.cursor()
-        c.execute(f"UPDATE users SET p_{t}=p_{t}+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", 
+        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", 
                   (current_e-1, now_s, now_ms, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
-    
     return JSONResponse(status_code=400, content={"error": "no_energy"})
-
-
 
 @app.post("/api/claim_refs")
 async def api_claim_refs(request: Request):
     data = await request.json()
     uid = data.get("user_id")
-    
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    
-    # 1. On vérifie combien de refs ne sont pas encore payées
+    conn = database.get_db_conn(); c = conn.cursor()
     c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    
     if not res:
         c.close(); conn.close(); return JSONResponse(status_code=404, content={})
-        
     pending = (res[0] or 0) - (res[1] or 0)
-    
     if pending > 0:
-        # 2. Bonus de 5.0 WPT par invité
         reward = pending * 5.0
-        c.execute("""
-            UPDATE users 
-            SET p_genesis = p_genesis + %s, 
-                ref_claimed = ref_count 
-            WHERE user_id = %s
-        """, (reward, uid))
-        conn.commit()
-        c.close(); conn.close()
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s, ref_claimed = ref_count WHERE user_id = %s", (reward, uid))
+        conn.commit(); c.close(); conn.close()
         return {"ok": True, "reward": reward}
-    
     c.close(); conn.close()
     return JSONResponse(status_code=400, content={"error": "Nothing to claim"})
-
-
-
 
 # --- WEB UI ---
 
@@ -150,7 +122,7 @@ async def web_ui():
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
@@ -201,7 +173,7 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
-        <div id="p-pillars" style="display:none">
+    <div id="p-pillars" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
         <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
         <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
@@ -209,27 +181,23 @@ async def web_ui():
         <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
     </div>
 
-
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div id="p-mission" style="display:none">
-    <h3 style="color:var(--gold); text-align:center;">REWARDS & MISSIONS</h3>
-    
-    <div class="card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
-        <div style="display: flex; justify-content: space-between; width: 100%;">
-            <b>Referral Bonus</b>
-            <span id="pending-val" style="color:var(--gold); font-weight:800;">0</span>
+        <h3 style="color:var(--gold); text-align:center;">REWARDS & MISSIONS</h3>
+        <div class="card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+                <b>Referral Bonus</b>
+                <span id="pending-val" style="color:var(--gold); font-weight:800;">0 pending</span>
+            </div>
+            <small style="color:var(--text); font-size: 10px;">Earn 5.0 WPT for every friend invited.</small>
+            <button id="claim-btn" class="btn" style="width:100%; background:var(--green); color:#FFF; display:none;" onclick="claimRefs()">CLAIM REWARD</button>
         </div>
-        <small style="color:var(--text); font-size: 10px;">Earn 5.0 WPT for every active friend invited.</small>
-        <button id="claim-btn" class="btn" style="width:100%; background:var(--green); color:#FFF; display:none;" onclick="claimRefs()">CLAIM REWARD</button>
+        <div class="card">
+            <div><b>Daily Streak</b></div>
+            <div id="u-streak" style="color:var(--gold)">0 Days</div>
+        </div>
     </div>
-
-    <div class="card">
-        <div><b>Daily Streak</b></div>
-        <div id="u-streak" style="color:var(--gold)">0 Days</div>
-    </div>
-</div>
-
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
@@ -245,110 +213,78 @@ async def web_ui():
         function closeDaily() { document.getElementById('daily-modal').style.display = 'none'; }
         function closeModal() { document.getElementById('offline-modal').style.display = 'none'; }
 
-// 1. Fonction pour réclamer les récompenses de parrainage
-<script>
-    let tg = window.Telegram.WebApp; 
-    const uid = tg.initDataUnsafe.user?.id || 0;
-    let lastClick = 0;
+        async function claimRefs() {
+            try {
+                const r = await fetch('/api/claim_refs', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({user_id: uid})
+                });
+                const d = await r.json();
+                if (d.ok) {
+                    tg.showPopup({title: '💰 Success!', message: `You claimed ${d.reward} WPT!`});
+                    tg.HapticFeedback.notificationOccurred('success');
+                    refresh();
+                } else { tg.showAlert(d.error || "Nothing to claim."); }
+            } catch(e) { console.error(e); }
+        }
 
-    function closeDaily() { document.getElementById('daily-modal').style.display = 'none'; }
-    function closeModal() { document.getElementById('offline-modal').style.display = 'none'; }
+        async function refresh() {
+            try {
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                if (!d.name) return;
+                
+                if (d.daily_rw > 0) {
+                    document.getElementById('daily-amt').innerText = d.daily_rw;
+                    document.getElementById('streak-num').innerText = d.streak;
+                    document.getElementById('daily-modal').style.display = 'flex';
+                } else if (d.off_rw > 0) {
+                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
+                    document.getElementById('offline-modal').style.display = 'flex';
+                }
+                
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-badge').innerText = d.badge;
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
+                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+                document.getElementById('u-streak').innerText = d.streak + " Days";
+                document.getElementById('jack-val').innerText = d.jackpot;
+                document.getElementById('u-ref-top').innerText = d.rc;
 
-    // 1. Fonction pour réclamer les parrainages
-    async function claimRefs() {
-        try {
-            const r = await fetch('/api/claim_refs', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({user_id: uid})
-            });
-            const d = await r.json();
-            if (d.ok) {
-                tg.showPopup({title: '💰 Success!', message: `You claimed ${d.reward} WPT!`});
-                tg.HapticFeedback.notificationOccurred('success');
-                refresh();
-            } else {
-                tg.showAlert(d.error || "Nothing to claim yet.");
-            }
-        } catch(e) { console.error("Claim error:", e); }
-    }
+                const pending = d.pending_refs || 0;
+                document.getElementById('pending-val').innerText = pending + " pending";
+                document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
 
-    // 2. Fonction Refresh UNIQUE (Fusionnée)
-    async function refresh() {
-        try {
-            const r = await fetch(`/api/user/${uid}`); 
-            const d = await r.json();
-            if (!d.name) return;
+                let rl = ""; d.top.forEach((u, i) => { 
+                    rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
+                });
+                document.getElementById('rank-list').innerHTML = rl;
+            } catch(e) {}
+        }
 
-            // Gestion des Modals
-            if (d.daily_rw > 0) {
-                document.getElementById('daily-amt').innerText = d.daily_rw;
-                document.getElementById('streak-num').innerText = d.streak;
-                document.getElementById('daily-modal').style.display = 'flex';
-            } else if (d.off_rw > 0) {
-                document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
-                document.getElementById('offline-modal').style.display = 'flex';
-            }
+        function mine(e, t) {
+            const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
+            const rect = e.target.getBoundingClientRect();
+            const plus = document.createElement('div');
+            plus.innerText = '+0.05'; plus.style.position = 'absolute';
+            plus.style.left = (e.clientX || rect.left+20) + 'px'; plus.style.top = (e.clientY || rect.top) + 'px';
+            plus.style.color = 'var(--gold)'; plus.style.fontWeight = 'bold'; plus.style.zIndex = '1000';
+            plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
+            document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
+            fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
+            refresh(); tg.HapticFeedback.impactOccurred('light');
+        }
 
-            // Mise à jour de l'UI de base
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('u-badge').innerText = d.badge;
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = d.score.toFixed(2);
-            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
-            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-            document.getElementById('u-streak').innerText = d.streak + " Days";
-            document.getElementById('jack-val').innerText = d.jackpot;
-            document.getElementById('u-ref-top').innerText = d.rc;
-
-            // Gestion du bouton Claim dans l'onglet Mission
-            const pending = d.pending_refs || 0;
-            const pEl = document.getElementById('pending-val');
-            const cBtn = document.getElementById('claim-btn');
-            if (pEl) pEl.innerText = pending + " pending";
-            if (cBtn) cBtn.style.display = (pending > 0) ? 'block' : 'none';
-
-            // Leaderboard
-            let rl = ""; 
-            d.top.forEach((u, i) => { 
-                rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
-            });
-            document.getElementById('rank-list').innerHTML = rl;
-        } catch(e) { console.error("Refresh error:", e); }
-    }
-
-    // 3. Fonction de Minage
-    function mine(e, t) {
-        const now = Date.now(); 
-        if (now - lastClick < 80) return; 
-        lastClick = now;
-        
-        const rect = e.target.getBoundingClientRect();
-        const plus = document.createElement('div');
-        plus.innerText = '+0.05'; plus.style.position = 'absolute';
-        plus.style.left = (e.clientX || rect.left+20) + 'px'; 
-        plus.style.top = (e.clientY || rect.top) + 'px';
-        plus.style.color = 'var(--gold)'; plus.style.fontWeight = 'bold'; plus.style.zIndex = '1000';
-        plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
-        document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
-        
-        fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
-        refresh(); 
-        tg.HapticFeedback.impactOccurred('light');
-    }
-
-    function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
-    function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
-    
-    tg.expand(); 
-    refresh(); 
-    setInterval(refresh, 8000);
-</script>
-
-
-        function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+        function show(p) { 
+            ['mine','pillars','leader','mission'].forEach(id=>{
+                document.getElementById('p-'+id).style.display=(id===p?'block':'none'); 
+                document.getElementById('n-'+id).classList.toggle('active',id===p);
+            }); 
+        }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
         
         tg.expand(); refresh(); setInterval(refresh, 8000);
