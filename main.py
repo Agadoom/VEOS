@@ -21,43 +21,65 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
-    r = database.get_user_full(uid)
-    if not r: return JSONResponse(status_code=404, content={})
+    # On récupère les données sous forme de dictionnaire pour ne pas se tromper d'index
+    conn = database.get_db_conn()
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) # Si tu utilises psycopg2
+    c.execute("SELECT * FROM users WHERE user_id = %s", (uid,))
+    r = c.fetchone()
+    c.close(); conn.close()
+
+    if not r:
+        return JSONResponse(status_code=404, content={})
     
     # 1. Login Quotidien
     daily_reward, final_streak = missions.process_daily_login(uid)
 
     now = int(time.time())
-    last_update = r[6] if r[6] is not None else now
+    last_update = r['last_energy_update'] if r['last_energy_update'] else now
     minutes_passed = (now - last_update) // 60
     
     # 2. Énergie
-    current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
+    current_e = min(config.MAX_ENERGY, (r['energy'] or 0) + (minutes_passed * config.REGEN_RATE))
     
     # 3. Offline Gains
-    staked = r[8] or 0
+    staked = r['staked_amount'] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
+        # On met à jour la DB
         conn = database.get_db_conn(); c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
                   (offline_reward, now, current_e, uid))
         conn.commit(); c.close(); conn.close()
 
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward + daily_reward
+    # 4. Calcul du score TOTAL (Somme des 3 assets + bonus)
+    score = (r['p_genesis'] or 0) + (r['p_unity'] or 0) + (r['p_veo'] or 0) + offline_reward + daily_reward
     badge, _, _ = missions.get_badge_info(score)
+    
+    # Leaderboard
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
     return {
-        "g": (r[0] or 0) + daily_reward, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
-        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
-        "score": round(score, 2), "off_rw": offline_reward, "daily_rw": daily_reward,
-        "streak": final_streak, "top": top, "staked": staked,
+        "g": (r['p_genesis'] or 0) + daily_reward,
+        "u": r['p_unity'] or 0,
+        "v": r['p_veo'] or 0,
+        "rc": r['ref_count'] or 0,
+        "name": r['username'],
+        "energy": int(current_e),
+        "max_energy": config.MAX_ENERGY,
+        "badge": badge,
+        "score": round(score, 2),
+        "off_rw": offline_reward,
+        "daily_rw": daily_reward,
+        "streak": final_streak,
+        "top": top,
+        "staked": staked,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
-        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
+        "pending_refs": max(0, (r['ref_count'] or 0) - (r['ref_claimed'] or 0))
     }
+
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
