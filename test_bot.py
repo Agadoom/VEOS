@@ -24,15 +24,41 @@ REGEN_RATE = 1
 def patch_db():
     conn = get_db_conn()
     if conn:
+        # 1. On crée la table withdrawals d'abord (si elle n'existe pas)
         c = conn.cursor()
-        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("ref_claimed", "INTEGER DEFAULT 0"), ("wallet_address", "TEXT")]:
-            try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            except: pass
+        try:
+            c.execute("""CREATE TABLE IF NOT EXISTS withdrawals (
+                id SERIAL PRIMARY KEY, 
+                user_id BIGINT, 
+                amount DOUBLE PRECISION, 
+                wallet TEXT, 
+                status TEXT DEFAULT 'PENDING', 
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logging.error(f"Erreur création table: {e}")
+
+        # 2. On ajoute les colonnes une par une avec un commit/rollback à chaque fois
+        columns = [
+            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
+            ("streak", "INTEGER DEFAULT 0"),
+            ("ref_claimed", "INTEGER DEFAULT 0"),
+            ("wallet_address", "TEXT")
+        ]
+
+        for col, dtype in columns:
+            try:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+                conn.commit()
+                logging.info(f"Colonne {col} ajoutée avec succès.")
+            except Exception:
+                conn.rollback() # Si la colonne existe déjà, on annule l'erreur et on continue
         
-        c.execute("""CREATE TABLE IF NOT EXISTS withdrawals (
-            id SERIAL PRIMARY KEY, user_id BIGINT, amount DOUBLE PRECISION, wallet TEXT, status TEXT DEFAULT 'PENDING', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        conn.commit(); c.close(); conn.close()
+        c.close()
+        conn.close()
+
 
 patch_db()
 
