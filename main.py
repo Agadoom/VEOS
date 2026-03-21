@@ -6,6 +6,12 @@ from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMar
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import config, database, missions
+# Force la mise à jour de la structure au démarrage
+try:
+    database.init_db_structure()
+    print("✅ Database structure updated!")
+except Exception as e:
+    print(f"⚠️ Update failed: {e}")
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
