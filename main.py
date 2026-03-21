@@ -21,9 +21,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
-    # On récupère les données sous forme de dictionnaire pour ne pas se tromper d'index
     conn = database.get_db_conn()
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) # Si tu utilises psycopg2
+    # Utilisation du RealDictCursor pour lire les colonnes par nom
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute("SELECT * FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     c.close(); conn.close()
@@ -35,7 +35,7 @@ async def api_get_user(uid: int):
     daily_reward, final_streak = missions.process_daily_login(uid)
 
     now = int(time.time())
-    last_update = r['last_energy_update'] if r['last_energy_update'] else now
+    last_update = r['last_energy_update'] if r['last_energy_update'] is not None else now
     minutes_passed = (now - last_update) // 60
     
     # 2. Énergie
@@ -46,20 +46,19 @@ async def api_get_user(uid: int):
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        # On met à jour la DB
         conn = database.get_db_conn(); c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
                   (offline_reward, now, current_e, uid))
         conn.commit(); c.close(); conn.close()
 
-    # 4. Calcul du score TOTAL (Somme des 3 assets + bonus)
+    # 4. Calcul du score TOTAL
     score = (r['p_genesis'] or 0) + (r['p_unity'] or 0) + (r['p_veo'] or 0) + offline_reward + daily_reward
     badge, _, _ = missions.get_badge_info(score)
     
-    # Leaderboard
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
+    # On renvoie les clés exactes que le JavaScript attend
     return {
         "g": (r['p_genesis'] or 0) + daily_reward,
         "u": r['p_unity'] or 0,
