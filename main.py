@@ -19,6 +19,35 @@ async def api_get_user(uid: int):
     if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
+    last_update = r[6] or now
+    seconds_passed = now - last_update
+    minutes_passed = seconds_passed // 60
+    
+    # 1. Calcul de l'énergie (Régénération automatique)
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
+    
+    # 2. Calcul du MINING PASSIF (Auto-Mining si l'utilisateur a du Staking)
+    # On donne par exemple 0.01 asset par minute par tranche de 100 stakés
+    staked = r[8] or 0
+    passive_gain = 0
+    if staked >= 100 and minutes_passed > 0:
+        passive_gain = (staked / 100) * 0.01 * minutes_passed
+        # On met à jour la DB pour ajouter les gains passifs
+        conn = database.get_db_conn()
+        c = conn.cursor()
+        c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
+                  (passive_gain, now, current_e, uid))
+        conn.commit()
+        c.close(); conn.close()
+
+    # On recalcule le score total après gain passif
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + passive_gain
+    badge, next_goal, b_color = missions.get_badge_info(score)
+    
+    # ... (reste du code pour le leaderboard et le retour JSON)
+
+    
+    now = int(time.time())
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - (r[6] or now)) // 60) * config.REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, next_goal, b_color = missions.get_badge_info(score)
