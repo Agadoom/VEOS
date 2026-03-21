@@ -69,6 +69,9 @@ def init_db_structure():
             ("streak", "INTEGER DEFAULT 0"),
             ("ref_count", "INTEGER DEFAULT 0"),
             ("ref_claimed", "INTEGER DEFAULT 0"),
+            ("last_login_date", "TEXT"),
+            ("streak", "INTEGER DEFAULT 0") # Déjà présent normalement, mais vérifie
+
             ("last_click_time", "BIGINT DEFAULT 0")  # <--- AJOUTE CETTE LIGNE
         ]
         for col, dtype in cols:
