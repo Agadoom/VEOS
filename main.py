@@ -21,10 +21,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
-    # 1. Connexion et récupération
+    # On récupère les données sous forme de dictionnaire pour ne pas se tromper d'index
     conn = database.get_db_conn()
-    # Utilisation obligatoire de RealDictCursor pour que r['colonne'] fonctionne
-    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) # Si tu utilises psycopg2
     c.execute("SELECT * FROM users WHERE user_id = %s", (uid,))
     r = c.fetchone()
     c.close(); conn.close()
@@ -32,57 +31,52 @@ async def api_get_user(uid: int):
     if not r:
         return JSONResponse(status_code=404, content={})
     
-    # 2. Login Quotidien (récupère le bonus du jour s'il existe)
+    # 1. Login Quotidien
     daily_reward, final_streak = missions.process_daily_login(uid)
 
-    # 3. Calcul Temps et Énergie
     now = int(time.time())
-    last_upd = r['last_energy_update'] if r['last_energy_update'] is not None else now
-    mins = (now - last_upd) // 60
-    current_e = min(config.MAX_ENERGY, (r['energy'] or 0) + (mins * config.REGEN_RATE))
+    last_update = r['last_energy_update'] if r['last_energy_update'] else now
+    minutes_passed = (now - last_update) // 60
     
-    # 4. Gains Hors-ligne (Staking)
+    # 2. Énergie
+    current_e = min(config.MAX_ENERGY, (r['energy'] or 0) + (minutes_passed * config.REGEN_RATE))
+    
+    # 3. Offline Gains
     staked = r['staked_amount'] or 0
-    off_rw = 0
-    if staked >= 100 and mins > 0:
-        off_rw = round((staked / 100) * 0.01 * mins, 2)
-        # Mise à jour immédiate pour ne pas perdre les gains au prochain refresh
+    offline_reward = 0
+    if staked >= 100 and minutes_passed > 0:
+        offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
+        # On met à jour la DB
         conn = database.get_db_conn(); c = conn.cursor()
-        c.execute("UPDATE users SET p_genesis = p_genesis + %s, last_energy_update = %s, energy = %s WHERE user_id = %s", 
-                  (off_rw, now, current_e, uid))
+        c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
+                  (offline_reward, now, current_e, uid))
         conn.commit(); c.close(); conn.close()
 
-    # 5. Calcul du Score TOTAL (C'est ici que ça pointait mal)
-    # On additionne tout : DB + Gains du moment + Bonus du jour
-    base_g = r['p_genesis'] or 0
-    base_u = r['p_unity'] or 0
-    base_v = r['p_veo'] or 0
-    
-    total_score = base_g + base_u + base_v + off_rw + daily_reward
-    badge, _, _ = missions.get_badge_info(total_score)
+    # 4. Calcul du score TOTAL (Somme des 3 assets + bonus)
+    score = (r['p_genesis'] or 0) + (r['p_unity'] or 0) + (r['p_veo'] or 0) + offline_reward + daily_reward
+    badge, _, _ = missions.get_badge_info(score)
     
     # Leaderboard
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
-    # 6. Retour JSON (Le dictionnaire que le JS va lire)
     return {
-        "g": round(base_g + daily_reward, 2), # Genesis + bonus
-        "u": round(base_u, 2),
-        "v": round(base_v, 2),
+        "g": (r['p_genesis'] or 0) + daily_reward,
+        "u": r['p_unity'] or 0,
+        "v": r['p_veo'] or 0,
         "rc": r['ref_count'] or 0,
-        "name": r['username'] or "Unknown",
+        "name": r['username'],
         "energy": int(current_e),
         "max_energy": config.MAX_ENERGY,
         "badge": badge,
-        "score": round(total_score, 2), # Le chiffre central de l'app
-        "off_rw": off_rw,
+        "score": round(score, 2),
+        "off_rw": offline_reward,
         "daily_rw": daily_reward,
         "streak": final_streak,
         "top": top,
         "staked": staked,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "multiplier": round(1.0 + (staked / 100) * 0.1 + (total_score / 1000), 2),
+        "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
         "pending_refs": max(0, (r['ref_count'] or 0) - (r['ref_claimed'] or 0))
     }
 
