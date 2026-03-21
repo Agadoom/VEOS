@@ -1,29 +1,29 @@
-from data_conx import get_db_conn
 import time
+from data_conx import get_db_conn
 
 def init_db_structure():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        # On s'assure que les colonnes de base et les nouvelles existent
+        # Liste des colonnes nécessaires
         cols = [
             ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
             ("streak", "INTEGER DEFAULT 0"),
             ("last_streak_date", "TEXT"),
             ("ref_claimed", "INTEGER DEFAULT 0"),
             ("last_energy_update", "BIGINT"),
-            ("energy", "INTEGER DEFAULT 100")
+            ("referred_by", "BIGINT")
         ]
         for col, dtype in cols:
             try:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except:
-                pass
+                pass # La colonne existe déjà
         conn.commit()
         c.close()
         conn.close()
 
-def get_user_data(uid):
+def get_user(uid):
     conn = get_db_conn()
     c = conn.cursor()
     c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, 
@@ -34,16 +34,11 @@ def get_user_data(uid):
     conn.close()
     return res
 
-def register_user(uid, name, ref_id):
+def save_mine(uid, token, amount, new_energy, now):
     conn = get_db_conn()
     c = conn.cursor()
-    c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
-    if not c.fetchone():
-        c.execute("""INSERT INTO users (user_id, name, referred_by, energy, last_energy_update) 
-                     VALUES (%s, %s, %s, 100, %s)""", 
-                  (uid, name, ref_id if ref_id != uid else None, int(time.time())))
-        if ref_id and ref_id != uid:
-            c.execute("UPDATE users SET ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
+    c.execute(f"UPDATE users SET p_{token}=COALESCE(p_{token},0)+%s, energy=%s, last_energy_update=%s WHERE user_id=%s", 
+              (amount, new_energy, now, uid))
     conn.commit()
     c.close()
     conn.close()
