@@ -16,8 +16,6 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-MAX_ENERGY = 100
-
 def patch_db():
     conn = get_db_conn()
     if conn:
@@ -36,10 +34,11 @@ def patch_db():
 
 patch_db()
 
+# --- ROUTES API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, last_energy_update, wallet_address, staked_amount FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, wallet_address FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
@@ -53,32 +52,40 @@ async def get_user(uid: int):
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": r[5] or 0, "score": round(score, 4), "jackpot": round(total_net * 0.1, 2),
-        "wallet": r[7] or "", "top": top, "multiplier": round(1.0 + (score/1000), 2)
+        "wallet": r[6] or "", "top": top, "multiplier": round(1.0 + (score/1000), 2)
     }
+
+@app.post("/api/wallet/save")
+async def save_wallet(request: Request):
+    data = await request.json()
+    uid, w = data.get("user_id"), data.get("wallet")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("UPDATE users SET wallet_address = %s WHERE user_id = %s", (w, uid))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True}
 
 @app.post("/api/withdraw")
 async def withdraw_api(request: Request):
     data = await request.json()
     uid = data.get("user_id")
     conn = get_db_conn(); c = conn.cursor()
-    # On revérifie le solde RÉEL en DB, pas celui envoyé par le client (sécurité)
     c.execute("SELECT (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)), wallet_address FROM users WHERE user_id=%s", (uid,))
     res = c.fetchone()
     
-    if res and res[0] >= 99.9: # Seuil de sécurité à 99.9 pour éviter les arrondis
+    # Seuil à 95 pour être sûr que ça passe même avec les arrondis
+    if res and res[0] >= 95: 
         if not res[1] or len(res[1]) < 5:
-            return JSONResponse(status_code=400, content={"error": "Missing Wallet"})
+            return JSONResponse(status_code=400, content={"error": "SAVE WALLET FIRST!"})
         
-        # Reset des points et log du retrait
         c.execute("UPDATE users SET p_genesis=0, p_unity=0, p_veo=0 WHERE user_id=%s", (uid,))
         c.execute("INSERT INTO withdrawals (user_id, amount, wallet) VALUES (%s, %s, %s)", (uid, res[0], res[1]))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
     
     c.close(); conn.close()
-    return JSONResponse(status_code=400, content={"error": "Balance too low"})
+    return JSONResponse(status_code=400, content={"error": "Min 100 Assets Required"})
 
-# --- UI HTML ---
+# --- INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -89,57 +96,60 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --purple: #A259FF; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --purple: #A259FF; --green: #34C759; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 80px; }
         .ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
         .card { background: var(--card); padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: bold; cursor: pointer; }
-        .nav { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.9); padding: 10px 20px; border-radius: 30px; display: flex; gap: 20px; border: 1px solid #444; }
+        .nav { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.9); padding: 10px 20px; border-radius: 30px; display: flex; gap: 20px; border: 1px solid #444; z-index: 1000; }
         .nav-i { font-size: 20px; opacity: 0.5; cursor: pointer; } .nav-i.active { opacity: 1; color: var(--gold); }
-        .balance-main { text-align: center; padding: 20px; background: radial-gradient(circle, #222, #000); border-radius: 20px; margin-bottom: 15px; }
+        .balance-main { text-align: center; padding: 20px; background: radial-gradient(circle, #222, #000); border-radius: 20px; margin-bottom: 15px; border: 1px solid #333; }
+        input { background: #000; color: #FFF; border: 1px solid #333; padding: 10px; border-radius: 10px; width: 60%; }
     </style>
 </head>
 <body>
     <div class="ticker">
-        <span>REFS: <b id="tr">0</b></span>
+        <span>REFS: <b id="tr" style="color:var(--blue)">0</b></span>
         <span style="color:var(--gold)">JACKPOT: <b id="tj">0</b></span>
     </div>
 
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-        <div id="un" style="font-weight:bold">User</div>
-        <button class="btn" style="background:var(--gold)" onclick="tg.showAlert('Daily Gift Claimed!')">🎁 GIFT</button>
+        <div id="un" style="font-weight:bold; font-size:14px;">User</div>
+        <button class="btn" style="background:var(--gold)" onclick="tg.showAlert('Daily Gift: +10 Unity!')">🎁 GIFT</button>
     </div>
 
     <div id="p-mine">
         <div class="balance-main">
-            <small>TOTAL ASSETS</small>
-            <h1 id="tv" style="font-size:40px; margin:10px 0;">0.00</h1>
-            <div id="tm" style="color:var(--gold); font-size:12px;">Multiplier: x1.0</div>
+            <small style="color:#888">TOTAL ASSETS</small>
+            <h1 id="tv" style="font-size:45px; margin:10px 0;">0.00</h1>
+            <div id="tm" style="color:var(--green); font-size:12px;">Multiplier: x1.0</div>
         </div>
-        <div class="card"><div>GENESIS<div id="gv">0.00</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
-        <div class="card"><div>UNITY<div id="uv">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div>VEO AI<div id="vv">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+        <div class="card"><div>GENESIS<div id="gv" style="color:var(--gold)">0.00</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
+        <div class="card"><div>UNITY<div id="uv" style="color:var(--blue)">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div>VEO AI<div id="vv" style="color:var(--purple)">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
     <div id="p-stats" style="display:none">
-        <h3 style="color:var(--gold)">PILLARS & MISSIONS</h3>
-        <div class="card"><b>Join Blum</b><button class="btn" onclick="tg.openLink('https://t.me/blum')">GO</button></div>
-        <div class="card"><b>Follow X</b><button class="btn" onclick="tg.openLink('https://twitter.com')">GO</button></div>
+        <h3 style="color:var(--gold); text-align:center;">PILLARS</h3>
+        <div class="card"><b>WPT Community</b><button class="btn" onclick="tg.openLink('https://t.me/blum')">JOIN</button></div>
+        <div class="card"><b>X Follow</b><button class="btn" onclick="tg.openLink('https://twitter.com')">FOLLOW</button></div>
+        <button class="btn" style="width:100%; margin-top:10px; background:var(--blue); color:#FFF" onclick="tg.openTelegramLink('https://t.me/share/url?url=https://t.me/owpcsbot?start=' + uid)">🚀 INVITE FRIENDS</button>
     </div>
 
-    <div id="p-lead" style="display:none"><h3 style="text-align:center">LEADERBOARD</h3><div id="rl"></div></div>
+    <div id="p-lead" style="display:none"><h3 style="text-align:center">TOP MINERS</h3><div id="rl"></div></div>
 
     <div id="p-wall" style="display:none">
-        <h3 style="color:var(--gold)">VAULT</h3>
+        <h3 style="color:var(--gold); text-align:center;">VAULT</h3>
         <div class="card">
-            <input type="text" id="wi" placeholder="TON Address" style="background:#000; color:#FFF; border:1px solid #333; padding:8px; border-radius:8px; width:60%">
-            <button class="btn" onclick="saveW()">SAVE</button>
+            <input type="text" id="wi" placeholder="Your TON Address">
+            <button class="btn" onclick="saveW()" style="background:var(--green); color:#FFF">SAVE</button>
         </div>
         <div class="balance-main">
-            <small>Available</small>
-            <h2 id="wv">0.00</h2>
-            <button class="btn" style="background:var(--blue); color:#FFF; width:100%" onclick="reqW()">WITHDRAW ASSETS</button>
+            <small>Available to Withdraw</small>
+            <h2 id="wv" style="font-size:35px;">0.00</h2>
+            <button class="btn" style="background:var(--blue); color:#FFF; width:100%; padding:15px;" onclick="reqW()">WITHDRAW ASSETS</button>
         </div>
+        <p style="font-size:10px; color:#888; text-align:center;">Minimum payout: 100 Assets. Withdrawals are processed within 24h.</p>
     </div>
 
     <div class="nav">
@@ -160,18 +170,23 @@ async def web_ui():
             document.getElementById('tv').innerText = d.score.toFixed(2);
             document.getElementById('wv').innerText = d.score.toFixed(2);
             document.getElementById('tr').innerText = d.rc;
-            document.getElementById('tj').innerText = d.jackpot;
+            document.getElementById('tj').innerText = d.jackpot.toFixed(2);
             document.getElementById('tm').innerText = `Multiplier: x${d.multiplier}`;
             if(d.wallet) document.getElementById('wi').value = d.wallet;
             let h=""; d.top.forEach((u,i)=>{ h+=`<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
             document.getElementById('rl').innerHTML = h;
         }
         function sw(p) { ['mine','stats','lead','wall'].forEach(i=>{document.getElementById('p-'+i).style.display=(i===p?'block':'none'); document.getElementById('n-'+i).classList.toggle('active',i===p);}); }
-        async function mine(t) { await fetch('/api/mine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid,token:t})}); load(); }
-        async function saveW() { await fetch('/api/wallet/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid,wallet:document.getElementById('wi').value})}); tg.showAlert("Saved!"); }
+        async function mine(t) { await fetch('/api/mine',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid,token:t})}); load(); tg.HapticFeedback.impactOccurred('light'); }
+        async function saveW() { 
+            const val = document.getElementById('wi').value;
+            await fetch('/api/wallet/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid,wallet:val})}); 
+            tg.showAlert("Wallet address saved in database!"); 
+        }
         async function reqW() {
             const res = await fetch('/api/withdraw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid})});
-            if(res.ok){ confetti(); tg.showAlert("Success!"); load(); } else { const e=await res.json(); tg.showAlert(e.error); }
+            if(res.ok){ confetti(); tg.showAlert("Success! Withdrawal is pending."); load(); } 
+            else { const e=await res.json(); tg.showAlert("Error: " + e.error); }
         }
         load(); tg.expand();
     </script>
