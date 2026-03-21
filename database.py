@@ -42,3 +42,28 @@ def get_total_network_score():
     res = c.fetchone()[0] or 0
     c.close(); conn.close()
     return res
+
+
+def init_db_structure():
+    conn = get_db_conn()
+    if conn:
+        c = conn.cursor()
+        # Liste ultra-complète des colonnes
+        cols = [
+            ("p_genesis", "DOUBLE PRECISION DEFAULT 0"),
+            ("p_unity", "DOUBLE PRECISION DEFAULT 0"),
+            ("p_veo", "DOUBLE PRECISION DEFAULT 0"),
+            ("energy", "INTEGER DEFAULT 100"),
+            ("last_energy_update", "BIGINT"),
+            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
+            ("streak", "INTEGER DEFAULT 0"),
+            ("ref_count", "INTEGER DEFAULT 0"),
+            ("ref_claimed", "INTEGER DEFAULT 0")
+        ]
+        for col, dtype in cols:
+            try:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+            except:
+                pass # La colonne existe déjà
+        conn.commit()
+        c.close(); conn.close()
