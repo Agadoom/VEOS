@@ -94,6 +94,38 @@ async def api_mine(request: Request):
 
 
 
+@app.post("/api/claim_refs")
+async def api_claim_refs(request: Request):
+    data = await request.json()
+    uid = data.get("user_id")
+    
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    
+    # 1. On vérifie combien de refs ne sont pas encore payées
+    c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    
+    if not res:
+        c.close(); conn.close(); return JSONResponse(status_code=404, content={})
+        
+    pending = (res[0] or 0) - (res[1] or 0)
+    
+    if pending > 0:
+        # 2. Bonus de 5.0 WPT par invité
+        reward = pending * 5.0
+        c.execute("""
+            UPDATE users 
+            SET p_genesis = p_genesis + %s, 
+                ref_claimed = ref_count 
+            WHERE user_id = %s
+        """, (reward, uid))
+        conn.commit()
+        c.close(); conn.close()
+        return {"ok": True, "reward": reward}
+    
+    c.close(); conn.close()
+    return JSONResponse(status_code=400, content={"error": "Nothing to claim"})
 
 
 
