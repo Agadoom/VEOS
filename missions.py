@@ -68,3 +68,49 @@ async def claim_referral_rewards(uid):
     c.close(); conn.close()
     return 0, "No pending referrals to claim"
 
+from datetime import datetime, timedelta
+
+def process_daily_login(uid):
+    conn = get_db_conn()
+    c = conn.cursor()
+    
+    # Récupérer les infos actuelles
+    c.execute("SELECT streak, last_login_date FROM users WHERE user_id=%s", (uid,))
+    res = c.fetchone()
+    if not res: return 0, 0
+    
+    current_streak = res[0] or 0
+    last_login = res[1] # Format '2026-03-21'
+    today = datetime.now().strftime('%Y-%m-%d')
+    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    # Si déjà réclamé aujourd'hui
+    if last_login == today:
+        return 0, current_streak
+    
+    # Calcul du nouveau streak
+    new_streak = 1
+    if last_login == yesterday:
+        new_streak = current_streak + 1
+    elif last_login is None:
+        new_streak = 1
+    else:
+        # Trop tard, on repart à 1
+        new_streak = 1
+        
+    # Calcul de la récompense (ex: 5, 10, 15... max 100)
+    reward = min(new_streak * 5, 100)
+    if new_streak == 7: reward = 150 # Bonus spécial jour 7
+    
+    # Mise à jour DB
+    c.execute("""UPDATE users SET 
+                 p_genesis = p_genesis + %s, 
+                 streak = %s, 
+                 last_login_date = %s 
+                 WHERE user_id = %s""", (reward, new_streak, today, uid))
+    conn.commit()
+    c.close(); conn.close()
+    
+    return reward, new_streak
+
+
