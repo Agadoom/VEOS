@@ -506,7 +506,7 @@ async function claimRefs() {
         const data = await res.json();
         if(res.ok) {
             // On met l'emoji ici, c'est plus sûr !
-            alert(`🎁 Congrats! You received ${data.reward} Assets!`);
+            alert(`Congrats! You received ${data.reward} Assets!`);
             refresh();
         } else {
             alert("❌ " + data.message);
