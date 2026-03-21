@@ -245,46 +245,108 @@ async def web_ui():
         function closeDaily() { document.getElementById('daily-modal').style.display = 'none'; }
         function closeModal() { document.getElementById('offline-modal').style.display = 'none'; }
 
-        async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                if (!d.name) return;
-                if (d.daily_rw > 0) {
-                    document.getElementById('daily-amt').innerText = d.daily_rw;
-                    document.getElementById('streak-num').innerText = d.streak;
-                    document.getElementById('daily-modal').style.display = 'flex';
-                } else if (d.off_rw > 0) {
-                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
-                    document.getElementById('offline-modal').style.display = 'flex';
-                }
-                document.getElementById('u-name').innerText = d.name;
-                document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
-                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('u-streak').innerText = d.streak + " Days";
-                document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('u-ref-top').innerText = d.rc;
-                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-                document.getElementById('rank-list').innerHTML = rl;
-            } catch(e) {}
-        }
+// 1. Fonction pour réclamer les récompenses de parrainage
+<script>
+    let tg = window.Telegram.WebApp; 
+    const uid = tg.initDataUnsafe.user?.id || 0;
+    let lastClick = 0;
 
-        function mine(e, t) {
-            const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
-            const rect = e.target.getBoundingClientRect();
-            const plus = document.createElement('div');
-            plus.innerText = '+0.05'; plus.style.position = 'absolute';
-            plus.style.left = (e.clientX || rect.left+20) + 'px'; plus.style.top = (e.clientY || rect.top) + 'px';
-            plus.style.color = 'var(--gold)'; plus.style.fontWeight = 'bold';
-            plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
-            document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
-            fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
-            refresh(); tg.HapticFeedback.impactOccurred('light');
-        }
+    function closeDaily() { document.getElementById('daily-modal').style.display = 'none'; }
+    function closeModal() { document.getElementById('offline-modal').style.display = 'none'; }
+
+    // 1. Fonction pour réclamer les parrainages
+    async function claimRefs() {
+        try {
+            const r = await fetch('/api/claim_refs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_id: uid})
+            });
+            const d = await r.json();
+            if (d.ok) {
+                tg.showPopup({title: '💰 Success!', message: `You claimed ${d.reward} WPT!`});
+                tg.HapticFeedback.notificationOccurred('success');
+                refresh();
+            } else {
+                tg.showAlert(d.error || "Nothing to claim yet.");
+            }
+        } catch(e) { console.error("Claim error:", e); }
+    }
+
+    // 2. Fonction Refresh UNIQUE (Fusionnée)
+    async function refresh() {
+        try {
+            const r = await fetch(`/api/user/${uid}`); 
+            const d = await r.json();
+            if (!d.name) return;
+
+            // Gestion des Modals
+            if (d.daily_rw > 0) {
+                document.getElementById('daily-amt').innerText = d.daily_rw;
+                document.getElementById('streak-num').innerText = d.streak;
+                document.getElementById('daily-modal').style.display = 'flex';
+            } else if (d.off_rw > 0) {
+                document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
+                document.getElementById('offline-modal').style.display = 'flex';
+            }
+
+            // Mise à jour de l'UI de base
+            document.getElementById('u-name').innerText = d.name;
+            document.getElementById('u-badge').innerText = d.badge;
+            document.getElementById('gv').innerText = d.g.toFixed(2);
+            document.getElementById('uv').innerText = d.u.toFixed(2);
+            document.getElementById('vv').innerText = d.v.toFixed(2);
+            document.getElementById('tot').innerText = d.score.toFixed(2);
+            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
+            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+            document.getElementById('u-streak').innerText = d.streak + " Days";
+            document.getElementById('jack-val').innerText = d.jackpot;
+            document.getElementById('u-ref-top').innerText = d.rc;
+
+            // Gestion du bouton Claim dans l'onglet Mission
+            const pending = d.pending_refs || 0;
+            const pEl = document.getElementById('pending-val');
+            const cBtn = document.getElementById('claim-btn');
+            if (pEl) pEl.innerText = pending + " pending";
+            if (cBtn) cBtn.style.display = (pending > 0) ? 'block' : 'none';
+
+            // Leaderboard
+            let rl = ""; 
+            d.top.forEach((u, i) => { 
+                rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
+            });
+            document.getElementById('rank-list').innerHTML = rl;
+        } catch(e) { console.error("Refresh error:", e); }
+    }
+
+    // 3. Fonction de Minage
+    function mine(e, t) {
+        const now = Date.now(); 
+        if (now - lastClick < 80) return; 
+        lastClick = now;
+        
+        const rect = e.target.getBoundingClientRect();
+        const plus = document.createElement('div');
+        plus.innerText = '+0.05'; plus.style.position = 'absolute';
+        plus.style.left = (e.clientX || rect.left+20) + 'px'; 
+        plus.style.top = (e.clientY || rect.top) + 'px';
+        plus.style.color = 'var(--gold)'; plus.style.fontWeight = 'bold'; plus.style.zIndex = '1000';
+        plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
+        document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
+        
+        fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
+        refresh(); 
+        tg.HapticFeedback.impactOccurred('light');
+    }
+
+    function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+    function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
+    
+    tg.expand(); 
+    refresh(); 
+    setInterval(refresh, 8000);
+</script>
+
 
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
