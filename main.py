@@ -25,23 +25,19 @@ async def api_get_user(uid: int):
     if not r:
         return JSONResponse(status_code=404, content={})
     
-    # --- 1. Login Quotidien ---
-    # Cette fonction vérifie si c'est un nouveau jour et donne le bonus
-    daily_reward, final_streak = missions.process_daily_login(uid)
-
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
     minutes_passed = (now - last_update) // 60
     
-    # --- 2. Calcul Énergie ---
+    # 1. Calcul Énergie
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # --- 3. Calcul Gain Hors-ligne (si > 100 stakés) ---
+    # 2. Calcul Gain Hors-ligne (si > 100 stakés)
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        # Mise à jour de l'énergie et des gains offline en une seule fois
+        # Mise à jour silencieuse en DB pour éviter le double claim
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
@@ -49,31 +45,20 @@ async def api_get_user(uid: int):
         conn.commit()
         c.close(); conn.close()
 
-    # --- 4. Préparation du Score et Badge ---
-    # Note : On ajoute le daily_reward au score affiché immédiatement
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward + daily_reward
+    # 3. Préparation des données de retour
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     badge, next_goal, b_color = missions.get_badge_info(score)
     
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
     return {
-        "g": (r[0] or 0) + daily_reward, # On montre le Genesis avec le bonus inclus
-        "u": r[1] or 0, 
-        "v": r[2] or 0, 
-        "rc": r[3] or 0, 
-        "name": r[4],
-        "energy": int(current_e), 
-        "max_energy": config.MAX_ENERGY, 
-        "badge": badge,
-        "score": round(score, 2), 
-        "off_rw": offline_reward, 
-        "daily_rw": daily_reward,    # <--- INDISPENSABLE pour le pop-up JS
-        "streak": final_streak,      # <--- INDISPENSABLE pour afficher le jour
-        "top": top, 
-        "jackpot": round(database.get_total_network_score() * 0.1, 2),
+        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
+        "score": round(score, 2), "off_rw": offline_reward, 
+        "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
-        "staked": staked,
+        "streak": r[7] or 0, "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
 
