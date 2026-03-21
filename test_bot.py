@@ -1,11 +1,11 @@
-import os, asyncio, uvicorn, logging, time
+import os, asyncio, uvicorn, logging, time, random, datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Application
 
-from data_conx import get_db_conn
+from data_conx import init_db, get_db_conn
 
 # --- CONFIG ---
 TOKEN = os.getenv("TOKEN")
@@ -18,70 +18,116 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 MAX_ENERGY = 100
-REGEN_RATE = 1 # 1% d'énergie par minute
+REGEN_RATE = 1 
 
-# --- REGEN LOGIC ---
-def get_current_energy(db_energy, last_update):
-    now = int(time.time())
-    elapsed_minutes = (now - last_update) // 60
-    new_energy = db_energy + (elapsed_minutes * REGEN_RATE)
-    return min(MAX_ENERGY, int(new_energy))
-
-# --- BOT ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid, name = update.effective_user.id, update.effective_user.first_name
+# --- AUTO-PATCH DB ---
+def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        c.execute("INSERT INTO users (user_id, name, energy, last_energy_update) VALUES (%s, %s, 100, %s) ON CONFLICT (user_id) DO NOTHING", 
-                  (uid, name, int(time.time())))
+        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("last_streak_date", "TEXT"), ("ref_claimed", "INTEGER DEFAULT 0")]:
+            try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+            except: pass
         conn.commit(); c.close(); conn.close()
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ OPEN TERMINAL", web_app=WebAppInfo(url=WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome back, {name}!", reply_markup=kb)
+
+patch_db()
+
+# --- UTILS ---
+def get_badge_info(score):
+    if score >= 500: return "💎 Diamond", 1000, "#00D1FF"
+    if score >= 150: return "🥇 Gold", 500, "#FFD700"
+    if score >= 50:  return "🥈 Silver", 150, "#C0C0C0"
+    return "🥉 Bronze", 50, "#CD7F32"
+
+# --- BOT COMMANDS ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid, name = update.effective_user.id, update.effective_user.first_name
+    ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
+    conn = get_db_conn()
+    if conn:
+        c = conn.cursor()
+        c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
+        if not c.fetchone():
+            c.execute("INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) VALUES (%s, %s, %s, %s, %s, 0, 0)", 
+                      (uid, name, ref_id if ref_id != uid else None, MAX_ENERGY, int(time.time())))
+            if ref_id and ref_id != uid:
+                c.execute("UPDATE users SET ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
+        conn.commit(); c.close(); conn.close()
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
 # --- API ---
 @app.get("/api/user/{uid}")
 async def get_user(uid: int):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo, energy, last_energy_update, name, ref_count FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, last_energy_update, streak, staked_amount, ref_claimed FROM users WHERE user_id=%s", (uid,))
     r = c.fetchone()
     if not r: return JSONResponse(status_code=404, content={})
     
-    # Calcul de l'énergie actuelle avec le temps passé
-    actual_e = get_current_energy(r[3], r[4])
+    now = int(time.time())
+    current_e = min(MAX_ENERGY, (r[5] or 0) + ((now - (r[6] or now)) // 60) * REGEN_RATE)
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
+    badge, next_goal, b_color = get_badge_info(score)
+    pending_refs = (r[3] or 0) - (r[9] or 0)
+
+    c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
+    top = [{"n": x[0], "p": round(x[1], 2), "b": get_badge_info(x[1])[0]} for x in c.fetchall()]
     
-    # Calcul du Jackpot Global (Somme de tous les points / 10)
-    c.execute("SELECT SUM(COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users")
-    jackpot = (c.fetchone()[0] or 0) * 0.1
-    
+    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+    total_net = c.fetchone()[0] or 0
     c.close(); conn.close()
+
     return {
-        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, 
-        "energy": actual_e, "name": r[5], "rc": r[6] or 0, "jackpot": round(jackpot, 2)
+        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
+        "energy": int(current_e), "max_energy": MAX_ENERGY, "badge": badge, "next_goal": next_goal, "badge_color": b_color,
+        "top": top, "jackpot": round(total_net * 0.1, 2), "score": round(score, 2),
+        "multiplier": round(1.0 + ((r[8] or 0) / 100) * 0.1 + (score / 1000), 2),
+        "streak": r[7] or 0, "staked": r[8] or 0, "pending_refs": max(0, pending_refs)
     }
+
+@app.post("/api/stake")
+async def stake_api(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
+    total = c.fetchone()[0] or 0
+    if total >= 100:
+        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False})
+
+@app.post("/api/boost/energy")
+async def boost_energy(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id=%s", (uid,))
+    bal = c.fetchone()[0] or 0
+    if bal >= 50:
+        c.execute("UPDATE users SET p_genesis=p_genesis-17, p_unity=p_unity-17, p_veo=p_veo-16, energy=%s, last_energy_update=%s WHERE user_id=%s", (MAX_ENERGY, int(time.time()), uid))
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/mine")
 async def mine_api(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
     conn = get_db_conn(); c = conn.cursor()
-    
-    # Vérifier l'énergie avant de miner
-    c.execute("SELECT energy, last_energy_update FROM users WHERE user_id=%s", (uid,))
+    c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    current_e = get_current_energy(res[0], res[1])
-    
-    if current_e > 0:
-        # On déduis 1 d'énergie et on ajoute les points
-        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s WHERE user_id=%s", 
-                  (current_e - 1, int(time.time()), uid))
-        conn.commit()
-        c.close(); conn.close()
-        return {"ok": True}
-    
-    c.close(); conn.close()
-    return JSONResponse(status_code=400, content={"error": "No energy"})
+    now = int(time.time()); current_e = min(MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now)) // 60) * REGEN_RATE)
+    if current_e >= 1:
+        mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
+        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s WHERE user_id=%s", (0.05*mult, current_e-1, now, uid))
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
+    return JSONResponse(status_code=400, content={"ok": False})
 
-# --- UI ---
+@app.post("/api/daily")
+async def daily_api(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("UPDATE users SET p_genesis = COALESCE(p_genesis,0) + 5, streak = COALESCE(streak,0) + 1 WHERE user_id = %s", (uid,))
+    conn.commit(); c.close(); conn.close(); return {"ok": True}
+
+# --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -90,102 +136,209 @@ async def web_ui():
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        :root { --bg: #000; --gold: #FFD700; --card: #121214; }
-        body { background: var(--bg); color: #fff; font-family: sans-serif; margin: 0; overflow-x: hidden; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --purple: #A259FF; --fire: #FF4500; }
+        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
+        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 9px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
+        .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
+        .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; }
+        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
         
-        .ticker-wrap { width: 100%; background: #111; padding: 12px 0; border-bottom: 1px solid #333; overflow: hidden; }
-        .ticker { display: inline-block; white-space: nowrap; animation: marquee 15s linear infinite; color: var(--gold); font-weight: bold; font-size: 13px; }
-        @keyframes marquee { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
-
-        .container { padding: 15px; }
-        .main-card { background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; border-radius: 20px; padding: 25px; text-align: center; margin-bottom: 15px; }
-        .energy-bar { background: #222; height: 10px; border-radius: 5px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
-        #e-fill { background: linear-gradient(90deg, #34C759, var(--gold)); height: 100%; width: 0%; transition: 0.3s; }
+        /* Combo UI */
+        #combo-ui { position: absolute; top: 10px; left: 10px; color: var(--fire); font-weight: bold; font-size: 12px; display: none; text-shadow: 0 0 5px var(--fire); }
         
-        .card { background: var(--card); border-radius: 15px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222; }
-        .btn { background: #fff; color: #000; border: none; padding: 12px 22px; border-radius: 12px; font-weight: bold; }
-        .btn:active { transform: scale(0.9); }
+        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
+        .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
+        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; transition: transform 0.1s; }
+        .card:active { transform: scale(0.98); }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
+        .btn:disabled { opacity: 0.5; filter: grayscale(1); }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
+        .nav-item { font-size: 20px; opacity: 0.4; } .nav-item.active { opacity: 1; color: var(--gold); }
         
-        .nav { position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); padding: 10px 25px; border-radius: 30px; display: flex; gap: 25px; border: 1px solid #333; backdrop-filter: blur(10px); }
-        .nav-i { font-size: 22px; opacity: 0.4; } .nav-i.active { opacity: 1; color: var(--gold); }
+        .floating-text { position: absolute; color: var(--gold); font-weight: bold; pointer-events: none; animation: floatUp 0.6s ease-out forwards; font-size: 14px; }
+        @keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-40px); } }
     </style>
 </head>
 <body>
-    <div class="ticker-wrap"><div class="ticker" id="tk">CONNECTING TO NODE... STANDBY...</div></div>
-
-    <div class="container" id="p-mine">
-        <div class="main-card">
-            <small style="color: #888;">TOTAL ASSETS</small>
-            <h1 id="tot" style="font-size: 45px; margin: 10px 0;">0.00</h1>
-            <div class="energy-bar"><div id="e-fill"></div></div>
-            <div style="display:flex; justify-content:space-between; font-size:12px;">
-                <span id="ev" style="color: var(--gold);">100 / 100 ⚡</span>
-                <span style="color: #555;">REGEN ACTIVE</span>
-            </div>
-        </div>
-
-        <div class="card"><div><b style="color:var(--gold)">GENESIS</b><br><small id="gv">0.00</small></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
-        <div class="card"><div><b>UNITY</b><br><small id="uv">0.00</small></div><button class="btn" onclick="mine(event, 'unity')">MINE</button></div>
-        <div class="card"><div><b style="color:#A259FF">VEO AI</b><br><small id="vv">0.00</small></div><button class="btn" onclick="mine(event, 'veo')">MINE</button></div>
+    <div class="header-ticker">
+        <span style="color:var(--gold)">REFS: <span id="u-ref-top">0</span></span>
+        <span style="color:var(--green)">$WPT: $0.000450</span>
+        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span></span>
+    </div>
+    
+    <div class="profile-bar">
+        <div><div id="u-name" style="font-weight:700; font-size:13px;">...</div><div id="u-badge" class="badge-tag">...</div></div>
+        <button id="daily-btn" class="btn" style="background:var(--gold);" onclick="claimDaily()">🎁 GIFT</button>
     </div>
 
-    <div class="container" id="p-pill" style="display:none">
-        <h3 style="color:var(--gold)">PILLARS REWARDS</h3>
-        <div class="card">WPT TOKEN<button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card">UNITY ASSET<button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card">VEO AI<button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card">GENESIS<button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
+    <div id="p-mine">
+        <div class="balance">
+            <div id="combo-ui">🔥 COMBO x2</div>
+            <small style="color:var(--text)">TOTAL ASSETS</small>
+            <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
+            <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
+            <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
+            <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
+        </div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+    </div>
+
+    <div id="p-pillars" style="display:none">
+        <h3 style="text-align:center; color:var(--gold)">$WPT PILLARS</h3>
+        <div class="card"><b>WPT Token</b><button class="btn" style="background:var(--gold)" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">CLAIM</button></div>
+        <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">CLAIM</button></div>
+        <div class="card"><b>Veo AI Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">CLAIM</button></div>
+        <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">CLAIM</button></div>
+        <button class="btn" style="width:100%; margin-top:15px; background:var(--blue); color:#FFF; padding:15px;" onclick="share()">🚀 INVITE FRIENDS</button>
+    </div>
+    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
+    <div id="p-mission" style="display:none">
+        <h3 style="color:var(--gold)">STAKING & NODES</h3>
+        <div class="card"><div><b>Active Nodes</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
+        <div class="card" style="border-color:var(--gold)">
+            <div><b>Lock 100 Assets</b><br><small>+0.1x Multiplier</small></div>
+            <button class="btn" id="stake-btn" onclick="stake()">LOCK</button>
+        </div>
+        <div class="card"><div><b>Energy Drink ⚡</b><br><small>Cost: 50 Assets</small></div><button class="btn" id="drink-btn" onclick="buyDrink()">BUY</button></div>
+        <div class="card"><div><b>Community Hub</b></div><button class="btn" onclick="tg.openLink('https://t.me/owpc_co')">JOIN</button></div>
     </div>
 
     <div class="nav">
-        <div onclick="sw('mine')" id="n-mine" class="nav-i active">🏠</div>
-        <div onclick="sw('pill')" id="n-pill" class="nav-i">📊</div>
+        <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
+        <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
+        <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
+        <div onclick="show('mission')" id="n-mission" class="nav-item">⚙️</div>
     </div>
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let lScore = 0, lEnergy = 100;
+        const LOCK_TIME = 12 * 60 * 60 * 1000;
+        let lastClick = 0, comboCount = 0;
 
-        async function load() {
-            try {
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                lScore = d.g + d.u + d.v; lEnergy = d.energy;
-                document.getElementById('tot').innerText = lScore.toFixed(2);
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('e-fill').style.width = lEnergy + "%";
-                document.getElementById('ev').innerText = lEnergy + " / 100 ⚡";
-                document.getElementById('tk').innerText = `🔥 GLOBAL JACKPOT: ${d.jackpot} $WPT • STATUS: NODE ONLINE • ENERGY REGEN: 1%/MIN •`;
-            } catch(e) {}
+        async function refresh() {
+            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+            if(!d.name) return;
+            document.getElementById('u-name').innerText = d.name;
+            document.getElementById('u-badge').innerText = d.badge;
+            document.getElementById('u-ref-top').innerText = d.rc; 
+            document.getElementById('gv').innerText = d.g.toFixed(2);
+            document.getElementById('uv').innerText = d.u.toFixed(2);
+            document.getElementById('vv').innerText = d.v.toFixed(2);
+            document.getElementById('tot').innerText = d.score.toFixed(2);
+            document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
+            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
+            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+            document.getElementById('u-streak').innerText = d.streak;
+            document.getElementById('staked-val').innerText = d.staked + " Staked";
+            document.getElementById('jack-val').innerText = d.jackpot;
+
+            document.getElementById('drink-btn').disabled = (d.score < 50);
+            document.getElementById('stake-btn').disabled = (d.score < 100);
+            
+            let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}</div><b>${u.p}</b></div>`; });
+            document.getElementById('rank-list').innerHTML = r_html;
+            updateGiftTimer();
         }
 
         function mine(e, t) {
-            if(lEnergy <= 0) { tg.HapticFeedback.notificationOccurred('error'); return; }
-            lScore += 0.05; lEnergy -= 1;
-            document.getElementById('tot').innerText = lScore.toFixed(2);
-            document.getElementById('e-fill').style.width = lEnergy + "%";
-            document.getElementById('ev').innerText = lEnergy + " / 100 ⚡";
-            
+            const now = Date.now();
+            // Combo Logic
+            if(now - lastClick < 400) {
+                comboCount++;
+                if(comboCount > 5) document.getElementById('combo-ui').style.display = 'block';
+            } else {
+                comboCount = 0;
+                document.getElementById('combo-ui').style.display = 'none';
+            }
+            lastClick = now;
+
+            // Floating Text Effect
+            const rect = e.target.getBoundingClientRect();
+            const txt = document.createElement('div');
+            txt.className = 'floating-text';
+            txt.innerText = '+0.05';
+            txt.style.left = rect.left + (rect.width/2) + 'px';
+            txt.style.top = rect.top + 'px';
+            document.body.appendChild(txt);
+            setTimeout(() => txt.remove(), 600);
+
             fetch('/api/mine', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:t})});
-            tg.HapticFeedback.impactOccurred('medium');
+            refresh(); 
+            tg.HapticFeedback.impactOccurred('light');
         }
 
-        function sw(p) { ['mine','pill'].forEach(id=>{ document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p); }); }
+        // Simuler un Auto-mining visuel (monte de 0.01/min pour l'effet)
+        setInterval(() => {
+            let el = document.getElementById('tot');
+            if(el) {
+                let val = parseFloat(el.innerText);
+                el.innerText = (val + 0.0001).toFixed(4);
+            }
+        }, 2000);
+
+        function updateGiftTimer() {
+            const last = localStorage.getItem('lock_' + uid);
+            const btn = document.getElementById('daily-btn');
+            if (last) {
+                const elapsed = Date.now() - parseInt(last);
+                if (elapsed < LOCK_TIME) {
+                    const remaining = LOCK_TIME - elapsed;
+                    const h = Math.floor(remaining / 3600000);
+                    const m = Math.floor((remaining % 3600000) / 60000);
+                    btn.disabled = true; btn.innerText = `⏳ ${h}h ${m}m`;
+                    return;
+                }
+            }
+            btn.disabled = false; btn.innerText = "🎁 GIFT";
+        }
+
+        async function claimDaily() {
+            const r = await fetch('/api/daily', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            if(r.ok) { localStorage.setItem('lock_'+uid, Date.now()); confetti(); refresh(); }
+        }
+
+        async function stake() {
+            const r = await fetch('/api/stake', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            if(r.ok) { confetti(); refresh(); }
+        }
+
+        async function buyDrink() {
+            const r = await fetch('/api/boost/energy', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid})});
+            if(r.ok) { confetti(); refresh(); }
+        }
+
+        function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}&text=🚀 Sync your Node!`); }
+        function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         
-        load(); setInterval(load, 10000); tg.expand();
+                refresh(); setInterval(updateGiftTimer, 60000);
+        tg.expand();
     </script>
 </body>
 </html>
 """
 
 async def main():
+    global bot_app
+    init_db()
     bot_app = ApplicationBuilder().token(TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start))
-    await bot_app.initialize(); await bot_app.start()
+    await bot_app.initialize()
+    await bot_app.start()
+    await bot_app.bot.delete_webhook(drop_pending_updates=True)
     asyncio.create_task(bot_app.updater.start_polling())
-    await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")).serve()
+    
+    # Configuration Uvicorn
+    config = uvicorn.Config(app, host="0.0.0.0", port=PORT, loop="asyncio")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
+
