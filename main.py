@@ -213,9 +213,23 @@ async def web_ui():
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div id="p-mission" style="display:none">
-        <div class="card"><div><b>Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
-        <div class="card"><div><b>Staked</b></div><div id="staked-val">0</div></div>
+    <h3 style="color:var(--gold); text-align:center;">REWARDS & MISSIONS</h3>
+    
+    <div class="card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; width: 100%;">
+            <b>Referral Bonus</b>
+            <span id="pending-val" style="color:var(--gold); font-weight:800;">0</span>
+        </div>
+        <small style="color:var(--text); font-size: 10px;">Earn 5.0 WPT for every active friend invited.</small>
+        <button id="claim-btn" class="btn" style="width:100%; background:var(--green); color:#FFF; display:none;" onclick="claimRefs()">CLAIM REWARD</button>
     </div>
+
+    <div class="card">
+        <div><b>Daily Streak</b></div>
+        <div id="u-streak" style="color:var(--gold)">0 Days</div>
+    </div>
+</div>
+
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
