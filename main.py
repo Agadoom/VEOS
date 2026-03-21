@@ -202,6 +202,20 @@ async def web_ui():
                 document.getElementById('n-'+id).classList.toggle('active',id===p);
             });
         }
+async function buyBoost() {
+    const res = await fetch('/api/boost/energy', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_id: uid})
+    });
+    
+    if(res.ok) {
+        alert("⚡ Energy Refilled!");
+        refresh();
+    } else {
+        alert("❌ Not enough assets (Need 50)");
+    }
+}
 
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}&text=🚀 Join my mining node on OWPC!`); }
 
