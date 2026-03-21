@@ -25,10 +25,23 @@ def patch_db():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        for col, dtype in [("staked_amount", "DOUBLE PRECISION DEFAULT 0"), ("streak", "INTEGER DEFAULT 0"), ("last_streak_date", "TEXT"), ("ref_claimed", "INTEGER DEFAULT 0")]:
-            try: c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            except: pass
+        # Ajout de la colonne wallet si elle n'existe pas
+        try: c.execute("ALTER TABLE users ADD COLUMN wallet_address TEXT")
+        except: pass
+        
+        # Création de la table des retraits
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS withdrawals (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                amount DOUBLE PRECISION,
+                wallet TEXT,
+                status TEXT DEFAULT 'PENDING',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit(); c.close(); conn.close()
+
 
 patch_db()
 
