@@ -464,6 +464,28 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
+def get_user_full(uid):
+    conn = get_db_conn()
+    c = conn.cursor()
+    # L'ordre ici est CRITIQUE pour le main.py (r[0], r[1], etc.)
+    c.execute("""SELECT 
+        p_genesis,        -- r[0]
+        p_unity,          -- r[1]
+        p_veo,            -- r[2]
+        ref_count,        -- r[3]
+        name,             -- r[4]
+        energy,           -- r[5]
+        last_energy_update, -- r[6]
+        streak,           -- r[7]
+        staked_amount,    -- r[8]
+        ref_claimed       -- r[9]
+        FROM users WHERE user_id=%s""", (uid,))
+    res = c.fetchone()
+    c.close(); conn.close()
+    return res
+
+
+
 async def main():
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start_cmd))
