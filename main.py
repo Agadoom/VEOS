@@ -138,6 +138,19 @@ async def web_ui():
     animation: energyFlash 0.8s ease-out;
 }
 
+#offline-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9); z-index: 2000;
+    display: none; align-items: center; justify-content: center;
+}
+.modal-content {
+    background: var(--card); border: 2px solid var(--gold);
+    padding: 30px; border-radius: 30px; text-align: center; width: 80%;
+}
+.modal-content h2 { color: var(--gold); margin-top: 0; }
+.reward-val { font-size: 32px; font-weight: 900; margin: 15px 0; color: #FFF; }
+
+
     </style>
 </head>
 <body>
@@ -153,6 +166,17 @@ async def web_ui():
         </div>
         <button class="btn" style="background:var(--gold)" onclick="share()">🚀 INVITE</button>
     </div>
+
+<div id="offline-modal">
+    <div class="modal-content">
+        <div style="font-size: 40px;">😴</div>
+        <h2>Welcome Back!</h2>
+        <p style="color:var(--text); font-size: 12px;">Your nodes were mining while you were away</p>
+        <div class="reward-val">+ <span id="rw-amt">0</span> WPT</div>
+        <button class="btn" style="background:var(--gold); width:100%; padding:15px;" onclick="closeModal()">COLLECT</button>
+    </div>
+</div>
+
 
     <div id="p-mine">
         <div class="balance">
