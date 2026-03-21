@@ -6,6 +6,7 @@ from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMar
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import config, database, missions
+
 # Force la mise à jour de la structure au démarrage
 try:
     database.init_db_structure()
@@ -16,9 +17,6 @@ except Exception as e:
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Initialisation DB
-database.init_db_structure()
-
 # --- API ROUTES ---
 
 @app.get("/api/user/{uid}")
@@ -28,7 +26,6 @@ async def api_get_user(uid: int):
         return JSONResponse(status_code=404, content={})
     
     # --- 1. Login Quotidien ---
-    # Cette fonction vérifie si c'est un nouveau jour et donne le bonus
     daily_reward, final_streak = missions.process_daily_login(uid)
 
     now = int(time.time())
@@ -38,12 +35,11 @@ async def api_get_user(uid: int):
     # --- 2. Calcul Énergie ---
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # --- 3. Calcul Gain Hors-ligne (si > 100 stakés) ---
+    # --- 3. Calcul Gain Hors-ligne ---
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        # Mise à jour de l'énergie et des gains offline en une seule fois
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
@@ -52,7 +48,6 @@ async def api_get_user(uid: int):
         c.close(); conn.close()
 
     # --- 4. Préparation du Score et Badge ---
-    # Note : On ajoute le daily_reward au score affiché immédiatement
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward + daily_reward
     badge, next_goal, b_color = missions.get_badge_info(score)
     
@@ -60,7 +55,7 @@ async def api_get_user(uid: int):
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
     return {
-        "g": (r[0] or 0) + daily_reward, # On montre le Genesis avec le bonus inclus
+        "g": (r[0] or 0) + daily_reward,
         "u": r[1] or 0, 
         "v": r[2] or 0, 
         "rc": r[3] or 0, 
@@ -70,8 +65,8 @@ async def api_get_user(uid: int):
         "badge": badge,
         "score": round(score, 2), 
         "off_rw": offline_reward, 
-        "daily_rw": daily_reward,    # <--- INDISPENSABLE pour le pop-up JS
-        "streak": final_streak,      # <--- INDISPENSABLE pour afficher le jour
+        "daily_rw": daily_reward,
+        "streak": final_streak,
         "top": top, 
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
@@ -79,53 +74,35 @@ async def api_get_user(uid: int):
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
 
-
 @app.post("/api/mine")
 async def api_mine(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    
     conn = database.get_db_conn()
     c = conn.cursor()
-    
-    # On récupère les infos et le dernier clic
     c.execute("""SELECT energy, last_energy_update, staked_amount, 
                  (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)),
-                 last_click_time 
-                 FROM users WHERE user_id = %s""", (uid,))
+                 last_click_time FROM users WHERE user_id = %s""", (uid,))
     res = c.fetchone()
-    
-    now_ms = int(time.time() * 1000) # Temps en millisecondes
+    now_ms = int(time.time() * 1000)
     last_click = res[4] or 0
-    
-    # --- ANTI-CHEAT : Cooldown de 80ms min entre deux clics ---
     if (now_ms - last_click) < 80:
         c.close(); conn.close()
-        return JSONResponse(status_code=429, content={"ok": False, "error": "Too fast!"})
-
+        return JSONResponse(status_code=429, content={"ok": False})
     now_s = now_ms // 1000
     current_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s)) // 60) * config.REGEN_RATE)
-    
     if current_e >= 1:
         mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
-        c.execute(f"""UPDATE users SET 
-                     p_{t}=COALESCE(p_{t},0)+%s, 
-                     energy=%s, 
-                     last_energy_update=%s,
-                     last_click_time=%s 
-                     WHERE user_id=%s""", (0.05*mult, current_e-1, now_s, now_ms, uid))
+        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (0.05*mult, current_e-1, now_s, now_ms, uid))
         conn.commit()
         c.close(); conn.close()
         return {"ok": True}
-        
     c.close(); conn.close()
-    return JSONResponse(status_code=400, content={"ok": False, "error": "No energy"})
-
+    return JSONResponse(status_code=400, content={"ok": False})
 
 @app.post("/api/boost/energy")
 async def api_boost_energy(request: Request):
-    data = await request.json()
-    uid = data.get("user_id")
+    data = await request.json(); uid = data.get("user_id")
     success = await missions.process_boost_energy(uid, config.MAX_ENERGY)
     return {"ok": True} if success else JSONResponse(status_code=400, content={"ok": False})
 
@@ -133,8 +110,7 @@ async def api_boost_energy(request: Request):
 async def api_claim_refs(request: Request):
     data = await request.json(); uid = data.get("user_id")
     reward, message = await missions.claim_referral_rewards(uid)
-    if reward > 0: return {"ok": True, "reward": reward}
-    return JSONResponse(status_code=400, content={"ok": False, "message": message})
+    return {"ok": True, "reward": reward} if reward > 0 else JSONResponse(status_code=400, content={"ok": False, "message": message})
 
 # --- WEB UI ---
 
@@ -157,24 +133,10 @@ async def web_ui():
         .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
-        .btn:active { transform: scale(0.95); }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
-
-<div id="daily-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:3000; display:none; align-items:center; justify-content:center;">
-    <div class="modal-content" style="border: 2px solid var(--green); background: #111; padding: 30px; border-radius: 25px; text-align: center; width: 80%;">
-        <div style="font-size: 50px;">🌟</div>
-        <h2 style="color:var(--green); margin: 10px 0;">Daily Reward!</h2>
-        <p style="color:var(--text);">Day <span id="streak-num" style="color:#FFF; font-weight:bold;">1</span> Streak</p>
-        <div style="font-size:35px; font-weight:900; margin:20px 0; color:#FFF;">+ <span id="daily-amt">0</span> <small style="font-size:15px;">WPT</small></div>
-        <button class="btn" style="background:var(--green); color:#FFF; width:100%; padding:15px; border-radius:15px; font-size:16px;" onclick="closeDaily()">COLLECT BONUS</button>
-    </div>
-</div>
-
-
-
-        #offline-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: none; align-items: center; justify-content: center; }
         .modal-content { background: var(--card); border: 2px solid var(--gold); padding: 30px; border-radius: 30px; text-align: center; width: 80%; }
         @keyframes energyFlash { 0% { filter: brightness(1); } 50% { filter: brightness(2); box-shadow: 0 0 20px var(--gold); } 100% { filter: brightness(1); } }
         .energy-boost-anim { animation: energyFlash 0.8s ease-out; }
@@ -185,17 +147,26 @@ async def web_ui():
         <span>👥 REFS: <span id="u-ref-top">0</span></span>
         <span>🔥 JACKPOT: <span id="jack-val">0</span></span>
     </div>
-    
+
     <div class="profile-bar">
-        <div><div id="u-name" style="font-weight:700; font-size:14px;">...</div><div id="u-badge" class="badge-tag">...</div></div>
+        <div><div id="u-name" style="font-weight:700;">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <button class="btn" style="background:var(--gold)" onclick="share()">🚀 INVITE</button>
     </div>
 
-    <div id="offline-modal">
+    <div id="daily-modal" class="modal">
+        <div class="modal-content" style="border-color:var(--green)">
+            <div style="font-size: 50px;">🌟</div>
+            <h2 style="color:var(--green)">Daily Reward!</h2>
+            <p>Day <span id="streak-num">1</span> Streak</p>
+            <div style="font-size:32px; font-weight:900; margin:15px 0;">+ <span id="daily-amt">0</span> WPT</div>
+            <button class="btn" style="background:var(--green); width:100%; padding:15px; color:#FFF" onclick="closeDaily()">COLLECT</button>
+        </div>
+    </div>
+
+    <div id="offline-modal" class="modal">
         <div class="modal-content">
             <div style="font-size: 40px;">😴</div>
             <h2 style="color:var(--gold)">Welcome Back!</h2>
-            <p style="color:var(--text); font-size: 12px;">Your nodes were mining while you were away</p>
             <div style="font-size:32px; font-weight:900; margin:15px 0;">+ <span id="rw-amt">0</span> WPT</div>
             <button class="btn" style="background:var(--gold); width:100%; padding:15px;" onclick="closeModal()">COLLECT</button>
         </div>
@@ -203,7 +174,7 @@ async def web_ui():
 
     <div id="p-mine">
         <div class="balance">
-            <small style="color:var(--text)">TOTAL ASSETS</small>
+            <small>TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
@@ -214,7 +185,7 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
-        <div id="p-pillars" style="display:none">
+    <div id="p-pillars" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
         <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
         <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
@@ -222,31 +193,14 @@ async def web_ui():
         <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
     </div>
 
-
-    <div id="p-leader" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">RANKING</h3>
-        <div id="rank-list"></div>
-    </div>
+    <div id="p-leader" style="display:none"><h3 style="color:var(--gold); text-align:center;">RANKING</h3><div id="rank-list"></div></div>
 
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">STAKING & NODES</h3>
-        <div class="card">
-            <div><b>Active Staking</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div>
-            <div id="staked-val" style="color:var(--gold)">0 Staked</div>
-        </div>
-        <div class="card">
-            <div><b>Energy Drink ⚡</b><br><small>Cost: 50 Assets</small></div>
-            <button class="btn" id="boost-btn" onclick="buyBoost()">BUY</button>
-        </div>
-        <div class="card">
-            <div><b>Referral Rewards</b><br><small>Earn 10 per invite</small></div>
-            <div style="text-align:right">
-                <div id="pending-refs" style="font-size:10px; color:var(--green); margin-bottom:5px;">0 Pending</div>
-                <button class="btn" id="claim-refs-btn" onclick="claimRefs()" style="background:var(--green); color:#FFF">CLAIM</button>
-            </div>
-        </div>
+        <div class="card"><div><b>Active Staking</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div><div id="staked-val" style="color:var(--gold)">0 Staked</div></div>
+        <div class="card"><div><b>Energy Drink ⚡</b><br><small>Cost: 50 Assets</small></div><button class="btn" onclick="buyBoost()">BUY</button></div>
+        <div class="card"><div><b>Referrals</b><br><small id="pending-refs">0 Pending</small></div><button class="btn" id="claim-refs-btn" onclick="claimRefs()">CLAIM</button></div>
     </div>
-
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
@@ -257,114 +211,69 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        
-     // 1. Définis closeDaily à l'extérieur (globalement)
-function closeDaily() {
-    document.getElementById('daily-modal').style.display = 'none';
-}
+        let lastClick = 0;
 
-async function refresh() {
-    try {
-        // RÉCUPÉRATION DES DONNÉES EN PREMIER
-        const r = await fetch(`/api/user/${uid}`); 
-        const d = await r.json();
-        
-        if (!d.name) return;
+        function closeDaily() { document.getElementById('daily-modal').style.display = 'none'; }
+        function closeModal() { document.getElementById('offline-modal').style.display = 'none'; }
 
-        // --- GESTION DES POP-UPS (Uniquement au chargement ou si > 0) ---
-        
-        // 1. Bonus Journalier (Priorité 1)
-        if (d.daily_rw && d.daily_rw > 0) {
-            document.getElementById('daily-amt').innerText = d.daily_rw;
-            document.getElementById('streak-num').innerText = d.streak;
-            document.getElementById('daily-modal').style.display = 'flex';
-            if(window.tg) tg.HapticFeedback.notificationOccurred('success');
-        } 
-        // 2. Gains Hors-ligne (Priorité 2, si le daily n'est pas affiché ou après)
-        else if (d.off_rw && d.off_rw > 0) { 
-            document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
-            document.getElementById('offline-modal').style.display = 'flex';
+        async function refresh() {
+            try {
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                if (!d.name) return;
+                if (d.daily_rw > 0) {
+                    document.getElementById('daily-amt').innerText = d.daily_rw;
+                    document.getElementById('streak-num').innerText = d.streak;
+                    document.getElementById('daily-modal').style.display = 'flex';
+                } else if (d.off_rw > 0) {
+                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
+                    document.getElementById('offline-modal').style.display = 'flex';
+                }
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-badge').innerText = d.badge;
+                document.getElementById('u-ref-top').innerText = d.rc;
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier.toFixed(2)}`;
+                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
+                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+                document.getElementById('u-streak').innerText = d.streak;
+                document.getElementById('staked-val').innerText = d.staked + " Staked";
+                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p.toFixed(2)}</b></div>`; });
+                document.getElementById('rank-list').innerHTML = rl;
+            } catch(e) {}
         }
 
-        // --- MISE À JOUR DE L'INTERFACE ---
-        document.getElementById('u-name').innerText = d.name;
-        document.getElementById('u-badge').innerText = d.badge;
-        document.getElementById('u-ref-top').innerText = d.rc;
-        
-        // Soldes
-        document.getElementById('gv').innerText = d.g.toFixed(2);
-        document.getElementById('uv').innerText = d.u.toFixed(2);
-        document.getElementById('vv').innerText = d.v.toFixed(2);
-        document.getElementById('tot').innerText = d.score.toFixed(2);
-        
-        // Énergie et Multiplicateur
-        document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier.toFixed(2)}`;
-        document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
-        document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-        
-        // Divers
-        document.getElementById('jack-val').innerText = d.jackpot.toFixed(2);
-        document.getElementById('u-streak').innerText = d.streak;
-        document.getElementById('staked-val').innerText = (d.staked || 0).toFixed(0) + " Staked";
-        
-        // Parrainages
-        const pnd = d.pending_refs || 0;
-        const pndEl = document.getElementById('pending-refs');
-        const clmBtn = document.getElementById('claim-refs-btn');
-        if (pndEl) pndEl.innerText = pnd + " Pending";
-        if (clmBtn) clmBtn.disabled = (pnd === 0);
-
-        // Leaderboard
-        let rl = ""; 
-        if (d.top) {
-            d.top.forEach((u, i) => {
-                rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p.toFixed(2)}</b></div>`;
-            });
-            document.getElementById('rank-list').innerHTML = rl;
+        function mine(e, t) {
+            const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
+            const rect = e.target.getBoundingClientRect();
+            const plus = document.createElement('div');
+            plus.innerText = '+0.05'; plus.className = 'plus-anim';
+            plus.style.position = 'absolute'; plus.style.left = (e.clientX || rect.left+20) + 'px'; plus.style.top = (e.clientY || rect.top) + 'px';
+            plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
+            document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
+            fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
+            refresh(); tg.HapticFeedback.impactOccurred('light');
         }
-
-    } catch(e) {
-        console.error("Refresh error:", e);
-    }
-}
-
-
-    fetch('/api/mine', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({user_id: uid, token: t})
-    }).then(res => {
-        if (res.status === 429) console.warn("Serveur : Clic trop rapide !");
-    });
-    
-    refresh(); 
-    if (window.tg) tg.HapticFeedback.impactOccurred('light');
-}
-
 
         async function buyBoost() {
             const res = await fetch('/api/boost/energy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid})});
-            if(res.ok) { 
-                document.getElementById('e-bar').classList.add('energy-boost-anim');
-                setTimeout(()=>refresh(), 800);
-            } else { alert("Insufficient Balance"); }
+            if(res.ok) { document.getElementById('e-bar').classList.add('energy-boost-anim'); setTimeout(()=>refresh(), 800); }
         }
 
         async function claimRefs() {
             const res = await fetch('/api/refs/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:uid})});
-            if(res.ok) { const d = await res.json(); alert("Claimed: " + d.reward); refresh(); }
+            if(res.ok) { refresh(); }
         }
 
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
-        function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}&text=Join my mining node!`); }
-        function closeModal() { document.getElementById('offline-modal').style.display='none'; }
+        function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
         refresh(); setInterval(refresh, 8000); tg.expand();
     </script>
 </body>
 </html>
 """
-
-# --- BOT HANDLERS ---
 
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
@@ -374,24 +283,17 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
 async def main():
-    # 1. On attend un tout petit peu que la DB soit stable
     await asyncio.sleep(2) 
-    
-    # 2. On lance le Bot
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start_cmd))
     await bot_app.initialize()
     await bot_app.start()
     asyncio.create_task(bot_app.updater.start_polling())
     
-    # 3. On lance FastAPI
     print("🚀 Serveur démarré sur le port", config.PORT)
     config_server = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
     server = uvicorn.Server(config_server)
     await server.serve()
-
-    asyncio.create_task(bot_app.updater.start_polling())
-    await uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")).serve()
 
 if __name__ == "__main__":
     asyncio.run(main())
