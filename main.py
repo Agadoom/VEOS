@@ -106,6 +106,7 @@ async def api_claim_refs(request: Request):
     uid = data.get("user_id")
     reward, message = await missions.claim_referral_rewards(uid)
     if reward > 0:
+        # On enlève l'emoji du dictionnaire de retour Python
         return {"ok": True, "reward": reward}
     return JSONResponse(status_code=400, content={"ok": False, "message": message})
 
@@ -495,21 +496,28 @@ async function claimRefs() {
     const btn = document.getElementById('claim-refs-btn');
     btn.disabled = true;
     
-    const res = await fetch('/api/refs/claim', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({user_id: uid})
-    });
-    
-    const data = await res.json();
-    if(res.ok) {
-        alert(`🎁 Congrats! You received ${data.reward} Assets!`);
-        refresh(); // Met à jour le solde instantanément
-    } else {
-        alert("❌ " + data.message);
+    try {
+        const res = await fetch('/api/refs/claim', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({user_id: uid})
+        });
+        
+        const data = await res.json();
+        if(res.ok) {
+            // On met l'emoji ici, c'est plus sûr !
+            alert(`🎁 Congrats! You received ${data.reward} Assets!`);
+            refresh();
+        } else {
+            alert("❌ " + data.message);
+        }
+    } catch (e) {
+        console.error(e);
+    } finally {
+        btn.disabled = false;
     }
-    btn.disabled = false;
 }
+
 
 
 async def main():
