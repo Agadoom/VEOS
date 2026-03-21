@@ -21,10 +21,21 @@ def init_db_structure():
         c.close(); conn.close()
 
 def get_user_full(uid):
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, 
-                 last_energy_update, streak, staked_amount, ref_claimed 
-                 FROM users WHERE user_id=%s""", (uid,))
+    conn = get_db_conn()
+    c = conn.cursor()
+    # L'ordre ici est CRITIQUE pour le main.py (r[0], r[1], etc.)
+    c.execute("""SELECT 
+        p_genesis,        -- r[0]
+        p_unity,          -- r[1]
+        p_veo,            -- r[2]
+        ref_count,        -- r[3]
+        name,             -- r[4]
+        energy,           -- r[5]
+        last_energy_update, -- r[6]
+        streak,           -- r[7]
+        staked_amount,    -- r[8]
+        ref_claimed       -- r[9]
+        FROM users WHERE user_id=%s""", (uid,))
     res = c.fetchone()
     c.close(); conn.close()
     return res
