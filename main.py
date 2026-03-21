@@ -100,6 +100,17 @@ async def api_boost_energy(request: Request):
     return JSONResponse(status_code=400, content={"ok": False, "error": "Pas assez d'assets"})
 
 
+@app.post("/api/refs/claim")
+async def api_claim_refs(request: Request):
+    data = await request.json()
+    uid = data.get("user_id")
+    reward, message = await missions.claim_referral_rewards(uid)
+    if reward > 0:
+        return {"ok": True, "reward": reward}
+    return JSONResponse(status_code=400, content={"ok": False, "message": message})
+
+
+
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -246,57 +257,54 @@ async def web_ui():
         
         async function refresh() {
     try {
-        // 1. Appel à l'API pour récupérer les données utilisateur
+        // 1. Récupération des données depuis l'API
         const response = await fetch(`/api/user/${uid}`);
         if (!response.ok) return;
         
         const data = await response.json();
         if (!data.name) return;
 
-        // 2. Gestion du Pop-up de Bienvenue (Gains hors-ligne)
-        // On vérifie si off_rw existe et est supérieur à 0
+        // 2. GESTION DU POP-UP "WELCOME BACK" (Gains hors-ligne)
+        // On affiche le modal si l'utilisateur a gagné des assets en son absence
         if (data.off_rw && data.off_rw > 0) {
-            document.getElementById('rw-amt').innerText = data.off_rw.toFixed(2);
-            document.getElementById('offline-modal').style.display = 'flex';
-            
-            // Petit retour haptique pour signaler le gain
-            if (window.Telegram && Telegram.WebApp.HapticFeedback) {
-                Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            const modal = document.getElementById('offline-modal');
+            if (modal && modal.style.display !== 'flex') {
+                document.getElementById('rw-amt').innerText = data.off_rw.toFixed(2);
+                modal.style.display = 'flex';
+                // Retour haptique Telegram
+                if (window.Telegram?.WebApp?.HapticFeedback) {
+                    Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                }
             }
         }
 
-        // 3. Mise à jour des informations de profil
+        // 3. MISE À JOUR DU PROFIL & BADGE
         document.getElementById('u-name').innerText = data.name;
         document.getElementById('u-badge').innerText = data.badge;
-        document.getElementById('u-ref-top').innerText = data.rc; // Nombre de parrainages
-        
-        // 4. Mise à jour des soldes (Tokens individuels)
+        document.getElementById('u-ref-top').innerText = data.rc; // Nombre total d'invités
+
+        // 4. MISE À JOUR DES SOLDES (TOKENS)
         document.getElementById('gv').innerText = data.g.toFixed(2); // Genesis
         document.getElementById('uv').innerText = data.u.toFixed(2); // Unity
         document.getElementById('vv').innerText = data.v.toFixed(2); // Veo AI
-        
-        // 5. Score Total et Multiplicateur
-        document.getElementById('tot').innerText = data.score.toFixed(2);
+        document.getElementById('tot').innerText = data.score.toFixed(2); // Score Total
+
+        // 5. ÉNERGIE & MULTIPLICATEUR
         document.getElementById('u-mult').innerText = `⚡ Multiplier: x${data.multiplier.toFixed(2)}`;
         
-        // 6. Barre d'énergie et Texte
+        const energyBar = document.getElementById('e-bar');
+        const energyText = document.getElementById('e-text');
         const energyPercent = (data.energy / data.max_energy) * 100;
-        document.getElementById('e-bar').style.width = energyPercent + "%";
-        document.getElementById('e-text').innerText = `⚡ ${data.energy} / ${data.max_energy}`;
         
-        // Couleur de la barre d'énergie (devient rouge si basse)
-        if (data.energy < 10) {
-            document.getElementById('e-bar').style.background = "linear-gradient(90deg, #ff4b2b, #ff416c)";
-        } else {
-            document.getElementById('e-bar').style.background = "linear-gradient(90deg, #FFD700, #FFA500)";
-        }
+        energyBar.style.width = energyPercent + "%";
+        energyText.innerText = `⚡ ${data.energy} / ${data.max_energy}`;
 
-        // 7. Jackpot Global
-        if (document.getElementById('jack-val')) {
-            document.getElementById('jack-val').innerText = data.jackpot.toFixed(2);
-        }
+        // Change la couleur de la barre si l'énergie est critique (< 15%)
+        energyBar.style.background = (energyPercent < 15) 
+            ? "linear-gradient(90deg, #ff416c, #ff4b2b)" 
+            : "linear-gradient(90deg, #FFD700, #FFA500)";
 
-        // 8. Section Mission & Staking
+        // 6. SECTION MISSIONS & RÉFÉRENCES (REFS)
         if (document.getElementById('u-streak')) {
             document.getElementById('u-streak').innerText = data.streak;
         }
@@ -304,18 +312,38 @@ async def web_ui():
             document.getElementById('staked-val').innerText = data.staked.toFixed(0) + " Staked";
         }
 
-        // 9. Mise à jour du Leaderboard (Ranking)
+        // Mise à jour du bouton "Claim Refs" (10 assets par ami)
+        const pending = data.pending_refs || 0;
+        const pendingEl = document.getElementById('pending-refs');
+        const claimBtn = document.getElementById('claim-refs-btn');
+        
+        if (pendingEl && claimBtn) {
+            pendingEl.innerText = `${pending} Pending`;
+            // On désactive le bouton s'il n'y a rien à récupérer
+            claimBtn.disabled = (pending === 0);
+            claimBtn.style.opacity = (pending === 0) ? "0.5" : "1";
+        }
+
+        // 7. JACKPOT GLOBAL (Haut de l'écran)
+        if (document.getElementById('jack-val')) {
+            document.getElementById('jack-val').innerText = data.jackpot.toFixed(2);
+        }
+
+        // 8. LEADERBOARD (RANKING)
         if (data.top && data.top.length > 0) {
             let rankHTML = "";
             data.top.forEach((user, index) => {
-                // On met en gras si c'est l'utilisateur actuel (optionnel)
-                const isMe = user.n === data.name ? "border: 1px solid var(--gold);" : "";
+                // On met en avant l'utilisateur actuel dans le classement
+                const isMe = (user.n === data.name) ? "border: 1px solid var(--gold); background: #1a1a1a;" : "";
                 
                 rankHTML += `
                     <div class="card" style="${isMe}">
                         <div class="rank-item">
-                            <span>${index + 1}. ${user.n} <small style="font-size:8px; opacity:0.6;">${user.b}</small></span>
-                            <b style="color:var(--gold)">${user.p.toFixed(2)}</b>
+                            <span>
+                                <b style="color:var(--gold)">#${index + 1}</b> ${user.n} 
+                                <small style="display:block; font-size:8px; color:var(--text)">${user.b}</small>
+                            </span>
+                            <b style="font-size:14px;">${user.p.toFixed(2)}</b>
                         </div>
                     </div>`;
             });
@@ -323,17 +351,10 @@ async def web_ui():
         }
 
     } catch (error) {
-        console.error("Erreur lors du refresh:", error);
+        console.error("Refresh Error:", error);
     }
 }
 
-// Fonction pour fermer le pop-up
-function closeModal() {
-    document.getElementById('offline-modal').style.display = 'none';
-    if (window.Telegram && Telegram.WebApp.HapticFeedback) {
-        Telegram.WebApp.HapticFeedback.impactOccurred('light');
-    }
-}
 
 
         function mine(e, t) {
@@ -470,6 +491,25 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN OWPC HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
+async function claimRefs() {
+    const btn = document.getElementById('claim-refs-btn');
+    btn.disabled = true;
+    
+    const res = await fetch('/api/refs/claim', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_id: uid})
+    });
+    
+    const data = await res.json();
+    if(res.ok) {
+        alert(`🎁 Congrats! You received ${data.reward} Assets!`);
+        refresh(); // Met à jour le solde instantanément
+    } else {
+        alert("❌ " + data.message);
+    }
+    btn.disabled = false;
+}
 
 
 async def main():
