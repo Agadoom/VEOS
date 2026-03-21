@@ -25,19 +25,21 @@ async def api_get_user(uid: int):
     if not r:
         return JSONResponse(status_code=404, content={})
     
+    # --- 1. Gestion du Daily Login (Récompense quotidienne) ---
+    daily_reward, final_streak = missions.process_daily_login(uid)
+
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
     minutes_passed = (now - last_update) // 60
     
-    # 1. Calcul Énergie
+    # --- 2. Calcul Énergie ---
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # 2. Calcul Gain Hors-ligne (si > 100 stakés)
+    # --- 3. Calcul Gain Hors-ligne ---
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        # Mise à jour silencieuse en DB pour éviter le double claim
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
@@ -45,22 +47,35 @@ async def api_get_user(uid: int):
         conn.commit()
         c.close(); conn.close()
 
-    # 3. Préparation des données de retour
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
-    badge, next_goal, b_color = missions.get_badge_info(score)
+    # --- 4. Score Total ---
+    # On ajoute r[0] (Genesis), r[1] (Unity), r[2] (Veo), l'offline et le daily
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward + daily_reward
+    badge, _, _ = missions.get_badge_info(score)
     
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
+    # --- 5. Retour JSON ---
     return {
-        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
-        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
-        "score": round(score, 2), "off_rw": offline_reward, 
-        "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
+        "g": (r[0] or 0) + daily_reward, 
+        "u": r[1] or 0, 
+        "v": r[2] or 0, 
+        "rc": r[3] or 0, 
+        "name": r[4],
+        "energy": int(current_e), 
+        "max_energy": config.MAX_ENERGY, 
+        "badge": badge,
+        "score": round(score, 2), 
+        "off_rw": offline_reward, 
+        "daily_rw": daily_reward, # Ajouté pour le modal JS
+        "top": top, 
+        "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
-        "streak": r[7] or 0, "staked": staked,
+        "streak": final_streak, # Utilise le streak mis à jour
+        "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
+
 
 
 
