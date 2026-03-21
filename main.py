@@ -21,58 +21,47 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
-    # On récupère les données via ta fonction qui renvoie une liste/tuple
     r = database.get_user_full(uid)
     if not r:
         return JSONResponse(status_code=404, content={})
     
-    # --- 1. Gestion du Daily Login ---
-    daily_reward, final_streak = missions.process_daily_login(uid)
-
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
     minutes_passed = (now - last_update) // 60
     
-    # --- 2. Calcul Énergie (Index 5) ---
+    # 1. Calcul Énergie
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # --- 3. Calcul Gain Hors-ligne (Index 8 = staked_amount) ---
+    # 2. Calcul Gain Hors-ligne (si > 100 stakés)
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        conn = database.get_db_conn(); c = conn.cursor()
+        # Mise à jour silencieuse en DB pour éviter le double claim
+        conn = database.get_db_conn()
+        c = conn.cursor()
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
                   (offline_reward, now, current_e, uid))
-        conn.commit(); c.close(); conn.close()
+        conn.commit()
+        c.close(); conn.close()
 
-    # --- 4. Score Total ---
-    # r[0]=genesis, r[1]=unity, r[2]=veo
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward + daily_reward
-    badge, _, _ = missions.get_badge_info(score)
+    # 3. Préparation des données de retour
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
+    badge, next_goal, b_color = missions.get_badge_info(score)
     
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
     return {
-        "g": (r[0] or 0) + daily_reward, 
-        "u": r[1] or 0, 
-        "v": r[2] or 0, 
-        "rc": r[3] or 0, 
-        "name": r[4], # r[4] = username
-        "energy": int(current_e), 
-        "max_energy": config.MAX_ENERGY, 
-        "badge": badge,
-        "score": round(score, 2), 
-        "off_rw": offline_reward, 
-        "daily_rw": daily_reward,
-        "streak": final_streak, 
-        "top": top, 
-        "staked": staked,
-        "jackpot": round(database.get_total_network_score() * 0.1, 2),
+        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
+        "score": round(score, 2), "off_rw": offline_reward, 
+        "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
-        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)) # r[9] = ref_claimed
+        "streak": r[7] or 0, "staked": staked,
+        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
+
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
@@ -108,22 +97,6 @@ async def api_mine(request: Request):
 
 
 
-@app.post("/api/mine")
-async def api_mine(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, staked_amount, last_click_time FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    now_ms = int(time.time() * 1000); last_click = res[3] or 0
-    if (now_ms - last_click) < 80:
-        c.close(); conn.close(); return JSONResponse(status_code=429, content={})
-    
-    now_s = now_ms // 1000
-    current_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s)) // 60) * config.REGEN_RATE)
-    if current_e >= 1:
-        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (current_e-1, now_s, now_ms, uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    c.close(); conn.close(); return JSONResponse(status_code=400, content={})
 
 # --- WEB UI ---
 
