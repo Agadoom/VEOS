@@ -60,18 +60,45 @@ async def api_get_user(uid: int):
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, staked_amount, (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
+    data = await request.json()
+    uid, t = data.get("user_id"), data.get("token")
+    
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    
+    # On récupère les infos et le dernier clic
+    c.execute("""SELECT energy, last_energy_update, staked_amount, 
+                 (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)),
+                 last_click_time 
+                 FROM users WHERE user_id = %s""", (uid,))
     res = c.fetchone()
-    now = int(time.time())
-    current_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now)) // 60) * config.REGEN_RATE)
+    
+    now_ms = int(time.time() * 1000) # Temps en millisecondes
+    last_click = res[4] or 0
+    
+    # --- ANTI-CHEAT : Cooldown de 80ms min entre deux clics ---
+    if (now_ms - last_click) < 80:
+        c.close(); conn.close()
+        return JSONResponse(status_code=429, content={"ok": False, "error": "Too fast!"})
+
+    now_s = now_ms // 1000
+    current_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s)) // 60) * config.REGEN_RATE)
     
     if current_e >= 1:
         mult = 1.0 + ((res[2] or 0) / 100) * 0.1 + ((res[3] or 0) / 1000)
-        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s WHERE user_id=%s", (0.05*mult, current_e-1, now, uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    return JSONResponse(status_code=400, content={"ok": False})
+        c.execute(f"""UPDATE users SET 
+                     p_{t}=COALESCE(p_{t},0)+%s, 
+                     energy=%s, 
+                     last_energy_update=%s,
+                     last_click_time=%s 
+                     WHERE user_id=%s""", (0.05*mult, current_e-1, now_s, now_ms, uid))
+        conn.commit()
+        c.close(); conn.close()
+        return {"ok": True}
+        
+    c.close(); conn.close()
+    return JSONResponse(status_code=400, content={"ok": False, "error": "No energy"})
+
 
 @app.post("/api/boost/energy")
 async def api_boost_energy(request: Request):
