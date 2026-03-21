@@ -10,7 +10,7 @@ import config, database, missions
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Initialisation de la structure DB au lancement
+# Initialisation DB
 database.init_db_structure()
 
 @app.get("/api/user/{uid}")
@@ -51,7 +51,6 @@ async def api_mine(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
-    # On remet le HTML ici directement pour éviter l'erreur FileNotFoundError
     return r"""
 <!DOCTYPE html>
 <html>
@@ -61,25 +60,41 @@ async def web_ui():
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --purple: #A259FF; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
-        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 9px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; }
+        
+        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; color: var(--gold); font-weight: bold; }
+        
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
+        .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; }
+
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
+        
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; border: 1px solid #333; }
         .energy-fill { background: linear-gradient(90deg, #FFD700, #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
+        
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.5; }
+
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
-        .nav-item { font-size: 20px; opacity: 0.4; } .nav-item.active { opacity: 1; color: var(--gold); }
+        .nav-item { font-size: 20px; opacity: 0.4; cursor: pointer; } 
+        .nav-item.active { opacity: 1; color: var(--gold); }
+
+        .rank-item { display: flex; justify-content: space-between; align-items: center; width: 100%; }
     </style>
 </head>
 <body>
     <div class="header-ticker">
-        <span style="color:var(--gold)">REFS: <span id="u-ref-top">0</span></span>
-        <span style="color:var(--gold)">JACKPOT: <span id="jack-val">0</span></span>
+        <span>👥 REFS: <span id="u-ref-top">0</span></span>
+        <span>🔥 JACKPOT: <span id="jack-val">0</span></span>
     </div>
     
     <div class="profile-bar">
-        <div><div id="u-name" style="font-weight:700; font-size:13px;">...</div><div id="u-badge" style="font-size:9px;color:var(--text)">...</div></div>
+        <div>
+            <div id="u-name" style="font-weight:700; font-size:14px;">...</div>
+            <div id="u-badge" class="badge-tag">...</div>
+        </div>
+        <button class="btn" style="background:var(--gold)" onclick="share()">🚀 INVITE</button>
     </div>
 
     <div id="p-mine">
@@ -95,32 +110,68 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
-    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
+    <div id="p-pillars" style="display:none">
+        <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
+        <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><b>Veo AI Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
+    </div>
+
+    <div id="p-leader" style="display:none">
+        <h3 style="color:var(--gold); text-align:center;">RANKING</h3>
+        <div id="rank-list"></div>
+    </div>
+
+    <div id="p-mission" style="display:none">
+        <h3 style="color:var(--gold); text-align:center;">STAKING & NODES</h3>
+        <div class="card">
+            <div><b>Active Staking</b><br><small>Streak: <span id="u-streak">0</span> Days</small></div>
+            <div id="staked-val" style="color:var(--gold)">0 Staked</div>
+        </div>
+        <div class="card">
+            <div><b>Lock 100 Assets</b><br><small>+0.1x Multiplier</small></div>
+            <button class="btn" id="stake-btn" onclick="alert('Insufficient balance')">LOCK</button>
+        </div>
+        <div class="card">
+            <div><b>Community Hub</b></div>
+            <button class="btn" onclick="tg.openLink('https://t.me/owpc_co')">JOIN</button>
+        </div>
+    </div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
+        <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
+        <div onclick="show('mission')" id="n-mission" class="nav-item">⚙️</div>
     </div>
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
+        
         async function refresh() {
-            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-            if(!d.name) return;
-            document.getElementById('u-name').innerText = d.name;
-            document.getElementById('u-badge').innerText = d.badge;
-            document.getElementById('u-ref-top').innerText = d.rc; 
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = d.score.toFixed(2);
-            document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
-            document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
-            document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-            document.getElementById('jack-val').innerText = d.jackpot;
-            
-            let r_html = ""; d.top.forEach((u, i) => { r_html += `<div class="card"><div>${i+1}. ${u.n}</div><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = r_html;
+            try {
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                if(!d.name) return;
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-badge').innerText = d.badge;
+                document.getElementById('u-ref-top').innerText = d.rc; 
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier}`;
+                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
+                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+                document.getElementById('jack-val').innerText = d.jackpot;
+                document.getElementById('u-streak').innerText = d.streak;
+                document.getElementById('staked-val').innerText = d.staked + " Staked";
+
+                let r_html = ""; d.top.forEach((u, i) => { 
+                    r_html += `<div class="card"><div class="rank-item"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div></div>`; 
+                });
+                document.getElementById('rank-list').innerHTML = r_html;
+            } catch(e) {}
         }
 
         function mine(e, t) {
@@ -128,7 +179,15 @@ async def web_ui():
             refresh(); tg.HapticFeedback.impactOccurred('light');
         }
 
-        function show(p) { ['mine','leader'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+        function show(p) { 
+            ['mine','pillars','leader','mission'].forEach(id=>{
+                document.getElementById('p-'+id).style.display=(id===p?'block':'none');
+                document.getElementById('n-'+id).classList.toggle('active',id===p);
+            });
+        }
+
+        function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}&text=🚀 Join my mining node on OWPC!`); }
+
         refresh(); setInterval(refresh, 8000); tg.expand();
     </script>
 </body>
