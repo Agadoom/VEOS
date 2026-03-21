@@ -59,7 +59,6 @@ def init_db_structure():
     conn = get_db_conn()
     if conn:
         c = conn.cursor()
-        # Liste ultra-complète des colonnes
         cols = [
             ("p_genesis", "DOUBLE PRECISION DEFAULT 0"),
             ("p_unity", "DOUBLE PRECISION DEFAULT 0"),
@@ -69,12 +68,13 @@ def init_db_structure():
             ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
             ("streak", "INTEGER DEFAULT 0"),
             ("ref_count", "INTEGER DEFAULT 0"),
-            ("ref_claimed", "INTEGER DEFAULT 0")
+            ("ref_claimed", "INTEGER DEFAULT 0"),
+            ("last_click_time", "BIGINT DEFAULT 0")  # <--- AJOUTE CETTE LIGNE
         ]
         for col, dtype in cols:
             try:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
             except:
-                pass # La colonne existe déjà
+                pass 
         conn.commit()
         c.close(); conn.close()
