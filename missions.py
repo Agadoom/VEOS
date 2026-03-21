@@ -1,26 +1,20 @@
 import time
+import config
 from database import get_db_conn
 
-async def process_stake(uid):
-    conn = get_db_conn()
-    c = conn.cursor()
-    c.execute("SELECT (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users WHERE user_id = %s", (uid,))
-    total = c.fetchone()[0] or 0
-    if total >= 100:
-        c.execute("UPDATE users SET p_genesis=p_genesis-34, p_unity=p_unity-33, p_veo=p_veo-33, staked_amount=COALESCE(staked_amount,0)+100 WHERE user_id=%s", (uid,))
-        conn.commit()
-        success = True
-    else:
-        success = False
-    c.close()
-    conn.close()
-    return success
+def get_badge_info(score):
+    if score >= 500: return "💎 Diamond", 1000, "#00D1FF"
+    if score >= 150: return "🥇 Gold", 500, "#FFD700"
+    if score >= 50:  return "🥈 Silver", 150, "#C0C0C0"
+    return "🥉 Bronze", 50, "#CD7F32"
 
-async def process_daily(uid):
-    conn = get_db_conn()
-    c = conn.cursor()
-    c.execute("UPDATE users SET p_genesis = COALESCE(p_genesis,0) + 5, streak = COALESCE(streak,0) + 1 WHERE user_id = %s", (uid,))
-    conn.commit()
-    c.close()
-    conn.close()
-    return True
+async def register_user(uid, name, ref_id):
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT user_id FROM users WHERE user_id = %s", (uid,))
+    if not c.fetchone():
+        c.execute("""INSERT INTO users (user_id, name, referred_by, energy, last_energy_update, staked_amount, streak) 
+                     VALUES (%s, %s, %s, %s, %s, 0, 0)""", 
+                  (uid, name, ref_id if ref_id != uid else None, config.MAX_ENERGY, int(time.time())))
+        if ref_id and ref_id != uid:
+            c.execute("UPDATE users SET ref_count = COALESCE(ref_count,0) + 1 WHERE user_id = %s", (ref_id,))
+    conn.commit(); c.close(); conn.close()
