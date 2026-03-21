@@ -148,12 +148,14 @@ async def web_ui():
             <div><b>Community Hub</b></div>
             <button class="btn" onclick="tg.openLink('https://t.me/owpc_co')">JOIN</button>
         </div>
-    </div>
-
 <div class="card">
     <div><b>Energy Drink ⚡</b><br><small>Cost: 50 Assets</small></div>
     <button class="btn" id="boost-btn" onclick="buyBoost()">BUY</button>
 </div>
+
+
+
+    </div>
 
 
     <div class="nav">
