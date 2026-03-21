@@ -44,7 +44,7 @@ async def api_get_user(uid: int):
         conn.commit()
         c.close(); conn.close()
 
-    # 3. Préparation des données de retour
+    # 3. Préparation des données
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     badge, next_goal, b_color = missions.get_badge_info(score)
     
@@ -65,18 +65,18 @@ async def api_get_user(uid: int):
 async def api_mine(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
     conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, staked_amount, last_click_time FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    now_ms = int(time.time() * 1000); last_click = res[3] or 0
-    if (now_ms - last_click) < 80:
-        c.close(); conn.close(); return JSONResponse(status_code=429, content={})
+    now_ms = int(time.time() * 1000)
+    if (now_ms - (res[2] or 0)) < 80:
+        c.close(); conn.close(); return JSONResponse(status_code=429)
     
     now_s = now_ms // 1000
     current_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s)) // 60) * config.REGEN_RATE)
     if current_e >= 1:
         c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (current_e-1, now_s, now_ms, uid))
         conn.commit(); c.close(); conn.close(); return {"ok": True}
-    c.close(); conn.close(); return JSONResponse(status_code=400, content={})
+    c.close(); conn.close(); return JSONResponse(status_code=400)
 
 @app.post("/api/claim_refs")
 async def api_claim_refs(request: Request):
@@ -84,7 +84,6 @@ async def api_claim_refs(request: Request):
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    if not res: return JSONResponse(status_code=404)
     pending = (res[0] or 0) - (res[1] or 0)
     if pending > 0:
         reward = pending * 5.0
@@ -92,6 +91,8 @@ async def api_claim_refs(request: Request):
         conn.commit(); c.close(); conn.close()
         return {"ok": True, "reward": reward}
     c.close(); conn.close(); return JSONResponse(status_code=400)
+
+# --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -108,32 +109,47 @@ async def web_ui():
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; color: var(--text); }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
-        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; }
+        .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
+        .energy-full-badge { position: absolute; top: -15px; right: 0; font-size: 8px; color: var(--green); font-weight: bold; display: none; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: none; align-items: center; justify-content: center; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; display: none; align-items: center; justify-content: center; }
         .modal-content { background: var(--card); border: 2px solid var(--gold); padding: 30px; border-radius: 30px; text-align: center; width: 80%; }
     </style>
 </head>
 <body>
     <div class="header-ticker"><span>👥 REFS: <span id="u-ref-top">0</span></span><span>🔥 JACKPOT: <span id="jack-val">0</span></span></div>
+    
     <div class="profile-bar">
         <div><div id="u-name" style="font-weight:700;">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <button class="btn" style="background:var(--gold)" onclick="share()">🚀 INVITE</button>
     </div>
 
-    <div id="offline-modal" class="modal"><div class="modal-content"><h2 style="color:var(--gold)">Welcome Back!</h2><div id="rw-amt" style="font-size:32px; font-weight:900;">0</div><button class="btn" onclick="closeModal()">COLLECT</button></div></div>
+    <div id="offline-modal" class="modal">
+        <div class="modal-content">
+            <div style="font-size: 40px;">😴</div>
+            <h2 style="color:var(--gold)">Welcome Back!</h2>
+            <p style="color:var(--text)">Your assets worked while you were away.</p>
+            <div style="font-size:32px; font-weight:900; margin:15px 0; color:#FFF;">+ <span id="rw-amt">0</span> WPT</div>
+            <button class="btn" style="background:var(--gold); width:100%; padding:15px;" onclick="closeModal()">COLLECT REWARD</button>
+        </div>
+    </div>
 
     <div id="p-mine">
         <div class="balance">
-            <small>TOTAL ASSETS</small><h1 id="tot">0.00</h1>
+            <small style="color:var(--text)">TOTAL ASSETS</small>
+            <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
-            <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
-            <div id="e-text" style="font-size:11px;">⚡ 0 / 100</div>
+            <div class="energy-bar">
+                <div id="e-bar" class="energy-fill"></div>
+                <div id="e-full" class="energy-full-badge">READY TO MINE</div>
+            </div>
+            <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
         <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
@@ -141,7 +157,7 @@ async def web_ui():
     </div>
 
     <div id="p-pillars" style="display:none">
-        <h3 style="text-align:center;">$WPT PILLARS</h3>
+        <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
         <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
         <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
         <div class="card"><b>Veo AI Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
@@ -151,11 +167,15 @@ async def web_ui():
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div id="p-mission" style="display:none">
-        <div class="card" style="flex-direction:column; align-items:flex-start;">
-            <div style="display:flex; justify-content:space-between; width:100%;"><b>Referral Bonus</b><span id="pending-val" style="color:var(--gold)">0 pending</span></div>
+        <h3 style="color:var(--gold); text-align:center;">MISSIONS</h3>
+        <div class="card" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+                <b>Referral Bonus</b>
+                <span id="pending-val" style="color:var(--gold); font-weight:800;">0 pending</span>
+            </div>
             <button id="claim-btn" class="btn" style="width:100%; background:var(--green); color:#FFF; display:none;" onclick="claimRefs()">CLAIM REWARD</button>
         </div>
-        <div class="card"><b>Daily Streak</b><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
+        <div class="card"><div><b>Daily Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
     </div>
 
     <div class="nav">
@@ -175,21 +195,36 @@ async def web_ui():
             try {
                 const r = await fetch(`/api/user/${uid}`); const d = await r.json();
                 if(!d.name) return;
-                if(d.off_rw > 0) { document.getElementById('rw-amt').innerText = d.off_rw; document.getElementById('offline-modal').style.display='flex'; }
-                document.getElementById('u-name').innerText = d.name; document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('gv').innerText = d.g.toFixed(2); document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2); document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
-                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+
+                // Message de collecte si gain hors-ligne détecté
+                if(d.off_rw > 0) {
+                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
+                    document.getElementById('offline-modal').style.display='flex';
+                }
+
+                document.getElementById('u-name').innerText = d.name;
+                document.getElementById('u-badge').innerText = d.badge;
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = d.score.toFixed(2);
                 document.getElementById('u-streak').innerText = d.streak + " Days";
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
-                
+
+                // Énergie et Notification 100%
+                let ePerc = (d.energy/d.max_energy*100);
+                document.getElementById('e-bar').style.width = ePerc + "%";
+                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+                document.getElementById('e-full').style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
+
+                // Mission Claim
                 const pending = d.pending_refs || 0;
                 document.getElementById('pending-val').innerText = pending + " pending";
                 document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
 
+                // Leaderboard
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
             } catch(e) {}
@@ -198,9 +233,8 @@ async def web_ui():
         function mine(e, t) {
             const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
             const rect = e.target.getBoundingClientRect();
-            const plus = document.createElement('div'); plus.innerText = '+0.05'; plus.style.position = 'absolute';
-            plus.style.left = (e.clientX || rect.left+20) + 'px'; plus.style.top = (e.clientY || rect.top) + 'px';
-            plus.style.color = 'var(--gold)'; plus.style.fontWeight = 'bold'; plus.style.zIndex = '1000';
+            const plus = document.createElement('div'); plus.innerText = '+0.05';
+            plus.style.cssText = `position:absolute; left:${e.clientX || rect.left+20}px; top:${e.clientY || rect.top}px; color:var(--gold); font-weight:bold; z-index:1000;`;
             plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
             document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
             fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
@@ -209,11 +243,13 @@ async def web_ui():
 
         async function claimRefs() {
             const r = await fetch('/api/claim_refs', {method:'POST', body:JSON.stringify({user_id:uid})});
-            const d = await r.json(); if(d.ok) { tg.showPopup({title:'Success!', message:'Reward claimed!'}); refresh(); }
+            const d = await r.json(); 
+            if(d.ok) { tg.showPopup({title:'Success!', message:'Reward claimed!'}); refresh(); }
         }
 
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
+        
         tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
 </body>
