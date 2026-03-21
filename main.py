@@ -255,72 +255,76 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         
-        async function refresh() {
-            try {
-// À l'intérieur du try de refresh()
-if (data.daily_rw > 0) {
-    document.getElementById('daily-amt').innerText = data.daily_rw;
-    document.getElementById('streak-num').innerText = data.streak;
-    document.getElementById('daily-modal').style.display = 'flex';
-    tg.HapticFeedback.notificationOccurred('success');
-}
-
-// Fonction pour fermer
+     // 1. Définis closeDaily à l'extérieur (globalement)
 function closeDaily() {
     document.getElementById('daily-modal').style.display = 'none';
 }
 
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                if (!d.name) return;
-                if (d.off_rw > 0) { 
-                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
-                    document.getElementById('offline-modal').style.display = 'flex';
-                }
-                document.getElementById('u-name').innerText = d.name;
-                document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('u-ref-top').innerText = d.rc;
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier.toFixed(2)}`;
-                document.getElementById('e-bar').style.width = (d.energy/d.max_energy*100) + "%";
-                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('jack-val').innerText = d.jackpot.toFixed(2);
-                document.getElementById('u-streak').innerText = d.streak;
-                document.getElementById('staked-val').innerText = d.staked.toFixed(0) + " Staked";
-                
-                const pnd = d.pending_refs || 0;
-                document.getElementById('pending-refs').innerText = pnd + " Pending";
-                document.getElementById('claim-refs-btn').disabled = (pnd === 0);
+async function refresh() {
+    try {
+        // RÉCUPÉRATION DES DONNÉES EN PREMIER
+        const r = await fetch(`/api/user/${uid}`); 
+        const d = await r.json();
+        
+        if (!d.name) return;
 
-                let rl = ""; d.top.forEach((u, i) => {
-                    rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p.toFixed(2)}</b></div>`;
-                });
-                document.getElementById('rank-list').innerHTML = rl;
-            } catch(e) {}
+        // --- GESTION DES POP-UPS (Uniquement au chargement ou si > 0) ---
+        
+        // 1. Bonus Journalier (Priorité 1)
+        if (d.daily_rw && d.daily_rw > 0) {
+            document.getElementById('daily-amt').innerText = d.daily_rw;
+            document.getElementById('streak-num').innerText = d.streak;
+            document.getElementById('daily-modal').style.display = 'flex';
+            if(window.tg) tg.HapticFeedback.notificationOccurred('success');
+        } 
+        // 2. Gains Hors-ligne (Priorité 2, si le daily n'est pas affiché ou après)
+        else if (d.off_rw && d.off_rw > 0) { 
+            document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
+            document.getElementById('offline-modal').style.display = 'flex';
         }
 
-        let lastClick = 0; // Variable globale pour suivre le temps
+        // --- MISE À JOUR DE L'INTERFACE ---
+        document.getElementById('u-name').innerText = d.name;
+        document.getElementById('u-badge').innerText = d.badge;
+        document.getElementById('u-ref-top').innerText = d.rc;
+        
+        // Soldes
+        document.getElementById('gv').innerText = d.g.toFixed(2);
+        document.getElementById('uv').innerText = d.u.toFixed(2);
+        document.getElementById('vv').innerText = d.v.toFixed(2);
+        document.getElementById('tot').innerText = d.score.toFixed(2);
+        
+        // Énergie et Multiplicateur
+        document.getElementById('u-mult').innerText = `⚡ Multiplier: x${d.multiplier.toFixed(2)}`;
+        document.getElementById('e-bar').style.width = (d.energy / d.max_energy * 100) + "%";
+        document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+        
+        // Divers
+        document.getElementById('jack-val').innerText = d.jackpot.toFixed(2);
+        document.getElementById('u-streak').innerText = d.streak;
+        document.getElementById('staked-val').innerText = (d.staked || 0).toFixed(0) + " Staked";
+        
+        // Parrainages
+        const pnd = d.pending_refs || 0;
+        const pndEl = document.getElementById('pending-refs');
+        const clmBtn = document.getElementById('claim-refs-btn');
+        if (pndEl) pndEl.innerText = pnd + " Pending";
+        if (clmBtn) clmBtn.disabled = (pnd === 0);
 
-function mine(e, t) {
-    const now = Date.now();
-    // Bloque le clic si moins de 80ms se sont écoulées (Anti-Spam local)
-    if (now - lastClick < 80) return; 
-    lastClick = now;
+        // Leaderboard
+        let rl = ""; 
+        if (d.top) {
+            d.top.forEach((u, i) => {
+                rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p.toFixed(2)}</b></div>`;
+            });
+            document.getElementById('rank-list').innerHTML = rl;
+        }
 
-    const rect = e.target.getBoundingClientRect();
-    const plus = document.createElement('div');
-    plus.innerText = '+0.05'; 
-    plus.style.position = 'absolute';
-    plus.style.left = (e.clientX || rect.left+20) + 'px'; 
-    plus.style.top = (e.clientY || rect.top) + 'px';
-    plus.style.color = 'var(--gold)'; 
-    plus.style.fontWeight = 'bold';
-    plus.style.zIndex = '1000';
-    plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
-    document.body.appendChild(plus); 
-    setTimeout(() => plus.remove(), 600);
+    } catch(e) {
+        console.error("Refresh error:", e);
+    }
+}
+
 
     fetch('/api/mine', {
         method: 'POST',
