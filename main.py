@@ -283,17 +283,22 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✨ Welcome to OWPC DePIN Hub.", reply_markup=kb)
 
 async def main():
-    await asyncio.sleep(2) 
+    # 1. Petit délai pour laisser l'ancienne instance se fermer sur Railway
+    await asyncio.sleep(3) 
+    
+    # 2. Configuration du Bot
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start_cmd))
+    
+    # 3. Initialisation et démarrage du polling (UNE SEULE FOIS)
     await bot_app.initialize()
     await bot_app.start()
-    asyncio.create_task(bot_app.updater.start_polling())
+    # On lance le polling en arrière-plan
+    polling_task = asyncio.create_task(bot_app.updater.start_polling())
     
-    print("🚀 Serveur démarré sur le port", config.PORT)
+    print(f"🚀 Serveur démarré sur le port {config.PORT}")
+    
+    # 4. Lancement de FastAPI (bloquant, garde le script en vie)
     config_server = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
     server = uvicorn.Server(config_server)
     await server.serve()
-
-if __name__ == "__main__":
-    asyncio.run(main())
