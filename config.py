@@ -10,4 +10,4 @@ MAX_ENERGY = 100
 REGEN_RATE = 1  # 1% par minute
 STAKE_MIN = 100
 BOOST_PRICE = 50
-GIFT_COOLDOWN = 12 * 3600  # 12 heures
+GIFT_COOLDOWN = 12 * 3600  # 12 heures en secondes
