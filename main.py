@@ -223,10 +223,19 @@ async def web_ui():
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
 
                 // Énergie et Notification 100%
-                let ePerc = (d.energy/d.max_energy*100);
-                document.getElementById('e-bar').style.width = ePerc + "%";
-                document.getElementById('e-text').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
-                document.getElementById('e-full').style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
+                // Dans ta fonction refresh(), remplace la partie énergie par ça :
+let ePerc = (d.energy / d.max_energy * 100);
+let eBar = document.getElementById('e-bar');
+let eText = document.getElementById('e-text');
+let eFull = document.getElementById('e-full');
+
+if (eBar) eBar.style.width = ePerc + "%";
+if (eText) eText.innerText = `⚡ ${Math.floor(d.energy)} / ${d.max_energy}`;
+
+// Notification visuelle 100%
+if (eFull) {
+    eFull.style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
+}
 
                 // Mission Claim
                 const pending = d.pending_refs || 0;
