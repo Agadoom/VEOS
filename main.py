@@ -55,6 +55,28 @@ async def api_get_user(uid: int):
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
 
+@app.post("/api/lock_100")
+async def api_lock_100(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT p_genesis, p_unity, p_veo FROM users WHERE user_id = %s", (uid,))
+    r = c.fetchone()
+    if not r: return JSONResponse(status_code=404)
+    
+    total_assets = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
+    if total_assets >= 100:
+        # On retire 33.33 de chaque pour faire 100 au total
+        val = 100 / 3
+        c.execute("""UPDATE users SET 
+                     p_genesis = GREATEST(0, p_genesis - %s), 
+                     p_unity = GREATEST(0, p_unity - %s), 
+                     p_veo = GREATEST(0, p_veo - %s), 
+                     staked = COALESCE(staked, 0) + 100 
+                     WHERE user_id = %s""", (val, val, val, uid))
+        conn.commit(); c.close(); conn.close()
+        return {"ok": True}
+    c.close(); conn.close(); return JSONResponse(status_code=400, content={"error": "low_balance"})
+
 @app.post("/api/use_drink")
 async def api_use_drink(request: Request):
     data = await request.json(); uid = data.get("user_id")
@@ -177,10 +199,20 @@ async def web_ui():
 
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">MISSIONS</h3>
+        
+        <div class="card" style="border: 1px solid var(--gold);">
+            <div><b>STAKE & LOCK</b><br><small style="color:var(--text)">Lock 100 WPT for ⚡ Boost</small></div>
+            <div style="text-align:right">
+                <div id="staked-val" style="color:var(--gold); font-weight:800; font-size:10px;">0 Locked</div>
+                <button class="btn" style="background:var(--gold); color:#000" onclick="lockAssets()">LOCK 100</button>
+            </div>
+        </div>
+
         <div class="card" style="border: 1px solid var(--blue);">
             <div><b>Energy Drink</b><br><small style="color:var(--text)">Refill 100% instantly</small></div>
             <button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button>
         </div>
+        
         <div class="card">
             <div style="display: flex; flex-direction: column; width: 100%;">
                 <div style="display: flex; justify-content: space-between; width: 100%;"><b>Referral Bonus</b><span id="pending-val" style="color:var(--gold);">0 pending</span></div>
@@ -200,9 +232,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let lastClick = 0; let offlineShowed = false;
-        let isAuto = false; 
-        let autoAssets = ['genesis', 'unity', 'veo'];
-        let autoIndex = 0;
+        let isAuto = false; let autoAssets = ['genesis', 'unity', 'veo']; let autoIndex = 0;
 
         async function refresh() {
             try {
@@ -225,6 +255,7 @@ async def web_ui():
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
+                document.getElementById('staked-val').innerText = d.staked + " Locked";
 
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
@@ -238,13 +269,22 @@ async def web_ui():
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
 
-                // SI AUTO-MINE : On mine l'actif suivant dans la rotation
                 if(isAuto && energyVal >= 1) {
                     let assetToMine = autoAssets[autoIndex];
                     autoIndex = (autoIndex + 1) % autoAssets.length;
                     simulateAutoMine(assetToMine);
                 }
             } catch(e) { console.error(e); }
+        }
+
+        async function lockAssets() {
+            const res = await fetch('/api/lock_100', {method:'POST', body:JSON.stringify({user_id:uid})});
+            if(res.ok) {
+                tg.showPopup({title:'Assets Locked!', message:'100 WPT staked. Your multiplier increased!'});
+                refresh();
+            } else {
+                tg.showPopup({title:'Balance Low', message:'You need 100 total assets to lock.'});
+            }
         }
 
         function toggleAuto() {
