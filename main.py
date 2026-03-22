@@ -44,15 +44,36 @@ async def api_get_user(uid: int):
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
+    # Suggestion : Bonus de multiplicateur si l'utilisateur est un "Partner" (Michael par exemple)
+    # On peut définir l'ID de Michael dans config ou ici pour le test
+    is_partner = (uid == 12345678) # Remplace par l'ID de Michael
+    multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
+    if is_partner: multiplier += 0.5 
+
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
         "score": round(score, 2), "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
+        "multiplier": multiplier,
         "streak": r[7] or 0, "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)),
-        "online": get_online_count()
+        "online": get_online_count(),
+        "is_partner": is_partner
     }
+
+@app.post("/api/mine")
+async def api_mine(request: Request):
+    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    now_ms = int(time.time()*1000); now_s = now_ms//1000
+    if res and (now_ms - (res[2] or 0)) >= 80:
+        cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
+        if cur_e >= 1:
+            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
+            conn.commit(); c.close(); conn.close(); return {"ok": True}
+    c.close(); conn.close(); return JSONResponse(status_code=400)
 
 @app.post("/api/lock_100")
 async def api_lock_100(request: Request):
@@ -72,20 +93,6 @@ async def api_use_drink(request: Request):
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("UPDATE users SET energy=%s, last_energy_update=%s WHERE user_id=%s", (config.MAX_ENERGY, int(time.time()), uid))
     conn.commit(); c.close(); conn.close(); return {"ok": True}
-
-@app.post("/api/mine")
-async def api_mine(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    now_ms = int(time.time()*1000); now_s = now_ms//1000
-    if res and (now_ms - (res[2] or 0)) >= 80:
-        cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
-        if cur_e >= 1:
-            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
-            conn.commit(); c.close(); conn.close(); return {"ok": True}
-    c.close(); conn.close(); return JSONResponse(status_code=400)
 
 # --- WEB UI ---
 
@@ -166,21 +173,34 @@ async def web_ui():
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div id="p-opps" style="display:none">
-        <h3 style="color:var(--blue); text-align:center;">WPT OPPORTUNITIES</h3>
+        <h3 style="color:var(--blue); text-align:center;">OPPORTUNITIES</h3>
         <div class="card" style="border: 1px solid var(--green); flex-direction: column; align-items: flex-start; gap: 10px;">
             <div style="display: flex; justify-content: space-between; width: 100%;">
-                <b>WPT Live Price</b>
+                <b>WPT Live Market</b>
                 <span id="wpt-price" style="color:var(--green)">$0.00042</span>
             </div>
-            <small style="color:var(--text)">Live market data integration ready.</small>
+            <small style="color:var(--text)">Direct DexScreener Integration ready.</small>
         </div>
-        <div class="card" style="opacity: 0.6; border: 1px dashed var(--text);">
-            <div><b>Community Insight</b><br><small>Coming soon: Track real-time activity</small></div>
-            <div style="font-size: 20px;">🔒</div>
+
+        <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(135deg, #111, #1a0a2a);">
+            <div style="width: 100%;">
+                <div style="display: flex; justify-content: space-between;">
+                    <b>Partner Network</b>
+                    <span id="partner-status" style="color:var(--purple); font-size:10px;">AUTHORIZED</span>
+                </div>
+                <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div style="background:#000; padding:10px; border-radius:10px; text-align:center;">
+                        <small style="color:var(--text); font-size:9px;">FOLLOWERS</small><br>
+                        <b id="p-fol" style="color:var(--purple)">0</b>
+                    </div>
+                    <div style="background:#000; padding:10px; border-radius:10px; text-align:center;">
+                        <small style="color:var(--text); font-size:9px;">EARNINGS</small><br>
+                        <b id="p-earn" style="color:var(--green)">0.00</b>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div style="text-align: center; margin-top: 20px;">
-            <p style="font-size: 10px; color: var(--text);">Michael's specialized tools area</p>
-        </div>
+        <p style="font-size: 9px; color: var(--text); text-align: center; margin-top: 15px;">Tools & analytics linked to your referral ID.</p>
     </div>
 
     <div id="p-mission" style="display:none">
@@ -229,16 +249,19 @@ async def web_ui():
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = d.score.toFixed(2);
                 document.getElementById('u-streak').innerText = (d.streak || 0) + " Days";
-                document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
                 document.getElementById('staked-val').innerText = d.staked + " Locked";
                 document.getElementById('online-val').innerText = d.online;
+                document.getElementById('jack-val').innerText = d.jackpot;
+                document.getElementById('u-ref-top').innerText = d.rc;
 
-                // Simulate live price flicker for Michael's section
-                const basePrice = 0.00042;
+                // Partner Management Logic
+                document.getElementById('p-fol').innerText = d.rc; // Son nombre de followers
+                document.getElementById('p-earn').innerText = (d.rc * 50).toFixed(2); // Simulation commission Michael
+
+                // Market Tracker Simulation
                 const flicker = (Math.random() * 0.00001 - 0.000005).toFixed(6);
-                document.getElementById('wpt-price').innerText = "$" + (basePrice + parseFloat(flicker)).toFixed(5);
+                document.getElementById('wpt-price').innerText = "$" + (0.00042 + parseFloat(flicker)).toFixed(5);
 
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
@@ -263,15 +286,9 @@ async def web_ui():
                 if(isAuto && energyVal >= 1) { simulateAutoMine(autoAssets[autoIndex]); autoIndex = (autoIndex + 1) % autoAssets.length; }
             } catch(e) {}
         }
-        async function lockAssets() {
-            const res = await fetch('/api/lock_100', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(res.ok) { tg.showPopup({title:'Locked!', message:'100 WPT staked.'}); refresh(); }
-            else { tg.showPopup({title:'Error', message:'Low balance (need 100 total).'}); }
-        }
         function toggleAuto() {
             isAuto = !isAuto;
-            const btn = document.getElementById('btn-auto');
-            btn.classList.toggle('active', isAuto);
+            const btn = document.getElementById('btn-auto'); btn.classList.toggle('active', isAuto);
             document.getElementById('bot-status').innerText = isAuto ? "ACTIVE ⚡" : "OFF";
             document.getElementById('bot-status').style.color = isAuto ? "var(--green)" : "var(--text)";
             if(isAuto) { tg.HapticFeedback.notificationOccurred('success'); refresh(); }
@@ -279,10 +296,6 @@ async def web_ui():
         async function simulateAutoMine(token) {
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:token})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('soft'); refresh(); }
-        }
-        async function useDrink() {
-            const res = await fetch('/api/use_drink', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(res.ok) { tg.showPopup({title:'Refilled!', message:'100% Energy.'}); refresh(); }
         }
         async function mine(e, t) {
             const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
@@ -296,19 +309,26 @@ async def web_ui():
                 tg.HapticFeedback.impactOccurred('light'); refresh();
             }
         }
+        async function lockAssets() {
+            const res = await fetch('/api/lock_100', {method:'POST', body:JSON.stringify({user_id:uid})});
+            if(res.ok) { tg.showPopup({title:'Locked!', message:'100 WPT staked.'}); refresh(); }
+            else { tg.showPopup({title:'Error', message:'Low balance.'}); }
+        }
+        async function useDrink() {
+            const res = await fetch('/api/use_drink', {method:'POST', body:JSON.stringify({user_id:uid})});
+            if(res.ok) { tg.showPopup({title:'Refilled!', message:'100% Energy.'}); refresh(); }
+        }
         async function claimRefs() {
             const r = await fetch('/api/claim_refs', {method:'POST', body:JSON.stringify({user_id:uid})});
             if(r.ok) { tg.showPopup({title:'Claimed!', message:'Rewards added.'}); refresh(); }
         }
-        function show(p) { ['mine','pillars','leader','mission', 'opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+        function show(p) { ['mine','pillars','leader','mission','opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
         tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
-
 """
-
 
 
 
@@ -317,23 +337,18 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
     await missions.register_user(uid, name, ref_id)
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome {name}! Ready to mine?", reply_markup=kb)
+    await update.message.reply_text(f"Welcome {name}! Ready to explore the HUB?", reply_markup=kb)
 
 async def main():
-    # 1. Configurer et démarrer le Bot Telegram
+    # 1. Start Bot
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start_cmd))
-    
-    await bot_app.initialize()
-    await bot_app.start()
-    await bot_app.updater.start_polling()
-    print("🤖 Bot is polling and ready!")
+    await bot_app.initialize(); await bot_app.start(); await bot_app.updater.start_polling()
+    print("🤖 Bot Ready!")
 
-    # 2. Lancer le serveur FastAPI avec Uvicorn
+    # 2. Start API
     config_server = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
-    server = uvicorn.Server(config_server)
-    
-    await server.serve()
+    await uvicorn.Server(config_server).serve()
 
 if __name__ == "__main__":
     asyncio.run(main())
