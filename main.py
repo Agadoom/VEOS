@@ -209,7 +209,10 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('u-streak').innerText = d.streak + " Days";
+                
+                // FIX DAILY STREAK DISPLAY
+                document.getElementById('u-streak').innerText = (d.streak || 0) + " Days";
+                
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
@@ -295,16 +298,16 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Welcome {name}! Ready to mine?", reply_markup=kb)
 
 async def main():
-    # 1. Start Telegram Bot
+    # 1. Configurer et démarrer le Bot Telegram
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start_cmd))
     
     await bot_app.initialize()
     await bot_app.start()
     await bot_app.updater.start_polling()
-    print("🤖 Bot is polling...")
+    print("🤖 Bot is polling and ready!")
 
-    # 2. Start API Server
+    # 2. Lancer le serveur FastAPI avec Uvicorn
     config_server = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
     server = uvicorn.Server(config_server)
     
