@@ -22,27 +22,31 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
-    if not r: return JSONResponse(status_code=404, content={})
+    if not r:
+        return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
+    # r[6] est last_energy_update
     last_update = r[6] if r[6] is not None else now
     seconds_passed = now - last_update
     minutes_passed = seconds_passed // 60
     
-    # Calcul de l'énergie actuelle (très précis)
-    # On ajoute la régénération par seconde pour que la barre soit fluide
-    regen_since_last = (seconds_passed / 60) * config.REGEN_RATE
-    current_e = min(config.MAX_ENERGY, (r[5] or 0) + regen_since_last)
+    # 1. Calcul Énergie (Régénération fluide à la seconde)
+    # On ajoute (secondes / 60) * taux pour une barre qui monte sans attendre la minute pleine
+    regen_val = (seconds_passed / 60) * config.REGEN_RATE
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + regen_val)
     
-    # Gain Hors-ligne
+    # 2. Calcul Gain Hors-ligne (si > 100 stakés et au moins 1 min passée)
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed >= 1:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
 
-    # SAUVEGARDE EN BASE : Uniquement si nécessaire pour ne pas ralentir le serveur
-    if minutes_passed >= 1:
-        conn = database.get_db_conn(); c = conn.cursor()
+    # 3. MISE À JOUR BASE DE DONNÉES (Uniquement si changement significatif)
+    # On met à jour si une minute est passée ou si l'énergie a atteint le max
+    if minutes_passed >= 1 or (current_e >= config.MAX_ENERGY and r[5] < config.MAX_ENERGY):
+        conn = database.get_db_conn()
+        c = conn.cursor()
         c.execute("""
             UPDATE users 
             SET p_genesis = p_genesis + %s, 
@@ -50,11 +54,13 @@ async def api_get_user(uid: int):
                 last_energy_update = %s 
             WHERE user_id = %s
         """, (offline_reward, current_e, now, uid))
-        conn.commit(); c.close(); conn.close()
+        conn.commit()
+        c.close(); conn.close()
 
-    # Données retournées
+    # 4. Préparation du retour JSON
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     badge, _, _ = missions.get_badge_info(score)
+    
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
@@ -64,7 +70,7 @@ async def api_get_user(uid: int):
         "max_energy": config.MAX_ENERGY, 
         "badge": badge,
         "score": round(score, 2), 
-        "off_rw": offline_reward,  # Le JS utilise ça pour la fenêtre
+        "off_rw": offline_reward, 
         "top": top, 
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
@@ -211,7 +217,7 @@ async def web_ui():
 
 
 
-        let offlineClaimed = false; // Variable pour éviter que la fenêtre s'ouvre en boucle
+        let offlineShowed = false; // À placer tout en haut de ton <script>
 
 async function refresh() {
     try {
@@ -219,26 +225,47 @@ async function refresh() {
         const d = await r.json();
         if(!d.name) return;
 
-        // Message de collecte : On l'affiche si > 0 ET si pas encore affiché ce coup-ci
-        if(d.off_rw > 0 && !offlineClaimed) {
+        // --- MESSAGE DE COLLECTE HORS-LIGNE ---
+        if(d.off_rw > 0 && !offlineShowed) {
             const amtElem = document.getElementById('rw-amt');
             const modalElem = document.getElementById('offline-modal');
             if (amtElem) amtElem.innerText = d.off_rw.toFixed(2);
             if (modalElem) modalElem.style.display = 'flex';
-            offlineClaimed = true; // On marque comme affiché
+            offlineShowed = true; // Empêche de réapparaître au prochain refresh de 8s
         }
 
-        // Mise à jour des éléments classiques
+        // --- MISE À JOUR DES TEXTES ---
         document.getElementById('u-name').innerText = d.name;
+        document.getElementById('u-badge').innerText = d.badge;
+        document.getElementById('gv').innerText = d.g.toFixed(2);
+        document.getElementById('uv').innerText = d.u.toFixed(2);
+        document.getElementById('vv').innerText = d.v.toFixed(2);
         document.getElementById('tot').innerText = d.score.toFixed(2);
-        
-        // Énergie (Correction : Utilise Math.floor pour éviter les bugs d'affichage)
+        document.getElementById('u-streak').innerText = d.streak + " Days";
+        document.getElementById('jack-val').innerText = d.jackpot;
+        document.getElementById('u-ref-top').innerText = d.rc;
+        document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
+
+        // --- ÉNERGIE ---
         let energyVal = Math.floor(d.energy);
-        document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
-        document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
+        let eBar = document.getElementById('e-bar');
+        let eText = document.getElementById('e-text');
+        let eFull = document.getElementById('e-full');
 
+        if (eBar) eBar.style.width = (energyVal / d.max_energy * 100) + "%";
+        if (eText) eText.innerText = `⚡ ${energyVal} / ${d.max_energy}`;
 
-        // 5. Leaderboard
+        // Notification visuelle 100%
+        if (eFull) {
+            eFull.style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
+        }
+
+        // --- MISSIONS & REFS ---
+        const pending = d.pending_refs || 0;
+        document.getElementById('pending-val').innerText = pending + " pending";
+        document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
+
+        // --- LEADERBOARD ---
         let rl = ""; 
         d.top.forEach((u, i) => { 
             rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
@@ -246,9 +273,10 @@ async function refresh() {
         document.getElementById('rank-list').innerHTML = rl;
 
     } catch(e) {
-        console.log("Refresh error:", e);
+        console.error("Erreur Refresh:", e);
     }
 }
+
 
 
         async function claimRefs() {
