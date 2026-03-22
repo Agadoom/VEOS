@@ -43,15 +43,26 @@ async def api_get_user(uid: int):
     badge, _, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
     
-    # --- LOGIQUE BADGE MICHAEL PARTNER ---
+    # Correction de la boucle Leaderboard pour éviter l'IndexError
     top = []
     for x in top_raw:
-        # x[2] correspond à l'user_id dans la requête SQL du leaderboard
-        is_partner = " 💎 PARTNER" if str(x[2]) == "8136550118" else "" 
-        top.append({"n": f"{x[0]}{is_partner}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0], "is_p": bool(is_partner)})
+        # On vérifie si le nom ou le score correspond à Michael pour lui mettre son badge
+        # (Plus sûr que l'index si la structure SQL du leaderboard est limitée)
+        name = x[0]
+        is_michael = (str(uid) == "8136550118" and name == r[4]) # Vérification simple
+        
+        # Si c'est Michael, on ajoute le badge visuel
+        display_name = f"{name} 💎 PARTNER" if str(uid) == "8136550118" and name == r[4] else name
+        
+        top.append({
+            "n": display_name, 
+            "p": round(x[1], 2), 
+            "b": missions.get_badge_info(x[1])[0],
+            "is_p": (str(uid) == "8136550118" and name == r[4])
+        })
     
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
-    market_pump = random.random() > 0.8 # 20% de chance d'alerte à chaque refresh
+    market_pump = random.random() > 0.8 
 
     return {
         "uid": uid, "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
@@ -66,6 +77,7 @@ async def api_get_user(uid: int):
             "copper": 3.85 + random.uniform(-0.02, 0.02)
         }
     }
+
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
