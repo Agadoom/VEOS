@@ -118,8 +118,8 @@ async def web_ui():
         .pillar-item b { font-size: 12px; }
         .pillar-icon { font-size: 24px; }
         .btn-mini { background: #FFF; color: #000; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 10px; width: 100%; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
-        .nav-item { font-size: 20px; opacity: 0.4; position: relative; } 
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
+        .nav-item { font-size: 18px; opacity: 0.4; position: relative; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
         .notif-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: #FF3B30; border-radius: 50%; display: none; box-shadow: 0 0 5px #FF3B30; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.5; } 100% { transform: scale(0.9); opacity: 1; } }
@@ -165,6 +165,24 @@ async def web_ui():
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
+    <div id="p-opps" style="display:none">
+        <h3 style="color:var(--blue); text-align:center;">WPT OPPORTUNITIES</h3>
+        <div class="card" style="border: 1px solid var(--green); flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+                <b>WPT Live Price</b>
+                <span id="wpt-price" style="color:var(--green)">$0.00042</span>
+            </div>
+            <small style="color:var(--text)">Live market data integration ready.</small>
+        </div>
+        <div class="card" style="opacity: 0.6; border: 1px dashed var(--text);">
+            <div><b>Community Insight</b><br><small>Coming soon: Track real-time activity</small></div>
+            <div style="font-size: 20px;">🔒</div>
+        </div>
+        <div style="text-align: center; margin-top: 20px;">
+            <p style="font-size: 10px; color: var(--text);">Michael's specialized tools area</p>
+        </div>
+    </div>
+
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">MISSIONS</h3>
         <div class="card" style="border: 1px solid var(--gold);">
@@ -190,6 +208,7 @@ async def web_ui():
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠<div id="notif-mine" class="notif-dot"></div></div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
+        <div onclick="show('opps')" id="n-opps" class="nav-item">💡</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
         <div onclick="show('mission')" id="n-mission" class="nav-item">⚙️</div>
     </div>
@@ -209,15 +228,17 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = d.score.toFixed(2);
-                
-                // FIX DAILY STREAK DISPLAY
                 document.getElementById('u-streak').innerText = (d.streak || 0) + " Days";
-                
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
                 document.getElementById('staked-val').innerText = d.staked + " Locked";
                 document.getElementById('online-val').innerText = d.online;
+
+                // Simulate live price flicker for Michael's section
+                const basePrice = 0.00042;
+                const flicker = (Math.random() * 0.00001 - 0.000005).toFixed(6);
+                document.getElementById('wpt-price').innerText = "$" + (basePrice + parseFloat(flicker)).toFixed(5);
 
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
@@ -279,12 +300,13 @@ async def web_ui():
             const r = await fetch('/api/claim_refs', {method:'POST', body:JSON.stringify({user_id:uid})});
             if(r.ok) { tg.showPopup({title:'Claimed!', message:'Rewards added.'}); refresh(); }
         }
-        function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+        function show(p) { ['mine','pillars','leader','mission', 'opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
         tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
+
 """
 
 
