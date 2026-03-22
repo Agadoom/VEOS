@@ -65,41 +65,22 @@ async def api_get_user(uid: int):
 async def api_mine(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    
-    # Récupération directe pour éviter les erreurs d'index de liste
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    
     if not res: 
         c.close(); conn.close(); return JSONResponse(status_code=404)
-    
-    now_ms = int(time.time() * 1000)
-    now_s = now_ms // 1000
-    
-    # 1. Anti-spam 80ms
+    now_ms = int(time.time() * 1000); now_s = now_ms // 1000
     if (now_ms - (res[2] or 0)) < 80:
         c.close(); conn.close(); return JSONResponse(status_code=429)
-    
-    # 2. Calcul Énergie identique au GET (Synchro parfaite)
     last_update = res[1] or now_s
     seconds_passed = now_s - last_update
     current_e = min(config.MAX_ENERGY, (res[0] or 0) + (seconds_passed / 60) * config.REGEN_RATE)
-    
     if current_e >= 1:
-        c.execute(f"""
-            UPDATE users 
-            SET p_{t} = COALESCE(p_{t}, 0) + 0.05, 
-                energy = %s, 
-                last_energy_update = %s, 
-                last_click_time = %s 
-            WHERE user_id = %s
-        """, (current_e - 1, now_s, now_ms, uid))
+        c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t}, 0) + 0.05, energy = %s, last_energy_update = %s, last_click_time = %s WHERE user_id = %s", (current_e - 1, now_s, now_ms, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
-    
-    c.close(); conn.close()
-    return JSONResponse(status_code=400, content={"error": "no_energy"})
+    c.close(); conn.close(); return JSONResponse(status_code=400, content={"error": "no_energy"})
 
 @app.post("/api/claim_refs")
 async def api_claim_refs(request: Request):
@@ -128,7 +109,16 @@ async def web_ui():
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --purple: #A259FF; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
-        .header-ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px; font-size: 10px; display: flex; justify-content: space-between; border-bottom: 1px solid #333; color: var(--gold); }
+        
+        /* TICKER ANIMATION (Bannière défilante) */
+        .ticker-container { 
+            background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; 
+            border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; 
+        }
+        .ticker-wrapper { display: inline-block; animation: ticker 15s linear infinite; padding-left: 100%; }
+        .ticker-item { display: inline-block; margin-right: 50px; color: var(--gold); font-size: 11px; font-weight: bold; }
+        @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; color: var(--text); }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
@@ -144,7 +134,13 @@ async def web_ui():
     </style>
 </head>
 <body>
-    <div class="header-ticker"><span>👥 REFS: <span id="u-ref-top">0</span></span><span>🔥 JACKPOT: <span id="jack-val">0</span></span></div>
+    <div class="ticker-container">
+        <div class="ticker-wrapper">
+            <span class="ticker-item">👥 NETWORK REFS: <span id="u-ref-top">0</span></span>
+            <span class="ticker-item">🔥 GLOBAL JACKPOT: <span id="jack-val">0</span> WPT</span>
+            <span class="ticker-item">🚀 WPT MINING HUB IS ACTIVE</span>
+        </div>
+    </div>
     
     <div class="profile-bar">
         <div><div id="u-name" style="font-weight:700;">...</div><div id="u-badge" class="badge-tag">...</div></div>
@@ -218,7 +214,6 @@ async def web_ui():
                 const d = await r.json();
                 if(!d.name) return;
 
-                // Affichage du modal de récolte si gain détecté
                 if(d.off_rw > 0 && !offlineShowed) {
                     document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
                     document.getElementById('offline-modal').style.display = 'flex';
@@ -236,18 +231,15 @@ async def web_ui():
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
 
-                // Énergie (Math.floor pour éviter les décimales moches)
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
                 document.getElementById('e-full').style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
 
-                // Missions
                 const pending = d.pending_refs || 0;
                 document.getElementById('pending-val').innerText = pending + " pending";
                 document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
 
-                // Leaderboard
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
             } catch(e) { console.error(e); }
@@ -257,13 +249,11 @@ async def web_ui():
             const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) {
-                // Animation petit +0.05
                 const rect = e.target.getBoundingClientRect();
                 const plus = document.createElement('div'); plus.innerText = '+0.05';
                 plus.style.cssText = `position:absolute; left:${rect.left+20}px; top:${rect.top}px; color:var(--gold); font-weight:bold; z-index:1000; pointer-events:none;`;
                 plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
                 document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
-                
                 tg.HapticFeedback.impactOccurred('light');
                 refresh();
             }
