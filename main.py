@@ -99,19 +99,6 @@ async def api_mine(request: Request):
         conn.commit(); c.close(); conn.close(); return {"ok": True}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
-@app.post("/api/claim_refs")
-async def api_claim_refs(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT ref_count, ref_claimed FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    pending = (res[0] or 0) - (res[1] or 0)
-    if pending > 0:
-        reward = pending * 5.0
-        c.execute("UPDATE users SET p_genesis=p_genesis+%s, ref_claimed=ref_count WHERE user_id=%s", (reward, uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True, "reward": reward}
-    c.close(); conn.close(); return JSONResponse(status_code=400)
-
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -123,7 +110,7 @@ async def web_ui():
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --purple: #A259FF; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; --green: #34C759; --purple: #A259FF; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         
         .ticker-container { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; }
@@ -143,7 +130,6 @@ async def web_ui():
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
 
-        /* NOUVEAU STYLE PILLARS COMPACT */
         .pillars-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         .pillar-item { background: var(--card); border: 1px solid #1c1c1e; border-radius: 15px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
         .pillar-item b { font-size: 12px; }
@@ -188,26 +174,10 @@ async def web_ui():
     <div id="p-pillars" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
         <div class="pillars-grid">
-            <div class="pillar-item">
-                <div class="pillar-icon">💰</div>
-                <b>WPT Token</b>
-                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button>
-            </div>
-            <div class="pillar-item">
-                <div class="pillar-icon">🧬</div>
-                <b>Unity</b>
-                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button>
-            </div>
-            <div class="pillar-item">
-                <div class="pillar-icon">🧠</div>
-                <b>Veo AI</b>
-                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button>
-            </div>
-            <div class="pillar-item">
-                <div class="pillar-icon">🌟</div>
-                <b>Genesis</b>
-                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button>
-            </div>
+            <div class="pillar-item"><div class="pillar-icon">💰</div><b>WPT Token</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><div class="pillar-icon">🧬</div><b>Unity</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><div class="pillar-icon">🧠</div><b>Veo AI</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><div class="pillar-icon">🌟</div><b>Genesis</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button></div>
         </div>
     </div>
 
@@ -245,11 +215,13 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let lastClick = 0; let isAuto = false; let autoAssets = ['genesis', 'unity', 'veo']; let autoIndex = 0;
+        let energyFullNotified = false; // Flag pour ne pas notifier en boucle
 
         async function refresh() {
             try {
                 const r = await fetch(`/api/user/${uid}`); const d = await r.json();
                 if(!d.name) return;
+                
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-badge').innerText = d.badge;
                 document.getElementById('gv').innerText = d.g.toFixed(2);
@@ -261,15 +233,35 @@ async def web_ui():
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
                 document.getElementById('staked-val').innerText = d.staked + " Locked";
+
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
-                document.getElementById('notif-mine').style.display = (energyVal >= d.max_energy) ? 'block' : 'none';
+                
+                // GESTION NOTIFICATION ENERGIE 100%
+                if (energyVal >= d.max_energy) {
+                    document.getElementById('notif-mine').style.display = 'block';
+                    if (!energyFullNotified) {
+                        tg.HapticFeedback.notificationOccurred('success');
+                        tg.showPopup({
+                            title: 'Énergie pleine ! ⚡',
+                            message: 'Votre batterie est à 100%. Revenez miner vos actifs Genesis, Unity et Veo !',
+                            buttons: [{type: 'ok'}]
+                        });
+                        energyFullNotified = true; // Empêche de répéter l'alerte
+                    }
+                } else {
+                    document.getElementById('notif-mine').style.display = 'none';
+                    energyFullNotified = false; // Reset pour la prochaine fois qu'elle sera pleine
+                }
+
                 const pending = d.pending_refs || 0;
                 document.getElementById('pending-val').innerText = pending + " pending";
                 document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
+
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
+
                 if(isAuto && energyVal >= 1) {
                     let assetToMine = autoAssets[autoIndex];
                     autoIndex = (autoIndex + 1) % autoAssets.length;
