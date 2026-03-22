@@ -29,9 +29,8 @@ async def api_get_user(uid: int):
     seconds_passed = now - last_update
     minutes_passed = seconds_passed // 60
     
-    # Calcul Énergie fluide
-    regen_val = (seconds_passed / 60) * config.REGEN_RATE
-    current_e = min(config.MAX_ENERGY, (r[5] or 0) + regen_val)
+    # Calcul Énergie fluide (secondes / 60)
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + (seconds_passed / 60) * config.REGEN_RATE)
     
     # Gain Hors-ligne
     staked = r[8] or 0
@@ -39,9 +38,8 @@ async def api_get_user(uid: int):
     if staked >= 100 and minutes_passed >= 1:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
 
-    # SAUVEGARDE : On force la mise à jour si du temps a passé 
-    # pour que l'énergie calculée ici soit dispo pour la fonction MINE
-    if seconds_passed >= 5: # On sauvegarde toutes les 5 sec minimum
+    # Sauvegarde si > 5 sec pour synchroniser avec la mine
+    if seconds_passed >= 5:
         conn = database.get_db_conn(); c = conn.cursor()
         c.execute("""
             UPDATE users 
@@ -50,7 +48,6 @@ async def api_get_user(uid: int):
         """, (offline_reward, current_e, now, uid))
         conn.commit(); c.close(); conn.close()
 
-    # Retour JSON (Inchangé pour ton JS)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
@@ -66,28 +63,48 @@ async def api_get_user(uid: int):
 
 
 
+
 @app.post("/api/mine")
 async def api_mine(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    r = database.get_user_full(uid)
-    if not r: return JSONResponse(status_code=404, content={})
+    
+    # On récupère les infos fraîches directement
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    
+    if not res: 
+        c.close(); conn.close(); return JSONResponse(status_code=404)
     
     now_ms = int(time.time() * 1000)
-    last_click = r[10] if len(r) > 10 else 0 
-    if (now_ms - last_click) < 80:
-        return JSONResponse(status_code=429, content={})
-    
     now_s = now_ms // 1000
-    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now_s - (r[6] or now_s)) // 60) * config.REGEN_RATE)
+    
+    # 1. Vérif Anti-spam (80ms)
+    if (now_ms - (res[2] or 0)) < 80:
+        c.close(); conn.close(); return JSONResponse(status_code=429)
+    
+    # 2. Calcul Énergie identique au GET
+    last_update = res[1] or now_s
+    seconds_passed = now_s - last_update
+    current_e = min(config.MAX_ENERGY, (res[0] or 0) + (seconds_passed / 60) * config.REGEN_RATE)
     
     if current_e >= 1:
-        conn = database.get_db_conn(); c = conn.cursor()
-        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", 
-                  (current_e-1, now_s, now_ms, uid))
+        # 3. Update avec soustraction d'énergie
+        c.execute(f"""
+            UPDATE users 
+            SET p_{t} = COALESCE(p_{t}, 0) + 0.05, 
+                energy = %s, 
+                last_energy_update = %s, 
+                last_click_time = %s 
+            WHERE user_id = %s
+        """, (current_e - 1, now_s, now_ms, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
+    
+    c.close(); conn.close()
     return JSONResponse(status_code=400, content={"error": "no_energy"})
+
 
 
 @app.post("/api/claim_refs")
