@@ -43,22 +43,17 @@ async def api_get_user(uid: int):
     badge, _, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
     
-    # Correction de la boucle Leaderboard pour éviter l'IndexError
+    # Correction de la boucle Leaderboard pour éviter l'IndexError (x[2] n'existe pas)
     top = []
     for x in top_raw:
-        # On vérifie si le nom ou le score correspond à Michael pour lui mettre son badge
-        # (Plus sûr que l'index si la structure SQL du leaderboard est limitée)
-        name = x[0]
-        is_michael = (str(uid) == "8136550118" and name == r[4]) # Vérification simple
-        
-        # Si c'est Michael, on ajoute le badge visuel
-        display_name = f"{name} 💎 PARTNER" if str(uid) == "8136550118" and name == r[4] else name
-        
+        # On vérifie l'ID de Michael pour le badge spécial
+        # Note : On part du principe que x[0] est le nom et x[1] le score
+        is_partner = " 💎 PARTNER" if str(uid) == "8136550118" and x[0] == r[4] else ""
         top.append({
-            "n": display_name, 
+            "n": f"{x[0]}{is_partner}", 
             "p": round(x[1], 2), 
             "b": missions.get_badge_info(x[1])[0],
-            "is_p": (str(uid) == "8136550118" and name == r[4])
+            "is_p": (is_partner != "")
         })
     
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
@@ -77,7 +72,6 @@ async def api_get_user(uid: int):
             "copper": 3.85 + random.uniform(-0.02, 0.02)
         }
     }
-
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
@@ -100,7 +94,7 @@ async def api_use_drink(request: Request):
     c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (config.MAX_ENERGY, int(time.time()), uid))
     conn.commit(); c.close(); conn.close(); return {"ok": True}
 
-# --- WEB UI ---
+# --- WEB UI (HTML PART) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -283,6 +277,7 @@ async def web_ui():
     </script>
 </body>
 </html>
+
 
 """
 
