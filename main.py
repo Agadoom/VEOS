@@ -22,47 +22,42 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
-    if not r:
-        return JSONResponse(status_code=404, content={})
+    if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
     minutes_passed = (now - last_update) // 60
     
-    # 1. Calcul Énergie (Correction : S'assure que la valeur est traitée)
+    # Énergie
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # 2. Calcul Gain Hors-ligne et MISE À JOUR SYSTÉMATIQUE
+    # Gain Hors-ligne
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
+        # On calcule le gain
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-    
-    # FIX : On met à jour la DB si du temps a passé pour "sauvegarder" l'énergie qui monte
-    if minutes_passed > 0:
-        conn = database.get_db_conn()
-        c = conn.cursor()
+        
+        # On met à jour la DB pour valider l'énergie et le gain
+        conn = database.get_db_conn(); c = conn.cursor()
         c.execute("""
             UPDATE users 
-            SET p_genesis = p_genesis + %s, 
-                energy = %s, 
-                last_energy_update = %s 
+            SET p_genesis = p_genesis + %s, energy = %s, last_energy_update = %s 
             WHERE user_id = %s
         """, (offline_reward, current_e, now, uid))
-        conn.commit()
-        c.close(); conn.close()
+        conn.commit(); c.close(); conn.close()
 
-    # 3. Préparation des données (Reste inchangé)
+    # Données pour le front-end
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
-    badge, next_goal, b_color = missions.get_badge_info(score)
-    
+    badge, _, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
-        "score": round(score, 2), "off_rw": offline_reward, 
+        "score": round(score, 2), 
+        "off_rw": offline_reward,  # <-- C'est cette ligne qui déclenche l'affichage
         "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
         "streak": r[7] or 0, "staked": staked,
@@ -139,15 +134,15 @@ async def web_ui():
         <button class="btn" style="background:var(--gold)" onclick="share()">🚀 INVITE</button>
     </div>
 
-    <div id="offline-modal" class="modal">
-        <div class="modal-content">
-            <div style="font-size: 40px;">😴</div>
-            <h2 style="color:var(--gold)">Welcome Back!</h2>
-            <p style="color:var(--text)">Your assets worked while you were away.</p>
-            <div style="font-size:32px; font-weight:900; margin:15px 0; color:#FFF;">+ <span id="rw-amt">0</span> WPT</div>
-            <button class="btn" style="background:var(--gold); width:100%; padding:15px;" onclick="closeModal()">COLLECT REWARD</button>
-        </div>
+    <div id="offline-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center;">
+    <div style="background:#111; border:2px solid #FFD700; padding:30px; border-radius:30px; text-align:center;">
+        <h2 style="color:#FFD700">Bon retour !</h2>
+        <p>Tes actifs ont miné pendant ton absence :</p>
+        <div style="font-size:32px; font-weight:bold; margin:15px 0;">+ <span id="rw-amt">0</span> WPT</div>
+        <button onclick="document.getElementById('offline-modal').style.display='none'" style="background:#FFF; color:#000; border:none; padding:10px 20px; border-radius:10px; font-weight:bold;">RÉCOLTER</button>
     </div>
+</div>
+
 
     <div id="p-mine">
         <div class="balance">
@@ -200,64 +195,69 @@ async def web_ui():
 
         function closeModal() { document.getElementById('offline-modal').style.display='none'; }
 
+
+
+
+
+
+
         async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                if(!d.name) return;
+    try {
+        const r = await fetch(`/api/user/${uid}`); 
+        const d = await r.json();
+        if(!d.name) return;
 
-                // Message de collecte si gain hors-ligne détecté
-                if(d.off_rw > 0) {
-                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
-                    document.getElementById('offline-modal').style.display='flex';
-                }
+        // 1. Message de collecte (Offline Reward)
+        if(d.off_rw > 0) {
+            const amtElem = document.getElementById('rw-amt');
+            const modalElem = document.getElementById('offline-modal');
+            if (amtElem) amtElem.innerText = d.off_rw.toFixed(2);
+            if (modalElem) modalElem.style.display = 'flex';
+        }
 
-                document.getElementById('u-name').innerText = d.name;
-                document.getElementById('u-badge').innerText = d.badge;
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('u-streak').innerText = d.streak + " Days";
-                document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('u-ref-top').innerText = d.rc;
-                document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
+        // 2. Mise à jour des textes et scores
+        document.getElementById('u-name').innerText = d.name;
+        document.getElementById('u-badge').innerText = d.badge;
+        document.getElementById('gv').innerText = d.g.toFixed(2);
+        document.getElementById('uv').innerText = d.u.toFixed(2);
+        document.getElementById('vv').innerText = d.v.toFixed(2);
+        document.getElementById('tot').innerText = d.score.toFixed(2);
+        document.getElementById('u-streak').innerText = d.streak + " Days";
+        document.getElementById('jack-val').innerText = d.jackpot;
+        document.getElementById('u-ref-top').innerText = d.rc;
+        document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
 
-                // Énergie et Notification 100%
-                // Dans ta fonction refresh(), remplace la partie énergie par ça :
-let ePerc = (d.energy / d.max_energy * 100);
-let eBar = document.getElementById('e-bar');
-let eText = document.getElementById('e-text');
-let eFull = document.getElementById('e-full');
+        // 3. Énergie (Barre qui monte automatiquement via le refresh)
+        let ePerc = (d.energy / d.max_energy * 100);
+        let eBar = document.getElementById('e-bar');
+        let eText = document.getElementById('e-text');
+        let eFull = document.getElementById('e-full');
 
-if (eBar) eBar.style.width = ePerc + "%";
-if (eText) eText.innerText = `⚡ ${Math.floor(d.energy)} / ${d.max_energy}`;
+        if (eBar) eBar.style.width = ePerc + "%";
+        if (eText) eText.innerText = `⚡ ${Math.floor(d.energy)} / ${d.max_energy}`;
 
-// Notification visuelle 100%
-if (eFull) {
-    eFull.style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
+        // Notification visuelle quand l'énergie est à 100%
+        if (eFull) {
+            eFull.style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
+        }
+
+        // 4. Mission Claim (Parrainage)
+        const pending = d.pending_refs || 0;
+        document.getElementById('pending-val').innerText = pending + " pending";
+        document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
+
+        // 5. Leaderboard
+        let rl = ""; 
+        d.top.forEach((u, i) => { 
+            rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
+        });
+        document.getElementById('rank-list').innerHTML = rl;
+
+    } catch(e) {
+        console.log("Refresh error:", e);
+    }
 }
 
-                // Mission Claim
-                const pending = d.pending_refs || 0;
-                document.getElementById('pending-val').innerText = pending + " pending";
-                document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
-
-                // Leaderboard
-                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-                document.getElementById('rank-list').innerHTML = rl;
-            } catch(e) {}
-        }
-
-        function mine(e, t) {
-            const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
-            const rect = e.target.getBoundingClientRect();
-            const plus = document.createElement('div'); plus.innerText = '+0.05';
-            plus.style.cssText = `position:absolute; left:${e.clientX || rect.left+20}px; top:${e.clientY || rect.top}px; color:var(--gold); font-weight:bold; z-index:1000;`;
-            plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
-            document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
-            fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
-            refresh(); tg.HapticFeedback.impactOccurred('light');
-        }
 
         async function claimRefs() {
             const r = await fetch('/api/claim_refs', {method:'POST', body:JSON.stringify({user_id:uid})});
