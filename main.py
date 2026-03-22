@@ -58,7 +58,6 @@ async def api_get_user(uid: int):
 @app.post("/api/use_drink")
 async def api_use_drink(request: Request):
     data = await request.json(); uid = data.get("user_id")
-    # On remplit l'énergie au max
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (config.MAX_ENERGY, int(time.time()), uid))
     conn.commit(); c.close(); conn.close()
@@ -113,18 +112,20 @@ async def web_ui():
 
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; color: var(--text); }
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
+        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         
+        /* AUTO-MINE SWITCH */
+        .auto-toggle { position: absolute; top: 10px; right: 10px; font-size: 20px; opacity: 0.3; filter: grayscale(1); transition: 0.3s; cursor: pointer; }
+        .auto-toggle.active { opacity: 1; filter: grayscale(0); transform: scale(1.2); }
+
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
         
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; position: relative; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
-        
-        /* NOTIFICATION DOT (Energie pleine) */
         .notif-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: #FF3B30; border-radius: 50%; display: none; box-shadow: 0 0 5px #FF3B30; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.5; } 100% { transform: scale(0.9); opacity: 1; } }
     </style>
@@ -153,6 +154,7 @@ async def web_ui():
 
     <div id="p-mine">
         <div class="balance">
+            <div id="btn-auto" class="auto-toggle" onclick="toggleAuto()">🤖</div>
             <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
@@ -199,6 +201,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let lastClick = 0; let offlineShowed = false;
+        let isAuto = false; let autoTimer = null;
 
         async function refresh() {
             try {
@@ -225,8 +228,6 @@ async def web_ui():
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
-                
-                // GESTION NOTIFICATION (Si énergie pleine)
                 document.getElementById('notif-mine').style.display = (energyVal >= d.max_energy) ? 'block' : 'none';
 
                 const pending = d.pending_refs || 0;
@@ -235,7 +236,23 @@ async def web_ui():
 
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
+
+                // Si auto-mine actif et énergie dispo, on lance un clic simulé
+                if(isAuto && energyVal >= 1) { simulateAutoMine(); }
             } catch(e) { console.error(e); }
+        }
+
+        function toggleAuto() {
+            isAuto = !isAuto;
+            const btn = document.getElementById('btn-auto');
+            btn.classList.toggle('active', isAuto);
+            if(isAuto) { tg.HapticFeedback.notificationOccurred('success'); refresh(); }
+        }
+
+        async function simulateAutoMine() {
+            // Mine sur 'genesis' par défaut en mode auto
+            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:'genesis'})});
+            if(res.ok) { tg.HapticFeedback.impactOccurred('soft'); refresh(); }
         }
 
         async function useDrink() {
@@ -270,7 +287,6 @@ async def web_ui():
 </html>
 """
 
-# --- BOT START (Inchangé) ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
