@@ -44,18 +44,14 @@ async def api_get_user(uid: int):
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
-    # Check if Michael (Partner)
-    is_partner = (uid == 12345678) # Remplacer par l'ID réel de Michael
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
 
-    # Future Vision: Real-time Commodity Prices (Simulated for UI)
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
         "score": round(score, 2), "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": multiplier, "streak": r[7] or 0, "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)), "online": get_online_count(),
-        "is_partner": is_partner,
         "prices": {
             "gold": 2150.40 + random.uniform(-2, 2),
             "silver": 24.15 + random.uniform(-0.1, 0.1),
@@ -103,6 +99,9 @@ async def web_ui():
         .auto-toggle.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
+        .pillars-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .pillar-item { background: var(--card); border: 1px solid #1c1c1e; border-radius: 15px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+        .btn-mini { background: #FFF; color: #000; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 10px; width: 100%; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 18px; opacity: 0.4; position: relative; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
@@ -110,10 +109,10 @@ async def web_ui():
 </head>
 <body>
     <div class="ticker-container">
-        <div class="ticker-wrapper" id="ticker-content">
+        <div class="ticker-wrapper">
             <span class="ticker-item">🟢 ONLINE: <span id="online-val">1</span></span>
             <span class="ticker-item">🔥 JACKPOT: <span id="jack-val">0</span> WPT</span>
-            <span class="ticker-item">🏆 TOP REFS: <span id="u-ref-top">0</span></span>
+            <span class="ticker-item">👥 NETWORK: <span id="u-ref-top">0</span></span>
         </div>
     </div>
 
@@ -131,53 +130,40 @@ async def web_ui():
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS (GOLD)</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY (SILVER)</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:var(--purple)">VEO AI (COPPER)</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+    </div>
+
+    <div id="p-pillars" style="display:none">
+        <h3 style="color:var(--gold); text-align:center;">WPT PILLARS</h3>
+        <div class="pillars-grid">
+            <div class="pillar-item"><b>WPT Token</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><b>Unity</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><b>Veo AI</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><b>Genesis</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button></div>
+        </div>
     </div>
 
     <div id="p-opps" style="display:none">
-        <h3 style="color:var(--blue); text-align:center;">RWA MARKET HUB</h3>
-        
+        <h3 style="color:var(--blue); text-align:center;">OPPORTUNITIES</h3>
         <div class="card" style="border: 1px solid #333; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
             <div><small style="color:var(--gold)">GOLD</small><br><b id="price-gold" style="font-size:10px;">$---</b></div>
             <div><small style="color:var(--silver)">SILVER</small><br><b id="price-silver" style="font-size:10px;">$---</b></div>
             <div><small style="color:var(--copper)">COPPER</small><br><b id="price-copper" style="font-size:10px;">$---</b></div>
         </div>
-
         <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(135deg, #111, #1a0a2a); flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; width: 100%;">
-                <b>Partner Analytics</b>
-                <span style="color:var(--purple); font-size:10px;">STREAK: ACTIVE</span>
-            </div>
+            <div style="display: flex; justify-content: space-between; width: 100%;"><b>Partner Network</b><span style="color:var(--purple); font-size:10px;">ACTIVE</span></div>
             <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%;">
-                <div style="background:#000; padding:10px; border-radius:10px; text-align:center; border: 1px solid #222;">
-                    <small style="color:var(--text); font-size:8px;">MY NETWORK</small><br>
-                    <b id="p-fol" style="color:var(--purple); font-size:16px;">0</b>
-                </div>
-                <div style="background:#000; padding:10px; border-radius:10px; text-align:center; border: 1px solid #222;">
-                    <small style="color:var(--text); font-size:8px;">COMMISSIONS</small><br>
-                    <b id="p-earn" style="color:var(--green); font-size:16px;">0.00</b>
-                </div>
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">FOLLOWERS</small><br><b id="p-fol" style="color:var(--purple)">0</b></div>
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">COMMISSIONS</small><br><b id="p-earn" style="color:var(--green)">0.00</b></div>
             </div>
-            <p style="font-size:8px; color:var(--text); margin-top:10px;">These stats are linked to your Partner ID.</p>
-        </div>
-        
-        <div class="card" style="opacity: 0.5; border: 1px dashed #444;">
-            <small style="color:var(--text)">Next: Tokenizing Physical Assets (Q4 2026)</small>
         </div>
     </div>
 
-    <div id="p-pillars" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">WPT PILLARS</h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div class="card" style="flex-direction:column; text-align:center;"><b>WPT</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum')">VIEW</button></div>
-            <div class="card" style="flex-direction:column; text-align:center;"><b>UNITY</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum')">VIEW</button></div>
-        </div>
-    </div>
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
     <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">MISSIONS</h3>
+        <h3 style="color:var(--gold); text-align:center;">HUB SETTINGS</h3>
         <div class="card"><div><b>Stake 100</b></div><button class="btn" onclick="lockAssets()">LOCK</button></div>
         <div class="card"><div><b>Energy Drink</b></div><button class="btn" onclick="useDrink()">DRINK</button></div>
         <div class="card"><div><b>Daily Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
@@ -209,12 +195,8 @@ async def web_ui():
                 document.getElementById('online-val').innerText = d.online;
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-ref-top').innerText = d.rc;
-
-                // Partner Display
                 document.getElementById('p-fol').innerText = d.rc;
                 document.getElementById('p-earn').innerText = (d.rc * 50).toFixed(2);
-
-                // Live Market Feeds
                 document.getElementById('price-gold').innerText = "$" + d.prices.gold.toFixed(2);
                 document.getElementById('price-silver').innerText = "$" + d.prices.silver.toFixed(2);
                 document.getElementById('price-copper').innerText = "$" + d.prices.copper.toFixed(2);
@@ -235,7 +217,7 @@ async def web_ui():
         }
         function show(p) { ['mine','pillars','leader','mission','opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
-        tg.expand(); refresh(); setInterval(refresh, 5000);
+        tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
