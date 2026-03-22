@@ -17,6 +17,20 @@ except Exception as e:
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# --- FONCTION UTILITAIRE ---
+def get_online_count():
+    """Compte les utilisateurs actifs ces 5 dernières minutes"""
+    try:
+        conn = database.get_db_conn(); c = conn.cursor()
+        now = int(time.time())
+        five_min_ago = now - 300
+        c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (five_min_ago,))
+        count = c.fetchone()[0]
+        c.close(); conn.close()
+        return count if count > 0 else 1 # Minimum 1 (l'utilisateur actuel)
+    except:
+        return 1
+
 # --- API ROUTES ---
 
 @app.get("/api/user/{uid}")
@@ -52,7 +66,8 @@ async def api_get_user(uid: int):
         "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
         "streak": r[7] or 0, "staked": staked,
-        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
+        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)),
+        "online": get_online_count() # Nouvelle donnée envoyée
     }
 
 @app.post("/api/lock_100")
@@ -114,7 +129,7 @@ async def web_ui():
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         
         .ticker-container { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; }
-        .ticker-wrapper { display: inline-block; animation: ticker 15s linear infinite; padding-left: 100%; }
+        .ticker-wrapper { display: inline-block; animation: ticker 20s linear infinite; padding-left: 100%; }
         .ticker-item { display: inline-block; margin-right: 50px; color: var(--gold); font-size: 11px; font-weight: bold; }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
 
@@ -146,9 +161,10 @@ async def web_ui():
 <body>
     <div class="ticker-container">
         <div class="ticker-wrapper">
-            <span class="ticker-item">👥 NETWORK REFS: <span id="u-ref-top">0</span></span>
-            <span class="ticker-item">🔥 GLOBAL JACKPOT: <span id="jack-val">0</span> WPT</span>
-            <span class="ticker-item">🚀 MINING BOT: <span id="bot-status" style="color:var(--text)">OFF</span></span>
+            <span class="ticker-item">🟢 ONLINE: <span id="online-val">1</span></span>
+            <span class="ticker-item">👥 TOTAL REFS: <span id="u-ref-top">0</span></span>
+            <span class="ticker-item">🔥 JACKPOT: <span id="jack-val">0</span> WPT</span>
+            <span class="ticker-item">🚀 BOT: <span id="bot-status" style="color:var(--text)">OFF</span></span>
         </div>
     </div>
     
@@ -215,7 +231,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let lastClick = 0; let isAuto = false; let autoAssets = ['genesis', 'unity', 'veo']; let autoIndex = 0;
-        let energyFullNotified = false; // Flag pour ne pas notifier en boucle
+        let energyFullNotified = false;
 
         async function refresh() {
             try {
@@ -233,12 +249,12 @@ async def web_ui():
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
                 document.getElementById('staked-val').innerText = d.staked + " Locked";
+                document.getElementById('online-val').innerText = d.online; // Mise à jour du compteur online
 
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
                 
-                // GESTION NOTIFICATION ENERGIE 100%
                 if (energyVal >= d.max_energy) {
                     document.getElementById('notif-mine').style.display = 'block';
                     if (!energyFullNotified) {
@@ -248,11 +264,11 @@ async def web_ui():
                             message: 'Votre batterie est à 100%. Revenez miner vos actifs Genesis, Unity et Veo !',
                             buttons: [{type: 'ok'}]
                         });
-                        energyFullNotified = true; // Empêche de répéter l'alerte
+                        energyFullNotified = true;
                     }
                 } else {
                     document.getElementById('notif-mine').style.display = 'none';
-                    energyFullNotified = false; // Reset pour la prochaine fois qu'elle sera pleine
+                    energyFullNotified = false;
                 }
 
                 const pending = d.pending_refs || 0;
