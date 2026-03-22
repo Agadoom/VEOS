@@ -22,62 +22,47 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
-    if not r:
-        return JSONResponse(status_code=404, content={})
+    if not r: return JSONResponse(status_code=404, content={})
     
     now = int(time.time())
-    # r[6] est last_energy_update
     last_update = r[6] if r[6] is not None else now
     seconds_passed = now - last_update
     minutes_passed = seconds_passed // 60
     
-    # 1. Calcul Énergie (Régénération fluide à la seconde)
-    # On ajoute (secondes / 60) * taux pour une barre qui monte sans attendre la minute pleine
+    # Calcul Énergie fluide
     regen_val = (seconds_passed / 60) * config.REGEN_RATE
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + regen_val)
     
-    # 2. Calcul Gain Hors-ligne (si > 100 stakés et au moins 1 min passée)
+    # Gain Hors-ligne
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed >= 1:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
 
-    # 3. MISE À JOUR BASE DE DONNÉES (Uniquement si changement significatif)
-    # On met à jour si une minute est passée ou si l'énergie a atteint le max
-    if minutes_passed >= 1 or (current_e >= config.MAX_ENERGY and r[5] < config.MAX_ENERGY):
-        conn = database.get_db_conn()
-        c = conn.cursor()
+    # SAUVEGARDE : On force la mise à jour si du temps a passé 
+    # pour que l'énergie calculée ici soit dispo pour la fonction MINE
+    if seconds_passed >= 5: # On sauvegarde toutes les 5 sec minimum
+        conn = database.get_db_conn(); c = conn.cursor()
         c.execute("""
             UPDATE users 
-            SET p_genesis = p_genesis + %s, 
-                energy = %s, 
-                last_energy_update = %s 
+            SET p_genesis = p_genesis + %s, energy = %s, last_energy_update = %s 
             WHERE user_id = %s
         """, (offline_reward, current_e, now, uid))
-        conn.commit()
-        c.close(); conn.close()
+        conn.commit(); c.close(); conn.close()
 
-    # 4. Préparation du retour JSON
+    # Retour JSON (Inchangé pour ton JS)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
-    badge, _, _ = missions.get_badge_info(score)
-    
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
-        "energy": int(current_e), 
-        "max_energy": config.MAX_ENERGY, 
-        "badge": badge,
-        "score": round(score, 2), 
-        "off_rw": offline_reward, 
-        "top": top, 
-        "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
-        "streak": r[7] or 0, 
-        "staked": staked,
-        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "score": round(score, 2), 
+        "off_rw": offline_reward, "top": top, "multiplier": round(1.0 + (staked/100)*0.1 + (score/1000), 2),
+        "streak": r[7] or 0, "staked": staked, "pending_refs": max(0, (r[3] or 0)-(r[9] or 0)),
+        "badge": missions.get_badge_info(score)[0], "jackpot": round(database.get_total_network_score()*0.1, 2)
     }
+
 
 
 
