@@ -29,25 +29,19 @@ async def api_get_user(uid: int):
     seconds_passed = now - last_update
     minutes_passed = seconds_passed // 60
     
-    # Calcul Énergie fluide (secondes / 60)
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (seconds_passed / 60) * config.REGEN_RATE)
     
-    # 2. Calcul Gain Hors-ligne (si > 100 stakés)
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        conn = database.get_db_conn()
-        c = conn.cursor()
-        c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
+        conn = database.get_db_conn(); c = conn.cursor()
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s, last_energy_update = %s, energy = %s WHERE user_id = %s", 
                   (offline_reward, now, current_e, uid))
-        conn.commit()
-        c.close(); conn.close()
+        conn.commit(); c.close(); conn.close()
 
-    # 3. Préparation des données de retour
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
-    badge, next_goal, b_color = missions.get_badge_info(score)
-    
+    badge, _, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
@@ -61,26 +55,29 @@ async def api_get_user(uid: int):
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
 
+@app.post("/api/use_drink")
+async def api_use_drink(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    # On remplit l'énergie au max
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (config.MAX_ENERGY, int(time.time()), uid))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True}
+
 @app.post("/api/mine")
 async def api_mine(request: Request):
-    data = await request.json()
-    uid, t = data.get("user_id"), data.get("token")
+    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    if not res: 
-        c.close(); conn.close(); return JSONResponse(status_code=404)
+    if not res: c.close(); conn.close(); return JSONResponse(status_code=404)
     now_ms = int(time.time() * 1000); now_s = now_ms // 1000
-    if (now_ms - (res[2] or 0)) < 80:
-        c.close(); conn.close(); return JSONResponse(status_code=429)
-    last_update = res[1] or now_s
-    seconds_passed = now_s - last_update
-    current_e = min(config.MAX_ENERGY, (res[0] or 0) + (seconds_passed / 60) * config.REGEN_RATE)
+    if (now_ms - (res[2] or 0)) < 80: c.close(); conn.close(); return JSONResponse(status_code=429)
+    current_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s)) / 60) * config.REGEN_RATE)
     if current_e >= 1:
         c.execute(f"UPDATE users SET p_{t} = COALESCE(p_{t}, 0) + 0.05, energy = %s, last_energy_update = %s, last_click_time = %s WHERE user_id = %s", (current_e - 1, now_s, now_ms, uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True}
-    c.close(); conn.close(); return JSONResponse(status_code=400, content={"error": "no_energy"})
+        conn.commit(); c.close(); conn.close(); return {"ok": True}
+    c.close(); conn.close(); return JSONResponse(status_code=400)
 
 @app.post("/api/claim_refs")
 async def api_claim_refs(request: Request):
@@ -92,8 +89,7 @@ async def api_claim_refs(request: Request):
     if pending > 0:
         reward = pending * 5.0
         c.execute("UPDATE users SET p_genesis=p_genesis+%s, ref_claimed=ref_count WHERE user_id=%s", (reward, uid))
-        conn.commit(); c.close(); conn.close()
-        return {"ok": True, "reward": reward}
+        conn.commit(); c.close(); conn.close(); return {"ok": True, "reward": reward}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
 # --- WEB UI ---
@@ -110,11 +106,7 @@ async def web_ui():
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E93; --green: #34C759; --purple: #A259FF; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         
-        /* TICKER ANIMATION (Bannière défilante) */
-        .ticker-container { 
-            background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; 
-            border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; 
-        }
+        .ticker-container { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; }
         .ticker-wrapper { display: inline-block; animation: ticker 15s linear infinite; padding-left: 100%; }
         .ticker-item { display: inline-block; margin-right: 50px; color: var(--gold); font-size: 11px; font-weight: bold; }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
@@ -124,13 +116,17 @@ async def web_ui():
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
-        .energy-full-badge { position: absolute; top: -15px; right: 0; font-size: 8px; color: var(--green); font-weight: bold; display: none; animation: blink 1s infinite; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
+        
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
-        .nav-item { font-size: 20px; opacity: 0.4; } 
+        .nav-item { font-size: 20px; opacity: 0.4; position: relative; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
+        
+        /* NOTIFICATION DOT (Energie pleine) */
+        .notif-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: #FF3B30; border-radius: 50%; display: none; box-shadow: 0 0 5px #FF3B30; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.5; } 100% { transform: scale(0.9); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -150,9 +146,8 @@ async def web_ui():
     <div id="offline-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center;">
         <div style="background:#111; border:2px solid #FFD700; padding:30px; border-radius:30px; text-align:center;">
             <h2 style="color:#FFD700">Bon retour !</h2>
-            <p>Tes actifs ont miné pendant ton absence :</p>
             <div style="font-size:32px; font-weight:bold; margin:15px 0;">+ <span id="rw-amt">0</span> WPT</div>
-            <button onclick="document.getElementById('offline-modal').style.display='none'" style="background:#FFF; color:#000; border:none; padding:10px 20px; border-radius:10px; font-weight:bold;">RÉCOLTER</button>
+            <button onclick="document.getElementById('offline-modal').style.display='none'" class="btn">RÉCOLTER</button>
         </div>
     </div>
 
@@ -161,10 +156,7 @@ async def web_ui():
             <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
-            <div class="energy-bar">
-                <div id="e-bar" class="energy-fill"></div>
-                <div id="e-full" class="energy-full-badge">READY TO MINE</div>
-            </div>
+            <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
         <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
@@ -184,12 +176,13 @@ async def web_ui():
 
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">MISSIONS</h3>
+        <div class="card" style="border: 1px solid var(--blue);">
+            <div><b>Energy Drink</b><br><small style="color:var(--text)">Refill 100% instantly</small></div>
+            <button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button>
+        </div>
         <div class="card">
             <div style="display: flex; flex-direction: column; width: 100%;">
-                <div style="display: flex; justify-content: space-between; width: 100%;">
-                    <b>Referral Bonus</b>
-                    <span id="pending-val" style="color:var(--gold); font-weight:800;">0 pending</span>
-                </div>
+                <div style="display: flex; justify-content: space-between; width: 100%;"><b>Referral Bonus</b><span id="pending-val" style="color:var(--gold);">0 pending</span></div>
                 <button id="claim-btn" class="btn" style="width:100%; background:var(--green); color:#FFF; display:none; margin-top:10px;" onclick="claimRefs()">CLAIM REWARD</button>
             </div>
         </div>
@@ -197,7 +190,7 @@ async def web_ui():
     </div>
 
     <div class="nav">
-        <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
+        <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠<div id="notif-mine" class="notif-dot"></div></div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
         <div onclick="show('mission')" id="n-mission" class="nav-item">⚙️</div>
@@ -205,13 +198,11 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let lastClick = 0;
-        let offlineShowed = false;
+        let lastClick = 0; let offlineShowed = false;
 
         async function refresh() {
             try {
-                const r = await fetch(`/api/user/${uid}`); 
-                const d = await r.json();
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
                 if(!d.name) return;
 
                 if(d.off_rw > 0 && !offlineShowed) {
@@ -234,7 +225,9 @@ async def web_ui():
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
-                document.getElementById('e-full').style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
+                
+                // GESTION NOTIFICATION (Si énergie pleine)
+                document.getElementById('notif-mine').style.display = (energyVal >= d.max_energy) ? 'block' : 'none';
 
                 const pending = d.pending_refs || 0;
                 document.getElementById('pending-val').innerText = pending + " pending";
@@ -243,6 +236,11 @@ async def web_ui():
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
             } catch(e) { console.error(e); }
+        }
+
+        async function useDrink() {
+            const res = await fetch('/api/use_drink', {method:'POST', body:JSON.stringify({user_id:uid})});
+            if(res.ok) { tg.showPopup({title:'Refilled!', message:'Your energy is now 100%'}); refresh(); }
         }
 
         async function mine(e, t) {
@@ -254,8 +252,7 @@ async def web_ui():
                 plus.style.cssText = `position:absolute; left:${rect.left+20}px; top:${rect.top}px; color:var(--gold); font-weight:bold; z-index:1000; pointer-events:none;`;
                 plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
                 document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
-                tg.HapticFeedback.impactOccurred('light');
-                refresh();
+                tg.HapticFeedback.impactOccurred('light'); refresh();
             }
         }
 
@@ -273,6 +270,7 @@ async def web_ui():
 </html>
 """
 
+# --- BOT START (Inchangé) ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid, name = update.effective_user.id, update.effective_user.first_name
     ref_id = int(context.args[0]) if context.args and context.args[0].isdigit() else None
