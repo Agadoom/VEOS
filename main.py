@@ -116,9 +116,8 @@ async def web_ui():
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         
-        /* AUTO-MINE SWITCH */
         .auto-toggle { position: absolute; top: 10px; right: 10px; font-size: 20px; opacity: 0.3; filter: grayscale(1); transition: 0.3s; cursor: pointer; }
-        .auto-toggle.active { opacity: 1; filter: grayscale(0); transform: scale(1.2); }
+        .auto-toggle.active { opacity: 1; filter: grayscale(0); transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
 
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
@@ -135,7 +134,7 @@ async def web_ui():
         <div class="ticker-wrapper">
             <span class="ticker-item">👥 NETWORK REFS: <span id="u-ref-top">0</span></span>
             <span class="ticker-item">🔥 GLOBAL JACKPOT: <span id="jack-val">0</span> WPT</span>
-            <span class="ticker-item">🚀 WPT MINING HUB IS ACTIVE</span>
+            <span class="ticker-item">🚀 MINING BOT: <span id="bot-status" style="color:var(--text)">OFF</span></span>
         </div>
     </div>
     
@@ -201,7 +200,9 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let lastClick = 0; let offlineShowed = false;
-        let isAuto = false; let autoTimer = null;
+        let isAuto = false; 
+        let autoAssets = ['genesis', 'unity', 'veo'];
+        let autoIndex = 0;
 
         async function refresh() {
             try {
@@ -237,21 +238,27 @@ async def web_ui():
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
 
-                // Si auto-mine actif et énergie dispo, on lance un clic simulé
-                if(isAuto && energyVal >= 1) { simulateAutoMine(); }
+                // SI AUTO-MINE : On mine l'actif suivant dans la rotation
+                if(isAuto && energyVal >= 1) {
+                    let assetToMine = autoAssets[autoIndex];
+                    autoIndex = (autoIndex + 1) % autoAssets.length;
+                    simulateAutoMine(assetToMine);
+                }
             } catch(e) { console.error(e); }
         }
 
         function toggleAuto() {
             isAuto = !isAuto;
             const btn = document.getElementById('btn-auto');
+            const status = document.getElementById('bot-status');
             btn.classList.toggle('active', isAuto);
+            status.innerText = isAuto ? "ACTIVE ⚡" : "OFF";
+            status.style.color = isAuto ? "var(--green)" : "var(--text)";
             if(isAuto) { tg.HapticFeedback.notificationOccurred('success'); refresh(); }
         }
 
-        async function simulateAutoMine() {
-            // Mine sur 'genesis' par défaut en mode auto
-            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:'genesis'})});
+        async function simulateAutoMine(token) {
+            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:token})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('soft'); refresh(); }
         }
 
