@@ -42,16 +42,24 @@ async def api_get_user(uid: int):
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, _, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
-    top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
+    
+    # --- LOGIQUE BADGE MICHAEL PARTNER ---
+    top = []
+    for x in top_raw:
+        # x[2] correspond à l'user_id dans la requête SQL du leaderboard
+        is_partner = " 💎 PARTNER" if str(x[2]) == "8136550118" else "" 
+        top.append({"n": f"{x[0]}{is_partner}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0], "is_p": bool(is_partner)})
     
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
+    market_pump = random.random() > 0.8 # 20% de chance d'alerte à chaque refresh
 
     return {
-        "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
+        "uid": uid, "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
         "score": round(score, 2), "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": multiplier, "streak": r[7] or 0, "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)), "online": get_online_count(),
+        "market_pump": market_pump,
         "prices": {
             "gold": 2150.40 + random.uniform(-2, 2),
             "silver": 24.15 + random.uniform(-0.1, 0.1),
@@ -73,6 +81,13 @@ async def api_mine(request: Request):
             conn.commit(); c.close(); conn.close(); return {"ok": True}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
+@app.post("/api/use_drink")
+async def api_use_drink(request: Request):
+    data = await request.json(); uid = data.get("user_id")
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (config.MAX_ENERGY, int(time.time()), uid))
+    conn.commit(); c.close(); conn.close(); return {"ok": True}
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -90,15 +105,22 @@ async def web_ui():
         .ticker-wrapper { display: inline-block; animation: ticker 25s linear infinite; padding-left: 100%; }
         .ticker-item { display: inline-block; margin-right: 40px; color: var(--gold); font-size: 10px; font-weight: bold; }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+        
+        .market-alert { background: rgba(52, 199, 89, 0.1); border: 1px solid var(--green); color: var(--green); padding: 10px; border-radius: 12px; font-size: 10px; text-align: center; margin-bottom: 10px; display: none; animation: flash 2s infinite; }
+        @keyframes flash { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; color: var(--text); }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
+        
         .auto-toggle { position: absolute; top: 10px; right: 10px; font-size: 20px; opacity: 0.3; filter: grayscale(1); transition: 0.3s; cursor: pointer; }
         .auto-toggle.active { opacity: 1; filter: grayscale(0); transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
+        
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
+        
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 18px; opacity: 0.4; position: relative; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
@@ -112,6 +134,8 @@ async def web_ui():
             <span class="ticker-item">👥 NETWORK: <span id="u-ref-top">0</span></span>
         </div>
     </div>
+
+    <div id="m-alert" class="market-alert">📈 GOLD MARKET PUMP! Genesis Mining x2 Yield.</div>
 
     <div class="profile-bar">
         <div><div id="u-name" style="font-weight:700;">...</div><div id="u-badge" class="badge-tag">...</div></div>
@@ -148,17 +172,19 @@ async def web_ui():
             <div><small style="color:var(--copper)">COPPER</small><br><b id="price-copper" style="font-size:10px;">$---</b></div>
         </div>
         <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(135deg, #111, #1a0a2a); flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; width: 100%;"><b>Partner Network</b><span style="color:var(--purple); font-size:10px;">ACTIVE</span></div>
+            <div style="display: flex; justify-content: space-between; width: 100%;"><b>Partner Dashboard</b><span style="color:var(--purple); font-size:10px;">CONNECTED</span></div>
             <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%;">
-                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">FOLLOWERS</small><br><b id="p-fol" style="color:var(--purple)">0</b></div>
-                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">COMMISSIONS</small><br><b id="p-earn" style="color:var(--green)">0.00</b></div>
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">REFERRALS</small><br><b id="p-fol" style="color:var(--purple)">0</b></div>
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">EST. EARNINGS</small><br><b id="p-earn" style="color:var(--green)">0.00</b></div>
             </div>
         </div>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
+
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB SETTINGS</h3>
+        <div class="card"><div><b>Stake 100 WPT</b><br><small style="color:var(--text)">Turbo Robot (8s -> 4s)</small></div><button class="btn" style="background:var(--gold); color:#000">LOCK</button></div>
         <div class="card"><div><b>Energy Drink</b><br><small style="color:var(--text)">Refill 100% instantly</small></div><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button></div>
         <div class="card"><div><b>Daily Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
     </div>
@@ -173,7 +199,7 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let lastClick = 0; let isAuto = false;
+        let lastClick = 0; let isAuto = false; let hasStaked = false;
 
         async function refresh() {
             try {
@@ -195,26 +221,35 @@ async def web_ui():
                 document.getElementById('price-silver').innerText = "$" + d.prices.silver.toFixed(2);
                 document.getElementById('price-copper').innerText = "$" + d.prices.copper.toFixed(2);
 
+                document.getElementById('m-alert').style.display = d.market_pump ? 'block' : 'none';
+                
+                hasStaked = (d.staked > 0);
+                let botSpeed = hasStaked ? 4000 : 8000;
+
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
                 
-                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+                let rl = ""; d.top.forEach((u, i) => { 
+                    let color = u.is_p ? "color:var(--purple); font-weight:bold;" : "";
+                    rl += `<div class="card"><span style="${color}">${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
+                });
                 document.getElementById('rank-list').innerHTML = rl;
 
-                // LOGIQUE BOT AUTO 🤖
-                if(isAuto && energyVal >= 1) { simulateAutoMine(); }
+                if(isAuto && energyVal >= 1) { 
+                    setTimeout(simulateAutoMine, botSpeed);
+                }
             } catch(e) {}
         }
 
         function toggleAuto() {
             isAuto = !isAuto;
-            const btn = document.getElementById('btn-auto');
-            btn.classList.toggle('active', isAuto);
+            document.getElementById('btn-auto').classList.toggle('active', isAuto);
             if(isAuto) { tg.HapticFeedback.notificationOccurred('success'); refresh(); }
         }
 
         async function simulateAutoMine() {
+            if(!isAuto) return;
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:'genesis'})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('soft'); refresh(); }
         }
@@ -227,7 +262,7 @@ async def web_ui():
 
         async function useDrink() {
             const res = await fetch('/api/use_drink', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(res.ok) { tg.showPopup({title:'Refilled!', message:'100% Energy.'}); refresh(); }
+            if(res.ok) { tg.showPopup({title:'Refilled!', message:'Energy 100%.'}); refresh(); }
         }
 
         function show(p) { ['mine','pillars','leader','mission','opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
