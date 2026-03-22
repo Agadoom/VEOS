@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import config, database, missions
 
-# --- INITIALIZATION ---
+# --- INITIALISATION ---
 try:
     database.init_db_structure()
     print("✅ Database structure updated!")
@@ -84,7 +84,7 @@ async def web_ui():
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; --green: #34C759; --purple: #A259FF; --silver: #C0C0C0; --copper: #CD7F32; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; --green: #34C759; --purple: #A259FF; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         .ticker-container { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; }
         .ticker-wrapper { display: inline-block; animation: ticker 25s linear infinite; padding-left: 100%; }
@@ -95,13 +95,10 @@ async def web_ui():
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
-        .auto-toggle { position: absolute; top: 10px; right: 10px; font-size: 20px; opacity: 0.3; transition: 0.3s; cursor: pointer; }
-        .auto-toggle.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
+        .auto-toggle { position: absolute; top: 10px; right: 10px; font-size: 20px; opacity: 0.3; filter: grayscale(1); transition: 0.3s; cursor: pointer; }
+        .auto-toggle.active { opacity: 1; filter: grayscale(0); transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
-        .pillars-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .pillar-item { background: var(--card); border: 1px solid #1c1c1e; border-radius: 15px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-        .btn-mini { background: #FFF; color: #000; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 10px; width: 100%; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 18px; opacity: 0.4; position: relative; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
@@ -137,12 +134,10 @@ async def web_ui():
 
     <div id="p-pillars" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">WPT PILLARS</h3>
-        <div class="pillars-grid">
-            <div class="pillar-item"><b>WPT Token</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><b>Unity</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><b>Veo AI</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><b>Genesis</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button></div>
-        </div>
+        <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><b>Veo AI Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
     </div>
 
     <div id="p-opps" style="display:none">
@@ -164,8 +159,7 @@ async def web_ui():
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB SETTINGS</h3>
-        <div class="card"><div><b>Stake 100</b></div><button class="btn" onclick="lockAssets()">LOCK</button></div>
-        <div class="card"><div><b>Energy Drink</b></div><button class="btn" onclick="useDrink()">DRINK</button></div>
+        <div class="card"><div><b>Energy Drink</b><br><small style="color:var(--text)">Refill 100% instantly</small></div><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button></div>
         <div class="card"><div><b>Daily Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
     </div>
 
@@ -207,20 +201,42 @@ async def web_ui():
                 
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
+
+                // LOGIQUE BOT AUTO 🤖
+                if(isAuto && energyVal >= 1) { simulateAutoMine(); }
             } catch(e) {}
         }
-        function toggleAuto() { isAuto = !isAuto; document.getElementById('btn-auto').classList.toggle('active', isAuto); refresh(); }
+
+        function toggleAuto() {
+            isAuto = !isAuto;
+            const btn = document.getElementById('btn-auto');
+            btn.classList.toggle('active', isAuto);
+            if(isAuto) { tg.HapticFeedback.notificationOccurred('success'); refresh(); }
+        }
+
+        async function simulateAutoMine() {
+            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:'genesis'})});
+            if(res.ok) { tg.HapticFeedback.impactOccurred('soft'); refresh(); }
+        }
+
         async function mine(e, t) {
             const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
+
+        async function useDrink() {
+            const res = await fetch('/api/use_drink', {method:'POST', body:JSON.stringify({user_id:uid})});
+            if(res.ok) { tg.showPopup({title:'Refilled!', message:'100% Energy.'}); refresh(); }
+        }
+
         function show(p) { ['mine','pillars','leader','mission','opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
         tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
+
 """
 
 
