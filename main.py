@@ -150,13 +150,14 @@ async def web_ui():
     </div>
 
     <div id="offline-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center;">
-        <div style="background:#111; border:2px solid #FFD700; padding:30px; border-radius:30px; text-align:center;">
-            <h2 style="color:#FFD700">Bon retour !</h2>
-            <p>Tes actifs ont miné pendant ton absence :</p>
-            <div style="font-size:32px; font-weight:bold; margin:15px 0;">+ <span id="rw-amt">0</span> WPT</div>
-            <button onclick="document.getElementById('offline-modal').style.display='none'" style="background:#FFF; color:#000; border:none; padding:10px 20px; border-radius:10px; font-weight:bold;">RÉCOLTER</button>
-        </div>
+    <div style="background:#111; border:2px solid #FFD700; padding:30px; border-radius:30px; text-align:center;">
+        <h2 style="color:#FFD700">Bon retour !</h2>
+        <p>Tes actifs ont miné pendant ton absence :</p>
+        <div style="font-size:32px; font-weight:bold; margin:15px 0;">+ <span id="rw-amt">0</span> WPT</div>
+        <button onclick="document.getElementById('offline-modal').style.display='none'" style="background:#FFF; color:#000; border:none; padding:10px 20px; border-radius:10px; font-weight:bold;">RÉCOLTER</button>
     </div>
+</div>
+
 
     <div id="p-mine">
         <div class="balance">
@@ -217,10 +218,11 @@ async def web_ui():
                 if(!d.name) return;
 
                 if(d.off_rw > 0 && !offlineShowed) {
-                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
-                    document.getElementById('offline-modal').style.display = 'flex';
-                    offlineShowed = true;
-                }
+    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
+    document.getElementById('offline-modal').style.display = 'flex'; // Affiche la fenêtre
+    offlineShowed = true; // Empêche qu'elle revienne toutes les 8 secondes
+}
+
 
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-badge').innerText = d.badge;
