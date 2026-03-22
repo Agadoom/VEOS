@@ -29,22 +29,30 @@ async def api_get_user(uid: int):
     last_update = r[6] if r[6] is not None else now
     minutes_passed = (now - last_update) // 60
     
-    # 1. Calcul Énergie
+    # 1. Calcul Énergie (Correction : S'assure que la valeur est traitée)
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
     
-    # 2. Calcul Gain Hors-ligne (si > 100 stakés)
+    # 2. Calcul Gain Hors-ligne et MISE À JOUR SYSTÉMATIQUE
     staked = r[8] or 0
     offline_reward = 0
     if staked >= 100 and minutes_passed > 0:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
+    
+    # FIX : On met à jour la DB si du temps a passé pour "sauvegarder" l'énergie qui monte
+    if minutes_passed > 0:
         conn = database.get_db_conn()
         c = conn.cursor()
-        c.execute("UPDATE users SET p_genesis=p_genesis+%s, last_energy_update=%s, energy=%s WHERE user_id=%s", 
-                  (offline_reward, now, current_e, uid))
+        c.execute("""
+            UPDATE users 
+            SET p_genesis = p_genesis + %s, 
+                energy = %s, 
+                last_energy_update = %s 
+            WHERE user_id = %s
+        """, (offline_reward, current_e, now, uid))
         conn.commit()
         c.close(); conn.close()
 
-    # 3. Préparation des données
+    # 3. Préparation des données (Reste inchangé)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     badge, next_goal, b_color = missions.get_badge_info(score)
     
@@ -60,6 +68,7 @@ async def api_get_user(uid: int):
         "streak": r[7] or 0, "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
+
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
