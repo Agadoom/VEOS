@@ -1,4 +1,4 @@
-import asyncio, uvicorn, time
+import asyncio, uvicorn, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,21 +44,23 @@ async def api_get_user(uid: int):
     top_raw = database.get_leaderboard()
     top = [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in top_raw]
     
-    # Suggestion : Bonus de multiplicateur si l'utilisateur est un "Partner" (Michael par exemple)
-    # On peut définir l'ID de Michael dans config ou ici pour le test
-    is_partner = (uid == 12345678) # Remplace par l'ID de Michael
+    # Check if Michael (Partner)
+    is_partner = (uid == 12345678) # Remplacer par l'ID réel de Michael
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
-    if is_partner: multiplier += 0.5 
 
+    # Future Vision: Real-time Commodity Prices (Simulated for UI)
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
         "score": round(score, 2), "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "multiplier": multiplier,
-        "streak": r[7] or 0, "staked": staked,
-        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)),
-        "online": get_online_count(),
-        "is_partner": is_partner
+        "multiplier": multiplier, "streak": r[7] or 0, "staked": staked,
+        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)), "online": get_online_count(),
+        "is_partner": is_partner,
+        "prices": {
+            "gold": 2150.40 + random.uniform(-2, 2),
+            "silver": 24.15 + random.uniform(-0.1, 0.1),
+            "copper": 3.85 + random.uniform(-0.02, 0.02)
+        }
     }
 
 @app.post("/api/mine")
@@ -75,25 +77,6 @@ async def api_mine(request: Request):
             conn.commit(); c.close(); conn.close(); return {"ok": True}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
-@app.post("/api/lock_100")
-async def api_lock_100(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis, p_unity, p_veo FROM users WHERE user_id = %s", (uid,))
-    r = c.fetchone()
-    if r and (sum(r) >= 100):
-        val = 100/3
-        c.execute("UPDATE users SET p_genesis=GREATEST(0,p_genesis-%s), p_unity=GREATEST(0,p_unity-%s), p_veo=GREATEST(0,p_veo-%s), staked=COALESCE(staked,0)+100 WHERE user_id=%s", (val,val,val,uid))
-        conn.commit(); c.close(); conn.close(); return {"ok": True}
-    c.close(); conn.close(); return JSONResponse(status_code=400)
-
-@app.post("/api/use_drink")
-async def api_use_drink(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("UPDATE users SET energy=%s, last_energy_update=%s WHERE user_id=%s", (config.MAX_ENERGY, int(time.time()), uid))
-    conn.commit(); c.close(); conn.close(); return {"ok": True}
-
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -105,42 +88,35 @@ async def web_ui():
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; --green: #34C759; --purple: #A259FF; }
+        :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; --green: #34C759; --purple: #A259FF; --silver: #C0C0C0; --copper: #CD7F32; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         .ticker-container { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; }
-        .ticker-wrapper { display: inline-block; animation: ticker 20s linear infinite; padding-left: 100%; }
-        .ticker-item { display: inline-block; margin-right: 50px; color: var(--gold); font-size: 11px; font-weight: bold; }
+        .ticker-wrapper { display: inline-block; animation: ticker 25s linear infinite; padding-left: 100%; }
+        .ticker-item { display: inline-block; margin-right: 40px; color: var(--gold); font-size: 10px; font-weight: bold; }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; color: var(--text); }
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
-        .auto-toggle { position: absolute; top: 10px; right: 10px; font-size: 20px; opacity: 0.3; filter: grayscale(1); transition: 0.3s; cursor: pointer; }
-        .auto-toggle.active { opacity: 1; filter: grayscale(0); transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
+        .auto-toggle { position: absolute; top: 10px; right: 10px; font-size: 20px; opacity: 0.3; transition: 0.3s; cursor: pointer; }
+        .auto-toggle.active { opacity: 1; transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
-        .pillars-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .pillar-item { background: var(--card); border: 1px solid #1c1c1e; border-radius: 15px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
-        .pillar-item b { font-size: 12px; }
-        .pillar-icon { font-size: 24px; }
-        .btn-mini { background: #FFF; color: #000; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 10px; width: 100%; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 18px; opacity: 0.4; position: relative; } 
         .nav-item.active { opacity: 1; color: var(--gold); }
-        .notif-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: #FF3B30; border-radius: 50%; display: none; box-shadow: 0 0 5px #FF3B30; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { transform: scale(0.9); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.5; } 100% { transform: scale(0.9); opacity: 1; } }
     </style>
 </head>
 <body>
     <div class="ticker-container">
-        <div class="ticker-wrapper">
+        <div class="ticker-wrapper" id="ticker-content">
             <span class="ticker-item">🟢 ONLINE: <span id="online-val">1</span></span>
-            <span class="ticker-item">👥 TOTAL REFS: <span id="u-ref-top">0</span></span>
             <span class="ticker-item">🔥 JACKPOT: <span id="jack-val">0</span> WPT</span>
-            <span class="ticker-item">🚀 BOT: <span id="bot-status" style="color:var(--text)">OFF</span></span>
+            <span class="ticker-item">🏆 TOP REFS: <span id="u-ref-top">0</span></span>
         </div>
     </div>
+
     <div class="profile-bar">
         <div><div id="u-name" style="font-weight:700;">...</div><div id="u-badge" class="badge-tag">...</div></div>
         <button class="btn" style="background:var(--gold)" onclick="share()">🚀 INVITE</button>
@@ -155,78 +131,60 @@ async def web_ui():
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS (GOLD)</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY (SILVER)</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:var(--purple)">VEO AI (COPPER)</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+    </div>
+
+    <div id="p-opps" style="display:none">
+        <h3 style="color:var(--blue); text-align:center;">RWA MARKET HUB</h3>
+        
+        <div class="card" style="border: 1px solid #333; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
+            <div><small style="color:var(--gold)">GOLD</small><br><b id="price-gold" style="font-size:10px;">$---</b></div>
+            <div><small style="color:var(--silver)">SILVER</small><br><b id="price-silver" style="font-size:10px;">$---</b></div>
+            <div><small style="color:var(--copper)">COPPER</small><br><b id="price-copper" style="font-size:10px;">$---</b></div>
+        </div>
+
+        <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(135deg, #111, #1a0a2a); flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; width: 100%;">
+                <b>Partner Analytics</b>
+                <span style="color:var(--purple); font-size:10px;">STREAK: ACTIVE</span>
+            </div>
+            <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%;">
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center; border: 1px solid #222;">
+                    <small style="color:var(--text); font-size:8px;">MY NETWORK</small><br>
+                    <b id="p-fol" style="color:var(--purple); font-size:16px;">0</b>
+                </div>
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center; border: 1px solid #222;">
+                    <small style="color:var(--text); font-size:8px;">COMMISSIONS</small><br>
+                    <b id="p-earn" style="color:var(--green); font-size:16px;">0.00</b>
+                </div>
+            </div>
+            <p style="font-size:8px; color:var(--text); margin-top:10px;">These stats are linked to your Partner ID.</p>
+        </div>
+        
+        <div class="card" style="opacity: 0.5; border: 1px dashed #444;">
+            <small style="color:var(--text)">Next: Tokenizing Physical Assets (Q4 2026)</small>
+        </div>
     </div>
 
     <div id="p-pillars" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
-        <div class="pillars-grid">
-            <div class="pillar-item"><div class="pillar-icon">💰</div><b>WPT Token</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><div class="pillar-icon">🧬</div><b>Unity</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><div class="pillar-icon">🧠</div><b>Veo AI</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><div class="pillar-icon">🌟</div><b>Genesis</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button></div>
+        <h3 style="color:var(--gold); text-align:center;">WPT PILLARS</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="card" style="flex-direction:column; text-align:center;"><b>WPT</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum')">VIEW</button></div>
+            <div class="card" style="flex-direction:column; text-align:center;"><b>UNITY</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum')">VIEW</button></div>
         </div>
     </div>
-
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
-
-    <div id="p-opps" style="display:none">
-        <h3 style="color:var(--blue); text-align:center;">OPPORTUNITIES</h3>
-        <div class="card" style="border: 1px solid var(--green); flex-direction: column; align-items: flex-start; gap: 10px;">
-            <div style="display: flex; justify-content: space-between; width: 100%;">
-                <b>WPT Live Market</b>
-                <span id="wpt-price" style="color:var(--green)">$0.00042</span>
-            </div>
-            <small style="color:var(--text)">Direct DexScreener Integration ready.</small>
-        </div>
-
-        <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(135deg, #111, #1a0a2a);">
-            <div style="width: 100%;">
-                <div style="display: flex; justify-content: space-between;">
-                    <b>Partner Network</b>
-                    <span id="partner-status" style="color:var(--purple); font-size:10px;">AUTHORIZED</span>
-                </div>
-                <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div style="background:#000; padding:10px; border-radius:10px; text-align:center;">
-                        <small style="color:var(--text); font-size:9px;">FOLLOWERS</small><br>
-                        <b id="p-fol" style="color:var(--purple)">0</b>
-                    </div>
-                    <div style="background:#000; padding:10px; border-radius:10px; text-align:center;">
-                        <small style="color:var(--text); font-size:9px;">EARNINGS</small><br>
-                        <b id="p-earn" style="color:var(--green)">0.00</b>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <p style="font-size: 9px; color: var(--text); text-align: center; margin-top: 15px;">Tools & analytics linked to your referral ID.</p>
-    </div>
-
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">MISSIONS</h3>
-        <div class="card" style="border: 1px solid var(--gold);">
-            <div><b>STAKE & LOCK</b><br><small style="color:var(--text)">Lock 100 WPT for ⚡ Boost</small></div>
-            <div style="text-align:right">
-                <div id="staked-val" style="color:var(--gold); font-weight:800; font-size:10px;">0 Locked</div>
-                <button class="btn" style="background:var(--gold); color:#000" onclick="lockAssets()">LOCK 100</button>
-            </div>
-        </div>
-        <div class="card" style="border: 1px solid var(--blue);">
-            <div><b>Energy Drink</b><br><small style="color:var(--text)">Refill 100% instantly</small></div>
-            <button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button>
-        </div>
-        <div class="card">
-            <div style="display: flex; flex-direction: column; width: 100%;">
-                <div style="display: flex; justify-content: space-between; width: 100%;"><b>Referral Bonus</b><span id="pending-val" style="color:var(--gold);">0 pending</span></div>
-                <button id="claim-btn" class="btn" style="width:100%; background:var(--green); color:#FFF; display:none; margin-top:10px;" onclick="claimRefs()">CLAIM REWARD</button>
-            </div>
-        </div>
+        <div class="card"><div><b>Stake 100</b></div><button class="btn" onclick="lockAssets()">LOCK</button></div>
+        <div class="card"><div><b>Energy Drink</b></div><button class="btn" onclick="useDrink()">DRINK</button></div>
         <div class="card"><div><b>Daily Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
     </div>
 
     <div class="nav">
-        <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠<div id="notif-mine" class="notif-dot"></div></div>
+        <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
         <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('opps')" id="n-opps" class="nav-item">💡</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
@@ -235,13 +193,11 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let lastClick = 0; let isAuto = false; let autoAssets = ['genesis', 'unity', 'veo']; let autoIndex = 0;
-        let energyFullNotified = false;
+        let lastClick = 0; let isAuto = false;
 
         async function refresh() {
             try {
                 const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                if(!d.name) return;
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-badge').innerText = d.badge;
                 document.getElementById('gv').innerText = d.g.toFixed(2);
@@ -250,81 +206,36 @@ async def web_ui():
                 document.getElementById('tot').innerText = d.score.toFixed(2);
                 document.getElementById('u-streak').innerText = (d.streak || 0) + " Days";
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
-                document.getElementById('staked-val').innerText = d.staked + " Locked";
                 document.getElementById('online-val').innerText = d.online;
                 document.getElementById('jack-val').innerText = d.jackpot;
                 document.getElementById('u-ref-top').innerText = d.rc;
 
-                // Partner Management Logic
-                document.getElementById('p-fol').innerText = d.rc; // Son nombre de followers
-                document.getElementById('p-earn').innerText = (d.rc * 50).toFixed(2); // Simulation commission Michael
+                // Partner Display
+                document.getElementById('p-fol').innerText = d.rc;
+                document.getElementById('p-earn').innerText = (d.rc * 50).toFixed(2);
 
-                // Market Tracker Simulation
-                const flicker = (Math.random() * 0.00001 - 0.000005).toFixed(6);
-                document.getElementById('wpt-price').innerText = "$" + (0.00042 + parseFloat(flicker)).toFixed(5);
+                // Live Market Feeds
+                document.getElementById('price-gold').innerText = "$" + d.prices.gold.toFixed(2);
+                document.getElementById('price-silver').innerText = "$" + d.prices.silver.toFixed(2);
+                document.getElementById('price-copper').innerText = "$" + d.prices.copper.toFixed(2);
 
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
                 
-                if (energyVal >= d.max_energy) {
-                    document.getElementById('notif-mine').style.display = 'block';
-                    if (!energyFullNotified) {
-                        tg.HapticFeedback.notificationOccurred('success');
-                        tg.showPopup({ title: 'Energy Full! ⚡', message: 'Battery is at 100%. Come back and mine!', buttons: [{type: 'ok'}] });
-                        energyFullNotified = true;
-                    }
-                } else {
-                    document.getElementById('notif-mine').style.display = 'none';
-                    energyFullNotified = false;
-                }
-                const pending = d.pending_refs || 0;
-                document.getElementById('pending-val').innerText = pending + " pending";
-                document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
-                if(isAuto && energyVal >= 1) { simulateAutoMine(autoAssets[autoIndex]); autoIndex = (autoIndex + 1) % autoAssets.length; }
             } catch(e) {}
         }
-        function toggleAuto() {
-            isAuto = !isAuto;
-            const btn = document.getElementById('btn-auto'); btn.classList.toggle('active', isAuto);
-            document.getElementById('bot-status').innerText = isAuto ? "ACTIVE ⚡" : "OFF";
-            document.getElementById('bot-status').style.color = isAuto ? "var(--green)" : "var(--text)";
-            if(isAuto) { tg.HapticFeedback.notificationOccurred('success'); refresh(); }
-        }
-        async function simulateAutoMine(token) {
-            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:token})});
-            if(res.ok) { tg.HapticFeedback.impactOccurred('soft'); refresh(); }
-        }
+        function toggleAuto() { isAuto = !isAuto; document.getElementById('btn-auto').classList.toggle('active', isAuto); refresh(); }
         async function mine(e, t) {
             const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
-            if(res.ok) {
-                const rect = e.target.getBoundingClientRect();
-                const plus = document.createElement('div'); plus.innerText = '+0.05';
-                plus.style.cssText = `position:absolute; left:${rect.left+20}px; top:${rect.top}px; color:var(--gold); font-weight:bold; pointer-events:none;`;
-                plus.animate([{transform:'translateY(0)',opacity:1},{transform:'translateY(-50px)',opacity:0}], 600);
-                document.body.appendChild(plus); setTimeout(()=>plus.remove(), 600);
-                tg.HapticFeedback.impactOccurred('light'); refresh();
-            }
-        }
-        async function lockAssets() {
-            const res = await fetch('/api/lock_100', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(res.ok) { tg.showPopup({title:'Locked!', message:'100 WPT staked.'}); refresh(); }
-            else { tg.showPopup({title:'Error', message:'Low balance.'}); }
-        }
-        async function useDrink() {
-            const res = await fetch('/api/use_drink', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(res.ok) { tg.showPopup({title:'Refilled!', message:'100% Energy.'}); refresh(); }
-        }
-        async function claimRefs() {
-            const r = await fetch('/api/claim_refs', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(r.ok) { tg.showPopup({title:'Claimed!', message:'Rewards added.'}); refresh(); }
+            if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
         function show(p) { ['mine','pillars','leader','mission','opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         function share() { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/owpcsbot?start=${uid}`); }
-        tg.expand(); refresh(); setInterval(refresh, 8000);
+        tg.expand(); refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
