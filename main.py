@@ -70,38 +70,24 @@ async def api_get_user(uid: int):
 async def api_mine(request: Request):
     data = await request.json()
     uid, t = data.get("user_id"), data.get("token")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
+    r = database.get_user_full(uid)
+    if not r: return JSONResponse(status_code=404, content={})
     
     now_ms = int(time.time() * 1000)
+    last_click = r[10] if len(r) > 10 else 0 
+    if (now_ms - last_click) < 80:
+        return JSONResponse(status_code=429, content={})
+    
     now_s = now_ms // 1000
-    
-    # Anti-spam 80ms
-    if (now_ms - (res[2] or 0)) < 80:
-        c.close(); conn.close(); return JSONResponse(status_code=429)
-    
-    # CALCUL ÉNERGIE IDENTIQUE AU GET (à la seconde près)
-    last_update = res[1] or now_s
-    seconds_passed = now_s - last_update
-    regen_val = (seconds_passed / 60) * config.REGEN_RATE
-    current_e = min(config.MAX_ENERGY, (res[0] or 0) + regen_val)
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now_s - (r[6] or now_s)) // 60) * config.REGEN_RATE)
     
     if current_e >= 1:
-        # On déduit 1 d'énergie et on met à jour last_energy_update à MAINTENANT
-        c.execute(f"""
-            UPDATE users 
-            SET p_{t} = COALESCE(p_{t}, 0) + 0.05, 
-                energy = %s, 
-                last_energy_update = %s, 
-                last_click_time = %s 
-            WHERE user_id = %s
-        """, (current_e - 1, now_s, now_ms, uid))
+        conn = database.get_db_conn(); c = conn.cursor()
+        c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", 
+                  (current_e-1, now_s, now_ms, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
-    
-    c.close(); conn.close()
-    return JSONResponse(status_code=400)
+    return JSONResponse(status_code=400, content={"error": "no_energy"})
 
 
 @app.post("/api/claim_refs")
