@@ -26,28 +26,33 @@ async def api_get_user(uid: int):
     
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
-    minutes_passed = (now - last_update) // 60
+    seconds_passed = now - last_update
+    minutes_passed = seconds_passed // 60
     
-    # Énergie
-    current_e = min(config.MAX_ENERGY, (r[5] or 0) + (minutes_passed * config.REGEN_RATE))
+    # Calcul de l'énergie actuelle (très précis)
+    # On ajoute la régénération par seconde pour que la barre soit fluide
+    regen_since_last = (seconds_passed / 60) * config.REGEN_RATE
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + regen_since_last)
     
     # Gain Hors-ligne
     staked = r[8] or 0
     offline_reward = 0
-    if staked >= 100 and minutes_passed > 0:
-        # On calcule le gain
+    if staked >= 100 and minutes_passed >= 1:
         offline_reward = round((staked / 100) * 0.01 * minutes_passed, 2)
-        
-        # On met à jour la DB pour valider l'énergie et le gain
+
+    # SAUVEGARDE EN BASE : Uniquement si nécessaire pour ne pas ralentir le serveur
+    if minutes_passed >= 1:
         conn = database.get_db_conn(); c = conn.cursor()
         c.execute("""
             UPDATE users 
-            SET p_genesis = p_genesis + %s, energy = %s, last_energy_update = %s 
+            SET p_genesis = p_genesis + %s, 
+                energy = %s, 
+                last_energy_update = %s 
             WHERE user_id = %s
         """, (offline_reward, current_e, now, uid))
         conn.commit(); c.close(); conn.close()
 
-    # Données pour le front-end
+    # Données retournées
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0) + offline_reward
     badge, _, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
@@ -55,14 +60,19 @@ async def api_get_user(uid: int):
     
     return {
         "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
-        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
+        "energy": int(current_e), 
+        "max_energy": config.MAX_ENERGY, 
+        "badge": badge,
         "score": round(score, 2), 
-        "off_rw": offline_reward,  # <-- C'est cette ligne qui déclenche l'affichage
-        "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
+        "off_rw": offline_reward,  # Le JS utilise ça pour la fenêtre
+        "top": top, 
+        "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2),
-        "streak": r[7] or 0, "staked": staked,
+        "streak": r[7] or 0, 
+        "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0))
     }
+
 
 
 @app.post("/api/mine")
@@ -201,50 +211,32 @@ async def web_ui():
 
 
 
-        async function refresh() {
+        let offlineClaimed = false; // Variable pour éviter que la fenêtre s'ouvre en boucle
+
+async function refresh() {
     try {
         const r = await fetch(`/api/user/${uid}`); 
         const d = await r.json();
         if(!d.name) return;
 
-        // 1. Message de collecte (Offline Reward)
-        if(d.off_rw > 0) {
+        // Message de collecte : On l'affiche si > 0 ET si pas encore affiché ce coup-ci
+        if(d.off_rw > 0 && !offlineClaimed) {
             const amtElem = document.getElementById('rw-amt');
             const modalElem = document.getElementById('offline-modal');
             if (amtElem) amtElem.innerText = d.off_rw.toFixed(2);
             if (modalElem) modalElem.style.display = 'flex';
+            offlineClaimed = true; // On marque comme affiché
         }
 
-        // 2. Mise à jour des textes et scores
+        // Mise à jour des éléments classiques
         document.getElementById('u-name').innerText = d.name;
-        document.getElementById('u-badge').innerText = d.badge;
-        document.getElementById('gv').innerText = d.g.toFixed(2);
-        document.getElementById('uv').innerText = d.u.toFixed(2);
-        document.getElementById('vv').innerText = d.v.toFixed(2);
         document.getElementById('tot').innerText = d.score.toFixed(2);
-        document.getElementById('u-streak').innerText = d.streak + " Days";
-        document.getElementById('jack-val').innerText = d.jackpot;
-        document.getElementById('u-ref-top').innerText = d.rc;
-        document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
+        
+        // Énergie (Correction : Utilise Math.floor pour éviter les bugs d'affichage)
+        let energyVal = Math.floor(d.energy);
+        document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
+        document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
 
-        // 3. Énergie (Barre qui monte automatiquement via le refresh)
-        let ePerc = (d.energy / d.max_energy * 100);
-        let eBar = document.getElementById('e-bar');
-        let eText = document.getElementById('e-text');
-        let eFull = document.getElementById('e-full');
-
-        if (eBar) eBar.style.width = ePerc + "%";
-        if (eText) eText.innerText = `⚡ ${Math.floor(d.energy)} / ${d.max_energy}`;
-
-        // Notification visuelle quand l'énergie est à 100%
-        if (eFull) {
-            eFull.style.display = (d.energy >= d.max_energy) ? 'block' : 'none';
-        }
-
-        // 4. Mission Claim (Parrainage)
-        const pending = d.pending_refs || 0;
-        document.getElementById('pending-val').innerText = pending + " pending";
-        document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
 
         // 5. Leaderboard
         let rl = ""; 
