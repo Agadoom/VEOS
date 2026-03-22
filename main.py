@@ -65,7 +65,6 @@ async def api_lock_100(request: Request):
     
     total_assets = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     if total_assets >= 100:
-        # On retire 33.33 de chaque pour faire 100 au total
         val = 100 / 3
         c.execute("""UPDATE users SET 
                      p_genesis = GREATEST(0, p_genesis - %s), 
@@ -75,7 +74,7 @@ async def api_lock_100(request: Request):
                      WHERE user_id = %s""", (val, val, val, uid))
         conn.commit(); c.close(); conn.close()
         return {"ok": True}
-    c.close(); conn.close(); return JSONResponse(status_code=400, content={"error": "low_balance"})
+    c.close(); conn.close(); return JSONResponse(status_code=400)
 
 @app.post("/api/use_drink")
 async def api_use_drink(request: Request):
@@ -143,6 +142,13 @@ async def web_ui():
 
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
+
+        /* NOUVEAU STYLE PILLARS COMPACT */
+        .pillars-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .pillar-item { background: var(--card); border: 1px solid #1c1c1e; border-radius: 15px; padding: 15px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+        .pillar-item b { font-size: 12px; }
+        .pillar-icon { font-size: 24px; }
+        .btn-mini { background: #FFF; color: #000; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 10px; width: 100%; }
         
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
         .nav-item { font-size: 20px; opacity: 0.4; position: relative; } 
@@ -165,14 +171,6 @@ async def web_ui():
         <button class="btn" style="background:var(--gold)" onclick="share()">🚀 INVITE</button>
     </div>
 
-    <div id="offline-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:2000; align-items:center; justify-content:center;">
-        <div style="background:#111; border:2px solid #FFD700; padding:30px; border-radius:30px; text-align:center;">
-            <h2 style="color:#FFD700">Bon retour !</h2>
-            <div style="font-size:32px; font-weight:bold; margin:15px 0;">+ <span id="rw-amt">0</span> WPT</div>
-            <button onclick="document.getElementById('offline-modal').style.display='none'" class="btn">RÉCOLTER</button>
-        </div>
-    </div>
-
     <div id="p-mine">
         <div class="balance">
             <div id="btn-auto" class="auto-toggle" onclick="toggleAuto()">🤖</div>
@@ -189,17 +187,34 @@ async def web_ui():
 
     <div id="p-pillars" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
-        <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Veo AI Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="pillars-grid">
+            <div class="pillar-item">
+                <div class="pillar-icon">💰</div>
+                <b>WPT Token</b>
+                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button>
+            </div>
+            <div class="pillar-item">
+                <div class="pillar-icon">🧬</div>
+                <b>Unity</b>
+                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button>
+            </div>
+            <div class="pillar-item">
+                <div class="pillar-icon">🧠</div>
+                <b>Veo AI</b>
+                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button>
+            </div>
+            <div class="pillar-item">
+                <div class="pillar-icon">🌟</div>
+                <b>Genesis</b>
+                <button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button>
+            </div>
+        </div>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">MISSIONS</h3>
-        
         <div class="card" style="border: 1px solid var(--gold);">
             <div><b>STAKE & LOCK</b><br><small style="color:var(--text)">Lock 100 WPT for ⚡ Boost</small></div>
             <div style="text-align:right">
@@ -207,12 +222,10 @@ async def web_ui():
                 <button class="btn" style="background:var(--gold); color:#000" onclick="lockAssets()">LOCK 100</button>
             </div>
         </div>
-
         <div class="card" style="border: 1px solid var(--blue);">
             <div><b>Energy Drink</b><br><small style="color:var(--text)">Refill 100% instantly</small></div>
             <button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button>
         </div>
-        
         <div class="card">
             <div style="display: flex; flex-direction: column; width: 100%;">
                 <div style="display: flex; justify-content: space-between; width: 100%;"><b>Referral Bonus</b><span id="pending-val" style="color:var(--gold);">0 pending</span></div>
@@ -231,20 +244,12 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let lastClick = 0; let offlineShowed = false;
-        let isAuto = false; let autoAssets = ['genesis', 'unity', 'veo']; let autoIndex = 0;
+        let lastClick = 0; let isAuto = false; let autoAssets = ['genesis', 'unity', 'veo']; let autoIndex = 0;
 
         async function refresh() {
             try {
                 const r = await fetch(`/api/user/${uid}`); const d = await r.json();
                 if(!d.name) return;
-
-                if(d.off_rw > 0 && !offlineShowed) {
-                    document.getElementById('rw-amt').innerText = d.off_rw.toFixed(2);
-                    document.getElementById('offline-modal').style.display = 'flex';
-                    offlineShowed = true;
-                }
-
                 document.getElementById('u-name').innerText = d.name;
                 document.getElementById('u-badge').innerText = d.badge;
                 document.getElementById('gv').innerText = d.g.toFixed(2);
@@ -256,19 +261,15 @@ async def web_ui():
                 document.getElementById('u-ref-top').innerText = d.rc;
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
                 document.getElementById('staked-val').innerText = d.staked + " Locked";
-
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
                 document.getElementById('notif-mine').style.display = (energyVal >= d.max_energy) ? 'block' : 'none';
-
                 const pending = d.pending_refs || 0;
                 document.getElementById('pending-val').innerText = pending + " pending";
                 document.getElementById('claim-btn').style.display = (pending > 0) ? 'block' : 'none';
-
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
-
                 if(isAuto && energyVal >= 1) {
                     let assetToMine = autoAssets[autoIndex];
                     autoIndex = (autoIndex + 1) % autoAssets.length;
@@ -279,12 +280,8 @@ async def web_ui():
 
         async function lockAssets() {
             const res = await fetch('/api/lock_100', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(res.ok) {
-                tg.showPopup({title:'Assets Locked!', message:'100 WPT staked. Your multiplier increased!'});
-                refresh();
-            } else {
-                tg.showPopup({title:'Balance Low', message:'You need 100 total assets to lock.'});
-            }
+            if(res.ok) { tg.showPopup({title:'Locked!', message:'100 WPT staked.'}); refresh(); }
+            else { tg.showPopup({title:'Error', message:'Low balance.'}); }
         }
 
         function toggleAuto() {
@@ -304,7 +301,7 @@ async def web_ui():
 
         async function useDrink() {
             const res = await fetch('/api/use_drink', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if(res.ok) { tg.showPopup({title:'Refilled!', message:'Your energy is now 100%'}); refresh(); }
+            if(res.ok) { tg.showPopup({title:'Refilled!', message:'100% Energy.'}); refresh(); }
         }
 
         async function mine(e, t) {
@@ -322,7 +319,7 @@ async def web_ui():
 
         async function claimRefs() {
             const r = await fetch('/api/claim_refs', {method:'POST', body:JSON.stringify({user_id:uid})});
-            if((await r.json()).ok) { tg.showPopup({title:'Success!', message:'Reward claimed!'}); refresh(); }
+            if((await r.json()).ok) { tg.showPopup({title:'Claimed!', message:'Reward added.'}); refresh(); }
         }
 
         function show(p) { ['mine','pillars','leader','mission'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
