@@ -57,7 +57,6 @@ async def api_get_user(uid: int):
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
     market_pump = random.random() > 0.8 
 
-    # News Feed Dynamique
     news_list = [
         "🟡 Gold price stability attracts institutional investors.",
         "⚪ Silver demand surges in solar panel industry.",
@@ -115,16 +114,20 @@ async def web_ui():
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; --green: #34C759; --purple: #A259FF; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
+        
         .ticker-container { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; }
         .ticker-wrapper { display: inline-block; animation: ticker 25s linear infinite; padding-left: 100%; }
         .ticker-item { display: inline-block; margin-right: 40px; color: var(--gold); font-size: 10px; font-weight: bold; }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
         
-        .market-alert { background: rgba(52, 199, 89, 0.1); border: 1px solid var(--green); color: var(--green); padding: 10px; border-radius: 12px; font-size: 10px; text-align: center; margin-bottom: 10px; display: none; animation: flash 2s infinite; }
+        /* FIX: Zone d'alerte à hauteur fixe pour éviter le décalage */
+        .alert-zone { height: 45px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
+        .market-alert { width: 100%; background: rgba(52, 199, 89, 0.1); border: 1px solid var(--green); color: var(--green); padding: 8px; border-radius: 12px; font-size: 10px; text-align: center; display: none; animation: flash 2s infinite; }
         @keyframes flash { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; color: var(--text); }
+        
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
@@ -150,7 +153,9 @@ async def web_ui():
         </div>
     </div>
 
-    <div id="m-alert" class="market-alert">📈 GOLD MARKET PUMP! Genesis Mining x2 Yield.</div>
+    <div class="alert-zone">
+        <div id="m-alert" class="market-alert">📈 GOLD MARKET PUMP! Genesis Mining x2 Yield.</div>
+    </div>
 
     <div class="profile-bar">
         <div><div id="u-name" style="font-weight:700;">...</div><div id="u-badge" class="badge-tag">...</div></div>
@@ -237,9 +242,7 @@ async def web_ui():
                 document.getElementById('price-silver').innerText = "$" + d.prices.silver.toFixed(2);
                 document.getElementById('price-copper').innerText = "$" + d.prices.copper.toFixed(2);
                 
-                // News Feed Update
                 document.getElementById('news-feed').innerText = d.news;
-
                 document.getElementById('m-alert').style.display = d.market_pump ? 'block' : 'none';
                 
                 hasStaked = (d.staked > 0);
