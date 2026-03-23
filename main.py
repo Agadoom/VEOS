@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import config, database, missions
 
-# --- INITIALISATION & SECURITY ---
+# --- INITIALISATION ---
 try:
     database.init_db_structure()
     print("✅ Database Master Structure Active")
@@ -17,17 +17,14 @@ except Exception as e:
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# --- CORE LOGIC FUNCTIONS ---
+# --- CORE LOGIC ---
 
 def get_network_stats():
     try:
         conn = database.get_db_conn(); c = conn.cursor()
-        now = int(time.time())
-        c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
-        online = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM users")
-        total = c.fetchone()[0]
-        c.close(); conn.close()
+        now = int(time.time()); c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
+        online = c.fetchone()[0]; c.execute("SELECT COUNT(*) FROM users")
+        total = c.fetchone()[0]; c.close(); conn.close()
         return (online if online > 0 else 1), total
     except: return 1, 1
 
@@ -38,46 +35,34 @@ async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
     
-    now = int(time.time())
-    last_update = r[6] if r[6] is not None else now
+    now = int(time.time()); last_update = r[6] if r[6] is not None else now
     
-    # --- LOGIQUE FRENZY COMBO ---
-    # On vérifie si l'utilisateur a miné les 3 tokens récemment (simulé ici via un flag ou une condition)
-    # Dans une version future, on stockera 'last_combo_time' en DB
-    frenzy_active = (r[7] or 0) > 5 # Exemple: Si le streak est élevé, il a plus de chance d'être en Frenzy
-    regen_multiplier = 5.0 if frenzy_active else 1.0
+    # LOGIQUE FRENZY (5x Speed si Streak > 5 ou Aléatoire 10%)
+    is_frenzy = (r[7] or 0) > 5 or random.random() > 0.9
+    regen_rate = config.REGEN_RATE * (5.0 if is_frenzy else 1.0)
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * regen_rate)
     
-    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * config.REGEN_RATE * regen_multiplier)
-    staked = r[8] or 0
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    badge, badge_rank, _ = missions.get_badge_info(score)
-    
-    top_raw = database.get_leaderboard()
-    top = []
-    for x in top_raw:
-        is_partner = " 💎 PARTNER" if str(uid) == "8136550118" and x[0] == r[4] else ""
-        top.append({"n": f"{x[0]}{is_partner}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0], "is_p": (is_partner != "")})
-    
-    multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000) + (badge_rank * 0.05), 2)
-    if frenzy_active: multiplier = round(multiplier * 1.2, 2) # +20% boost en Frenzy
-    
-    online_c, total_u = get_network_stats()
-    market_pump = random.random() > 0.75
+    badge, rank_idx, next_goal = missions.get_badge_info(score)
+    staked = r[8] or 0
+    mult = round(1.0 + (staked / 100) * 0.1 + (score / 1000) + (rank_idx * 0.05), 2)
+    if is_frenzy: mult = round(mult * 1.2, 2)
 
+    online_c, total_u = get_network_stats()
+    
     return {
-        "uid": uid, "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
-        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
-        "score": round(score, 2), "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "multiplier": multiplier, "frenzy": frenzy_active, "staked": staked,
-        "online": online_c, "total_users": total_u, "market_pump": market_pump,
-        "news": "🔥 FRENZY ACTIVE: 5x Energy Regen!" if frenzy_active else "🟢 Market Stable",
-        "prices": {"gold": 2150.40, "silver": 24.15, "copper": 3.85}
+        "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0,
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge, "rank_idx": rank_idx,
+        "score": round(score, 2), "next_goal": next_goal, "multiplier": mult, "frenzy": is_frenzy,
+        "online": online_c, "total_users": total_u, "staked": staked,
+        "jackpot": round(database.get_total_network_score() * 0.1, 2),
+        "news": "🔥 FRENZY ACTIVE!" if is_frenzy else "🚀 Gold market stable",
+        "top": [{"n": f"{x[0]}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()[:10]]
     }
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    yield_val = 0.05
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
@@ -85,11 +70,11 @@ async def api_mine(request: Request):
     if res and (now_ms - (res[2] or 0)) >= 80:
         cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
         if cur_e >= 1:
-            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (yield_val, cur_e-1, now_s, now_ms, uid))
+            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
             conn.commit(); c.close(); conn.close(); return {"ok": True}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
-# --- WEB UI (INTERFACE FRENZY) ---
+# --- WEB UI (COMPLETE MASTER) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -108,13 +93,10 @@ async def web_ui():
         .ticker-item { display: inline-block; margin-right: 40px; color: var(--gold); font-size: 10px; font-weight: bold; }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
         
-        .frenzy-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 4px solid var(--red); pointer-events: none; z-index: 99; display: none; opacity: 0.3; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 0.1; } 50% { opacity: 0.4; } 100% { opacity: 0.1; } }
+        .frenzy-glow { position: fixed; inset: 0; border: 4px solid var(--red); pointer-events: none; z-index: 99; display: none; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.4; } }
 
-        .alert-zone { height: 45px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
-        .market-alert { width: 100%; background: rgba(52, 199, 89, 0.1); border: 1px solid var(--green); color: var(--green); padding: 8px; border-radius: 12px; font-size: 10px; text-align: center; display: none; }
-
-        .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
+        .balance-card { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
         .energy-fill.frenzy { background: linear-gradient(90deg, var(--red), #FF9500); }
@@ -122,70 +104,76 @@ async def web_ui():
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
         
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
-        .nav-item { font-size: 18px; opacity: 0.4; } 
-        .nav-item.active { opacity: 1; color: var(--gold); }
+        .profile-header { text-align: center; margin-bottom: 25px; }
+        .xp-bar { background: #222; height: 6px; border-radius: 3px; margin-top: 10px; }
+        .xp-fill { background: var(--purple); height: 100%; border-radius: 3px; }
+
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 100; }
+        .nav-item { font-size: 20px; opacity: 0.3; transition: 0.3s; } 
+        .nav-item.active { opacity: 1; color: var(--gold); transform: scale(1.2); }
     </style>
 </head>
 <body>
-    <div id="f-glow" class="frenzy-overlay"></div>
+    <div id="f-glow" class="frenzy-glow"></div>
     <div class="ticker-container">
         <div class="ticker-wrapper">
             <span class="ticker-item">🟢 ONLINE: <span id="online-val">1</span> | 👥 TOTAL: <span id="total-val">1</span></span>
             <span class="ticker-item">🔥 JACKPOT: <span id="jack-val">0</span> WPT</span>
-            <span class="ticker-item">📉 MARKET: <span id="news-ticker">Stable</span></span>
         </div>
     </div>
 
-    <div class="alert-zone"><div id="m-alert" class="market-alert">⚡ COMBO FRENZY ACTIVE! 5x REGEN SPEED.</div></div>
-
     <div id="p-mine">
-        <div class="balance">
+        <div class="balance-card">
             <small style="color:var(--text)">TOTAL ASSETS</small>
             <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
             <div id="u-mult" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
             <div class="energy-bar"><div id="e-bar" class="energy-fill"></div></div>
             <div id="e-text" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine(event, 'genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine(event, 'unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine(event, 'veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
-    <div id="p-pillars" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">WPT PILLARS</h3>
-        <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Veo AI Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
+    <div id="p-profile" style="display:none">
+        <div class="profile-header">
+            <div style="font-size:40px;">👤</div>
+            <h2 id="prof-name">...</h2>
+            <div id="prof-badge" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
+            <div class="xp-bar"><div id="xp-fill" class="xp-fill"></div></div>
+            <small id="xp-text" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
+        </div>
+        <div class="card"><span>User ID</span><b id="prof-id">---</b></div>
+        <div class="card"><span>Network Power</span><b id="prof-mult">x1.0</b></div>
+        <div class="card"><span>Referrals</span><b id="prof-refs">0</b></div>
+        <div class="card"><span>Staked WPT</span><b id="prof-stake">0</b></div>
     </div>
 
     <div id="p-opps" style="display:none">
-        <h3 style="color:var(--blue); text-align:center;">OPPORTUNITIES</h3>
-        <div id="news-feed" class="news-box">⌛ Loading market news...</div>
-        <div class="card" style="border: 1px solid var(--purple); flex-direction: column;">
-            <div style="display: flex; justify-content: space-between; width: 100%;"><b>Partner Dashboard</b><span style="color:var(--purple); font-size:10px;">CONNECTED</span></div>
-            <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%;">
-                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">MY REFERRALS</small><br><b id="p-fol" style="color:var(--purple)">0</b></div>
-                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">EST. EARNINGS</small><br><b id="p-earn" style="color:var(--green)">0.00</b></div>
+        <h3 style="color:var(--blue); text-align:center;">MARKET DASHBOARD</h3>
+        <div id="news-feed" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin-bottom:15px; border-left:3px solid var(--blue);">⌛ Loading news...</div>
+        <div class="card" style="border:1px solid var(--purple); flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; width:100%;"><b>Partner Channel</b><span style="color:var(--purple); font-size:10px;">LIVE</span></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; margin-top:10px;">
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="font-size:8px;">MY REFS</small><br><b id="opp-refs" style="color:var(--purple)">0</b></div>
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="font-size:8px;">EST. EARN</small><br><b id="opp-earn" style="color:var(--green)">0.00</b></div>
             </div>
         </div>
     </div>
 
     <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
-
-    <div id="p-mission" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">HUB SETTINGS</h3>
-        <div class="card"><b>Turbo Robot</b><button class="btn" style="background:var(--gold)">LOCK WPT</button></div>
-        <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button></div>
+    <div id="p-settings" style="display:none">
+        <h3 style="color:var(--text); text-align:center;">SETTINGS</h3>
+        <div class="card"><b>Turbo Robot</b><button class="btn" style="background:var(--gold)">STAKE</button></div>
+        <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">REFILL</button></div>
     </div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="nav-item active">🏠</div>
-        <div onclick="show('pillars')" id="n-pillars" class="nav-item">📊</div>
         <div onclick="show('opps')" id="n-opps" class="nav-item">💡</div>
         <div onclick="show('leader')" id="n-leader" class="nav-item">🏆</div>
-        <div onclick="show('mission')" id="n-mission" class="nav-item">⚙️</div>
+        <div onclick="show('profile')" id="n-profile" class="nav-item">👤</div>
+        <div onclick="show('settings')" id="n-settings" class="nav-item">⚙️</div>
     </div>
 
     <script>
@@ -203,35 +191,39 @@ async def web_ui():
                 document.getElementById('online-val').innerText = d.online;
                 document.getElementById('total-val').innerText = d.total_users;
                 document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('p-fol').innerText = d.rc;
-                document.getElementById('p-earn').innerText = (d.rc * 50).toFixed(2);
                 
-                // Effet Visuel Frenzy
-                if(d.frenzy) {
-                    document.getElementById('f-glow').style.display = 'block';
-                    document.getElementById('m-alert').style.display = 'block';
-                    document.getElementById('e-bar').classList.add('frenzy');
-                    document.getElementById('news-ticker').innerText = "🔥 FRENZY ACTIVE";
-                } else {
-                    document.getElementById('f-glow').style.display = 'none';
-                    document.getElementById('m-alert').style.display = 'none';
-                    document.getElementById('e-bar').classList.remove('frenzy');
-                    document.getElementById('news-ticker').innerText = d.news.substring(0, 15);
-                }
+                // Profile Data
+                document.getElementById('prof-name').innerText = d.name;
+                document.getElementById('prof-id').innerText = d.uid;
+                document.getElementById('prof-badge').innerText = d.badge;
+                document.getElementById('prof-mult').innerText = "x" + d.multiplier;
+                document.getElementById('prof-refs').innerText = d.rc;
+                document.getElementById('prof-stake').innerText = d.staked;
+                document.getElementById('opp-refs').innerText = d.rc;
+                document.getElementById('opp-earn').innerText = (d.rc * 50).toFixed(2);
+                document.getElementById('news-feed').innerText = d.news;
+
+                // XP Logic
+                let progress = (d.score % 1000) / 10;
+                document.getElementById('xp-fill').style.width = progress + "%";
+                document.getElementById('xp-text').innerText = "Next Rank: " + d.next_goal;
+
+                // Frenzy Effect
+                document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
+                document.getElementById('e-bar').classList.toggle('frenzy', d.frenzy);
 
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
                 
                 let rl = ""; d.top.forEach((u, i) => { 
-                    let color = u.is_p ? "color:var(--purple); font-weight:bold;" : "";
-                    rl += `<div class="card"><span style="${color}">${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
+                    rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
                 });
                 document.getElementById('rank-list').innerHTML = rl;
             } catch(e) {}
         }
 
-        async function mine(e, t) {
+        async function mine(t) {
             const now = Date.now(); if (now - lastClick < 80) return; lastClick = now;
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
@@ -242,12 +234,11 @@ async def web_ui():
             if(res.ok) { tg.showPopup({title:'Refilled!', message:'Energy 100%.'}); refresh(); }
         }
 
-        function show(p) { ['mine','pillars','leader','mission','opps'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+        function show(p) { ['mine','opps','leader','profile','settings'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
-
 
 
 """
