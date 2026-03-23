@@ -157,9 +157,13 @@ async def web_ui():
     </div>
 
     <div id="p-pillars" style="display:none">
-        <h3 style="color:var(--green); text-align:center;">WPT PILLARS</h3>
-        <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
+        <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
+        <div class="pillars-grid">
+            <div class="pillar-item"><div class="pillar-icon">💰</div><b>WPT Token</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><div class="pillar-icon">🧬</div><b>Unity</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><div class="pillar-icon">🧠</div><b>Veo AI</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button></div>
+            <div class="pillar-item"><div class="pillar-icon">🌟</div><b>Genesis</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button></div>
+        </div>
     </div>
 
     <div class="nav">
