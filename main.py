@@ -17,15 +17,19 @@ except Exception as e:
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-def get_online_count():
+def get_network_stats():
     try:
         conn = database.get_db_conn(); c = conn.cursor()
         now = int(time.time())
+        # Utilisateurs en ligne (actifs ces 5 dernières minutes)
         c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
-        count = c.fetchone()[0]
+        online = c.fetchone()[0]
+        # Total des utilisateurs inscrits
+        c.execute("SELECT COUNT(*) FROM users")
+        total = c.fetchone()[0]
         c.close(); conn.close()
-        return count if count > 0 else 1
-    except: return 1
+        return online if online > 0 else 1, total
+    except: return 1, 1
 
 # --- API ROUTES ---
 
@@ -45,7 +49,7 @@ async def api_get_user(uid: int):
     
     top = []
     for x in top_raw:
-        # Badge Michael 8136550118
+        # Badge Michael 8136550118 - On vérifie le nom et l'ID
         is_partner = " 💎 PARTNER" if str(uid) == "8136550118" and x[0] == r[4] else ""
         top.append({
             "n": f"{x[0]}{is_partner}", 
@@ -56,6 +60,7 @@ async def api_get_user(uid: int):
     
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
     market_pump = random.random() > 0.8 
+    online_c, total_u = get_network_stats()
 
     news_list = [
         "🟡 Gold price stability attracts institutional investors.",
@@ -70,7 +75,8 @@ async def api_get_user(uid: int):
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
         "score": round(score, 2), "top": top, "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": multiplier, "streak": r[7] or 0, "staked": staked,
-        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)), "online": get_online_count(),
+        "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)), 
+        "online": online_c, "total_users": total_u,
         "market_pump": market_pump,
         "news": random.choice(news_list),
         "prices": {
@@ -120,7 +126,6 @@ async def web_ui():
         .ticker-item { display: inline-block; margin-right: 40px; color: var(--gold); font-size: 10px; font-weight: bold; }
         @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
         
-        /* FIX: Zone d'alerte à hauteur fixe pour éviter le décalage */
         .alert-zone { height: 45px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; }
         .market-alert { width: 100%; background: rgba(52, 199, 89, 0.1); border: 1px solid var(--green); color: var(--green); padding: 8px; border-radius: 12px; font-size: 10px; text-align: center; display: none; animation: flash 2s infinite; }
         @keyframes flash { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
@@ -147,9 +152,9 @@ async def web_ui():
 <body>
     <div class="ticker-container">
         <div class="ticker-wrapper">
-            <span class="ticker-item">🟢 ONLINE: <span id="online-val">1</span></span>
+            <span class="ticker-item">🟢 ONLINE: <span id="online-val">1</span> | 👥 TOTAL: <span id="total-val">1</span></span>
             <span class="ticker-item">🔥 JACKPOT: <span id="jack-val">0</span> WPT</span>
-            <span class="ticker-item">👥 NETWORK: <span id="u-ref-top">0</span></span>
+            <span class="ticker-item">📉 MARKET: <span id="news-ticker">Stable</span></span>
         </div>
     </div>
 
@@ -195,7 +200,7 @@ async def web_ui():
         <div class="card" style="border: 1px solid var(--purple); background: linear-gradient(135deg, #111, #1a0a2a); flex-direction: column;">
             <div style="display: flex; justify-content: space-between; width: 100%;"><b>Partner Dashboard</b><span style="color:var(--purple); font-size:10px;">CONNECTED</span></div>
             <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%;">
-                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">REFERRALS</small><br><b id="p-fol" style="color:var(--purple)">0</b></div>
+                <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">MY REFERRALS</small><br><b id="p-fol" style="color:var(--purple)">0</b></div>
                 <div style="background:#000; padding:10px; border-radius:10px; text-align:center;"><small style="color:var(--text); font-size:8px;">EST. EARNINGS</small><br><b id="p-earn" style="color:var(--green)">0.00</b></div>
             </div>
         </div>
@@ -205,9 +210,8 @@ async def web_ui():
 
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB SETTINGS</h3>
-        <div class="card"><div><b>Stake 100 WPT</b><br><small style="color:var(--text)">Turbo Robot (8s -> 4s)</small></div><button class="btn" style="background:var(--gold); color:#000">LOCK</button></div>
-        <div class="card"><div><b>Energy Drink</b><br><small style="color:var(--text)">Refill 100% instantly</small></div><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button></div>
-        <div class="card"><div><b>Daily Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
+        <div class="card"><b>Turbo Robot</b><button class="btn" style="background:var(--gold)">LOCK WPT</button></div>
+        <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button></div>
     </div>
 
     <div class="nav">
@@ -231,23 +235,22 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('u-streak').innerText = (d.streak || 0) + " Days";
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
                 document.getElementById('online-val').innerText = d.online;
+                document.getElementById('total-val').innerText = d.total_users;
                 document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('u-ref-top').innerText = d.rc;
-                document.getElementById('p-fol').innerText = d.rc;
+                document.getElementById('p-fol').innerText = d.rc; // Nombre d'affiliés personnels de Michael
                 document.getElementById('p-earn').innerText = (d.rc * 50).toFixed(2);
                 document.getElementById('price-gold').innerText = "$" + d.prices.gold.toFixed(2);
                 document.getElementById('price-silver').innerText = "$" + d.prices.silver.toFixed(2);
                 document.getElementById('price-copper').innerText = "$" + d.prices.copper.toFixed(2);
                 
                 document.getElementById('news-feed').innerText = d.news;
+                document.getElementById('news-ticker').innerText = d.news.substring(0, 15) + "...";
                 document.getElementById('m-alert').style.display = d.market_pump ? 'block' : 'none';
                 
                 hasStaked = (d.staked > 0);
                 let botSpeed = hasStaked ? 4000 : 8000;
-
                 let energyVal = Math.floor(d.energy);
                 document.getElementById('e-bar').style.width = (energyVal / d.max_energy * 100) + "%";
                 document.getElementById('e-text').innerText = `⚡ ${energyVal} / ${d.max_energy}`;
@@ -258,9 +261,7 @@ async def web_ui():
                 });
                 document.getElementById('rank-list').innerHTML = rl;
 
-                if(isAuto && energyVal >= 1) { 
-                    setTimeout(simulateAutoMine, botSpeed);
-                }
+                if(isAuto && energyVal >= 1) { setTimeout(simulateAutoMine, botSpeed); }
             } catch(e) {}
         }
 
@@ -293,7 +294,6 @@ async def web_ui():
     </script>
 </body>
 </html>
-
 
 """
 
