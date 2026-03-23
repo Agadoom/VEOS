@@ -147,7 +147,7 @@ async def web_ui():
         <div style="text-align:center; padding:20px;">
             <div style="font-size:40px;">👤</div>
             <h2 id="pr-n">...</h2>
-            <div id="pr-b" style="color:var(--gold); font-weight:bold;">...</div>
+            <div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
             <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
             <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
         </div>
@@ -157,13 +157,11 @@ async def web_ui():
     </div>
 
     <div id="p-pillars" style="display:none">
-        <h3 style="color:var(--gold); text-align:center;">$WPT PILLARS</h3>
-        <div class="pillars-grid">
-            <div class="pillar-item"><div class="pillar-icon">💰</div><b>WPT Token</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><div class="pillar-icon">🧬</div><b>Unity</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><div class="pillar-icon">🧠</div><b>Veo AI</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">VIEW</button></div>
-            <div class="pillar-item"><div class="pillar-icon">🌟</div><b>Genesis</b><button class="btn-mini" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">VIEW</button></div>
-        </div>
+        <h3 style="color:var(--green); text-align:center;">PILLARS ASSETS</h3>
+        <div class="card"><div><b>WPT Token</b><br><small style="color:var(--text)">Native Ecosystem</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>Genesis Asset</b><br><small style="color:var(--gold)">RWA Gold Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>Unity Asset</b><br><small style="color:var(--blue)">RWA Silver Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>Veo AI Asset</b><br><small style="color:var(--purple)">AI Computing Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
     </div>
 
     <div class="nav">
@@ -189,28 +187,20 @@ async def web_ui():
                 document.getElementById('on-v').innerText = d.online;
                 document.getElementById('tot-v').innerText = d.total_users;
                 document.getElementById('jk-v').innerText = d.jackpot;
-                
-                // Données Profil
                 document.getElementById('pr-n').innerText = d.name;
                 document.getElementById('pr-b').innerText = d.badge;
                 document.getElementById('pr-m').innerText = "x" + d.multiplier;
                 document.getElementById('pr-s').innerText = d.streak + " Days";
                 document.getElementById('pr-st').innerText = d.staked;
-                
-                // Données Opps
                 document.getElementById('o-r').innerText = d.rc;
                 document.getElementById('o-e').innerText = (d.rc * 50).toFixed(2);
                 document.getElementById('n-f').innerText = d.news;
-
-                // XP & Frenzy
                 document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
                 document.getElementById('xp-t').innerText = "Next Rank: " + d.next_goal;
                 document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
-                
                 let ev = Math.floor(d.energy);
                 document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
                 document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
-                
                 let rl = ""; d.top.forEach((u, i) => { 
                     rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
                 });
