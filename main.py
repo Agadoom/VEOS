@@ -315,15 +315,23 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Welcome {name}! Ready to explore the HUB?", reply_markup=kb)
 
 async def main():
-    # 1. Start Bot
+    # 1. Préparation du bot
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
     bot_app.add_handler(CommandHandler("start", start_cmd))
-    await bot_app.initialize(); await bot_app.start(); await bot_app.updater.start_polling()
-    print("🤖 Bot Ready!")
-
-    # 2. Start API
+    
+    # 2. INITIALISATION FORCEE (Le Fix)
+    await bot_app.initialize()
+    
+    # On force la suppression de toute ancienne session ou Webhook qui traîne
+    # Cela évite que Telegram ne bloque la nouvelle instance
+    await bot_app.bot.delete_webhook(drop_pending_updates=True) 
+    print("🧹 Old sessions cleared. Starting fresh...")
+    
+    # 3. Lancement
+    await bot_app.start()
+    asyncio.create_task(bot_app.updater.start_polling())
+    
+    # Lancement du serveur Web (FastAPI)
     config_server = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
     await uvicorn.Server(config_server).serve()
 
-if __name__ == "__main__":
-    asyncio.run(main())
