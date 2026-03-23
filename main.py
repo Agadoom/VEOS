@@ -7,29 +7,36 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 import config, database, missions
 
-# --- INITIALISATION ---
+# --- INITIALISATION & SECURITY ---
 try:
     database.init_db_structure()
-    print("✅ Database structure updated!")
+    print("✅ Database Master Structure Active")
 except Exception as e:
-    print(f"⚠️ Update failed: {e}")
+    print(f"⚠️ Security Alert: Database init failed: {e}")
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# --- CORE LOGIC FUNCTIONS ---
 
 def get_network_stats():
     try:
         conn = database.get_db_conn(); c = conn.cursor()
         now = int(time.time())
-        # Utilisateurs en ligne (actifs ces 5 dernières minutes)
         c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
         online = c.fetchone()[0]
-        # Total des utilisateurs inscrits
         c.execute("SELECT COUNT(*) FROM users")
         total = c.fetchone()[0]
         c.close(); conn.close()
-        return online if online > 0 else 1, total
+        return (online if online > 0 else 1), total
     except: return 1, 1
+
+def calculate_yield(token_type, market_pump):
+    """Logique du Market Index Boost : Double le gain si le marché 'Pump'"""
+    base_yield = 0.05
+    if token_type == 'genesis' and market_pump:
+        return base_yield * 2 # Boost Or
+    return base_yield
 
 # --- API ROUTES ---
 
@@ -44,22 +51,23 @@ async def api_get_user(uid: int):
     staked = r[8] or 0
     
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    badge, _, _ = missions.get_badge_info(score)
+    badge, badge_rank, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
     
     top = []
     for x in top_raw:
-        # Badge Michael 8136550118 - On vérifie le nom et l'ID
+        # Badge Michael 8136550118
         is_partner = " 💎 PARTNER" if str(uid) == "8136550118" and x[0] == r[4] else ""
         top.append({
-            "n": f"{x[0]}{is_partner}", 
-            "p": round(x[1], 2), 
-            "b": missions.get_badge_info(x[1])[0],
-            "is_p": (is_partner != "")
+            "n": f"{x[0]}{is_partner}", "p": round(x[1], 2), 
+            "b": missions.get_badge_info(x[1])[0], "is_p": (is_partner != "")
         })
     
-    multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
-    market_pump = random.random() > 0.8 
+    # Stratégie de Puissance : Multiplicateur lié au Badge Rank (0 à 5)
+    badge_boost = badge_rank * 0.05
+    multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000) + badge_boost, 2)
+    
+    market_pump = random.random() > 0.75 # 25% de chance de boost global
     online_c, total_u = get_network_stats()
 
     news_list = [
@@ -89,25 +97,24 @@ async def api_get_user(uid: int):
 @app.post("/api/mine")
 async def api_mine(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
+    # Simulation simple du pump pour le calcul du rendement API
+    is_pump = random.random() > 0.75 
+    yield_val = calculate_yield(t, is_pump)
+
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
     now_ms = int(time.time()*1000); now_s = now_ms//1000
+    
     if res and (now_ms - (res[2] or 0)) >= 80:
         cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
         if cur_e >= 1:
-            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
-            conn.commit(); c.close(); conn.close(); return {"ok": True}
+            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+%s, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", 
+                      (yield_val, cur_e-1, now_s, now_ms, uid))
+            conn.commit(); c.close(); conn.close(); return {"ok": True, "yield": yield_val}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
-@app.post("/api/use_drink")
-async def api_use_drink(request: Request):
-    data = await request.json(); uid = data.get("user_id")
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (config.MAX_ENERGY, int(time.time()), uid))
-    conn.commit(); c.close(); conn.close(); return {"ok": True}
-
-# --- WEB UI ---
+# --- WEB UI (FIXED LAYOUT) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -120,7 +127,6 @@ async def web_ui():
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; --green: #34C759; --purple: #A259FF; }
         body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
-        
         .ticker-container { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; }
         .ticker-wrapper { display: inline-block; animation: ticker 25s linear infinite; padding-left: 100%; }
         .ticker-item { display: inline-block; margin-right: 40px; color: var(--gold); font-size: 10px; font-weight: bold; }
@@ -132,7 +138,6 @@ async def web_ui():
 
         .profile-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #161618; border-radius: 15px; margin-bottom: 15px; border: 1px solid #2c2c2e; }
         .badge-tag { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: #222; border: 1px solid #333; color: var(--text); }
-        
         .balance { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; position: relative; }
         .energy-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; position: relative; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.5s; }
@@ -159,7 +164,7 @@ async def web_ui():
     </div>
 
     <div class="alert-zone">
-        <div id="m-alert" class="market-alert">📈 GOLD MARKET PUMP! Genesis Mining x2 Yield.</div>
+        <div id="m-alert" class="market-alert">📈 GOLD MARKET PUMP! Genesis Yield Boosted x2.</div>
     </div>
 
     <div class="profile-bar">
@@ -210,8 +215,9 @@ async def web_ui():
 
     <div id="p-mission" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB SETTINGS</h3>
-        <div class="card"><b>Turbo Robot</b><button class="btn" style="background:var(--gold)">LOCK WPT</button></div>
+        <div class="card"><div><b>Turbo Robot</b><br><small style="color:var(--text)">Lock 100 WPT for speed boost</small></div><button class="btn" style="background:var(--gold); color:#000">LOCK</button></div>
         <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">DRINK</button></div>
+        <div class="card"><div><b>Daily Streak</b></div><div id="u-streak" style="color:var(--gold)">0 Days</div></div>
     </div>
 
     <div class="nav">
@@ -235,11 +241,12 @@ async def web_ui():
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
                 document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('u-streak').innerText = (d.streak || 0) + " Days";
                 document.getElementById('u-mult').innerText = "⚡ Multiplier: x" + d.multiplier;
                 document.getElementById('online-val').innerText = d.online;
                 document.getElementById('total-val').innerText = d.total_users;
                 document.getElementById('jack-val').innerText = d.jackpot;
-                document.getElementById('p-fol').innerText = d.rc; // Nombre d'affiliés personnels de Michael
+                document.getElementById('p-fol').innerText = d.rc;
                 document.getElementById('p-earn').innerText = (d.rc * 50).toFixed(2);
                 document.getElementById('price-gold').innerText = "$" + d.prices.gold.toFixed(2);
                 document.getElementById('price-silver').innerText = "$" + d.prices.silver.toFixed(2);
@@ -294,6 +301,7 @@ async def web_ui():
     </script>
 </body>
 </html>
+
 
 """
 
