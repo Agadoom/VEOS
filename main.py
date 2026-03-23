@@ -38,7 +38,6 @@ async def api_get_user(uid: int):
     
     now = int(time.time()); last_update = r[6] if r[6] is not None else now
     
-    # FRENZY LOGIC (x5 Speed)
     is_frenzy = (r[7] or 0) > 5 or (random.random() > 0.95)
     regen_rate = config.REGEN_RATE * (5.0 if is_frenzy else 1.0)
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * regen_rate)
@@ -50,7 +49,6 @@ async def api_get_user(uid: int):
     if is_frenzy: mult = round(mult * 1.2, 2)
 
     online_c, total_u = get_network_stats()
-    prices = {"gold": 2150.40 + random.uniform(-1, 1), "silver": 24.15, "copper": 3.85}
     
     return {
         "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0,
@@ -58,8 +56,8 @@ async def api_get_user(uid: int):
         "score": round(score, 2), "next_goal": next_goal, "multiplier": mult, "frenzy": is_frenzy,
         "online": online_c, "total_users": total_u, "staked": staked, "streak": r[7] or 0,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "news": "🔥 FRENZY MODE" if is_frenzy else "🚀 Market Analysis Live",
-        "prices": prices,
+        "news": "🔥 FRENZY ACTIVE" if is_frenzy else "🚀 WPT HUB Online",
+        "prices": {"gold": 2150.40, "silver": 24.15, "copper": 3.85},
         "top": [{"n": f"{x[0]}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()[:10]]
     }
 
@@ -70,7 +68,7 @@ async def api_mine(request: Request):
     c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
     now_ms = int(time.time()*1000); now_s = now_ms//1000
-    if res and (now_ms - (res[2] or 0)) >= 80:
+    if res and (now_ms - (res[2] or 0)) >= 85:
         cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
         if cur_e >= 1:
             c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
@@ -117,7 +115,7 @@ async def web_ui():
 
     <div id="p-mine">
         <div class="b-card">
-            <h1 id="tot" style="font-size:45px; margin:8px 0;">0.00</h1>
+            <h1 id="tot">0.00</h1>
             <div id="u-m" style="font-size:10px; color:var(--green)">⚡ Multiplier: x1.0</div>
             <div class="e-bar"><div id="e-f" class="e-fill"></div></div>
             <div id="e-t" style="font-size:11px; color:var(--gold);">⚡ 0 / 100</div>
@@ -127,21 +125,10 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
-    <div id="p-profile" style="display:none">
-        <div style="text-align:center; padding:20px;">
-            <div style="font-size:40px;">👤</div>
-            <h2 id="pr-n">...</h2><div id="pr-b" style="color:var(--gold); font-weight:bold;">...</div>
-            <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
-            <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
-        </div>
-        <div class="card"><span>Power</span><b id="pr-m">x1.0</b></div>
-        <div class="card"><span>Streak</span><b id="pr-s">0 Days</b></div>
-        <div class="card"><span>Staked</span><b id="pr-st">0</b></div>
-    </div>
-
     <div id="p-missions" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB MISSIONS</h3>
         <div class="card"><div><b>Turbo Robot</b><br><small>Stake 100 WPT</small></div><button class="btn" style="background:var(--gold)">STAKE</button></div>
+        <div class="card"><b>Daily Bonus</b><button class="btn" style="background:var(--green); color:#FFF">CLAIM</button></div>
         <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">REFILL</button></div>
     </div>
 
@@ -154,21 +141,32 @@ async def web_ui():
         </div>
     </div>
 
+    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
+
+    <div id="p-profile" style="display:none">
+        <div style="text-align:center; padding:20px;">
+            <div style="font-size:40px;">👤</div>
+            <h2 id="pr-n">...</h2>
+            <div id="pr-b" style="color:var(--gold); font-weight:bold;">...</div>
+            <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
+            <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
+        </div>
+        <div class="card"><span>Power</span><b id="pr-m">x1.0</b></div>
+        <div class="card"><span>Streak</span><b id="pr-s">0 Days</b></div>
+        <div class="card"><span>Staked</span><b id="pr-st">0</b></div>
+    </div>
+
     <div id="p-pillars" style="display:none">
         <h3 style="color:var(--green); text-align:center;">WPT PILLARS</h3>
         <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
         <div class="card"><b>Unity Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Veo AI Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><b>Genesis Asset</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
     </div>
-
-    <div id="p-leader" style="display:none"><div id="rank-list"></div></div>
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
         <div onclick="show('missions')" id="n-missions" class="n-i">⚙️</div>
         <div onclick="show('opps')" id="n-opps" class="n-i">💡</div>
-        <div onclick="show('leader')" id="n-leader" class="n-i">🏆🏆</div>
+        <div onclick="show('leader')" id="n-leader" class="n-i">🏆</div>
         <div onclick="show('profile')" id="n-profile" class="n-i">👤</div>
         <div onclick="show('pillars')" id="n-pillars" class="n-i">📊</div>
     </div>
@@ -187,21 +185,28 @@ async def web_ui():
                 document.getElementById('on-v').innerText = d.online;
                 document.getElementById('tot-v').innerText = d.total_users;
                 document.getElementById('jk-v').innerText = d.jackpot;
+                
+                // Données Profil
                 document.getElementById('pr-n').innerText = d.name;
                 document.getElementById('pr-b').innerText = d.badge;
                 document.getElementById('pr-m').innerText = "x" + d.multiplier;
                 document.getElementById('pr-s').innerText = d.streak + " Days";
                 document.getElementById('pr-st').innerText = d.staked;
+                
+                // Données Opps
                 document.getElementById('o-r').innerText = d.rc;
                 document.getElementById('o-e').innerText = (d.rc * 50).toFixed(2);
                 document.getElementById('n-f').innerText = d.news;
+
+                // XP & Frenzy
                 document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
                 document.getElementById('xp-t').innerText = "Next Rank: " + d.next_goal;
                 document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
-                document.getElementById('e-f').classList.toggle('frenzy', d.frenzy);
+                
                 let ev = Math.floor(d.energy);
                 document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
                 document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
+                
                 let rl = ""; d.top.forEach((u, i) => { 
                     rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
                 });
