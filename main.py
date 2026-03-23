@@ -43,11 +43,9 @@ async def api_get_user(uid: int):
     badge, _, _ = missions.get_badge_info(score)
     top_raw = database.get_leaderboard()
     
-    # Correction de la boucle Leaderboard pour éviter l'IndexError (x[2] n'existe pas)
     top = []
     for x in top_raw:
-        # On vérifie l'ID de Michael pour le badge spécial
-        # Note : On part du principe que x[0] est le nom et x[1] le score
+        # Badge Michael 8136550118
         is_partner = " 💎 PARTNER" if str(uid) == "8136550118" and x[0] == r[4] else ""
         top.append({
             "n": f"{x[0]}{is_partner}", 
@@ -59,6 +57,15 @@ async def api_get_user(uid: int):
     multiplier = round(1.0 + (staked / 100) * 0.1 + (score / 1000), 2)
     market_pump = random.random() > 0.8 
 
+    # News Feed Dynamique
+    news_list = [
+        "🟡 Gold price stability attracts institutional investors.",
+        "⚪ Silver demand surges in solar panel industry.",
+        "💎 Genesis Mining efficiency increased by 5%.",
+        "🚀 WPT Ecosystem reaches new active users milestone.",
+        "📊 Copper prices rebound amid global supply tightening."
+    ]
+
     return {
         "uid": uid, "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0, "name": r[4],
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge,
@@ -66,6 +73,7 @@ async def api_get_user(uid: int):
         "multiplier": multiplier, "streak": r[7] or 0, "staked": staked,
         "pending_refs": max(0, (r[3] or 0) - (r[9] or 0)), "online": get_online_count(),
         "market_pump": market_pump,
+        "news": random.choice(news_list),
         "prices": {
             "gold": 2150.40 + random.uniform(-2, 2),
             "silver": 24.15 + random.uniform(-0.1, 0.1),
@@ -94,7 +102,7 @@ async def api_use_drink(request: Request):
     c.execute("UPDATE users SET energy = %s, last_energy_update = %s WHERE user_id = %s", (config.MAX_ENERGY, int(time.time()), uid))
     conn.commit(); c.close(); conn.close(); return {"ok": True}
 
-# --- WEB UI (HTML PART) ---
+# --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -125,6 +133,7 @@ async def web_ui():
         .auto-toggle.active { opacity: 1; filter: grayscale(0); transform: scale(1.2); text-shadow: 0 0 10px var(--gold); }
         
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
+        .news-box { background: #000; border-left: 3px solid var(--blue); padding: 10px; border-radius: 8px; font-size: 10px; margin-bottom: 10px; color: #ddd; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
         
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
@@ -172,6 +181,7 @@ async def web_ui():
 
     <div id="p-opps" style="display:none">
         <h3 style="color:var(--blue); text-align:center;">OPPORTUNITIES</h3>
+        <div id="news-feed" class="news-box">⌛ Loading market news...</div>
         <div class="card" style="border: 1px solid #333; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
             <div><small style="color:var(--gold)">GOLD</small><br><b id="price-gold" style="font-size:10px;">$---</b></div>
             <div><small style="color:var(--silver)">SILVER</small><br><b id="price-silver" style="font-size:10px;">$---</b></div>
@@ -226,6 +236,9 @@ async def web_ui():
                 document.getElementById('price-gold').innerText = "$" + d.prices.gold.toFixed(2);
                 document.getElementById('price-silver').innerText = "$" + d.prices.silver.toFixed(2);
                 document.getElementById('price-copper').innerText = "$" + d.prices.copper.toFixed(2);
+                
+                // News Feed Update
+                document.getElementById('news-feed').innerText = d.news;
 
                 document.getElementById('m-alert').style.display = d.market_pump ? 'block' : 'none';
                 
