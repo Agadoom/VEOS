@@ -1,15 +1,20 @@
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-
-
 import asyncio, uvicorn, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import config, database, missions, launcher # Importation de nos modules
+
+# --- AJOUTE CES LIGNES ICI ---
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+# -----------------------------
+
+import config, database, missions, launcher 
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# ... reste du code (api_get_user, web_ui, etc.)
+
 
 # --- LOGIQUE SERVEUR ---
 def get_network_stats():
