@@ -1,3 +1,7 @@
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+
 import asyncio, uvicorn, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
