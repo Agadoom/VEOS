@@ -10,22 +10,46 @@ database.init_db_structure()
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-@app.get("/api/user/{uid}")
+@@app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
+    # On récupère les données
     r = database.get_user_full(uid)
-    if not r: return JSONResponse(status_code=404, content={})
-    now = int(time.time()); last_upd = r[6] if r[6] else now
-    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    badge, next_goal, badge_color = missions.get_badge_info(score)
-    online_c, total_u = database.get_db_conn().cursor().execute("SELECT COUNT(*) FROM users").fetchone()[0], 1 # Simplifié
+    if not r: 
+        return JSONResponse(status_code=404, content={"error": "User not found"})
+    
+    # IMPORTANT : L'ordre doit correspondre au SELECT dans database.get_user_full
+    # r[0]=p_genesis, r[1]=p_unity, r[2]=p_veo, r[3]=ref_count, r[4]=name...
+    
+    p_gen = r[0] or 0.0
+    p_uni = r[1] or 0.0
+    p_veo = r[2] or 0.0
+    
+    now = int(time.time())
+    last_upd = r[6] if r[6] else now
+    
+    # Calcul de l'énergie avec les variables de config
+    current_energy = int(min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_upd)/60)*config.REGEN_RATE))
+    
+    score_total = p_gen + p_uni + p_veo
+    badge, next_goal, _ = missions.get_badge_info(score_total)
+    
     return {
-        "uid": uid, "name": r[4], "g": round(r[0] or 0, 2), "u": round(r[1] or 0, 2), "v": round(r[2] or 0, 2),
-        "energy": int(min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_upd)/60)*config.REGEN_RATE)),
-        "max_energy": config.MAX_ENERGY, "score": round(score, 2), "badge": badge,
-        "next_goal": next_goal, "staked": r[8] or 0, "streak": r[7] or 0,
+        "uid": uid, 
+        "name": r[4], 
+        "g": round(p_gen, 2), 
+        "u": round(p_uni, 2), 
+        "v": round(p_veo, 2),
+        "energy": current_energy, 
+        "max_energy": config.MAX_ENERGY, 
+        "score": round(score_total, 2), 
+        "badge": badge,
+        "next_goal": next_goal, 
+        "staked": r[8] or 0, 
+        "streak": r[7] or 0,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "top": [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()]
     }
+
 
 @app.post("/api/launcher/deploy")
 async def api_deploy_token(request: Request):
