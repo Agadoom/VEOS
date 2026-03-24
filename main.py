@@ -292,14 +292,23 @@ async def web_ui():
 </html>
     """
 
-def run_all():
-    token = getattr(config, 'TOKEN', None)
-    if token:
-        apps = ApplicationBuilder().token(token).build()
-        apps.add_handler(CommandHandler("start", lambda u,c: u.message.reply_text("WPT HUB Active!", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 Launch", web_app=WebAppInfo(url=config.WEBAPP_URL))]]))))
-        threading.Thread(target=lambda: uvicorn.run(app, host="0.0.0.0", port=8000), daemon=True).start()
-        apps.run_polling()
-    else: uvicorn.run(app, host="0.0.0.0", port=8000)
+# --- BOT SETUP ---
+async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid, name = update.effective_user.id, update.effective_user.first_name
+    ref = int(context.args[0]) if context.args and context.args[0].isdigit() else None
+    await missions.register_user(uid, name, ref)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
+    await update.message.reply_text(f"Welcome {name}!", reply_markup=kb)
+
+async def main():
+    bot = ApplicationBuilder().token(config.TOKEN).build()
+    bot.add_handler(CommandHandler("start", start_cmd))
+    await bot.initialize()
+    await bot.bot.delete_webhook(drop_pending_updates=True)
+    await bot.start()
+    asyncio.create_task(bot.updater.start_polling())
+    c = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
+    await uvicorn.Server(c).serve()
 
 if __name__ == "__main__":
-    run_all()
+    asyncio.run(main())
