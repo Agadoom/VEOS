@@ -66,22 +66,31 @@ async def api_list_tokens(sort: str):
 
 @app.post("/api/launcher/deploy")
 async def api_deploy_token(request: Request):
-    data = await request.json(); uid = data.get("user_id")
+    data = await request.json()
+    uid = data.get("user_id")
     conn = database.get_db_conn(); c = conn.cursor()
     try:
+        # Vérification du solde
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
         res = c.fetchone()
-        if not res or res[0] < 500: return JSONResponse(status_code=400, content={"error": "Need 500 Genesis"})
+        if not res or (res[0] or 0) < 500: 
+            return JSONResponse(status_code=400, content={"error": "Need 500 Genesis"})
         
+        # Déduction et Insertion (On remplit TOUT)
         c.execute("UPDATE users SET p_genesis = p_genesis - 500 WHERE user_id = %s", (uid,))
-        c.execute("""INSERT INTO community_tokens (creator_id, name, symbol, logo, price, reserve_wpt, created_at) 
-                     VALUES (%s, %s, %s, %s, 0.0001, 500, %s)""", 
+        c.execute("""INSERT INTO community_tokens 
+                     (creator_id, name, symbol, logo, price, reserve_wpt, holders, volume, created_at) 
+                     VALUES (%s, %s, %s, %s, 0.0001, 500, 1, 0, %s)""", 
                   (uid, data.get("name"), data.get("symbol"), data.get("logo"), int(time.time())))
+        
         conn.commit()
         return {"ok": True}
     except Exception as e:
-        conn.rollback(); return JSONResponse(status_code=500, content={"error": str(e)})
-    finally: c.close(); conn.close()
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    finally:
+        c.close(); conn.close()
+
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -192,19 +201,36 @@ async def web_ui():
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
 
-        async function loadTokens(sort) {
-            const r = await fetch(`/api/launcher/list/${sort}?t=${Date.now()}`);
-            const tokens = await r.json();
-            let html = "";
-            tokens.forEach(t => {
-                html += `<div class="card">
-                    <img src="${t.logo}" style="width:30px; height:30px; border-radius:50%; background:#333;">
-                    <div style="flex:1; margin-left:10px;"><b>${t.name}</b><br><small>$${t.mcap}</small></div>
-                    <div style="text-align:right"><b style="color:var(--green)">${t.price}</b></div>
+       async function loadTokens(sort) {
+    const listDiv = document.getElementById('tk-list');
+    // On ajoute un timestamp unique pour forcer le rafraîchissement
+    const r = await fetch(`/api/launcher/list/${sort}?nocache=${Date.now()}`);
+    const tokens = await r.json();
+    
+    let html = "";
+    if (tokens.length === 0) {
+        html = "<center style='padding:20px; opacity:0.5;'>No tokens yet. Be the first!</center>";
+    } else {
+        tokens.forEach(t => {
+            // Sécurité si le logo est vide
+            const img = t.logo && t.logo.startsWith('http') ? t.logo : 'https://cdn-icons-png.flaticon.com/512/2584/2584687.png';
+            html += `
+                <div class="card">
+                    <img src="${img}" style="width:35px; height:35px; border-radius:50%; background:#222; object-fit:cover;">
+                    <div style="flex:1; margin-left:12px;">
+                        <b style="font-size:14px;">${t.name}</b><br>
+                        <small style="color:#666;">$${t.mcap.toLocaleString()} MCAP</small>
+                    </div>
+                    <div style="text-align:right">
+                        <b style="color:var(--green); font-family:monospace;">${t.price.toFixed(6)}</b><br>
+                        <small style="font-size:9px; opacity:0.5;">${t.symbol}</small>
+                    </div>
                 </div>`;
-            });
-            document.getElementById('tk-list').innerHTML = html || "<center>No tokens</center>";
-        }
+        });
+    }
+    listDiv.innerHTML = html;
+}
+
 
         async function deploy() {
             const n = document.getElementById('tk-name').value;
