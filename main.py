@@ -178,17 +178,58 @@ async def web_ui():
     </div>
 
     <div id="p-launcher" style="display:none">
-        <h3 style="color:var(--purple); text-align:center;">🚀 SOLANA LAUNCHER</h3>
+    <h3 style="color:var(--purple); text-align:center;">🚀 SOLANA TERMINAL</h3>
+    
+    <div id="launch-form">
         <div class="input-group"><small style="color:var(--text)">Token Name</small><input type="text" id="tk-name" placeholder="ex: SolMoon"></div>
         <div class="input-group"><small style="color:var(--text)">Symbol</small><input type="text" id="tk-sym" placeholder="ex: MOON"></div>
-        <div class="input-group"><small style="color:var(--text)">Logo (File Upload)</small><br><input type="file" id="f-logo" accept="image/*" onchange="previewFile('f-logo', 'pre-logo')"></div>
+        <div class="input-group"><small style="color:var(--text)">Logo</small><br><input type="file" id="f-logo" accept="image/*" onchange="previewFile('f-logo', 'pre-logo')"></div>
         <img id="pre-logo" class="pre-img">
-        <div class="input-group"><small style="color:var(--text)">Banner (File Upload)</small><br><input type="file" id="f-ban" accept="image/*" onchange="previewFile('f-ban', 'pre-banner')"></div>
+        <div class="input-group"><small style="color:var(--text)">Banner</small><br><input type="file" id="f-ban" accept="image/*" onchange="previewFile('f-ban', 'pre-banner')"></div>
         <img id="pre-banner" class="pre-ban">
-        <div class="input-group"><small style="color:var(--text)">Website (Optional)</small><input type="text" id="tk-web" placeholder="https://..."></div>
-        <div class="input-group"><small style="color:var(--text)">X (Twitter) Handle</small><input type="text" id="tk-x" placeholder="@handle"></div>
-        <button class="btn" style="width:100%; background:var(--purple); color:#FFF; padding:15px; margin-top:10px;" onclick="openCheckout()">REVIEW & PAY</button>
+        <div class="input-group"><small style="color:var(--text)">X Twitter</small><input type="text" id="tk-x" placeholder="@handle"></div>
+        <button class="btn" style="width:100%; background:var(--purple); color:#FFF; padding:15px;" onclick="openCheckout()">REVIEW & PAY</button>
+        
+        <hr style="border:0; border-top:1px solid #222; margin:20px 0;">
+        <small style="color:var(--text)">OR EXPLORE COMMUNITY TOKENS</small>
+        <div id="community-tokens-list" style="margin-top:10px;">
+            </div>
     </div>
+
+    <div id="token-live-view" style="display:none;">
+        <button class="btn" style="background:#222; color:#FFF; margin-bottom:10px;" onclick="backToLauncher()">< REtour</button>
+        <div class="card" style="border: 1px solid var(--green); flex-direction:column; align-items:flex-start; gap:15px;">
+            <div style="display:flex; gap:10px; align-items:center; width:100%;">
+                <img id="live-tk-logo" src="" style="width:50px; height:50px; border-radius:50%; object-fit:cover;">
+                <div style="flex:1">
+                    <b id="live-tk-name" style="font-size:18px;">---</b><br>
+                    <small id="live-tk-price" style="color:var(--green); font-family:monospace; font-size:14px;">Price: 0.0000 WPT</small>
+                </div>
+                <div style="text-align:right">
+                    <small style="color:var(--text)">MCAP</small><br><b id="live-tk-mcap">$0</b>
+                </div>
+            </div>
+            
+            <div style="width:100%;">
+                <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:5px;">
+                    <span>Bonding Curve Progress</span>
+                    <span id="curve-pct">0%</span>
+                </div>
+                <div class="xp-b" style="margin:0;"><div id="bonding-curve" class="xp-f" style="width:0%; background:var(--green)"></div></div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
+            <button class="btn" style="background:var(--green); color:#FFF; padding:15px; font-size:14px;" onclick="trade('buy')">BUY</button>
+            <button class="btn" style="background:var(--red); color:#FFF; padding:15px; font-size:14px;" onclick="trade('sell')">SELL</button>
+        </div>
+        
+        <div class="card" style="margin-top:10px; font-size:11px; color:var(--text);">
+            Your Balance: <b id="user-token-bal" style="color:#FFF">0</b> <span id="live-tk-sym"></span>
+        </div>
+    </div>
+</div>
+
 
     <div id="m-check" class="modal">
         <div style="background:var(--card); border:1px solid var(--purple); padding:20px; border-radius:20px; text-align:center;">
@@ -301,6 +342,68 @@ async def web_ui():
                 if(ok) tg.showAlert("Oracle Locked. Result in 60s.");
             });
         }
+
+
+
+// Variable pour stocker le token actuellement affiché
+let currentToken = null;
+
+function backToLauncher() {
+    document.getElementById('launch-form').style.display = 'block';
+    document.getElementById('token-live-view').style.display = 'none';
+}
+
+function openTokenLive(tokenData) {
+    currentToken = tokenData;
+    document.getElementById('launch-form').style.display = 'none';
+    document.getElementById('token-live-view').style.display = 'block';
+    
+    // Remplissage des infos
+    document.getElementById('live-tk-name').innerText = tokenData.name + " ($" + tokenData.symbol + ")";
+    document.getElementById('live-tk-logo').src = tokenData.logo || "";
+    document.getElementById('live-tk-price').innerText = "Price: " + tokenData.price + " WPT";
+    document.getElementById('live-tk-sym').innerText = tokenData.symbol;
+}
+
+// Modifie ta fonction confirmLaunch existante pour qu'elle ouvre le live direct
+function confirmLaunch() {
+    const name = document.getElementById('tk-name').value;
+    const sym = document.getElementById('tk-sym').value;
+    const logo = document.getElementById('pre-logo').src;
+    
+    tg.HapticFeedback.notificationOccurred('success');
+    closeCheckout();
+    
+    // On simule les données du nouveau token
+    const newToken = {
+        name: name,
+        symbol: sym,
+        logo: logo,
+        price: "0.0001",
+        mcap: "500"
+    };
+    
+    openTokenLive(newToken);
+    tg.showAlert("🚀 Token successfully deployed on WPT Network!");
+}
+
+async function trade(side) {
+    tg.HapticFeedback.impactOccurred('medium');
+    const amount = side === 'buy' ? "100 WPT" : "All Tokens";
+    tg.showConfirm(`Do you want to ${side} for ${amount}?`, (ok) => {
+        if(ok) {
+            tg.showPopup({
+                title: 'Transaction Sent',
+                message: `Transaction hash: 5xRT...p9zL\nPrice Impact: 0.05%`,
+                buttons: [{type: 'ok'}]
+            });
+        }
+    });
+}
+
+
+
+
 
         function show(p) { ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         tg.expand(); refresh(); setInterval(refresh, 5000);
