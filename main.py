@@ -1,3 +1,7 @@
+# --- AJOUTE CES LIGNES ICI ---
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+# -----------------------------
 import asyncio, uvicorn, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -288,21 +292,33 @@ async def web_ui():
 
 # --- BOT SETUP ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid, name = update.effective_user.id, update.effective_user.first_name
-    ref = int(context.args[0]) if context.args and context.args[0].isdigit() else None
-    await missions.register_user(uid, name, ref)
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
-    await update.message.reply_text(f"Welcome {name}!", reply_markup=kb)
+    query = update.message
+    keyboard = [
+        [InlineKeyboardButton("🚀 Launch WPT HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.reply_text(f"Welcome to WPT HUB!\n\nStart mining and creating tokens now.", reply_markup=reply_markup)
 
-async def main():
-    bot = ApplicationBuilder().token(config.TOKEN).build()
-    bot.add_handler(CommandHandler("start", start_cmd))
-    await bot.initialize()
-    await bot.bot.delete_webhook(drop_pending_updates=True)
-    await bot.start()
-    asyncio.create_task(bot.updater.start_polling())
-    c = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
-    await uvicorn.Server(c).serve()
+# Fonction pour lancer le Bot et FastAPI en même temps
+def run_all():
+    # Setup du bot
+    if config.BOT_TOKEN:
+        apps = ApplicationBuilder().token(config.BOT_TOKEN).build()
+        apps.add_handler(CommandHandler("start", start_cmd))
+        
+        # Ici on lance FastAPI
+        import threading
+        def start_fastapi():
+            uvicorn.run(app, host="0.0.0.0", port=8000)
+        
+        threading.Thread(target=start_fastapi, daemon=True).start()
+        
+        # On lance le bot
+        print("🤖 Bot & API are running...")
+        apps.run_polling()
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=8000)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    run_all()
+
