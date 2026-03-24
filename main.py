@@ -1,4 +1,4 @@
-import asyncio, uvicorn, time, random
+import asyncio, uvicorn, time, random, threading
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,16 +8,11 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import config, database, missions 
 
 # --- INITIALISATION ---
-try:
-    database.init_db_structure()
-    print("✅ Database Master Structure Active")
-except Exception as e:
-    print(f"⚠️ Security Alert: {e}")
+database.init_db_structure()
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# --- CORE LOGIC ---
 def get_network_stats():
     try:
         conn = database.get_db_conn(); c = conn.cursor()
@@ -35,54 +30,68 @@ def get_network_stats():
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
-    now = int(time.time()); last_update = r[6] if r[6] is not None else now
-    is_frenzy = (r[7] or 0) > 5 or (random.random() > 0.95)
-    regen_rate = config.REGEN_RATE * (5.0 if is_frenzy else 1.0)
-    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * regen_rate)
+    
+    now = int(time.time())
+    # Calcul Energie
+    last_upd = r[6] if r[6] else now
+    regen = config.REGEN_RATE
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_upd)/60) * regen)
+    
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, rank_idx, next_goal = missions.get_badge_info(score)
-    staked = r[8] or 0
-    mult = round(1.0 + (staked / 100) * 0.1 + (score / 1000) + (rank_idx * 0.05), 2)
-    if is_frenzy: mult = round(mult * 1.2, 2)
     online_c, total_u = get_network_stats()
+    
     return {
-        "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0,
-        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge, "rank_idx": rank_idx,
-        "score": round(score, 2), "next_goal": next_goal, "multiplier": mult, "frenzy": is_frenzy,
-        "online": online_c, "total_users": total_u, "staked": staked, "streak": r[7] or 0,
+        "uid": uid, "name": r[4], "g": round(r[0] or 0, 2), "u": round(r[1] or 0, 2), "v": round(r[2] or 0, 2),
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY,
+        "score": round(score, 2), "badge": badge, "next_goal": next_goal,
+        "online": online_c, "total_users": total_u, "staked": r[8] or 0, "streak": r[7] or 0,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
-        "news": "🔥 FRENZY ACTIVE" if is_frenzy else "🚀 WPT HUB Online",
-        "prices": {"gold": 2150.40, "silver": 24.15, "copper": 3.85},
-        "top": [{"n": f"{x[0]}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()[:10]]
+        "multiplier": round(1.0 + (score/5000), 2)
     }
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
+    data = await request.json()
+    uid, t = data.get("user_id"), data.get("token")
     conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    now_ms = int(time.time()*1000); now_s = now_ms//1000
-    if res and (now_ms - (res[2] or 0)) >= 85:
-        cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
-        if cur_e >= 1:
-            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
-            conn.commit(); c.close(); conn.close(); return {"ok": True}
-    c.close(); conn.close(); return JSONResponse(status_code=400)
+    try:
+        now_ms = int(time.time()*1000); now_s = now_ms//1000
+        # Vérification énergie et anti-spam (85ms)
+        c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id=%s", (uid,))
+        res = c.fetchone()
+        if res and (now_ms - (res[2] or 0)) >= 85:
+            if (res[0] or 0) >= 1:
+                c.execute(f"UPDATE users SET p_{t}=p_{t}+0.05, energy=energy-1, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (now_s, now_ms, uid))
+                conn.commit()
+                return {"ok": True}
+        return JSONResponse(status_code=400, content={"error": "Cooldown or No Energy"})
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    finally:
+        c.close(); conn.close()
 
 @app.post("/api/launcher/deploy")
 async def api_deploy_token(request: Request):
     data = await request.json()
     uid, name, symbol, logo = data.get("user_id"), data.get("name"), data.get("symbol"), data.get("logo")
     conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
-    if not res or res[0] < 500:
-        c.close(); conn.close(); return JSONResponse(status_code=400, content={"error": "Insufficient WPT"})
-    c.execute("UPDATE users SET p_genesis = p_genesis - 500 WHERE user_id = %s", (uid,))
-    c.execute("INSERT INTO community_tokens (creator_id, name, symbol, logo, reserve_wpt, created_at) VALUES (%s, %s, %s, %s, %s, %s)", (uid, name, symbol, logo, 500, int(time.time())))
-    conn.commit(); c.close(); conn.close()
-    return {"ok": True}
+    try:
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
+        res = c.fetchone()
+        if not res or res[0] < 500:
+            return JSONResponse(status_code=400, content={"error": "Need 500 Genesis WPT"})
+        
+        c.execute("UPDATE users SET p_genesis = p_genesis - 500 WHERE user_id = %s", (uid,))
+        c.execute("INSERT INTO community_tokens (creator_id, name, symbol, logo, reserve_wpt, created_at) VALUES (%s, %s, %s, %s, %s, %s)", 
+                  (uid, name, symbol, logo, 500, int(time.time())))
+        conn.commit()
+        return {"ok": True}
+    except:
+        conn.rollback(); return JSONResponse(status_code=500)
+    finally:
+        c.close(); conn.close()
 
 @app.get("/api/launcher/list")
 async def api_list_tokens():
@@ -92,7 +101,6 @@ async def api_list_tokens():
     c.close(); conn.close()
     return [{"name": t[0], "symbol": t[1], "logo": t[2], "price": t[3], "holders": t[4], "mcap": round(t[5]*2, 2)} for t in tokens]
 
-# --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -366,28 +374,21 @@ async def web_ui():
 
 # --- BOT SETUP ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.message
-    keyboard = [
-        [InlineKeyboardButton("🚀 Launch WPT HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.reply_text(f"Welcome to WPT HUB!\n\nStart mining and creating tokens now.", reply_markup=reply_markup)
+    keyboard = [[InlineKeyboardButton("🚀 Launch WPT HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]]
+    await update.message.reply_text("Welcome to WPT HUB!", reply_markup=InlineKeyboardMarkup(keyboard))
 
-# Fonction pour lancer le Bot et FastAPI en même temps
 def run_all():
-    # Setup du bot
-    if config.BOT_TOKEN:
-        apps = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    # Correction : On utilise config.TOKEN comme sur ta photo
+    bot_token = getattr(config, 'TOKEN', None)
+    
+    if bot_token:
+        apps = ApplicationBuilder().token(bot_token).build()
         apps.add_handler(CommandHandler("start", start_cmd))
         
-        # Ici on lance FastAPI
-        import threading
         def start_fastapi():
             uvicorn.run(app, host="0.0.0.0", port=8000)
         
         threading.Thread(target=start_fastapi, daemon=True).start()
-        
-        # On lance le bot
         print("🤖 Bot & API are running...")
         apps.run_polling()
     else:
@@ -395,4 +396,3 @@ def run_all():
 
 if __name__ == "__main__":
     run_all()
-
