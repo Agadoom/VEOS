@@ -76,13 +76,17 @@ def get_total_network_score():
 
 def get_tokens_ordered(sort_type="new"):
     conn = get_db_conn(); c = conn.cursor()
-    # Tri SQL strict
-    if sort_type == "mcap": order = "reserve_wpt DESC"
-    elif sort_type == "vol": order = "volume DESC"
-    else: order = "id DESC" # Le plus récent en haut
-    
+    # On utilise COALESCE pour donner une valeur par défaut de 0 si la colonne est vide
+    if sort_type == "mcap": 
+        order = "COALESCE(reserve_wpt, 0) DESC"
+    elif sort_type == "vol": 
+        order = "COALESCE(volume, 0) DESC"
+    else: 
+        order = "id DESC" # Pour l'onglet NEW
+        
     c.execute(f"SELECT name, symbol, logo, price, holders, reserve_wpt, volume FROM community_tokens ORDER BY {order}")
     res = c.fetchall()
     c.close(); conn.close()
     return res
+
 
