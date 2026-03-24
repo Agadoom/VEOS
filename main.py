@@ -10,6 +10,7 @@ import config, database, missions
 # --- INITIALISATION ---
 try:
     database.init_db_structure()
+    # Note: On pourrait ajouter ici une table 'community_tokens' plus tard
     print("✅ Database Master Structure Active")
 except Exception as e:
     print(f"⚠️ Security Alert: {e}")
@@ -52,7 +53,6 @@ async def api_get_user(uid: int):
         "online": online_c, "total_users": total_u, "staked": staked, "streak": r[7] or 0,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "news": "🔥 FRENZY ACTIVE" if is_frenzy else "🚀 WPT HUB Online",
-        "prices": {"gold": 2150.40, "silver": 24.15, "copper": 3.85},
         "top": [{"n": f"{x[0]}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()[:10]]
     }
 
@@ -91,13 +91,13 @@ async def web_ui():
         .b-card { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .e-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; }
         .e-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
-        .e-fill.frenzy { background: linear-gradient(90deg, var(--red), #FF9500); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
-        .xp-b { background: #222; height: 6px; border-radius: 3px; margin: 10px 0; }
-        .xp-f { background: var(--purple); height: 100%; border-radius: 3px; transition: 1s; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
-        .n-i { font-size: 18px; opacity: 0.3; } .n-i.active { opacity: 1; color: var(--gold); }
+        .input-group { background: #000; padding: 12px; border-radius: 12px; border: 1px solid #333; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
+        input { background: transparent; border: none; color: #FFF; width: 100%; outline: none; font-size: 13px; }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 10px 15px; border-radius: 40px; display: flex; gap: 8px; border: 1px solid #333; z-index: 100; }
+        .n-i { font-size: 15px; opacity: 0.3; padding: 5px; } .n-i.active { opacity: 1; color: var(--gold); }
+        .banner-preview { width: 100%; height: 60px; border-radius: 10px; background: #222; margin-bottom: 10px; border: 1px dashed #444; object-fit: cover; display: none; }
     </style>
 </head>
 <body>
@@ -122,26 +122,18 @@ async def web_ui():
 
     <div id="p-missions" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB MISSIONS</h3>
-        <div class="card"><div><b>Turbo Robot</b><br><small>Stake 100 WPT</small></div><button class="btn" style="background:var(--gold)">STAKE</button></div>
         <div class="card"><b>Daily Bonus</b><button id="db-btn" class="btn" style="background:var(--green); color:#FFF" onclick="claimDaily()">CLAIM</button></div>
         <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF">REFILL</button></div>
     </div>
 
     <div id="p-opps" style="display:none">
         <h3 style="color:var(--blue); text-align:center;">ORACLE PREDICT</h3>
-        <div id="n-f" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin-bottom:10px; border-left:3px solid var(--blue);">...</div>
-        
         <div class="card" style="flex-direction:column; gap:10px;">
             <div style="font-size:11px;">Gold (Genesis) Price in 60s?</div>
             <div style="display:flex; gap:10px; width:100%;">
                 <button class="btn" onclick="predict('up')" style="flex:1; background:var(--green); color:#FFF">UP ↑</button>
                 <button class="btn" onclick="predict('down')" style="flex:1; background:var(--red); color:#FFF">DOWN ↓</button>
             </div>
-        </div>
-
-        <div class="card" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; text-align:center;">
-            <div style="background:#000; padding:10px; border-radius:10px;"><small>REFS</small><br><b id="o-r" style="color:var(--purple)">0</b></div>
-            <div style="background:#000; padding:10px; border-radius:10px;"><small>EARN</small><br><b id="o-e" style="color:var(--green)">0.00</b></div>
         </div>
     </div>
 
@@ -151,24 +143,32 @@ async def web_ui():
         <div style="text-align:center; padding:20px;">
             <div style="font-size:40px;">👤</div>
             <h2 id="pr-n">...</h2><div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
-            <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
-            <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
         </div>
         <div class="card" style="background:linear-gradient(45deg, #111, #1a1a1a); border: 1px solid var(--purple);">
-            <div><b>Team Progress</b><br><small id="team-status">Global Mining: 12%</small></div>
-            <b id="team-bonus" style="color:var(--purple)">+0.05x</b>
+            <div><b>Team Hub</b><br><small id="team-status">Mining: 12%</small></div><b style="color:var(--purple)">+0.05x</b>
         </div>
-        <div class="card"><span>Power</span><b id="pr-m">x1.0</b></div>
-        <div class="card"><span>Streak</span><b id="pr-s">0 Days</b></div>
-        <div class="card"><span>Staked</span><b id="pr-st">0</b></div>
     </div>
 
     <div id="p-pillars" style="display:none">
         <h3 style="color:var(--green); text-align:center;">PILLARS ASSETS</h3>
-        <div class="card"><div><b>WPT Token</b><br><small style="color:var(--text)">Native Ecosystem</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><div><b>Genesis Asset</b><br><small style="color:var(--gold)">RWA Gold Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><div><b>Unity Asset</b><br><small style="color:var(--blue)">RWA Silver Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><div><b>Veo AI Asset</b><br><small style="color:var(--purple)">AI Computing Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
+    </div>
+
+    <div id="p-launcher" style="display:none">
+        <h3 style="color:var(--purple); text-align:center;">🚀 SOLANA LAUNCHER</h3>
+        
+        <img id="ban-pre" class="banner-preview">
+        
+        <div class="input-group"><input type="text" id="tk-name" placeholder="Token Name (ex: SolMoon)"></div>
+        <div class="input-group"><input type="text" id="tk-sym" placeholder="Symbol (ex: MOON)"></div>
+        <div class="input-group"><input type="text" id="tk-ban" placeholder="Banner Image URL" onchange="updateBan(this.value)"></div>
+        <div class="input-group"><input type="text" id="tk-web" placeholder="Website URL (Optional)"></div>
+        <div class="input-group"><input type="text" id="tk-x" placeholder="X (Twitter) Handle @"></div>
+        
+        <div class="card" style="margin-top:10px; border:1px dashed var(--purple); background:rgba(162, 89, 255, 0.05);">
+            <div><small style="color:var(--purple)">DEPLOYMENT COST</small><br><b>500 WPT</b></div>
+            <button class="btn" style="background:var(--purple); color:#FFF" onclick="launchToken()">LAUNCH</button>
+        </div>
     </div>
 
     <div class="nav">
@@ -178,46 +178,32 @@ async def web_ui():
         <div onclick="show('leader')" id="n-leader" class="n-i">🏆</div>
         <div onclick="show('profile')" id="n-profile" class="n-i">👤</div>
         <div onclick="show('pillars')" id="n-pillars" class="n-i">📊</div>
+        <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
     </div>
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let last = 0;
         
+        function updateBan(url) {
+            const img = document.getElementById('ban-pre');
+            if(url) { img.src = url; img.style.display = 'block'; }
+            else { img.style.display = 'none'; }
+        }
+
         async function refresh() {
             try {
                 const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                document.getElementById('tot').innerText = d.score.toFixed(2);
                 document.getElementById('gv').innerText = d.g.toFixed(2);
                 document.getElementById('uv').innerText = d.u.toFixed(2);
                 document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = d.score.toFixed(2);
                 document.getElementById('u-m').innerText = "⚡ Multiplier: x" + d.multiplier;
-                document.getElementById('on-v').innerText = d.online;
-                document.getElementById('tot-v').innerText = d.total_users;
-                document.getElementById('jk-v').innerText = d.jackpot;
                 document.getElementById('pr-n').innerText = d.name;
                 document.getElementById('pr-b').innerText = d.badge;
-                document.getElementById('pr-m').innerText = "x" + d.multiplier;
-                document.getElementById('pr-s').innerText = d.streak + " Days";
-                document.getElementById('pr-st').innerText = d.staked;
-                document.getElementById('o-r').innerText = d.rc;
-                document.getElementById('o-e').innerText = (d.rc * 50).toFixed(2);
-                document.getElementById('n-f').innerText = d.news;
-                document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
-                document.getElementById('xp-t').innerText = "Next Rank: " + d.next_goal;
-                document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
                 let ev = Math.floor(d.energy);
                 document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
                 document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
-                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-                document.getElementById('rank-list').innerHTML = rl;
-                
-                // Check daily bonus status from storage
-                const lastClaim = localStorage.getItem('lastClaim_' + uid);
-                if(lastClaim && (Date.now() - lastClaim < 86400000)) {
-                    const dbbtn = document.getElementById('db-btn');
-                    dbbtn.innerText = "DONE"; dbbtn.disabled = true; dbbtn.style.background = "#333";
-                }
             } catch(e) {}
         }
 
@@ -227,26 +213,25 @@ async def web_ui():
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
 
-        function claimDaily() {
-            localStorage.setItem('lastClaim_' + uid, Date.now());
-            tg.HapticFeedback.notificationOccurred('success');
-            const btn = document.getElementById('db-btn');
-            btn.innerText = "DONE"; btn.style.background = "#333"; btn.disabled = true;
-            tg.showAlert("Daily Bonus Claimed! (+10 XP)");
-        }
-
-        function predict(side) {
-            tg.HapticFeedback.impactOccurred('medium');
-            tg.showConfirm(`Confirm prediction: Gold will go ${side}?`, (ok) => {
-                if(ok) tg.showAlert("Oracle Locked. Result in 60s.");
+        function launchToken() {
+            const name = document.getElementById('tk-name').value;
+            const sym = document.getElementById('tk-sym').value;
+            if(!name || !sym) return tg.showAlert("Name and Symbol required!");
+            
+            tg.showConfirm(`Deploy ${name} ($${sym}) on Solana for 500 WPT?`, (ok) => {
+                if(ok) {
+                    tg.HapticFeedback.notificationOccurred('success');
+                    tg.showAlert("🚀 Token Queued! It will appear in the Community section shortly.");
+                }
             });
         }
 
-        function show(p) { ['mine','opps','missions','profile','pillars','leader'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
+        function show(p) { ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         tg.expand(); refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
+
 
 """
 
