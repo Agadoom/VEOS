@@ -71,31 +71,58 @@ async def api_mine(request: Request):
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
 
+# --- NOUVELLE TABLE DANS database.init_db_structure() ---
+# Assure-toi que ton fichier database.py crée cette table :
+# CREATE TABLE IF NOT EXISTS community_tokens (
+#    id SERIAL PRIMARY KEY,
+#    creator_id BIGINT,
+#    name TEXT,
+#    symbol TEXT,
+#    logo TEXT,
+#    price DOUBLE PRECISION DEFAULT 0.0001,
+#    supply DOUBLE PRECISION DEFAULT 1000000,
+#    reserve_wpt DOUBLE PRECISION DEFAULT 0,
+#    holders INT DEFAULT 1
+# )
+
 @app.post("/api/launcher/deploy")
 async def api_deploy_token(request: Request):
     data = await request.json()
     uid = data.get("user_id")
+    name = data.get("name")
+    symbol = data.get("symbol")
+    logo = data.get("logo") # Le base64 du logo
+
+    conn = database.get_db_conn(); c = conn.cursor()
     
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    
-    # 1. Vérifier si l'utilisateur a assez de points (ex: sur p_genesis)
+    # 1. VÉRIFICATION ET DÉDUCTION RÉELLE
     c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
-    res = c.fetchone()
+    user_points = c.fetchone()
     
-    if res and res[0] >= 500:
-        # 2. Déduire les 500 WPT
-        new_balance = res[0] - 500
-        c.execute("UPDATE users SET p_genesis = %s WHERE user_id = %s", (new_balance, uid))
-        
-        # 3. (Optionnel) Enregistrer le token dans une nouvelle table 'community_tokens'
-        # Pour l'instant on simule le succès
-        conn.commit()
+    if not user_points or user_points[0] < 500:
         c.close(); conn.close()
-        return {"ok": True, "new_balance": new_balance}
+        return JSONResponse(status_code=400, content={"error": "Solde insuffisant (500 WPT requis)"})
+
+    # DÉDUCTION
+    c.execute("UPDATE users SET p_genesis = p_genesis - 500 WHERE user_id = %s", (uid,))
     
+    # 2. ENREGISTREMENT DU TOKEN POUR TOUS
+    c.execute("""
+        INSERT INTO community_tokens (creator_id, name, symbol, logo, reserve_wpt) 
+        VALUES (%s, %s, %s, %s, %s) RETURNING id
+    """, (uid, name, symbol, logo, 500)) # Les 500 frais vont dans la liquidité initiale
+    
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True, "message": "Token déployé et 500 WPT déduits"}
+
+@app.get("/api/launcher/list")
+async def api_list_tokens():
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT name, symbol, logo, price, holders, reserve_wpt FROM community_tokens ORDER BY id DESC")
+    tokens = c.fetchall()
     c.close(); conn.close()
-    return JSONResponse(status_code=400, content={"error": "Inssuficient WPT Balance"})
+    return [{"name": t[0], "symbol": t[1], "logo": t[2], "price": t[3], "holders": t[4], "mcap": round(t[5]*2, 2)} for t in tokens]
+
 
 
 
@@ -226,18 +253,37 @@ async def web_ui():
     </div>
 
     <div id="token-live-view" style="display:none;">
-        <button class="btn" style="background:#222; color:#FFF; margin-bottom:10px;" onclick="backToLauncher()">< REtour</button>
-        <div class="card" style="border: 1px solid var(--green); flex-direction:column; align-items:flex-start; gap:15px;">
-            <div style="display:flex; gap:10px; align-items:center; width:100%;">
-                <img id="live-tk-logo" src="" style="width:50px; height:50px; border-radius:50%; object-fit:cover;">
-                <div style="flex:1">
-                    <b id="live-tk-name" style="font-size:18px;">---</b><br>
-                    <small id="live-tk-price" style="color:var(--green); font-family:monospace; font-size:14px;">Price: 0.0000 WPT</small>
-                </div>
-                <div style="text-align:right">
-                    <small style="color:var(--text)">MCAP</small><br><b id="live-tk-mcap">$0</b>
-                </div>
+    <button class="btn" style="background:#222; color:#FFF; margin-bottom:10px;" onclick="backToLauncher()">< REtour</button>
+    
+    <div class="card" style="border: 1px solid var(--purple); flex-direction:column; align-items:flex-start; gap:12px;">
+        <div style="display:flex; gap:10px; align-items:center; width:100%;">
+            <img id="live-tk-logo" src="" style="width:45px; height:45px; border-radius:50%; border:2px solid var(--purple);">
+            <div style="flex:1">
+                <b id="live-tk-name" style="font-size:16px;">---</b>
+                <div id="live-tk-price" style="color:var(--green); font-family:monospace;">0.0000 WPT</div>
             </div>
+            <div style="text-align:right">
+                <small style="color:var(--text)">HOLDERS</small><br><b id="live-tk-holders">1</b>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top:15px;">
+        <small style="color:var(--text)">SÉLECTIONNER MONTANT (WPT)</small>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:5px; margin-top:5px;">
+            <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(25)">25%</button>
+            <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(50)">50%</button>
+            <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(75)">75%</button>
+            <button class="btn" style="background:var(--purple); color:#FFF" onclick="setTradePct(100)">MAX</button>
+        </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
+        <button class="btn" style="background:var(--green); color:#FFF; padding:18px;" onclick="executeTrade('buy')">BUY</button>
+        <button class="btn" style="background:var(--red); color:#FFF; padding:18px;" onclick="executeTrade('sell')">SELL</button>
+    </div>
+</div>
+
             
             <div style="width:100%;">
                 <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:5px;">
@@ -457,6 +503,66 @@ async def web_ui():
     tg.expand(); 
     refresh(); 
     setInterval(refresh, 5000);
+
+
+let selectedAmount = 0;
+
+// Charger les tokens créés par les autres
+async function loadCommunityTokens() {
+    const r = await fetch('/api/launcher/list');
+    const tokens = await r.json();
+    let html = "";
+    tokens.forEach(t => {
+        html += `
+            <div class="card" onclick="openTokenLive(${JSON.stringify(t).replace(/"/g, '&quot;')})">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <img src="${t.logo}" style="width:30px; height:30px; border-radius:50%;">
+                    <div><b>${t.name}</b><br><small style="color:var(--green)">${t.price} WPT</small></div>
+                </div>
+                <div style="text-align:right"><small>MCAP</small><br><b>$${t.mcap}</b></div>
+            </div>
+        `;
+    });
+    document.getElementById('community-tokens-list').innerHTML = html || "<small>Aucun token en ligne...</small>";
+}
+
+function setTradePct(pct) {
+    tg.HapticFeedback.impactOccurred('light');
+    // On récupère le score total de l'utilisateur pour calculer le %
+    const totalWPT = parseFloat(document.getElementById('tot').innerText);
+    selectedAmount = (totalWPT * (pct / 100)).toFixed(2);
+    tg.showAlert(`Montant sélectionné : ${selectedAmount} WPT (${pct}%)`);
+}
+
+async function executeTrade(side) {
+    if(selectedAmount <= 0) return tg.showAlert("Sélectionne un montant d'abord !");
+    
+    tg.showConfirm(`Confirmer ${side.toUpperCase()} de ${selectedAmount} WPT sur ${currentToken.symbol} ?`, (ok) => {
+        if(ok) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showPopup({
+                title: 'Transaction DEX',
+                message: `Succès !\nAction: ${side}\nMontant: ${selectedAmount} WPT`,
+                buttons: [{type: 'ok'}]
+            });
+            // Ici on appellera la route API de swap pour déduire les points réellement
+        }
+    });
+}
+
+// Appeler le chargement des tokens quand on ouvre le launcher
+function show(p) { 
+    if(p === 'launcher') loadCommunityTokens();
+    ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id => {
+        const el = document.getElementById('p-'+id);
+        if(el) el.style.display = (id === p ? 'block' : 'none'); 
+        const nav = document.getElementById('n-'+id);
+        if(nav) nav.classList.toggle('active', id === p);
+    }); 
+}
+
+
+
 </script>
 
 </body>
