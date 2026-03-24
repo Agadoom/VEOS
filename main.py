@@ -2,21 +2,22 @@ import asyncio, uvicorn, time, random
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-
-# --- AJOUTE CES LIGNES ICI ---
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-# -----------------------------
 
-import config, database, missions, launcher 
+import config, database, missions
+
+# --- INITIALISATION ---
+try:
+    database.init_db_structure()
+    print("✅ Database Master Structure Active")
+except Exception as e:
+    print(f"⚠️ Security Alert: {e}")
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# ... reste du code (api_get_user, web_ui, etc.)
-
-
-# --- LOGIQUE SERVEUR ---
+# --- CORE LOGIC ---
 def get_network_stats():
     try:
         conn = database.get_db_conn(); c = conn.cursor()
@@ -29,34 +30,47 @@ def get_network_stats():
         return (online if online > 0 else 1), total
     except: return 1, 1
 
+# --- API ROUTES ---
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
     now = int(time.time()); last_update = r[6] if r[6] is not None else now
     is_frenzy = (r[7] or 0) > 5 or (random.random() > 0.95)
+    regen_rate = config.REGEN_RATE * (5.0 if is_frenzy else 1.0)
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * regen_rate)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, rank_idx, next_goal = missions.get_badge_info(score)
+    staked = r[8] or 0
+    mult = round(1.0 + (staked / 100) * 0.1 + (score / 1000) + (rank_idx * 0.05), 2)
+    if is_frenzy: mult = round(mult * 1.2, 2)
     online_c, total_u = get_network_stats()
-    
     return {
-        "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, 
-        "rc": r[3] or 0, "energy": int(min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * config.REGEN_RATE)),
-        "max_energy": config.MAX_ENERGY, "badge": badge, "score": round(score, 2),
-        "next_goal": next_goal, "multiplier": round(1.0 + (score/1000) + (rank_idx*0.05), 2),
-        "frenzy": is_frenzy, "online": online_c, "total_users": total_u, "staked": r[8] or 0,
+        "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0,
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge, "rank_idx": rank_idx,
+        "score": round(score, 2), "next_goal": next_goal, "multiplier": mult, "frenzy": is_frenzy,
+        "online": online_c, "total_users": total_u, "staked": staked, "streak": r[7] or 0,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "news": "🔥 FRENZY ACTIVE" if is_frenzy else "🚀 WPT HUB Online",
+        "prices": {"gold": 2150.40, "silver": 24.15, "copper": 3.85},
         "top": [{"n": f"{x[0]}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()[:10]]
     }
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
     data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    # Logique de minage standard...
-    return {"ok": True}
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    now_ms = int(time.time()*1000); now_s = now_ms//1000
+    if res and (now_ms - (res[2] or 0)) >= 85:
+        cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
+        if cur_e >= 1:
+            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
+            conn.commit(); c.close(); conn.close(); return {"ok": True}
+    c.close(); conn.close(); return JSONResponse(status_code=400)
 
-# --- INTERFACE WEB (TOUTES SECTIONS RESTAURÉES) ---
+# --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
     return r"""
@@ -73,15 +87,22 @@ async def web_ui():
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         .t-i { display: inline-block; margin-right: 30px; color: var(--gold); font-size: 10px; font-weight: bold; }
         .f-glow { position: fixed; inset: 0; border: 4px solid var(--red); pointer-events: none; z-index: 99; display: none; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.4; } }
         .b-card { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .e-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; }
         .e-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
+        .e-fill.frenzy { background: linear-gradient(90deg, var(--red), #FF9500); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 10px 15px; border-radius: 40px; display: flex; gap: 8px; border: 1px solid #333; z-index: 100; }
-        .n-i { font-size: 15px; opacity: 0.3; padding: 5px; } .n-i.active { opacity: 1; color: var(--gold); }
         .input-group { background: #000; padding: 12px; border-radius: 12px; border: 1px solid #333; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
-        input { background: transparent; border: none; color: #FFF; width: 100%; outline: none; font-size: 13px; }
+        input[type="text"], input[type="number"] { background: transparent; border: none; color: #FFF; width: 100%; outline: none; font-size: 13px; }
+        input[type="file"] { font-size: 10px; color: var(--text); }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
+        .n-i { font-size: 18px; opacity: 0.3; } .n-i.active { opacity: 1; color: var(--gold); }
+        .xp-b { background: #222; height: 6px; border-radius: 3px; margin: 10px 0; }
+        .xp-f { background: var(--purple); height: 100%; border-radius: 3px; transition: 1s; }
+        
+        /* Modal Style */
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 200; display: none; padding: 20px; flex-direction: column; justify-content: center; }
         .pre-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin: 10px auto; display: none; border: 1px solid var(--purple); }
         .pre-ban { width: 100%; height: 60px; border-radius: 10px; object-fit: cover; margin-top: 5px; display: none; border: 1px solid #333; }
@@ -109,18 +130,24 @@ async def web_ui():
 
     <div id="p-missions" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB MISSIONS</h3>
+        <div class="card"><div><b>Turbo Robot</b><br><small>Stake 100 WPT</small></div><button class="btn" style="background:var(--gold)">STAKE</button></div>
         <div class="card"><b>Daily Bonus</b><button id="db-btn" class="btn" style="background:var(--green); color:#FFF" onclick="claimDaily()">CLAIM</button></div>
         <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF">REFILL</button></div>
     </div>
 
     <div id="p-opps" style="display:none">
         <h3 style="color:var(--blue); text-align:center;">ORACLE PREDICT</h3>
+        <div id="n-f" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin-bottom:10px; border-left:3px solid var(--blue);">...</div>
         <div class="card" style="flex-direction:column; gap:10px;">
-            <div style="font-size:11px;">Gold Price in 60s?</div>
+            <div style="font-size:11px;">Gold (Genesis) Price in 60s?</div>
             <div style="display:flex; gap:10px; width:100%;">
                 <button class="btn" onclick="predict('up')" style="flex:1; background:var(--green); color:#FFF">UP ↑</button>
                 <button class="btn" onclick="predict('down')" style="flex:1; background:var(--red); color:#FFF">DOWN ↓</button>
             </div>
+        </div>
+        <div class="card" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; text-align:center;">
+            <div style="background:#000; padding:10px; border-radius:10px;"><small>REFS</small><br><b id="o-r" style="color:var(--purple)">0</b></div>
+            <div style="background:#000; padding:10px; border-radius:10px;"><small>EARN</small><br><b id="o-e" style="color:var(--green)">0.00</b></div>
         </div>
     </div>
 
@@ -128,35 +155,48 @@ async def web_ui():
 
     <div id="p-profile" style="display:none">
         <div style="text-align:center; padding:20px;">
-            <div style="font-size:40px;">👤</div><h2 id="pr-n">...</h2><div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
+            <div style="font-size:40px;">👤</div>
+            <h2 id="pr-n">...</h2><div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
+            <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
+            <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
         </div>
         <div class="card" style="background:linear-gradient(45deg, #111, #1a1a1a); border: 1px solid var(--purple);">
-            <div><b>Team Hub</b><br><small>Global Mining Active</small></div><b style="color:var(--purple)">+0.05x</b>
+            <div><b>Team Progress</b><br><small id="team-status">Global Mining: 12%</small></div>
+            <b id="team-bonus" style="color:var(--purple)">+0.05x</b>
         </div>
+        <div class="card"><span>Power</span><b id="pr-m">x1.0</b></div>
+        <div class="card"><span>Streak</span><b id="pr-s">0 Days</b></div>
+        <div class="card"><span>Staked</span><b id="pr-st">0</b></div>
     </div>
 
     <div id="p-pillars" style="display:none">
         <h3 style="color:var(--green); text-align:center;">PILLARS ASSETS</h3>
-        <div class="card"><b>WPT Token</b><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>WPT Token</b><br><small style="color:var(--text)">Native Ecosystem</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>Genesis Asset</b><br><small style="color:var(--gold)">RWA Gold Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>Unity Asset</b><br><small style="color:var(--blue)">RWA Silver Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>Veo AI Asset</b><br><small style="color:var(--purple)">AI Computing Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
     </div>
 
     <div id="p-launcher" style="display:none">
         <h3 style="color:var(--purple); text-align:center;">🚀 SOLANA LAUNCHER</h3>
-        <div class="input-group"><small style="color:var(--text)">Name</small><input type="text" id="tk-name" placeholder="ex: SolMoon"></div>
+        <div class="input-group"><small style="color:var(--text)">Token Name</small><input type="text" id="tk-name" placeholder="ex: SolMoon"></div>
         <div class="input-group"><small style="color:var(--text)">Symbol</small><input type="text" id="tk-sym" placeholder="ex: MOON"></div>
-        <div class="input-group"><small style="color:var(--text)">Logo (Upload)</small><br><input type="file" id="f-logo" accept="image/*" onchange="previewFile('f-logo', 'pre-logo')"></div>
+        <div class="input-group"><small style="color:var(--text)">Logo (File Upload)</small><br><input type="file" id="f-logo" accept="image/*" onchange="previewFile('f-logo', 'pre-logo')"></div>
         <img id="pre-logo" class="pre-img">
-        <div class="input-group"><small style="color:var(--text)">Banner (Upload)</small><br><input type="file" id="f-ban" accept="image/*" onchange="previewFile('f-ban', 'pre-banner')"></div>
+        <div class="input-group"><small style="color:var(--text)">Banner (File Upload)</small><br><input type="file" id="f-ban" accept="image/*" onchange="previewFile('f-ban', 'pre-banner')"></div>
         <img id="pre-banner" class="pre-ban">
-        <div class="input-group"><small style="color:var(--text)">X Twitter</small><input type="text" id="tk-x" placeholder="@handle"></div>
-        <button class="btn" style="width:100%; background:var(--purple); color:#FFF; padding:15px;" onclick="openCheckout()">REVIEW & PAY</button>
+        <div class="input-group"><small style="color:var(--text)">Website (Optional)</small><input type="text" id="tk-web" placeholder="https://..."></div>
+        <div class="input-group"><small style="color:var(--text)">X (Twitter) Handle</small><input type="text" id="tk-x" placeholder="@handle"></div>
+        <button class="btn" style="width:100%; background:var(--purple); color:#FFF; padding:15px; margin-top:10px;" onclick="openCheckout()">REVIEW & PAY</button>
     </div>
 
     <div id="m-check" class="modal">
         <div style="background:var(--card); border:1px solid var(--purple); padding:20px; border-radius:20px; text-align:center;">
-            <h2 style="color:var(--purple)">Checkout</h2>
-            <div id="check-info" style="text-align:left; font-size:12px; margin:15px 0; color:var(--text);"></div>
-            <div style="margin-bottom:20px;">Fee: <b>500 WPT</b></div>
+            <h2 style="color:var(--purple)">Final Review</h2>
+            <div id="check-info" style="text-align:left; font-size:12px; margin:15px 0; color:var(--text); line-height:1.6;"></div>
+            <div style="border-top:1px solid #333; padding-top:10px; margin-bottom:20px;">
+                <small>Total Creation Fee:</small><br><b style="font-size:20px; color:#FFF">500 WPT</b>
+            </div>
             <div style="display:flex; gap:10px;">
                 <button class="btn" style="flex:1; background:#333; color:#FFF" onclick="closeCheckout()">CANCEL</button>
                 <button class="btn" style="flex:1; background:var(--green); color:#FFF" onclick="confirmLaunch()">PAY & DEPLOY</button>
@@ -176,6 +216,7 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
+        let last = 0;
         
         function previewFile(inputId, imgId) {
             const file = document.getElementById(inputId).files[0];
@@ -188,40 +229,77 @@ async def web_ui():
             const name = document.getElementById('tk-name').value;
             const sym = document.getElementById('tk-sym').value;
             if(!name || !sym) return tg.showAlert("Please fill Name and Symbol!");
-            document.getElementById('check-info').innerHTML = `<b>Token:</b> ${name} ($${sym})<br><b>Twitter:</b> ${document.getElementById('tk-x').value || 'None'}`;
+            document.getElementById('check-info').innerHTML = `
+                🚀 <b>Token:</b> ${name} ($${sym})<br>
+                📱 <b>X Twitter:</b> ${document.getElementById('tk-x').value || 'Not set'}<br>
+                🖼️ <b>Assets:</b> Logo & Banner Uploaded
+            `;
             document.getElementById('m-check').style.display = 'flex';
         }
 
         function closeCheckout() { document.getElementById('m-check').style.display = 'none'; }
-        
+
         function confirmLaunch() {
             tg.HapticFeedback.notificationOccurred('success');
-            tg.showAlert("Deploying to Solana... 500 WPT deducted.");
-            closeCheckout(); show('mine');
+            tg.showAlert("Transaction Processing... 500 WPT deducted.");
+            closeCheckout();
+            show('mine');
         }
 
         async function refresh() {
-            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-            document.getElementById('tot').innerText = d.score.toFixed(2);
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('u-m').innerText = "⚡ Multiplier: x" + d.multiplier;
-            let ev = Math.floor(d.energy);
-            document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
-            document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
-            
-            const lastClaim = localStorage.getItem('lastClaim_' + uid);
-            if(lastClaim && (Date.now() - lastClaim < 86400000)) {
-                const b = document.getElementById('db-btn'); b.innerText = "DONE"; b.disabled = true; b.style.background = "#333";
-            }
+            try {
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('u-m').innerText = "⚡ Multiplier: x" + d.multiplier;
+                document.getElementById('on-v').innerText = d.online;
+                document.getElementById('tot-v').innerText = d.total_users;
+                document.getElementById('jk-v').innerText = d.jackpot;
+                document.getElementById('pr-n').innerText = d.name;
+                document.getElementById('pr-b').innerText = d.badge;
+                document.getElementById('pr-m').innerText = "x" + d.multiplier;
+                document.getElementById('pr-s').innerText = d.streak + " Days";
+                document.getElementById('pr-st').innerText = d.staked;
+                document.getElementById('o-r').innerText = d.rc;
+                document.getElementById('o-e').innerText = (d.rc * 50).toFixed(2);
+                document.getElementById('n-f').innerText = d.news;
+                document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
+                document.getElementById('xp-t').innerText = "Next Rank: " + d.next_goal;
+                document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
+                let ev = Math.floor(d.energy);
+                document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
+                document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
+                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+                document.getElementById('rank-list').innerHTML = rl;
+                const lastClaim = localStorage.getItem('lastClaim_' + uid);
+                if(lastClaim && (Date.now() - lastClaim < 86400000)) {
+                    const dbbtn = document.getElementById('db-btn');
+                    dbbtn.innerText = "DONE"; dbbtn.disabled = true; dbbtn.style.background = "#333";
+                }
+            } catch(e) {}
+        }
+
+        async function mine(t) {
+            const now = Date.now(); if (now - last < 85) return; last = now;
+            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
+            if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
 
         function claimDaily() {
             localStorage.setItem('lastClaim_' + uid, Date.now());
             tg.HapticFeedback.notificationOccurred('success');
-            const btn = document.getElementById('db-btn'); btn.innerText = "DONE"; btn.disabled = true;
-            tg.showAlert("Daily Bonus Claimed!");
+            const btn = document.getElementById('db-btn');
+            btn.innerText = "DONE"; btn.style.background = "#333"; btn.disabled = true;
+            tg.showAlert("Daily Bonus Claimed! (+10 XP)");
+        }
+
+        function predict(side) {
+            tg.HapticFeedback.impactOccurred('medium');
+            tg.showConfirm(`Confirm prediction: Gold will go ${side}?`, (ok) => {
+                if(ok) tg.showAlert("Oracle Locked. Result in 60s.");
+            });
         }
 
         function show(p) { ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
@@ -229,8 +307,6 @@ async def web_ui():
     </script>
 </body>
 </html>
-
-
 """
 
 # --- BOT SETUP ---
