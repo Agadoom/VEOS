@@ -3,10 +3,12 @@ from data_conx import get_db_conn
 
 def init_db_structure():
     conn = get_db_conn()
-    if conn:
+    if not conn: return
+    try:
         c = conn.cursor()
+        # On s'assure que la table users existe d'abord
+        c.execute("CREATE TABLE IF NOT EXISTS users (user_id BIGINT PRIMARY KEY, name TEXT)")
         
-        # 1. Mise à jour de la table USERS (Profils, Points, Energie)
         cols = [
             ("p_genesis", "DOUBLE PRECISION DEFAULT 0"),
             ("p_unity", "DOUBLE PRECISION DEFAULT 0"),
@@ -27,8 +29,6 @@ def init_db_structure():
             except:
                 pass 
 
-        # 2. CRÉATION DE LA TABLE COMMUNITY_TOKENS (Pour le Launcher)
-        # On utilise TEXT pour le logo car c'est du Base64 (image)
         c.execute("""
             CREATE TABLE IF NOT EXISTS community_tokens (
                 id SERIAL PRIMARY KEY,
@@ -42,58 +42,44 @@ def init_db_structure():
                 created_at BIGINT
             )
         """)
-        
         conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ DB Init Error: {e}")
+    finally:
         c.close(); conn.close()
-        print("✅ Database Synchronized: Users & Tokens tables ready.")
 
 def get_user_full(uid):
     conn = get_db_conn()
-    c = conn.cursor()
-    # L'ordre ici est CRITIQUE pour le main.py (r[0], r[1], etc.)
-    c.execute("""SELECT 
-        p_genesis,        -- r[0]
-        p_unity,          -- r[1]
-        p_veo,            -- r[2]
-        ref_count,        -- r[3]
-        name,             -- r[4]
-        energy,           -- r[5]
-        last_energy_update, -- r[6]
-        streak,           -- r[7]
-        staked_amount,    -- r[8]
-        ref_claimed       -- r[9]
-        FROM users WHERE user_id=%s""", (uid,))
-    res = c.fetchone()
-    c.close(); conn.close()
-    return res
+    if not conn: return None
+    try:
+        c = conn.cursor()
+        c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, 
+                     last_energy_update, streak, staked_amount, ref_claimed 
+                     FROM users WHERE user_id=%s""", (uid,))
+        return c.fetchone()
+    except:
+        conn.rollback(); return None
+    finally:
+        c.close(); conn.close()
 
 def get_leaderboard():
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
-    res = c.fetchall()
-    c.close(); conn.close()
-    return res
+    try:
+        c.execute("SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total FROM users ORDER BY total DESC LIMIT 8")
+        return c.fetchall()
+    except:
+        conn.rollback(); return []
+    finally:
+        c.close(); conn.close()
 
 def get_total_network_score():
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-    res = c.fetchone()
-    score = res[0] if res and res[0] else 0
-    c.close(); conn.close()
-    return score
-
-
-def execute_query(query, params=()):
-    conn = get_db_conn()
     try:
-        c = conn.cursor()
-        c.execute(query, params)
-        conn.commit()
-        return c
-    except Exception as e:
-        conn.rollback() # <--- C'EST ÇA QUI DÉBLOQUE LA TRANSACTION
-        print(f"Database Error: {e}")
-        raise e
+        c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+        res = c.fetchone()
+        return res[0] if res and res[0] else 0
+    except:
+        conn.rollback(); return 0
     finally:
-        conn.close()
-
+        c.close(); conn.close()
