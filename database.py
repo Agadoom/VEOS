@@ -3,32 +3,38 @@ from data_conx import get_db_conn
 
 def init_db_structure():
     conn = get_db_conn()
-    if not conn: return
+    if not conn: 
+        print("❌ Impossible de se connecter à la DB")
+        return
+    
+    # On force un rollback immédiat pour nettoyer toute transaction résiduelle de Michael
+    conn.rollback() 
+    
     try:
         c = conn.cursor()
-        # On s'assure que la table users existe d'abord
+        # On vérifie l'existence de la table de base
         c.execute("CREATE TABLE IF NOT EXISTS users (user_id BIGINT PRIMARY KEY, name TEXT)")
+        conn.commit() # On valide cette étape
         
+        # Ajout des colonnes une par une avec leur propre micro-transaction
         cols = [
             ("p_genesis", "DOUBLE PRECISION DEFAULT 0"),
             ("p_unity", "DOUBLE PRECISION DEFAULT 0"),
             ("p_veo", "DOUBLE PRECISION DEFAULT 0"),
             ("energy", "INTEGER DEFAULT 100"),
             ("last_energy_update", "BIGINT"),
-            ("staked_amount", "DOUBLE PRECISION DEFAULT 0"),
-            ("streak", "INTEGER DEFAULT 0"),
-            ("last_streak_date", "TEXT"),
-            ("ref_count", "INTEGER DEFAULT 0"),
-            ("ref_claimed", "INTEGER DEFAULT 0"),
-            ("last_login_date", "TEXT"),
             ("last_click_time", "BIGINT DEFAULT 0")
         ]
+        
         for col, dtype in cols:
             try:
                 c.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            except:
-                pass 
+                conn.commit() # On valide chaque colonne individuellement
+            except Exception:
+                conn.rollback() # Si la colonne existe déjà, on annule JUSTE cette erreur
+                continue
 
+        # Table des tokens
         c.execute("""
             CREATE TABLE IF NOT EXISTS community_tokens (
                 id SERIAL PRIMARY KEY,
@@ -43,11 +49,14 @@ def init_db_structure():
             )
         """)
         conn.commit()
+        print("✅ Structure synchronisée avec succès.")
     except Exception as e:
         conn.rollback()
-        print(f"❌ DB Init Error: {e}")
+        print(f"⚠️ Erreur persistante : {e}")
     finally:
-        c.close(); conn.close()
+        c.close()
+        conn.close()
+
 
 def get_user_full(uid):
     conn = get_db_conn()
