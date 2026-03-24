@@ -81,3 +81,19 @@ def get_total_network_score():
     score = res[0] if res and res[0] else 0
     c.close(); conn.close()
     return score
+
+
+def execute_query(query, params=()):
+    conn = get_db_conn()
+    try:
+        c = conn.cursor()
+        c.execute(query, params)
+        conn.commit()
+        return c
+    except Exception as e:
+        conn.rollback() # <--- C'EST ÇA QUI DÉBLOQUE LA TRANSACTION
+        print(f"Database Error: {e}")
+        raise e
+    finally:
+        conn.close()
+
