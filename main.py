@@ -10,7 +10,7 @@ database.init_db_structure()
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-@@app.get("/api/user/{uid}")
+@app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     # On récupère les données
     r = database.get_user_full(uid)
