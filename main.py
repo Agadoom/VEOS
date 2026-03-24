@@ -8,9 +8,6 @@ from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMar
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 # -----------------------------
 
-import database, config, missions
-
-
 
 import database, config, missions, launcher 
 
