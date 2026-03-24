@@ -70,6 +70,35 @@ async def api_mine(request: Request):
             conn.commit(); c.close(); conn.close(); return {"ok": True}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
+
+@app.post("/api/launcher/deploy")
+async def api_deploy_token(request: Request):
+    data = await request.json()
+    uid = data.get("user_id")
+    
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    
+    # 1. Vérifier si l'utilisateur a assez de points (ex: sur p_genesis)
+    c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    
+    if res and res[0] >= 500:
+        # 2. Déduire les 500 WPT
+        new_balance = res[0] - 500
+        c.execute("UPDATE users SET p_genesis = %s WHERE user_id = %s", (new_balance, uid))
+        
+        # 3. (Optionnel) Enregistrer le token dans une nouvelle table 'community_tokens'
+        # Pour l'instant on simule le succès
+        conn.commit()
+        c.close(); conn.close()
+        return {"ok": True, "new_balance": new_balance}
+    
+    c.close(); conn.close()
+    return JSONResponse(status_code=400, content={"error": "Inssuficient WPT Balance"})
+
+
+
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -255,159 +284,181 @@ async def web_ui():
         <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
     </div>
 
-    <script>
-        let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let last = 0;
+   <script>
+    let tg = window.Telegram.WebApp; 
+    const uid = tg.initDataUnsafe.user?.id || 0;
+    let last = 0;
+    let currentToken = null; // Stocke le token actif dans le DEX
+
+    // --- UTILS ---
+    function previewFile(inputId, imgId) {
+        const file = document.getElementById(inputId).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => { const img = document.getElementById(imgId); img.src = reader.result; img.style.display = 'block'; }
+        if (file) reader.readAsDataURL(file);
+    }
+
+    function show(p) { 
+        ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id => {
+            const el = document.getElementById('p-'+id);
+            if(el) el.style.display = (id === p ? 'block' : 'none'); 
+            const nav = document.getElementById('n-'+id);
+            if(nav) nav.classList.toggle('active', id === p);
+        }); 
+    }
+
+    // --- LAUNCHER LOGIC ---
+    function openCheckout() {
+        const name = document.getElementById('tk-name').value;
+        const sym = document.getElementById('tk-sym').value;
+        if(!name || !sym) return tg.showAlert("Please fill Name and Symbol!");
+        document.getElementById('check-info').innerHTML = `
+            🚀 <b>Token:</b> ${name} ($${sym})<br>
+            📱 <b>X Twitter:</b> ${document.getElementById('tk-x').value || 'Not set'}<br>
+            🖼️ <b>Assets:</b> Logo & Banner Uploaded
+        `;
+        document.getElementById('m-check').style.display = 'flex';
+    }
+
+    function closeCheckout() { document.getElementById('m-check').style.display = 'none'; }
+
+    // ICI : Connexion réelle au serveur pour payer les 500 WPT
+    async function confirmLaunch() {
+        const name = document.getElementById('tk-name').value;
+        const sym = document.getElementById('tk-sym').value;
+        const logo = document.getElementById('pre-logo').src;
+
+        try {
+            const response = await fetch('/api/launcher/deploy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, name: name, symbol: sym })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                tg.HapticFeedback.notificationOccurred('success');
+                closeCheckout();
+                
+                // On ouvre le mode LIVE avec les vraies infos
+                openTokenLive({
+                    name: name,
+                    symbol: sym,
+                    logo: logo,
+                    price: "0.0001",
+                    mcap: "500"
+                });
+                
+                tg.showAlert("🚀 Token deployed! 500 WPT deducted.");
+                refresh(); 
+            } else {
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert("❌ Wallet Error: " + (result.error || "Insufficient funds"));
+            }
+        } catch(e) {
+            tg.showAlert("Connection Error");
+        }
+    }
+
+    function backToLauncher() {
+        document.getElementById('launch-form').style.display = 'block';
+        document.getElementById('token-live-view').style.display = 'none';
+    }
+
+    function openTokenLive(tokenData) {
+        currentToken = tokenData;
+        document.getElementById('launch-form').style.display = 'none';
+        document.getElementById('token-live-view').style.display = 'block';
         
-        function previewFile(inputId, imgId) {
-            const file = document.getElementById(inputId).files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => { const img = document.getElementById(imgId); img.src = reader.result; img.style.display = 'block'; }
-            if (file) reader.readAsDataURL(file);
-        }
+        document.getElementById('live-tk-name').innerText = tokenData.name + " ($" + tokenData.symbol + ")";
+        document.getElementById('live-tk-logo').src = tokenData.logo || "";
+        document.getElementById('live-tk-price').innerText = "Price: " + tokenData.price + " WPT";
+        document.getElementById('live-tk-sym').innerText = tokenData.symbol;
+    }
 
-        function openCheckout() {
-            const name = document.getElementById('tk-name').value;
-            const sym = document.getElementById('tk-sym').value;
-            if(!name || !sym) return tg.showAlert("Please fill Name and Symbol!");
-            document.getElementById('check-info').innerHTML = `
-                🚀 <b>Token:</b> ${name} ($${sym})<br>
-                📱 <b>X Twitter:</b> ${document.getElementById('tk-x').value || 'Not set'}<br>
-                🖼️ <b>Assets:</b> Logo & Banner Uploaded
-            `;
-            document.getElementById('m-check').style.display = 'flex';
-        }
+    async function trade(side) {
+        tg.HapticFeedback.impactOccurred('medium');
+        const amount = side === 'buy' ? "100 WPT" : "All Tokens";
+        
+        tg.showConfirm(`Confirm ${side} trade for ${currentToken.name}?`, async (ok) => {
+            if(ok) {
+                // Ici on appellera bientôt une API /api/trade
+                tg.showPopup({
+                    title: 'DEX Transaction',
+                    message: `Status: Success\nType: ${side.toUpperCase()}\nPrice Impact: 0.05%`,
+                    buttons: [{type: 'ok'}]
+                });
+            }
+        });
+    }
 
-        function closeCheckout() { document.getElementById('m-check').style.display = 'none'; }
+    // --- CORE REFRESH (API) ---
+    async function refresh() {
+        try {
+            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+            document.getElementById('gv').innerText = d.g.toFixed(2);
+            document.getElementById('uv').innerText = d.u.toFixed(2);
+            document.getElementById('vv').innerText = d.v.toFixed(2);
+            document.getElementById('tot').innerText = d.score.toFixed(2);
+            document.getElementById('u-m').innerText = "⚡ Multiplier: x" + d.multiplier;
+            document.getElementById('on-v').innerText = d.online;
+            document.getElementById('tot-v').innerText = d.total_users;
+            document.getElementById('jk-v').innerText = d.jackpot;
+            document.getElementById('pr-n').innerText = d.name;
+            document.getElementById('pr-b').innerText = d.badge;
+            document.getElementById('pr-m').innerText = "x" + d.multiplier;
+            document.getElementById('pr-s').innerText = d.streak + " Days";
+            document.getElementById('pr-st').innerText = d.staked;
+            document.getElementById('o-r').innerText = d.rc;
+            document.getElementById('o-e').innerText = (d.rc * 50).toFixed(2);
+            document.getElementById('n-f').innerText = d.news;
+            document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
+            document.getElementById('xp-t').innerText = "Next Rank: " + d.next_goal;
+            document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
+            
+            let ev = Math.floor(d.energy);
+            document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
+            document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
+            
+            let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
+            document.getElementById('rank-list').innerHTML = rl;
+            
+            const lastClaim = localStorage.getItem('lastClaim_' + uid);
+            if(lastClaim && (Date.now() - lastClaim < 86400000)) {
+                const dbbtn = document.getElementById('db-btn');
+                if(dbbtn) { dbbtn.innerText = "DONE"; dbbtn.disabled = true; dbbtn.style.background = "#333"; }
+            }
+        } catch(e) {}
+    }
 
-        function confirmLaunch() {
-            tg.HapticFeedback.notificationOccurred('success');
-            tg.showAlert("Transaction Processing... 500 WPT deducted.");
-            closeCheckout();
-            show('mine');
-        }
+    async function mine(t) {
+        const now = Date.now(); if (now - last < 85) return; last = now;
+        const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
+        if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
+    }
 
-        async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('u-m').innerText = "⚡ Multiplier: x" + d.multiplier;
-                document.getElementById('on-v').innerText = d.online;
-                document.getElementById('tot-v').innerText = d.total_users;
-                document.getElementById('jk-v').innerText = d.jackpot;
-                document.getElementById('pr-n').innerText = d.name;
-                document.getElementById('pr-b').innerText = d.badge;
-                document.getElementById('pr-m').innerText = "x" + d.multiplier;
-                document.getElementById('pr-s').innerText = d.streak + " Days";
-                document.getElementById('pr-st').innerText = d.staked;
-                document.getElementById('o-r').innerText = d.rc;
-                document.getElementById('o-e').innerText = (d.rc * 50).toFixed(2);
-                document.getElementById('n-f').innerText = d.news;
-                document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
-                document.getElementById('xp-t').innerText = "Next Rank: " + d.next_goal;
-                document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
-                let ev = Math.floor(d.energy);
-                document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
-                document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
-                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-                document.getElementById('rank-list').innerHTML = rl;
-                const lastClaim = localStorage.getItem('lastClaim_' + uid);
-                if(lastClaim && (Date.now() - lastClaim < 86400000)) {
-                    const dbbtn = document.getElementById('db-btn');
-                    dbbtn.innerText = "DONE"; dbbtn.disabled = true; dbbtn.style.background = "#333";
-                }
-            } catch(e) {}
-        }
+    function claimDaily() {
+        localStorage.setItem('lastClaim_' + uid, Date.now());
+        tg.HapticFeedback.notificationOccurred('success');
+        const btn = document.getElementById('db-btn');
+        btn.innerText = "DONE"; btn.style.background = "#333"; btn.disabled = true;
+        tg.showAlert("Daily Bonus Claimed! (+10 XP)");
+    }
 
-        async function mine(t) {
-            const now = Date.now(); if (now - last < 85) return; last = now;
-            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
-            if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
-        }
+    function predict(side) {
+        tg.HapticFeedback.impactOccurred('medium');
+        tg.showConfirm(`Confirm prediction: Gold will go ${side}?`, (ok) => {
+            if(ok) tg.showAlert("Oracle Locked. Result in 60s.");
+        });
+    }
 
-        function claimDaily() {
-            localStorage.setItem('lastClaim_' + uid, Date.now());
-            tg.HapticFeedback.notificationOccurred('success');
-            const btn = document.getElementById('db-btn');
-            btn.innerText = "DONE"; btn.style.background = "#333"; btn.disabled = true;
-            tg.showAlert("Daily Bonus Claimed! (+10 XP)");
-        }
+    // --- INIT ---
+    tg.expand(); 
+    refresh(); 
+    setInterval(refresh, 5000);
+</script>
 
-        function predict(side) {
-            tg.HapticFeedback.impactOccurred('medium');
-            tg.showConfirm(`Confirm prediction: Gold will go ${side}?`, (ok) => {
-                if(ok) tg.showAlert("Oracle Locked. Result in 60s.");
-            });
-        }
-
-
-
-// Variable pour stocker le token actuellement affiché
-let currentToken = null;
-
-function backToLauncher() {
-    document.getElementById('launch-form').style.display = 'block';
-    document.getElementById('token-live-view').style.display = 'none';
-}
-
-function openTokenLive(tokenData) {
-    currentToken = tokenData;
-    document.getElementById('launch-form').style.display = 'none';
-    document.getElementById('token-live-view').style.display = 'block';
-    
-    // Remplissage des infos
-    document.getElementById('live-tk-name').innerText = tokenData.name + " ($" + tokenData.symbol + ")";
-    document.getElementById('live-tk-logo').src = tokenData.logo || "";
-    document.getElementById('live-tk-price').innerText = "Price: " + tokenData.price + " WPT";
-    document.getElementById('live-tk-sym').innerText = tokenData.symbol;
-}
-
-// Modifie ta fonction confirmLaunch existante pour qu'elle ouvre le live direct
-function confirmLaunch() {
-    const name = document.getElementById('tk-name').value;
-    const sym = document.getElementById('tk-sym').value;
-    const logo = document.getElementById('pre-logo').src;
-    
-    tg.HapticFeedback.notificationOccurred('success');
-    closeCheckout();
-    
-    // On simule les données du nouveau token
-    const newToken = {
-        name: name,
-        symbol: sym,
-        logo: logo,
-        price: "0.0001",
-        mcap: "500"
-    };
-    
-    openTokenLive(newToken);
-    tg.showAlert("🚀 Token successfully deployed on WPT Network!");
-}
-
-async function trade(side) {
-    tg.HapticFeedback.impactOccurred('medium');
-    const amount = side === 'buy' ? "100 WPT" : "All Tokens";
-    tg.showConfirm(`Do you want to ${side} for ${amount}?`, (ok) => {
-        if(ok) {
-            tg.showPopup({
-                title: 'Transaction Sent',
-                message: `Transaction hash: 5xRT...p9zL\nPrice Impact: 0.05%`,
-                buttons: [{type: 'ok'}]
-            });
-        }
-    });
-}
-
-
-
-
-
-        function show(p) { ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
-        tg.expand(); refresh(); setInterval(refresh, 5000);
-    </script>
 </body>
 </html>
 """
