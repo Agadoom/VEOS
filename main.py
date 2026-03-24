@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-import config, database, missions
+import config, database, missions, launcher 
 
 # --- INITIALISATION ---
 try:
