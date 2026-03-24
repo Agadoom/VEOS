@@ -11,6 +11,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import database, config, missions
 
 
+
+import database, config, missions, launcher 
+
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -290,6 +293,7 @@ async def web_ui():
 </body>
 </html>
     """
+
 
 
 
