@@ -374,25 +374,21 @@ async def web_ui():
 
 # --- BOT SETUP ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton("🚀 Launch WPT HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]]
-    await update.message.reply_text("Welcome to WPT HUB!", reply_markup=InlineKeyboardMarkup(keyboard))
+    uid, name = update.effective_user.id, update.effective_user.first_name
+    ref = int(context.args[0]) if context.args and context.args[0].isdigit() else None
+    await missions.register_user(uid, name, ref)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
+    await update.message.reply_text(f"Welcome {name}!", reply_markup=kb)
 
-def run_all():
-    # Correction : On utilise config.TOKEN comme sur ta photo
-    bot_token = getattr(config, 'TOKEN', None)
-    
-    if bot_token:
-        apps = ApplicationBuilder().token(bot_token).build()
-        apps.add_handler(CommandHandler("start", start_cmd))
-        
-        def start_fastapi():
-            uvicorn.run(app, host="0.0.0.0", port=8000)
-        
-        threading.Thread(target=start_fastapi, daemon=True).start()
-        print("🤖 Bot & API are running...")
-        apps.run_polling()
-    else:
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+async def main():
+    bot = ApplicationBuilder().token(config.TOKEN).build()
+    bot.add_handler(CommandHandler("start", start_cmd))
+    await bot.initialize()
+    await bot.bot.delete_webhook(drop_pending_updates=True)
+    await bot.start()
+    asyncio.create_task(bot.updater.start_polling())
+    c = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
+    await uvicorn.Server(c).serve()
 
 if __name__ == "__main__":
-    run_all()
+    asyncio.run(main())
