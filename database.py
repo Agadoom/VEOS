@@ -30,11 +30,12 @@ def init_db_structure():
         )""")
         
         # Table Tokens Communautaires (Launcher)
+          # Table Tokens : On force des valeurs par défaut pour éviter le "0" ou le vide
         c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
             id SERIAL PRIMARY KEY, 
             creator_id BIGINT, 
-            name TEXT, 
-            symbol TEXT, 
+            name TEXT NOT NULL, 
+            symbol TEXT NOT NULL, 
             logo TEXT, 
             price DOUBLE PRECISION DEFAULT 0.0001, 
             reserve_wpt DOUBLE PRECISION DEFAULT 500, 
@@ -44,8 +45,7 @@ def init_db_structure():
         )""")
         conn.commit()
     except Exception as e:
-        conn.rollback()
-        print(f"Erreur Initialisation: {e}")
+        print(f"DB Init Error: {e}")
     finally:
         c.close(); conn.close()
 
