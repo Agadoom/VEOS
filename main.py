@@ -6,9 +6,7 @@ from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMar
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import config, database, missions 
 
-# --- INITIALISATION ---
 database.init_db_structure()
-
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -21,26 +19,25 @@ def get_network_stats():
         c.execute("SELECT COUNT(*) FROM users")
         total = c.fetchone()[0]
         c.close(); conn.close()
-        return (online if online > 0 else 1), total
+        return (max(online, 1)), total
     except: return 1, 1
 
-# --- API ROUTES ---
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
     now = int(time.time()); last_upd = r[6] if r[6] else now
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
-    badge, rank_idx, next_goal = missions.get_badge_info(score)
+    badge, next_goal, badge_color = missions.get_badge_info(score)
     online_c, total_u = get_network_stats()
     return {
         "uid": uid, "name": r[4], "g": round(r[0] or 0, 2), "u": round(r[1] or 0, 2), "v": round(r[2] or 0, 2),
         "energy": int(min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_upd)/60)*config.REGEN_RATE)),
-        "max_energy": config.MAX_ENERGY, "score": round(score, 2), "badge": badge, "rank_idx": rank_idx,
+        "max_energy": config.MAX_ENERGY, "score": round(score, 2), "badge": badge, "badge_color": badge_color,
         "next_goal": next_goal, "online": online_c, "total_users": total_u, "staked": r[8] or 0, "streak": r[7] or 0,
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "multiplier": round(1.0 + (score/5000), 2),
-        "top": [{"n": f"{x[0]}", "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()[:10]]
+        "top": [{"n": x[0], "p": round(x[1], 2), "b": missions.get_badge_info(x[1])[0]} for x in database.get_leaderboard()]
     }
 
 @app.post("/api/mine")
@@ -49,9 +46,9 @@ async def api_mine(request: Request):
     conn = database.get_db_conn(); c = conn.cursor()
     try:
         now_ms = int(time.time()*1000); now_s = now_ms//1000
-        c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id=%s", (uid,))
+        c.execute("SELECT energy, last_click_time FROM users WHERE user_id=%s", (uid,))
         res = c.fetchone()
-        if res and (now_ms - (res[2] or 0)) >= 85 and res[0] >= 1:
+        if res and (now_ms - (res[1] or 0)) >= 85 and res[0] >= 1:
             c.execute(f"UPDATE users SET p_{t}=p_{t}+0.05, energy=energy-1, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (now_s, now_ms, uid))
             conn.commit(); return {"ok": True}
         return JSONResponse(status_code=400)
@@ -300,7 +297,7 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🌍 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
     await update.message.reply_text(f"Welcome {name}!", reply_markup=kb)
 
-async def main():
+async def main_loop():
     bot = ApplicationBuilder().token(config.TOKEN).build()
     bot.add_handler(CommandHandler("start", start_cmd))
     await bot.initialize()
@@ -311,4 +308,4 @@ async def main():
     await uvicorn.Server(c).serve()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main_loop())
