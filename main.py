@@ -128,8 +128,17 @@ async def web_ui():
     </div>
 
     <div id="p-opps" style="display:none">
-        <h3 style="color:var(--blue); text-align:center;">OPPORTUNITIES</h3>
+        <h3 style="color:var(--blue); text-align:center;">ORACLE PREDICT</h3>
         <div id="n-f" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin-bottom:10px; border-left:3px solid var(--blue);">...</div>
+        
+        <div class="card" style="flex-direction:column; gap:10px;">
+            <div style="font-size:11px;">Gold (Genesis) Price in 60s?</div>
+            <div style="display:flex; gap:10px; width:100%;">
+                <button class="btn" onclick="predict('up')" style="flex:1; background:var(--green); color:#FFF">UP ↑</button>
+                <button class="btn" onclick="predict('down')" style="flex:1; background:var(--red); color:#FFF">DOWN ↓</button>
+            </div>
+        </div>
+
         <div class="card" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; text-align:center;">
             <div style="background:#000; padding:10px; border-radius:10px;"><small>REFS</small><br><b id="o-r" style="color:var(--purple)">0</b></div>
             <div style="background:#000; padding:10px; border-radius:10px;"><small>EARN</small><br><b id="o-e" style="color:var(--green)">0.00</b></div>
@@ -144,6 +153,10 @@ async def web_ui():
             <h2 id="pr-n">...</h2><div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
             <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
             <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
+        </div>
+        <div class="card" style="background:linear-gradient(45deg, #111, #1a1a1a); border: 1px solid var(--purple);">
+            <div><b>Team Progress</b><br><small id="team-status">Global Mining: 12%</small></div>
+            <b id="team-bonus" style="color:var(--purple)">+0.05x</b>
         </div>
         <div class="card"><span>Power</span><b id="pr-m">x1.0</b></div>
         <div class="card"><span>Streak</span><b id="pr-s">0 Days</b></div>
@@ -170,6 +183,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let last = 0;
+        
         async function refresh() {
             try {
                 const r = await fetch(`/api/user/${uid}`); const d = await r.json();
@@ -197,19 +211,37 @@ async def web_ui():
                 document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
                 let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
+                
+                // Check daily bonus status from storage
+                const lastClaim = localStorage.getItem('lastClaim_' + uid);
+                if(lastClaim && (Date.now() - lastClaim < 86400000)) {
+                    const dbbtn = document.getElementById('db-btn');
+                    dbbtn.innerText = "DONE"; dbbtn.disabled = true; dbbtn.style.background = "#333";
+                }
             } catch(e) {}
         }
+
         async function mine(t) {
             const now = Date.now(); if (now - last < 85) return; last = now;
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
+
         function claimDaily() {
+            localStorage.setItem('lastClaim_' + uid, Date.now());
             tg.HapticFeedback.notificationOccurred('success');
             const btn = document.getElementById('db-btn');
             btn.innerText = "DONE"; btn.style.background = "#333"; btn.disabled = true;
             tg.showAlert("Daily Bonus Claimed! (+10 XP)");
         }
+
+        function predict(side) {
+            tg.HapticFeedback.impactOccurred('medium');
+            tg.showConfirm(`Confirm prediction: Gold will go ${side}?`, (ok) => {
+                if(ok) tg.showAlert("Oracle Locked. Result in 60s.");
+            });
+        }
+
         function show(p) { ['mine','opps','missions','profile','pillars','leader'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         tg.expand(); refresh(); setInterval(refresh, 5000);
     </script>
