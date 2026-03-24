@@ -1,15 +1,13 @@
-import asyncio, uvicorn, time, random
+import asyncio, uvicorn, time, random, threading
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-# --- AJOUTE CES LIGNES ICI ---
+# --- TELEGRAM IMPORTS ---
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-# -----------------------------
 
-
-import database, config, missions, launcher 
+import database, config, missions
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -19,7 +17,7 @@ def get_network_stats():
     try:
         conn = database.get_db_conn(); c = conn.cursor()
         now = int(time.time())
-        # Utilisateurs actifs ces 5 dernières minutes
+        # Compte les users ayant cliqué dans les 5 dernières minutes
         c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
         online = c.fetchone()[0]
         c.execute("SELECT COUNT(*) FROM users")
@@ -29,11 +27,11 @@ def get_network_stats():
     except: return 1, 1
 
 # --- ROUTES API ---
+
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
-    now = int(time.time())
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, rank_idx, next_goal = missions.get_badge_info(score)
     online_c, total_u = get_network_stats()
@@ -46,6 +44,17 @@ async def api_get_user(uid: int):
         "jackpot": round(database.get_total_network_score() * 0.1, 2),
         "next_goal": next_goal
     }
+
+@app.post("/api/mine")
+async def api_mine(request: Request):
+    data = await request.json()
+    uid, token_type = data.get("user_id"), data.get("token") # genesis, unity, ou veo
+    now = int(time.time())
+    conn = database.get_db_conn(); c = conn.cursor()
+    # On incrémente le token spécifique et on update le timestamp d'activité
+    c.execute(f"UPDATE users SET p_{token_type} = p_{token_type} + 0.01, last_energy_update = %s WHERE user_id = %s", (now, uid))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True}
 
 @app.post("/api/launcher/deploy")
 async def api_deploy_token(request: Request):
@@ -75,6 +84,8 @@ async def api_list_tokens():
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
+    # Ici, insère ton bloc r""" ... """ HTML que tu as déjà.
+    # Je ne le remets pas pour éviter de surcharger, il est correct.
     return r"""
 <!DOCTYPE html>
 <html>
