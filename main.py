@@ -70,50 +70,19 @@ async def api_mine(request: Request):
             conn.commit(); c.close(); conn.close(); return {"ok": True}
     c.close(); conn.close(); return JSONResponse(status_code=400)
 
-
-# --- NOUVELLE TABLE DANS database.init_db_structure() ---
-# Assure-toi que ton fichier database.py crée cette table :
-# CREATE TABLE IF NOT EXISTS community_tokens (
-#    id SERIAL PRIMARY KEY,
-#    creator_id BIGINT,
-#    name TEXT,
-#    symbol TEXT,
-#    logo TEXT,
-#    price DOUBLE PRECISION DEFAULT 0.0001,
-#    supply DOUBLE PRECISION DEFAULT 1000000,
-#    reserve_wpt DOUBLE PRECISION DEFAULT 0,
-#    holders INT DEFAULT 1
-# )
-
 @app.post("/api/launcher/deploy")
 async def api_deploy_token(request: Request):
     data = await request.json()
-    uid = data.get("user_id")
-    name = data.get("name")
-    symbol = data.get("symbol")
-    logo = data.get("logo") # Le base64 du logo
-
+    uid, name, symbol, logo = data.get("user_id"), data.get("name"), data.get("symbol"), data.get("logo")
     conn = database.get_db_conn(); c = conn.cursor()
-    
-    # 1. VÉRIFICATION ET DÉDUCTION RÉELLE
     c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
-    user_points = c.fetchone()
-    
-    if not user_points or user_points[0] < 500:
-        c.close(); conn.close()
-        return JSONResponse(status_code=400, content={"error": "Solde insuffisant (500 WPT requis)"})
-
-    # DÉDUCTION
+    res = c.fetchone()
+    if not res or res[0] < 500:
+        c.close(); conn.close(); return JSONResponse(status_code=400, content={"error": "Insufficient WPT"})
     c.execute("UPDATE users SET p_genesis = p_genesis - 500 WHERE user_id = %s", (uid,))
-    
-    # 2. ENREGISTREMENT DU TOKEN POUR TOUS
-    c.execute("""
-        INSERT INTO community_tokens (creator_id, name, symbol, logo, reserve_wpt) 
-        VALUES (%s, %s, %s, %s, %s) RETURNING id
-    """, (uid, name, symbol, logo, 500)) # Les 500 frais vont dans la liquidité initiale
-    
+    c.execute("INSERT INTO community_tokens (creator_id, name, symbol, logo, reserve_wpt, created_at) VALUES (%s, %s, %s, %s, %s, %s)", (uid, name, symbol, logo, 500, int(time.time())))
     conn.commit(); c.close(); conn.close()
-    return {"ok": True, "message": "Token déployé et 500 WPT déduits"}
+    return {"ok": True}
 
 @app.get("/api/launcher/list")
 async def api_list_tokens():
@@ -122,9 +91,6 @@ async def api_list_tokens():
     tokens = c.fetchall()
     c.close(); conn.close()
     return [{"name": t[0], "symbol": t[1], "logo": t[2], "price": t[3], "holders": t[4], "mcap": round(t[5]*2, 2)} for t in tokens]
-
-
-
 
 # --- WEB UI ---
 @app.get("/", response_class=HTMLResponse)
@@ -143,25 +109,17 @@ async def web_ui():
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         .t-i { display: inline-block; margin-right: 30px; color: var(--gold); font-size: 10px; font-weight: bold; }
         .f-glow { position: fixed; inset: 0; border: 4px solid var(--red); pointer-events: none; z-index: 99; display: none; animation: pulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 0.1; } 50% { opacity: 0.4; } }
         .b-card { text-align: center; padding: 30px; border-radius: 25px; background: radial-gradient(circle at top, #1a1a1a, #000); border: 1px solid #222; margin-bottom: 15px; }
         .e-bar { background: #222; border-radius: 10px; height: 8px; margin: 15px 0; overflow: hidden; }
         .e-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
-        .e-fill.frenzy { background: linear-gradient(90deg, var(--red), #FF9500); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
         .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
-        .input-group { background: #000; padding: 12px; border-radius: 12px; border: 1px solid #333; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
-        input[type="text"], input[type="number"] { background: transparent; border: none; color: #FFF; width: 100%; outline: none; font-size: 13px; }
-        input[type="file"] { font-size: 10px; color: var(--text); }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
         .n-i { font-size: 18px; opacity: 0.3; } .n-i.active { opacity: 1; color: var(--gold); }
-        .xp-b { background: #222; height: 6px; border-radius: 3px; margin: 10px 0; }
-        .xp-f { background: var(--purple); height: 100%; border-radius: 3px; transition: 1s; }
-        
-        /* Modal Style */
+        .input-group { background: #000; padding: 12px; border-radius: 12px; border: 1px solid #333; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
+        input { background: transparent; border: none; color: #FFF; width: 100%; outline: none; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 200; display: none; padding: 20px; flex-direction: column; justify-content: center; }
-        .pre-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin: 10px auto; display: none; border: 1px solid var(--purple); }
-        .pre-ban { width: 100%; height: 60px; border-radius: 10px; object-fit: cover; margin-top: 5px; display: none; border: 1px solid #333; }
+        .pre-img { width: 50px; height: 50px; border-radius: 50%; display: none; margin: 10px auto; border: 1px solid var(--purple); }
     </style>
 </head>
 <body>
@@ -188,22 +146,17 @@ async def web_ui():
         <h3 style="color:var(--gold); text-align:center;">HUB MISSIONS</h3>
         <div class="card"><div><b>Turbo Robot</b><br><small>Stake 100 WPT</small></div><button class="btn" style="background:var(--gold)">STAKE</button></div>
         <div class="card"><b>Daily Bonus</b><button id="db-btn" class="btn" style="background:var(--green); color:#FFF" onclick="claimDaily()">CLAIM</button></div>
-        <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF">REFILL</button></div>
     </div>
 
     <div id="p-opps" style="display:none">
         <h3 style="color:var(--blue); text-align:center;">ORACLE PREDICT</h3>
         <div id="n-f" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin-bottom:10px; border-left:3px solid var(--blue);">...</div>
         <div class="card" style="flex-direction:column; gap:10px;">
-            <div style="font-size:11px;">Gold (Genesis) Price in 60s?</div>
+            <div style="font-size:11px;">Genesis Price in 60s?</div>
             <div style="display:flex; gap:10px; width:100%;">
                 <button class="btn" onclick="predict('up')" style="flex:1; background:var(--green); color:#FFF">UP ↑</button>
                 <button class="btn" onclick="predict('down')" style="flex:1; background:var(--red); color:#FFF">DOWN ↓</button>
             </div>
-        </div>
-        <div class="card" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; text-align:center;">
-            <div style="background:#000; padding:10px; border-radius:10px;"><small>REFS</small><br><b id="o-r" style="color:var(--purple)">0</b></div>
-            <div style="background:#000; padding:10px; border-radius:10px;"><small>EARN</small><br><b id="o-e" style="color:var(--green)">0.00</b></div>
         </div>
     </div>
 
@@ -213,12 +166,8 @@ async def web_ui():
         <div style="text-align:center; padding:20px;">
             <div style="font-size:40px;">👤</div>
             <h2 id="pr-n">...</h2><div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
-            <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
+            <div class="xp-b" style="background:#222; height:6px; border-radius:3px; margin:10px 0;"><div id="xp-f" class="xp-f" style="background:var(--purple); height:100%; border-radius:3px; width:0%"></div></div>
             <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
-        </div>
-        <div class="card" style="background:linear-gradient(45deg, #111, #1a1a1a); border: 1px solid var(--purple);">
-            <div><b>Team Progress</b><br><small id="team-status">Global Mining: 12%</small></div>
-            <b id="team-bonus" style="color:var(--purple)">+0.05x</b>
         </div>
         <div class="card"><span>Power</span><b id="pr-m">x1.0</b></div>
         <div class="card"><span>Streak</span><b id="pr-s">0 Days</b></div>
@@ -227,93 +176,62 @@ async def web_ui():
 
     <div id="p-pillars" style="display:none">
         <h3 style="color:var(--green); text-align:center;">PILLARS ASSETS</h3>
-        <div class="card"><div><b>WPT Token</b><br><small style="color:var(--text)">Native Ecosystem</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_WPT_a8MAF-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><div><b>Genesis Asset</b><br><small style="color:var(--gold)">RWA Gold Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_GENESIS_2xKA1-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><div><b>Unity Asset</b><br><small style="color:var(--blue)">RWA Silver Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_UNITY_psbzR-ref_6VRKyJ9MZA')">GO</button></div>
-        <div class="card"><div><b>Veo AI Asset</b><br><small style="color:var(--purple)">AI Computing Index</small></div><button class="btn" onclick="tg.openLink('https://t.me/blum/app?startapp=memepadjetton_VEO_UnqBK-ref_6VRKyJ9MZA')">GO</button></div>
+        <div class="card"><div><b>Genesis Asset</b></div><button class="btn" onclick="tg.openLink('https://t.me/blum')">GO</button></div>
+        <div class="card"><div><b>Unity Asset</b></div><button class="btn" onclick="tg.openLink('https://t.me/blum')">GO</button></div>
     </div>
 
     <div id="p-launcher" style="display:none">
-    <h3 style="color:var(--purple); text-align:center;">🚀 SOLANA TERMINAL</h3>
-    
-    <div id="launch-form">
-        <div class="input-group"><small style="color:var(--text)">Token Name</small><input type="text" id="tk-name" placeholder="ex: SolMoon"></div>
-        <div class="input-group"><small style="color:var(--text)">Symbol</small><input type="text" id="tk-sym" placeholder="ex: MOON"></div>
-        <div class="input-group"><small style="color:var(--text)">Logo</small><br><input type="file" id="f-logo" accept="image/*" onchange="previewFile('f-logo', 'pre-logo')"></div>
-        <img id="pre-logo" class="pre-img">
-        <div class="input-group"><small style="color:var(--text)">Banner</small><br><input type="file" id="f-ban" accept="image/*" onchange="previewFile('f-ban', 'pre-banner')"></div>
-        <img id="pre-banner" class="pre-ban">
-        <div class="input-group"><small style="color:var(--text)">X Twitter</small><input type="text" id="tk-x" placeholder="@handle"></div>
-        <button class="btn" style="width:100%; background:var(--purple); color:#FFF; padding:15px;" onclick="openCheckout()">REVIEW & PAY</button>
+        <h3 style="color:var(--purple); text-align:center;">🚀 SOLANA TERMINAL</h3>
         
-        <hr style="border:0; border-top:1px solid #222; margin:20px 0;">
-        <small style="color:var(--text)">OR EXPLORE COMMUNITY TOKENS</small>
-        <div id="community-tokens-list" style="margin-top:10px;">
-            </div>
-    </div>
-
-    <div id="token-live-view" style="display:none;">
-    <button class="btn" style="background:#222; color:#FFF; margin-bottom:10px;" onclick="backToLauncher()">< REtour</button>
-    
-    <div class="card" style="border: 1px solid var(--purple); flex-direction:column; align-items:flex-start; gap:12px;">
-        <div style="display:flex; gap:10px; align-items:center; width:100%;">
-            <img id="live-tk-logo" src="" style="width:45px; height:45px; border-radius:50%; border:2px solid var(--purple);">
-            <div style="flex:1">
-                <b id="live-tk-name" style="font-size:16px;">---</b>
-                <div id="live-tk-price" style="color:var(--green); font-family:monospace;">0.0000 WPT</div>
-            </div>
-            <div style="text-align:right">
-                <small style="color:var(--text)">HOLDERS</small><br><b id="live-tk-holders">1</b>
-            </div>
+        <div id="launch-form">
+            <div class="input-group"><small style="color:var(--text)">Token Name</small><input type="text" id="tk-name" placeholder="ex: SolMoon"></div>
+            <div class="input-group"><small style="color:var(--text)">Symbol</small><input type="text" id="tk-sym" placeholder="ex: MOON"></div>
+            <div class="input-group"><small style="color:var(--text)">Logo</small><br><input type="file" id="f-logo" accept="image/*" onchange="previewFile('f-logo', 'pre-logo')"></div>
+            <img id="pre-logo" class="pre-img">
+            <div class="input-group"><small style="color:var(--text)">X Twitter</small><input type="text" id="tk-x" placeholder="@handle"></div>
+            <button class="btn" style="width:100%; background:var(--purple); color:#FFF; padding:15px;" onclick="openCheckout()">REVIEW & PAY</button>
+            <hr style="border:0; border-top:1px solid #222; margin:20px 0;">
+            <small style="color:var(--text)">EXPLORE COMMUNITY</small>
+            <div id="community-tokens-list" style="margin-top:10px;"></div>
         </div>
-    </div>
 
-    <div style="margin-top:15px;">
-        <small style="color:var(--text)">SÉLECTIONNER MONTANT (WPT)</small>
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:5px; margin-top:5px;">
-            <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(25)">25%</button>
-            <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(50)">50%</button>
-            <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(75)">75%</button>
-            <button class="btn" style="background:var(--purple); color:#FFF" onclick="setTradePct(100)">MAX</button>
-        </div>
-    </div>
-
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
-        <button class="btn" style="background:var(--green); color:#FFF; padding:18px;" onclick="executeTrade('buy')">BUY</button>
-        <button class="btn" style="background:var(--red); color:#FFF; padding:18px;" onclick="executeTrade('sell')">SELL</button>
-    </div>
-</div>
-
-            
-            <div style="width:100%;">
-                <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:5px;">
-                    <span>Bonding Curve Progress</span>
-                    <span id="curve-pct">0%</span>
+        <div id="token-live-view" style="display:none;">
+            <button class="btn" style="background:#222; color:#FFF; margin-bottom:10px;" onclick="backToLauncher()">< BACK</button>
+            <div class="card" style="border: 1px solid var(--purple); flex-direction:column; align-items:flex-start; gap:12px;">
+                <div style="display:flex; gap:10px; align-items:center; width:100%;">
+                    <img id="live-tk-logo" src="" style="width:45px; height:45px; border-radius:50%; border:2px solid var(--purple);">
+                    <div style="flex:1">
+                        <b id="live-tk-name">---</b>
+                        <div id="live-tk-price" style="color:var(--green); font-family:monospace;">0.0000 WPT</div>
+                    </div>
+                    <div style="text-align:right"><small>HOLDERS</small><br><b id="live-tk-holders">1</b></div>
                 </div>
-                <div class="xp-b" style="margin:0;"><div id="bonding-curve" class="xp-f" style="width:0%; background:var(--green)"></div></div>
+                <div style="width:100%;">
+                    <div style="display:flex; justify-content:space-between; font-size:9px;"><span>Bonding Curve</span><span id="curve-pct">0%</span></div>
+                    <div class="xp-b" style="background:#222; height:6px; margin:5px 0;"><div id="bonding-curve" class="xp-f" style="width:0%; background:var(--green)"></div></div>
+                </div>
+            </div>
+            <div style="margin-top:15px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:5px;">
+                    <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(25)">25%</button>
+                    <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(50)">50%</button>
+                    <button class="btn" style="background:#222; color:#FFF" onclick="setTradePct(75)">75%</button>
+                    <button class="btn" style="background:var(--purple); color:#FFF" onclick="setTradePct(100)">MAX</button>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
+                <button class="btn" style="background:var(--green); color:#FFF; padding:18px;" onclick="executeTrade('buy')">BUY</button>
+                <button class="btn" style="background:var(--red); color:#FFF; padding:18px;" onclick="executeTrade('sell')">SELL</button>
             </div>
         </div>
-
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
-            <button class="btn" style="background:var(--green); color:#FFF; padding:15px; font-size:14px;" onclick="trade('buy')">BUY</button>
-            <button class="btn" style="background:var(--red); color:#FFF; padding:15px; font-size:14px;" onclick="trade('sell')">SELL</button>
-        </div>
-        
-        <div class="card" style="margin-top:10px; font-size:11px; color:var(--text);">
-            Your Balance: <b id="user-token-bal" style="color:#FFF">0</b> <span id="live-tk-sym"></span>
-        </div>
     </div>
-</div>
-
 
     <div id="m-check" class="modal">
         <div style="background:var(--card); border:1px solid var(--purple); padding:20px; border-radius:20px; text-align:center;">
             <h2 style="color:var(--purple)">Final Review</h2>
-            <div id="check-info" style="text-align:left; font-size:12px; margin:15px 0; color:var(--text); line-height:1.6;"></div>
-            <div style="border-top:1px solid #333; padding-top:10px; margin-bottom:20px;">
-                <small>Total Creation Fee:</small><br><b style="font-size:20px; color:#FFF">500 WPT</b>
-            </div>
-            <div style="display:flex; gap:10px;">
+            <div id="check-info" style="text-align:left; font-size:11px; margin:15px 0;"></div>
+            <b style="font-size:18px; color:#FFF">500 WPT FEE</b>
+            <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="btn" style="flex:1; background:#333; color:#FFF" onclick="closeCheckout()">CANCEL</button>
                 <button class="btn" style="flex:1; background:var(--green); color:#FFF" onclick="confirmLaunch()">PAY & DEPLOY</button>
             </div>
@@ -322,251 +240,126 @@ async def web_ui():
 
     <div class="nav">
         <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
-        <div onclick="show('missions')" id="n-missions" class="n-i">⚙️</div>
-        <div onclick="show('opps')" id="n-opps" class="n-i">💡</div>
-        <div onclick="show('leader')" id="n-leader" class="n-i">🏆</div>
-        <div onclick="show('profile')" id="n-profile" class="n-i">👤</div>
-        <div onclick="show('pillars')" id="n-pillars" class="n-i">📊</div>
+        <div onclick="show('opps')" id="n-opps" class="n-i">📈</div>
         <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
+        <div onclick="show('pillars')" id="n-pillars" class="n-i">🏛️</div>
+        <div onclick="show('profile')" id="n-profile" class="n-i">👤</div>
     </div>
 
-   <script>
-    let tg = window.Telegram.WebApp; 
-    const uid = tg.initDataUnsafe.user?.id || 0;
-    let last = 0;
-    let currentToken = null; // Stocke le token actif dans le DEX
+    <script>
+        let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
+        let last = 0; let currentToken = null; let selectedTradeAmount = 0;
 
-    // --- UTILS ---
-    function previewFile(inputId, imgId) {
-        const file = document.getElementById(inputId).files[0];
-        const reader = new FileReader();
-        reader.onloadend = () => { const img = document.getElementById(imgId); img.src = reader.result; img.style.display = 'block'; }
-        if (file) reader.readAsDataURL(file);
-    }
-
-    function show(p) { 
-        ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id => {
-            const el = document.getElementById('p-'+id);
-            if(el) el.style.display = (id === p ? 'block' : 'none'); 
-            const nav = document.getElementById('n-'+id);
-            if(nav) nav.classList.toggle('active', id === p);
-        }); 
-    }
-
-    // --- LAUNCHER LOGIC ---
-    function openCheckout() {
-        const name = document.getElementById('tk-name').value;
-        const sym = document.getElementById('tk-sym').value;
-        if(!name || !sym) return tg.showAlert("Please fill Name and Symbol!");
-        document.getElementById('check-info').innerHTML = `
-            🚀 <b>Token:</b> ${name} ($${sym})<br>
-            📱 <b>X Twitter:</b> ${document.getElementById('tk-x').value || 'Not set'}<br>
-            🖼️ <b>Assets:</b> Logo & Banner Uploaded
-        `;
-        document.getElementById('m-check').style.display = 'flex';
-    }
-
-    function closeCheckout() { document.getElementById('m-check').style.display = 'none'; }
-
-    // ICI : Connexion réelle au serveur pour payer les 500 WPT
-    async function confirmLaunch() {
-        const name = document.getElementById('tk-name').value;
-        const sym = document.getElementById('tk-sym').value;
-        const logo = document.getElementById('pre-logo').src;
-
-        try {
-            const response = await fetch('/api/launcher/deploy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, name: name, symbol: sym })
+        function show(p) {
+            ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id=>{
+                const el = document.getElementById('p-'+id); if(el) el.style.display=(id===p?'block':'none');
+                const nav = document.getElementById('n-'+id); if(nav) nav.classList.toggle('active',id===p);
             });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                tg.HapticFeedback.notificationOccurred('success');
-                closeCheckout();
-                
-                // On ouvre le mode LIVE avec les vraies infos
-                openTokenLive({
-                    name: name,
-                    symbol: sym,
-                    logo: logo,
-                    price: "0.0001",
-                    mcap: "500"
-                });
-                
-                tg.showAlert("🚀 Token deployed! 500 WPT deducted.");
-                refresh(); 
-            } else {
-                tg.HapticFeedback.notificationOccurred('error');
-                tg.showAlert("❌ Wallet Error: " + (result.error || "Insufficient funds"));
-            }
-        } catch(e) {
-            tg.showAlert("Connection Error");
+            if(p==='launcher') loadCommunityTokens();
         }
-    }
 
-    function backToLauncher() {
-        document.getElementById('launch-form').style.display = 'block';
-        document.getElementById('token-live-view').style.display = 'none';
-    }
+        async function refresh() {
+            try {
+                const r = await fetch(`/api/user/${uid}`); const d = await r.json();
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('on-v').innerText = d.online;
+                document.getElementById('tot-v').innerText = d.total_users;
+                document.getElementById('jk-v').innerText = d.jackpot;
+                document.getElementById('pr-n').innerText = d.name;
+                document.getElementById('pr-b').innerText = d.badge;
+                document.getElementById('pr-m').innerText = "x"+d.multiplier;
+                document.getElementById('pr-s').innerText = d.streak + " Days";
+                document.getElementById('pr-st').innerText = d.staked;
+                document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
+                document.getElementById('xp-t').innerText = "Next: " + d.next_goal;
+                document.getElementById('e-f').style.width = (d.energy / d.max_energy * 100) + "%";
+                document.getElementById('e-t').innerText = `⚡ ${d.energy} / ${d.max_energy}`;
+            } catch(e) {}
+        }
 
-    function openTokenLive(tokenData) {
-        currentToken = tokenData;
-        document.getElementById('launch-form').style.display = 'none';
-        document.getElementById('token-live-view').style.display = 'block';
-        
-        document.getElementById('live-tk-name').innerText = tokenData.name + " ($" + tokenData.symbol + ")";
-        document.getElementById('live-tk-logo').src = tokenData.logo || "";
-        document.getElementById('live-tk-price').innerText = "Price: " + tokenData.price + " WPT";
-        document.getElementById('live-tk-sym').innerText = tokenData.symbol;
-    }
+        async function mine(t) {
+            const now = Date.now(); if (now - last < 85) return; last = now;
+            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
+            if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
+        }
 
-    async function trade(side) {
-        tg.HapticFeedback.impactOccurred('medium');
-        const amount = side === 'buy' ? "100 WPT" : "All Tokens";
-        
-        tg.showConfirm(`Confirm ${side} trade for ${currentToken.name}?`, async (ok) => {
-            if(ok) {
-                // Ici on appellera bientôt une API /api/trade
-                tg.showPopup({
-                    title: 'DEX Transaction',
-                    message: `Status: Success\nType: ${side.toUpperCase()}\nPrice Impact: 0.05%`,
-                    buttons: [{type: 'ok'}]
-                });
-            }
-        });
-    }
+        // --- LAUNCHER JS ---
+        function previewFile(inputId, imgId) {
+            const file = document.getElementById(inputId).files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => { const img = document.getElementById(imgId); img.src = reader.result; img.style.display = 'block'; }
+            if (file) reader.readAsDataURL(file);
+        }
 
-    // --- CORE REFRESH (API) ---
-    async function refresh() {
-        try {
-            const r = await fetch(`/api/user/${uid}`); const d = await r.json();
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('tot').innerText = d.score.toFixed(2);
-            document.getElementById('u-m').innerText = "⚡ Multiplier: x" + d.multiplier;
-            document.getElementById('on-v').innerText = d.online;
-            document.getElementById('tot-v').innerText = d.total_users;
-            document.getElementById('jk-v').innerText = d.jackpot;
-            document.getElementById('pr-n').innerText = d.name;
-            document.getElementById('pr-b').innerText = d.badge;
-            document.getElementById('pr-m').innerText = "x" + d.multiplier;
-            document.getElementById('pr-s').innerText = d.streak + " Days";
-            document.getElementById('pr-st').innerText = d.staked;
-            document.getElementById('o-r').innerText = d.rc;
-            document.getElementById('o-e').innerText = (d.rc * 50).toFixed(2);
-            document.getElementById('n-f').innerText = d.news;
-            document.getElementById('xp-f').style.width = ((d.score % 1000) / 10) + "%";
-            document.getElementById('xp-t').innerText = "Next Rank: " + d.next_goal;
-            document.getElementById('f-glow').style.display = d.frenzy ? 'block' : 'none';
-            
-            let ev = Math.floor(d.energy);
-            document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
-            document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
-            
-            let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
-            document.getElementById('rank-list').innerHTML = rl;
-            
-            const lastClaim = localStorage.getItem('lastClaim_' + uid);
-            if(lastClaim && (Date.now() - lastClaim < 86400000)) {
-                const dbbtn = document.getElementById('db-btn');
-                if(dbbtn) { dbbtn.innerText = "DONE"; dbbtn.disabled = true; dbbtn.style.background = "#333"; }
-            }
-        } catch(e) {}
-    }
+        function openCheckout() {
+            const name = document.getElementById('tk-name').value;
+            const sym = document.getElementById('tk-sym').value;
+            if(!name || !sym) return tg.showAlert("Fill Name & Symbol!");
+            document.getElementById('check-info').innerHTML = `<b>Token:</b> ${name} ($${sym})<br><b>Fee:</b> 500 WPT`;
+            document.getElementById('m-check').style.display = 'flex';
+        }
+        function closeCheckout() { document.getElementById('m-check').style.display = 'none'; }
 
-    async function mine(t) {
-        const now = Date.now(); if (now - last < 85) return; last = now;
-        const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
-        if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
-    }
+        async function confirmLaunch() {
+            const name = document.getElementById('tk-name').value;
+            const sym = document.getElementById('tk-sym').value;
+            const logo = document.getElementById('pre-logo').src;
+            const res = await fetch('/api/launcher/deploy', {method:'POST', body:JSON.stringify({user_id:uid, name, symbol:sym, logo})});
+            if(res.ok) {
+                tg.showAlert("Success! Token Live."); closeCheckout(); refresh();
+                openTokenLive({name, symbol:sym, logo, price:0.0001, holders:1, mcap:1000});
+            } else { tg.showAlert("Error: Insufficient WPT"); }
+        }
 
-    function claimDaily() {
-        localStorage.setItem('lastClaim_' + uid, Date.now());
-        tg.HapticFeedback.notificationOccurred('success');
-        const btn = document.getElementById('db-btn');
-        btn.innerText = "DONE"; btn.style.background = "#333"; btn.disabled = true;
-        tg.showAlert("Daily Bonus Claimed! (+10 XP)");
-    }
-
-    function predict(side) {
-        tg.HapticFeedback.impactOccurred('medium');
-        tg.showConfirm(`Confirm prediction: Gold will go ${side}?`, (ok) => {
-            if(ok) tg.showAlert("Oracle Locked. Result in 60s.");
-        });
-    }
-
-    // --- INIT ---
-    tg.expand(); 
-    refresh(); 
-    setInterval(refresh, 5000);
-
-
-let selectedAmount = 0;
-
-// Charger les tokens créés par les autres
-async function loadCommunityTokens() {
-    const r = await fetch('/api/launcher/list');
-    const tokens = await r.json();
-    let html = "";
-    tokens.forEach(t => {
-        html += `
-            <div class="card" onclick="openTokenLive(${JSON.stringify(t).replace(/"/g, '&quot;')})">
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <img src="${t.logo}" style="width:30px; height:30px; border-radius:50%;">
-                    <div><b>${t.name}</b><br><small style="color:var(--green)">${t.price} WPT</small></div>
-                </div>
-                <div style="text-align:right"><small>MCAP</small><br><b>$${t.mcap}</b></div>
-            </div>
-        `;
-    });
-    document.getElementById('community-tokens-list').innerHTML = html || "<small>Aucun token en ligne...</small>";
-}
-
-function setTradePct(pct) {
-    tg.HapticFeedback.impactOccurred('light');
-    // On récupère le score total de l'utilisateur pour calculer le %
-    const totalWPT = parseFloat(document.getElementById('tot').innerText);
-    selectedAmount = (totalWPT * (pct / 100)).toFixed(2);
-    tg.showAlert(`Montant sélectionné : ${selectedAmount} WPT (${pct}%)`);
-}
-
-async function executeTrade(side) {
-    if(selectedAmount <= 0) return tg.showAlert("Sélectionne un montant d'abord !");
-    
-    tg.showConfirm(`Confirmer ${side.toUpperCase()} de ${selectedAmount} WPT sur ${currentToken.symbol} ?`, (ok) => {
-        if(ok) {
-            tg.HapticFeedback.notificationOccurred('success');
-            tg.showPopup({
-                title: 'Transaction DEX',
-                message: `Succès !\nAction: ${side}\nMontant: ${selectedAmount} WPT`,
-                buttons: [{type: 'ok'}]
+        async function loadCommunityTokens() {
+            const r = await fetch('/api/launcher/list'); const tokens = await r.json();
+            let html = "";
+            tokens.forEach(t => {
+                html += `<div class="card" onclick='openTokenLive(${JSON.stringify(t)})'>
+                    <div style="display:flex; gap:10px; align-items:center;"><img src="${t.logo}" style="width:30px; border-radius:50%;">
+                    <div><b>${t.name}</b><br><small>${t.price} WPT</small></div></div>
+                    <div style="text-align:right"><small>MCAP</small><br><b>$${t.mcap}</b></div></div>`;
             });
-            // Ici on appellera la route API de swap pour déduire les points réellement
+            document.getElementById('community-tokens-list').innerHTML = html || "<small>No tokens yet</small>";
         }
-    });
-}
 
-// Appeler le chargement des tokens quand on ouvre le launcher
-function show(p) { 
-    if(p === 'launcher') loadCommunityTokens();
-    ['mine','opps','missions','profile','pillars','leader','launcher'].forEach(id => {
-        const el = document.getElementById('p-'+id);
-        if(el) el.style.display = (id === p ? 'block' : 'none'); 
-        const nav = document.getElementById('n-'+id);
-        if(nav) nav.classList.toggle('active', id === p);
-    }); 
-}
+        function openTokenLive(t) {
+            currentToken = t;
+            document.getElementById('launch-form').style.display = 'none';
+            document.getElementById('token-live-view').style.display = 'block';
+            document.getElementById('live-tk-name').innerText = t.name + " ($"+t.symbol+")";
+            document.getElementById('live-tk-logo').src = t.logo;
+            document.getElementById('live-tk-price').innerText = t.price + " WPT";
+            document.getElementById('live-tk-holders').innerText = t.holders;
+        }
 
+        function backToLauncher() {
+            document.getElementById('launch-form').style.display = 'block';
+            document.getElementById('token-live-view').style.display = 'none';
+        }
 
+        function setTradePct(pct) {
+            const total = parseFloat(document.getElementById('tot').innerText);
+            selectedTradeAmount = (total * (pct/100)).toFixed(2);
+            tg.HapticFeedback.impactOccurred('medium');
+            tg.showAlert("Amount: " + selectedTradeAmount + " WPT");
+        }
 
-</script>
+        function executeTrade(side) {
+            if(selectedTradeAmount <= 0) return tg.showAlert("Select amount!");
+            tg.showConfirm(`Confirm ${side} ${selectedTradeAmount} WPT?`, (ok)=>{
+                if(ok) tg.showAlert("Transaction Processing...");
+            });
+        }
 
+        tg.expand(); refresh(); setInterval(refresh, 5000);
+    </script>
 </body>
 </html>
+
 """
 
 # --- BOT SETUP ---
