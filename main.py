@@ -277,11 +277,42 @@ async def web_ui():
         }
 
         async function deploy() {
-            const n = document.getElementById('tk-name').value; const s = document.getElementById('tk-sym').value;
-            const l = document.getElementById('tk-logo').value;
-            const res = await fetch('/api/launcher/deploy', {method:'POST', body:JSON.stringify({user_id:uid, name:n, symbol:s, logo:l})});
-            if(res.ok) { tg.showAlert("Success!"); location.reload(); } else { tg.showAlert("Need 500 WPT"); }
+    const n = document.getElementById('tk-name').value; 
+    const s = document.getElementById('tk-sym').value;
+    const l = document.getElementById('tk-logo').value;
+
+    if(!n || !s) return tg.showAlert("Please enter Name and Symbol");
+
+    try {
+        const res = await fetch('/api/launcher/deploy', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({user_id: uid, name: n, symbol: s, logo: l})
+        });
+
+        if(res.ok) {
+            tg.showAlert("🚀 Token successfully deployed!");
+            // 1. Fermer le modal
+            document.getElementById('m-create').style.display = 'none';
+            // 2. Vider les inputs
+            document.getElementById('tk-name').value = "";
+            document.getElementById('tk-sym').value = "";
+            document.getElementById('tk-logo').value = "";
+            // 3. Forcer l'onglet NEW et recharger la liste
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(t => t.classList.remove('active'));
+            tabs[0].classList.add('active'); // On active l'onglet NEW (index 0)
+            
+            await loadTokens('new'); // On recharge
+            await refresh(); // On met à jour le solde (les -500 WPT)
+        } else {
+            tg.showAlert("❌ Error: You need 500 Genesis WPT");
         }
+    } catch (e) {
+        tg.showAlert("Network error");
+    }
+}
+
 
         tg.expand(); refresh(); setInterval(refresh, 5000);
     </script>
