@@ -1,3 +1,5 @@
+import os
+
 TOKEN = os.getenv("TOKEN")
 BOT_TOKEN = TOKEN  # On crée cet alias pour éviter l'AttributeError
 PORT = int(os.getenv("PORT", 8080))
