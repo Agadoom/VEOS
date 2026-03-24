@@ -74,9 +74,15 @@ def get_total_network_score():
 
 def get_tokens_ordered(sort_type="new"):
     conn = get_db_conn(); c = conn.cursor()
-    if sort_type == "mcap": order = "reserve_wpt DESC"
-    elif sort_type == "vol": order = "volume DESC"
-    else: order = "id DESC"
+    # On définit la règle de tri
+    if sort_type == "mcap": 
+        order = "reserve_wpt DESC"
+    elif sort_type == "vol": 
+        order = "volume DESC"
+    else: 
+        # 'new' ou par défaut : le plus grand ID en premier
+        order = "id DESC"
+        
     c.execute(f"SELECT name, symbol, logo, price, holders, reserve_wpt, volume FROM community_tokens ORDER BY {order}")
     res = c.fetchall()
     c.close(); conn.close()
