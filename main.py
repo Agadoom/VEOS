@@ -35,21 +35,16 @@ def get_network_stats():
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
-    
     now = int(time.time()); last_update = r[6] if r[6] is not None else now
-    
     is_frenzy = (r[7] or 0) > 5 or (random.random() > 0.95)
     regen_rate = config.REGEN_RATE * (5.0 if is_frenzy else 1.0)
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * regen_rate)
-    
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, rank_idx, next_goal = missions.get_badge_info(score)
     staked = r[8] or 0
     mult = round(1.0 + (staked / 100) * 0.1 + (score / 1000) + (rank_idx * 0.05), 2)
     if is_frenzy: mult = round(mult * 1.2, 2)
-
     online_c, total_u = get_network_stats()
-    
     return {
         "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, "rc": r[3] or 0,
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "badge": badge, "rank_idx": rank_idx,
@@ -98,7 +93,7 @@ async def web_ui():
         .e-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.3s; }
         .e-fill.frenzy { background: linear-gradient(90deg, var(--red), #FF9500); }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 11px; cursor: pointer; }
         .xp-b { background: #222; height: 6px; border-radius: 3px; margin: 10px 0; }
         .xp-f { background: var(--purple); height: 100%; border-radius: 3px; transition: 1s; }
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 15px; border: 1px solid #333; z-index: 100; }
@@ -128,8 +123,8 @@ async def web_ui():
     <div id="p-missions" style="display:none">
         <h3 style="color:var(--gold); text-align:center;">HUB MISSIONS</h3>
         <div class="card"><div><b>Turbo Robot</b><br><small>Stake 100 WPT</small></div><button class="btn" style="background:var(--gold)">STAKE</button></div>
-        <div class="card"><b>Daily Bonus</b><button class="btn" style="background:var(--green); color:#FFF">CLAIM</button></div>
-        <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF" onclick="useDrink()">REFILL</button></div>
+        <div class="card"><b>Daily Bonus</b><button id="db-btn" class="btn" style="background:var(--green); color:#FFF" onclick="claimDaily()">CLAIM</button></div>
+        <div class="card"><b>Energy Drink</b><button class="btn" style="background:var(--blue); color:#FFF">REFILL</button></div>
     </div>
 
     <div id="p-opps" style="display:none">
@@ -146,8 +141,7 @@ async def web_ui():
     <div id="p-profile" style="display:none">
         <div style="text-align:center; padding:20px;">
             <div style="font-size:40px;">👤</div>
-            <h2 id="pr-n">...</h2>
-            <div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
+            <h2 id="pr-n">...</h2><div id="pr-b" style="color:var(--gold); font-weight:bold; font-size:12px;">...</div>
             <div class="xp-b"><div id="xp-f" class="xp-f"></div></div>
             <small id="xp-t" style="color:var(--text); font-size:9px;">Next Rank: ...</small>
         </div>
@@ -201,9 +195,7 @@ async def web_ui():
                 let ev = Math.floor(d.energy);
                 document.getElementById('e-f').style.width = (ev / d.max_energy * 100) + "%";
                 document.getElementById('e-t').innerText = `⚡ ${ev} / ${d.max_energy}`;
-                let rl = ""; d.top.forEach((u, i) => { 
-                    rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; 
-                });
+                let rl = ""; d.top.forEach((u, i) => { rl += `<div class="card"><span>${i+1}. ${u.n}</span><b>${u.p}</b></div>`; });
                 document.getElementById('rank-list').innerHTML = rl;
             } catch(e) {}
         }
@@ -212,11 +204,18 @@ async def web_ui():
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
+        function claimDaily() {
+            tg.HapticFeedback.notificationOccurred('success');
+            const btn = document.getElementById('db-btn');
+            btn.innerText = "DONE"; btn.style.background = "#333"; btn.disabled = true;
+            tg.showAlert("Daily Bonus Claimed! (+10 XP)");
+        }
         function show(p) { ['mine','opps','missions','profile','pillars','leader'].forEach(id=>{document.getElementById('p-'+id).style.display=(id===p?'block':'none'); document.getElementById('n-'+id).classList.toggle('active',id===p);}); }
         tg.expand(); refresh(); setInterval(refresh, 5000);
     </script>
 </body>
 </html>
+
 """
 
 # --- BOT SETUP ---
