@@ -252,6 +252,47 @@
         refresh();
     }
 
+async function loadLeaderboard() {
+    try {
+        const res = await fetch('/api/user/leaderboard');
+        const data = await res.json();
+        let html = "";
+        
+        data.forEach(user => {
+            // Style spécial pour le Top 3
+            let medal = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
+            let color = user.rank === 1 ? "var(--gold)" : "#fff";
+            
+            html += `
+            <div class="card" style="margin-bottom:8px; background: #161618;">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <b style="width:25px; color:${color}">${medal}</b>
+                    <span style="font-weight:600;">${user.name}</span>
+                </div>
+                <b style="color:var(--text); font-size:13px;">${user.score} WPT</b>
+            </div>`;
+        });
+        document.getElementById('leaderboard-list').innerHTML = html || "No data";
+    } catch(e) {
+        console.error("Leaderboard error", e);
+    }
+}
+
+// MODIFIE ta fonction show() pour inclure le chargement
+function show(p) {
+    document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+    document.getElementById('p-' + p).classList.add('active-page');
+    
+    // ... reste de ta fonction show ...
+    
+    if(p === 'launcher') loadMarket();
+    if(p === 'profil') loadLeaderboard(); // <--- AJOUT ICI
+    refresh();
+}
+
+
+
+
     function shareReferral() {
         const inviteLink = `https://t.me/OWPCsbot?start=${uid}`; 
         const text = encodeURIComponent("🚀 Join me on WPT Hub! Mine Veo AI and trade community tokens. Get 100 WPT bonus!");
