@@ -238,3 +238,12 @@ def sell_token(uid, token_id, amount_to_sell=None):
         conn.rollback(); return False, str(e)
     finally:
         c.close(); conn.close()
+
+
+def get_token_activity(token_id):
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT user_name, type, amount_wpt, created_at FROM token_activity WHERE token_id = %s ORDER BY created_at DESC LIMIT 10", (token_id,))
+    res = c.fetchall()
+    c.close(); conn.close()
+    return [{"name": r[0], "type": r[1], "amt": r[2], "time": r[3]} for r in res]
+
