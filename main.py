@@ -71,17 +71,13 @@ async def api_mine(request: Request):
 
 @app.get("/api/launcher/list")
 async def api_list_tokens():
-    # Simulation de tokens pour l'interface
-    return [
-        {"name": "Pepe Gold", "sym": "PEPEG", "price": "0.00042", "mcap": "4.2K", "img": "🐸"},
-        {"name": "Dog v3", "sym": "DOG3", "price": "0.00015", "mcap": "1.5K", "img": "🐶"}
-    ]
+    return database.get_community_tokens()
 
-@app.post("/api/launcher/deploy")
-async def api_deploy_token(request: Request):
+@app.post("/api/launcher/buy")
+async def api_buy_token(request: Request):
     data = await request.json()
-    # Logique : Coût 1000 WPT (Score total) pour créer un token
-    return {"ok": True, "msg": "Token queued for deployment"}
+    success, msg = database.buy_token(data['user_id'], data['token_id'], float(data['amount']))
+    return {"ok": success, "msg": msg}
 
 
 @app.post("/api/launcher/buy")
@@ -202,38 +198,45 @@ async def web_ui():
         }
 
         async function loadLauncher() {
-    const r = await fetch('/api/launcher/list');
+    const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
     const tokens = await r.json();
     let html = "";
     tokens.forEach(t => {
         html += `
-        <div class="card" style="display:block;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center;">
-                    <div style="font-size:24px; margin-right:12px; background:#222; padding:5px; border-radius:10px;">🚀</div>
-                    <div><b>${t.name}</b><br><small style="color:var(--text)">${t.sym}</small></div>
+        <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; border: 1px solid #333;">
+            <div style="display:flex; justify-content:space-between;">
+                <div>
+                    <b style="font-size:18px;">${t.name}</b> <small style="color:var(--text)">$${t.sym}</small>
+                    <div style="color:var(--green); font-family:monospace; margin-top:4px;">${t.price.toFixed(6)} WPT</div>
                 </div>
-                <div style="text-align:right;">
-                    <b style="color:var(--green)">${t.price} WPT</b><br>
-                    <small style="color:var(--text)">MCAP: ${t.mcap}$</small>
+                <div style="text-align:right">
+                    <small style="color:var(--text)">LIQUIDITY</small><br>
+                    <b>${t.mcap.toFixed(2)} WPT</b>
                 </div>
             </div>
-            <div style="display:flex; gap:10px; margin-top:10px;">
-                <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="trade('${t.id}', 10)">BUY 10</button>
-                <button class="btn" style="flex:1; background:#333; color:#fff;" onclick="trade('${t.id}', -10)">SELL</button>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" style="flex:1; background:var(--green); color:white" onclick="trade(${t.id}, 10)">BUY 10</button>
+                <button class="btn" style="flex:1; background:var(--gold);" onclick="trade(${t.id}, 100)">BUY 100</button>
             </div>
         </div>`;
     });
-    document.getElementById('token-list').innerHTML = html || "<center>No tokens yet</center>";
+    document.getElementById('token-list').innerHTML = html || "<center style='padding:20px; color:#666;'>No community tokens yet. Be the first!</center>";
 }
 
 async function trade(tid, amt) {
-    // Appel API pour acheter/vendre (à créer dans FastAPI)
-    tg.showConfirm(`Confirm trade for ${amt} WPT?`, (ok) => {
-        if(ok) tg.showAlert("Trade executed! (Bonding curve updated)");
+    const res = await fetch('/api/launcher/buy', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({user_id: uid, token_id: tid, amount: amt})
     });
+    const data = await res.json();
+    if(data.ok) {
+        tg.HapticFeedback.notificationOccurred('success');
+        refresh(); loadLauncher();
+    } else {
+        tg.showAlert(data.msg);
+    }
 }
-
 
         async function mine(t) {
             const now = Date.now(); if(now - lastClick < 85) return; lastClick = now;
