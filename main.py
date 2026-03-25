@@ -96,7 +96,7 @@ async def api_sell_token(request: Request):
 
 @app.get("/api/launcher/activity/{tid}")
 async def api_get_activity(tid: int):
-    # On récupère l'activité ET les holders depuis database.py
+    # Récupération croisée activité + holders
     activity = database.get_token_activity(tid)
     holders = database.get_token_holders(tid)
     return {"activity": activity, "holders": holders}
@@ -133,6 +133,8 @@ async def web_ui():
         .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 12px; width: 100%; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; }
         .preview-banner { height: 120px; background: #222; background-size: cover; background-position: center; border-radius: 15px 15px 0 0; }
         .preview-logo { width: 70px; height: 70px; border-radius: 20px; border: 4px solid var(--card); margin-top: -35px; margin-left: 15px; background: #333; object-fit: cover; }
+        
+        .act-item { display: flex; justify-content: space-between; font-size: 11px; padding: 8px 0; border-bottom: 1px solid #1a1a1c; align-items: center; }
     </style>
 </head>
 <body>
@@ -192,11 +194,11 @@ async def web_ui():
 
     <div id="p-token-details" style="display:none; padding-bottom:150px;">
         <div style="position:relative;">
-            <div id="det-banner" style="height:120px; background-size:cover; background-position:center; background-color:#111;"></div>
-            <button class="btn" onclick="show('launcher')" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:35px; height:35px; padding:0; border:1px solid #444;">←</button>
+            <div id="det-banner" style="height:130px; background-size:cover; background-position:center; background-color:#111;"></div>
+            <button class="btn" onclick="show('launcher')" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:35px; height:35px; padding:0; border:1px solid #444; display:flex; align-items:center; justify-content:center;">←</button>
         </div>
         
-        <div style="padding:15px; margin-top:-30px;">
+        <div style="padding:15px; margin-top:-35px;">
             <div style="display:flex; align-items:flex-end; gap:15px;">
                 <img id="det-logo" src="" style="width:70px; height:70px; border-radius:15px; border:3px solid var(--bg); background:#222; object-fit:cover;">
                 <div>
@@ -205,37 +207,40 @@ async def web_ui():
                 </div>
             </div>
 
-            <div class="card" style="margin-top:15px; background:#000; flex-direction:column; align-items:stretch; border-color:#333;">
-                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:10px;">
+            <div class="card" style="margin-top:15px; background:#000; flex-direction:column; align-items:stretch; border-color:#333; padding:12px;">
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:12px;">
                     <span>Price: <b id="det-price" style="color:var(--green)">0.00</b></span>
                     <span>Holders: <b id="det-holders" style="color:var(--blue)">0</b></span>
                 </div>
                 
-                <div style="height:60px; width:100%; background:#0a0a0a; border-radius:8px; margin:5px 0; overflow:hidden; position:relative;">
-                    <svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width:100%; height:100%;">
-                        <path d="M0 35 Q 25 30, 40 20 T 70 25 T 100 5" fill="none" stroke="var(--green)" stroke-width="2" />
+                <div style="height:70px; width:100%; background:#0a0a0a; border-radius:8px; margin:5px 0; overflow:hidden; position:relative; border:1px solid #1a1a1c;">
+                    <svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width:100%; height:100%; opacity:0.8;">
+                        <path d="M0 35 Q 20 32, 35 15 T 60 25 T 100 5" fill="none" stroke="var(--green)" stroke-width="2" />
                     </svg>
-                    <div style="position:absolute; top:5px; right:5px; display:flex; gap:5px;">
-                        <span style="font-size:8px; padding:2px 4px; background:#222; border-radius:4px;">1m</span>
-                        <span style="font-size:8px; padding:2px 4px; background:#111; border-radius:4px; color:#555;">5m</span>
-                        <span style="font-size:8px; padding:2px 4px; background:#111; border-radius:4px; color:#555;">15m</span>
+                    <div style="position:absolute; top:5px; right:5px; display:flex; gap:4px;">
+                        <span style="font-size:8px; padding:2px 5px; background:var(--green); color:#000; border-radius:4px; font-weight:bold;">1m</span>
+                        <span style="font-size:8px; padding:2px 5px; background:#1a1a1c; color:#555; border-radius:4px;">5m</span>
+                        <span style="font-size:8px; padding:2px 5px; background:#1a1a1c; color:#555; border-radius:4px;">15m</span>
                     </div>
                 </div>
 
-                <div class="energy-bar" style="height:8px; margin-top:10px;"><div id="det-progress" class="energy-fill" style="background:var(--green)"></div></div>
-                <small style="color:var(--text); font-size:9px; margin-top:5px;">Listing Progress: <span id="det-perc">0%</span></small>
+                <div class="energy-bar" style="height:8px; margin-top:12px; background:#111;"><div id="det-progress" class="energy-fill" style="background:var(--green)"></div></div>
+                <div style="display:flex; justify-content:space-between; margin-top:5px;">
+                    <small style="color:var(--text); font-size:9px;">Listing: <span id="det-perc">0%</span></small>
+                    <small style="color:var(--text); font-size:9px;">Target: 50k WPT</small>
+                </div>
             </div>
 
-            <p id="det-desc" style="color:#888; font-size:12px; line-height:1.4; margin:15px 0;"></p>
+            <p id="det-desc" style="color:#aaa; font-size:13px; line-height:1.4; margin:15px 0;"></p>
 
-            <h4 style="margin:15px 0 8px 0; font-size:13px; color:var(--text); text-transform:uppercase;">Live Trades</h4>
+            <h4 style="margin:20px 0 10px 0; font-size:13px; color:var(--text); text-transform:uppercase; letter-spacing:1px; border-bottom:1px solid #222; padding-bottom:5px;">Live Trades</h4>
             <div id="det-activity"></div>
         </div>
 
-        <div style="position:fixed; bottom:80px; left:0; right:0; padding:15px; background:rgba(5,5,5,0.95); display:flex; gap:10px; border-top:1px solid #222; z-index:1001;">
-            <button class="btn" style="flex:2; background:var(--green); color:#fff; height:50px;" onclick="quickBuy(10)">BUY 10</button>
-            <button class="btn" style="flex:2; background:var(--green); border:1px solid #fff; color:#fff; height:50px;" onclick="quickBuy(100)">BUY 100</button>
-            <button class="btn" style="flex:1; background:var(--red); color:#fff; height:50px;" onclick="sellToken()">SELL</button>
+        <div style="position:fixed; bottom:80px; left:0; right:0; padding:15px; background:rgba(5,5,5,0.98); display:flex; gap:10px; border-top:1px solid #222; z-index:1001; backdrop-filter:blur(10px);">
+            <button class="btn" style="flex:2; background:var(--green); color:#fff; height:50px; font-size:14px;" onclick="quickBuy(10)">BUY 10</button>
+            <button class="btn" style="flex:2; background:var(--green); border:1px solid #fff; color:#fff; height:50px; font-size:14px;" onclick="quickBuy(100)">BUY 100</button>
+            <button class="btn" style="flex:1.2; background:var(--red); color:#fff; height:50px; font-size:14px;" onclick="sellToken()">SELL</button>
         </div>
     </div>
 
@@ -329,7 +334,7 @@ async def web_ui():
                     <div style="text-align:right"><b style="color:var(--green)">${t.price.toFixed(6)}</b><br><small>${(t.mcap || 0).toFixed(1)} WPT</small></div>
                 </div>`;
             });
-            document.getElementById('token-list').innerHTML = html || "<center style='padding:20px; color:#555;'>No tokens yet. Be the first!</center>";
+            document.getElementById('token-list').innerHTML = html || "<center style='padding:40px; color:#444;'>No tokens in the market yet.</center>";
         }
 
         async function openToken(t) {
@@ -359,12 +364,12 @@ async def web_ui():
                         const color = a.type === 'BUY' ? 'var(--green)' : 'var(--red)';
                         const timeStr = new Date(a.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                         actHtml += `
-                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:8px 0; border-bottom:1px solid #1a1a1c;">
+                        <div class="act-item">
                             <span><b style="color:${color}">${a.type}</b> by ${a.name}</span>
                             <span style="color:#555">${timeStr} · <b>${a.amt.toFixed(1)} WPT</b></span>
                         </div>`;
                     });
-                    document.getElementById('det-activity').innerHTML = actHtml || "<center style='color:#444; padding:20px;'>No trades yet</center>";
+                    document.getElementById('det-activity').innerHTML = actHtml || "<center style='color:#333; padding:20px;'>No trades detected.</center>";
                 }
             } catch(e) { console.error(e); }
         }
@@ -374,8 +379,14 @@ async def web_ui():
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({user_id:uid, token_id:activeTokenId, amount:amt})
             });
-            if(res.ok) { tg.HapticFeedback.notificationOccurred('success'); show('launcher'); }
-            else { const e = await res.json(); tg.showAlert(e.error); }
+            if(res.ok) { 
+                tg.HapticFeedback.notificationOccurred('success'); 
+                // Petit refresh des données du token
+                const rList = await fetch(`/api/launcher/list?t=${Date.now()}`);
+                const tokens = await rList.json();
+                const updatedToken = tokens.find(tk => tk.id === activeTokenId);
+                if(updatedToken) openToken(updatedToken);
+            } else { const e = await res.json(); tg.showAlert(e.error); }
         }
 
         async function sellToken() {
@@ -401,18 +412,13 @@ async def web_ui():
         }
 
         function show(p) {
-            // Liste toutes les pages possibles
             const pages = ['mine', 'launcher', 'rank', 'token-details'];
             pages.forEach(id => {
                 const el = document.getElementById('p-' + id);
                 if(el) el.style.display = (id === p ? 'block' : 'none');
-                
-                // Active/Désactive l'icône de nav correspondante
                 const nav = document.getElementById('n-' + id);
                 if(nav) nav.classList.toggle('active', id === p);
             });
-            
-            // Rechargement spécifique
             if(p === 'launcher') loadLauncher();
             refresh();
         }
