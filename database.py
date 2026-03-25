@@ -109,3 +109,28 @@ def add_referral_reward(new_user_id, referrer_id):
     finally:
         c.close(); conn.close()
     return False
+
+
+def get_community_tokens():
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        # Vérifie bien l'ordre ici : id(0), name(1), symbol(2), price(3), mcap(4), logo(5), banner(6)
+        c.execute("""SELECT id, name, symbol, price, mcap, logo_url, 
+                     banner_url, description, website, twitter_x 
+                     FROM community_tokens ORDER BY mcap DESC""")
+        res = c.fetchall()
+        return [
+            {
+                "id": r[0], 
+                "name": r[1], 
+                "sym": r[2], 
+                "price": float(r[3] or 0), 
+                "mcap": float(r[4] or 0), 
+                "logo": r[5] if r[5] else "", # Si pas de logo, évite le crash
+                "banner": r[6] if r[6] else "",
+                "desc": r[7], "web": r[8], "x": r[9]
+            } for r in res
+        ]
+    finally:
+        c.close(); conn.close()
+
