@@ -111,4 +111,44 @@ def buy_community_token(uid, token_id, amount_wpt):
         c.close(); conn.close()
 
 
+def buy_token(uid, token_id, amount_wpt):
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        # 1. Vérifier si l'utilisateur a assez de Genesis (WPT)
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
+        res = c.fetchone()
+        if not res or float(res[0] or 0) < amount_wpt:
+            return False, "Solde insuffisant"
+
+        # 2. Récupérer les infos du token
+        c.execute("SELECT price, mcap, creator_id FROM community_tokens WHERE id = %s", (token_id,))
+        t = c.fetchone()
+        if not t: return False, "Token introuvable"
+        
+        current_price = float(t[0])
+        creator_id = t[2]
+
+        # 3. Calculer les frais (1% pour le créateur, 1% pour la plateforme/Michael)
+        fee = amount_wpt * 0.02 
+        net_amount = amount_wpt - fee
+
+        # 4. Courbe de prix (Bonding Curve) : Le prix augmente de 0.5% par achat
+        new_price = current_price * (1 + (net_amount / 10000)) 
+        new_mcap = float(t[1]) + net_amount
+
+        # 5. EXECUTION DES TRANSACTIONS
+        # Déduire de l'acheteur
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount_wpt, uid))
+        # Donner une partie au créateur (Frais de créateur)
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (fee/2, creator_id))
+        # Mettre à jour le token
+        c.execute("UPDATE community_tokens SET price = %s, mcap = %s, volume = volume + %s WHERE id = %s", 
+                  (new_price, new_mcap, amount_wpt, token_id))
+        
+        conn.commit()
+        return True, "Success"
+    except Exception as e:
+        conn.rollback(); return False, str(e)
+    finally:
+        c.close(); conn.close()
 
