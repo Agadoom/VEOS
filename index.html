@@ -277,6 +277,16 @@
             if(file) reader.readAsDataURL(file);
         }
 
+
+function shareReferral() {
+    const inviteLink = `https://t.me/TON_BOT_USERNAME?start=${uid}`; // Remplace par le pseudo de ton bot
+    const text = encodeURIComponent("🚀 Join me on WPT Hub! Mine Veo AI and trade community tokens with me. Get 100 WPT bonus!");
+    window.open(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
+}
+
+
+
+
         // Navigation
         function show(p) {
             document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
