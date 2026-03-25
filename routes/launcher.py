@@ -1,36 +1,64 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse # <--- Correction ici
+from fastapi.responses import JSONResponse
 from telegram import LabeledPrice
-import database, uuid, random, main # On importe main pour le bot_instance
+import database, uuid, random
 
 router = APIRouter(prefix="/api/launcher", tags=["Launcher"])
 
-# We will import bot_instance from main later via a clever trick or global
-from __main__ import bot_instance 
+# Storage for pending tokens (moved here to avoid circular import)
+pending_tokens = {}
 
 @router.get("/list")
 async def get_tokens():
     return database.get_community_tokens()
 
+@router.post("/save-pending")
+async def save_pending(request: Request):
+    data = await request.json()
+    temp_id = str(uuid.uuid4())[:8]
+    pending_tokens[temp_id] = data
+    return {"ok": True, "temp_id": temp_id}
+
+@router.post("/create-invoice")
+async def api_create_invoice(request: Request):
+    data = await request.json()
+    temp_id = data.get("temp_id")
+    token = pending_tokens.get(temp_id)
+    
+    # Access bot via app state
+    bot = request.app.state.bot
+    link = await bot.create_invoice_link(
+        title=f"Launch {token['symbol']}", 
+        description="Token creation service fee", 
+        payload=temp_id, provider_token="", currency="XTR", 
+        prices=[LabeledPrice("Creation Fee", 500)]
+    )
+    return {"ok": True, "link": link}
+
 @router.post("/buy-request")
 async def buy_token_request(request: Request):
     data = await request.json()
     uid, tid = data.get("user_id"), data.get("token_id")
-    qty, cost_wpt = 100, 50 # Settings: 100 tokens cost 50 WPT
+    qty, cost_wpt = 100, 50 
     
     user_data = database.get_user_full(uid)
     if (user_data[0] or 0) < cost_wpt:
-        return JSONResponse(status_code=400, content={"error": "Insufficient WPT (Genesis) balance"})
+        return JSONResponse(status_code=400, content={"error": "Insufficient WPT balance"})
 
-    # Prepare Stars Invoice for the Service Fee
     payload = f"buy|{uid}|{tid}|{qty}|{cost_wpt}"
-    link = await main.bot_instance.bot.create_invoice_link(
+    
+    # Access bot via app state
+    bot = request.app.state.bot
+    link = await bot.create_invoice_link(
         title="Transaction Fee",
-        description=f"Purchase of {qty} community tokens",
+        description=f"Purchase of {qty} tokens",
         payload=payload, provider_token="", currency="XTR",
-        prices=[LabeledPrice("Service Fee", 10)] # 10 Stars Fee
+        prices=[LabeledPrice("Service Fee", 10)]
     )
     return {"ok": True, "link": link}
+
+# ... rest of your sell and chart code ...
+
 
 @router.post("/sell")
 async def sell_token(request: Request):
