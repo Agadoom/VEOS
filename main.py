@@ -82,6 +82,37 @@ async def api_buy_invoice(request: Request):
         return JSONResponse(status_code=400, content={"error": str(e)})
 
 
+
+
+@app.post("/api/launcher/buy-stars")
+async def api_buy_stars(request: Request):
+    data = await request.json()
+    uid, tid = data.get("user_id"), data.get("token_id")
+    # On crée une facture de 50 Stars pour 100 Tokens par défaut
+    payload = f"buy|{uid}|{tid}|100" 
+    
+    try:
+        link = await bot_instance.bot.create_invoice_link(
+            title="Buy Community Tokens",
+            description="Purchase 100 units of this project",
+            payload=payload,
+            provider_token="", 
+            currency="XTR",
+            prices=[LabeledPrice("100 Tokens", 50)]
+        )
+        return {"ok": True, "link": link}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+@app.get("/api/launcher/chart/{tid}")
+async def get_chart_data(tid: int):
+    # Simule des points de prix pour la courbe (en attendant une table history)
+    import random
+    points = [random.uniform(0.0001, 0.0005) for _ in range(10)]
+    points.sort() # Simulation d'une montée
+    return {"points": points}
+
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -152,21 +183,36 @@ async def web_ui():
         </div>
 
         <div id="p-details" class="page">
-            <button class="btn" onclick="show('launcher')" style="margin-bottom:15px; background:#222; color:#fff;">← BACK</button>
-            <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; background-position:center; background-color:#1a1a1c;"></div>
-            <div style="display:flex; align-items:flex-end; gap:15px; margin-top:-35px; padding:0 15px;">
-                <img id="det-logo" style="width:70px; height:70px; border-radius:20px; border:4px solid #000; background:#222;">
-                <div><h2 id="det-name" style="margin:0;"></h2><b id="det-sym" style="color:var(--gold)"></b></div>
-            </div>
-            <p id="det-desc" style="padding:15px; color:var(--text); font-size:14px;"></p>
-            <div class="card" style="background:#000; flex-direction:column;">
-                <div style="display:flex; justify-content:space-between; width:100%;">
-                    <span>Price: <b id="det-price" style="color:var(--green)"></b></span>
-                    <span>Holders: <b id="det-holders" style="color:var(--blue)">0</b></span>
-                </div>
-                <button class="btn" style="background:var(--green); color:#fff; width:100%; margin-top:15px;" onclick="tg.showAlert('Coming Soon')">BUY TOKEN</button>
-            </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
+        <b id="det-price-top" style="color:var(--green); font-family:monospace;">0.000000</b>
+    </div>
+
+    <div id="det-banner" style="height:140px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c;">
+        <img id="det-logo" style="width:70px; height:70px; border-radius:20px; border:4px solid #000; position:absolute; bottom:-30px; left:20px; background:#222;">
+    </div>
+
+    <div style="margin-top:40px; padding:0 15px;">
+        <h2 id="det-name" style="margin:0;"></h2>
+        <b id="det-sym" style="color:var(--gold)"></b>
+    </div>
+
+    <div style="padding:15px;">
+        <svg id="price-chart" viewBox="0 0 300 100" style="width:100%; height:120px; background:#0a0a0a; border-radius:15px; border:1px solid #1a1a1c;">
+            <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2" points="0,100 300,100" />
+        </svg>
+    </div>
+
+    <p id="det-desc" style="padding:0 15px; color:var(--text); font-size:13px;"></p>
+
+    <div class="card" style="background:#000; flex-direction:column; margin:15px;">
+        <div style="display:flex; justify-content:space-between; width:100%; margin-bottom:15px;">
+            <span>Holders: <b id="det-holders" style="color:var(--blue)">0</b></span>
+            <span>Liquidity: <b style="color:var(--gold)">Locked</b></span>
         </div>
+        <button class="btn" id="buy-btn" style="background:var(--green); color:#fff; width:100%; padding:15px;" onclick="buyTokenStars()">BUY 100 TOKENS (50 ★)</button>
+    </div>
+</div>
 
         <div id="p-profil" class="page">
             <div class="prof-header">
@@ -287,6 +333,64 @@ async function buyToken() {
         });
     }
 }
+
+
+
+let currentTokenId = null;
+
+async function openToken(t) {
+    currentTokenId = t.id;
+    show('details');
+    
+    // Remplissage des infos
+    document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+    document.getElementById('det-logo').src = t.logo;
+    document.getElementById('det-name').innerText = t.name;
+    document.getElementById('det-sym').innerText = "$" + t.sym;
+    document.getElementById('det-desc').innerText = t.desc || "No description provided.";
+    document.getElementById('det-price-top').innerText = t.price.toFixed(6);
+
+    // Chargement de la courbe
+    const cRes = await fetch(`/api/launcher/chart/${t.id}`);
+    const cData = await cRes.json();
+    drawChart(cData.points);
+}
+
+function drawChart(points) {
+    const poly = document.getElementById('chart-line');
+    const width = 300;
+    const height = 100;
+    const max = Math.max(...points);
+    const min = Math.min(...points);
+    
+    let ptsString = "";
+    points.forEach((p, i) => {
+        const x = (i / (points.length - 1)) * width;
+        // Inversion pour que le haut soit le prix max (SVG y=0 est le haut)
+        const y = height - ((p - min) / (max - min) * 80 + 10); 
+        ptsString += `${x},${y} `;
+    });
+    poly.setAttribute("points", ptsString);
+}
+
+async function buyTokenStars() {
+    if(!currentTokenId) return;
+    const res = await fetch('/api/launcher/buy-stars', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({user_id: uid, token_id: currentTokenId})
+    });
+    const data = await res.json();
+    if(data.ok) {
+        tg.openInvoice(data.link, (status) => {
+            if(status === 'paid') {
+                tg.showAlert("✅ Tokens purchased!");
+                show('profil');
+            }
+        });
+    }
+}
+
 
         function show(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
