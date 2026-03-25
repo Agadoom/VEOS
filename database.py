@@ -9,7 +9,7 @@ def init_db_structure():
     conn = get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Création de la table users (avec la virgule corrigée)
+        # 1. Création/Mise à jour de la table users
         c.execute("""CREATE TABLE IF NOT EXISTS users (
             user_id BIGINT PRIMARY KEY,
             name TEXT,
@@ -24,14 +24,19 @@ def init_db_structure():
             last_login_date TEXT
         )""")
 
-        # 2. SÉCURITÉ : Ajouter la colonne referrer_id si elle n'existe pas encore
-        # (Indispensable si la table a été créée avant l'ajout du système de parrainage)
-        try:
-            c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT")
-        except:
-            pass 
+        # SÉCURITÉ : On s'assure que les colonnes ajoutées tardivement existent
+        columns = [
+            ("referrer_id", "BIGINT"),
+            ("last_login_date", "TEXT"),
+            ("streak", "INTEGER DEFAULT 0")
+        ]
+        for col_name, col_type in columns:
+            try:
+                c.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+            except:
+                pass
 
-        # 3. Table des tokens communautaires
+        # 2. Table des tokens communautaires
         c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
             id SERIAL PRIMARY KEY, 
             creator_id BIGINT, 
@@ -48,7 +53,7 @@ def init_db_structure():
             created_at BIGINT
         )""")
 
-        # 4. Table des actifs possédés
+        # 3. Table des actifs possédés
         c.execute("""CREATE TABLE IF NOT EXISTS user_community_assets (
             user_id BIGINT,
             token_id INTEGER,
@@ -56,7 +61,7 @@ def init_db_structure():
             PRIMARY KEY (user_id, token_id)
         )""")
 
-        # 5. Table de l'activité
+        # 4. Table de l'activité
         c.execute("""CREATE TABLE IF NOT EXISTS token_activity (
             id SERIAL PRIMARY KEY,
             token_id INTEGER,
@@ -79,27 +84,44 @@ def init_db_structure():
 def get_user_full(uid):
     conn = get_db_conn(); c = conn.cursor()
     try:
-        # J'ai ajouté referrer_id (index 9) et p_genesis à la sélection
+        # Ordre des index : 0:genesis, 1:unity, 2:veo, 3:unused, 4:name, 
+        # 5:energy, 6:last_upd, 7:streak, 8:unused, 9:referrer, 10:last_login
         c.execute("""SELECT p_genesis, p_unity, p_veo, 0, name, energy, 
-                     last_energy_update, streak, 0, referrer_id FROM users WHERE user_id=%s""", (uid,))
+                     last_energy_update, streak, 0, referrer_id, last_login_date 
+                     FROM users WHERE user_id=%s""", (uid,))
         res = c.fetchone()
         if not res: 
-            c.execute("INSERT INTO users (user_id, name, energy, last_energy_update) VALUES (%s, 'New Citizen', 100, %s)", (uid, int(time.time())))
+            now = int(time.time())
+            c.execute("INSERT INTO users (user_id, name, energy, last_energy_update, streak) VALUES (%s, 'New Citizen', 100, %s, 0)", (uid, now))
             conn.commit()
-            return (0, 0, 0, 0, 'New Citizen', 100, int(time.time()), 0, 0, None)
+            return (0, 0, 0, 0, 'New Citizen', 100, now, 0, 0, None, None)
         return res
     finally:
         c.close(); conn.close()
 
-# ... (Garde tes fonctions deploy_token et buy_token telles quelles, elles sont bonnes) ...
+def get_community_tokens():
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        c.execute("""SELECT id, name, symbol, price, mcap, logo_url, 
+                     banner_url, description, website, twitter_x 
+                     FROM community_tokens ORDER BY mcap DESC""")
+        res = c.fetchall()
+        return [
+            {
+                "id": r[0], "name": r[1], "sym": r[2], 
+                "price": float(r[3] or 0), "mcap": float(r[4] or 0), 
+                "logo": r[5] or "", "banner": r[6] or "",
+                "desc": r[7], "web": r[8], "x": r[9]
+            } for r in res
+        ]
+    finally:
+        c.close(); conn.close()
 
 def add_referral_reward(new_user_id, referrer_id):
     conn = get_db_conn(); c = conn.cursor()
     try:
-        # On vérifie si le parrain existe
         c.execute("SELECT user_id FROM users WHERE user_id = %s", (referrer_id,))
         if c.fetchone():
-            # Le parrain gagne 500 WPT, le nouvel ami gagne 100 WPT
             c.execute("UPDATE users SET p_genesis = p_genesis + 500 WHERE user_id = %s", (referrer_id,))
             c.execute("UPDATE users SET p_genesis = p_genesis + 100, referrer_id = %s WHERE user_id = %s", (referrer_id, new_user_id))
             conn.commit()
@@ -110,28 +132,3 @@ def add_referral_reward(new_user_id, referrer_id):
     finally:
         c.close(); conn.close()
     return False
-
-
-def get_community_tokens():
-    conn = get_db_conn(); c = conn.cursor()
-    try:
-        # Vérifie bien l'ordre ici : id(0), name(1), symbol(2), price(3), mcap(4), logo(5), banner(6)
-        c.execute("""SELECT id, name, symbol, price, mcap, logo_url, 
-                     banner_url, description, website, twitter_x 
-                     FROM community_tokens ORDER BY mcap DESC""")
-        res = c.fetchall()
-        return [
-            {
-                "id": r[0], 
-                "name": r[1], 
-                "sym": r[2], 
-                "price": float(r[3] or 0), 
-                "mcap": float(r[4] or 0), 
-                "logo": r[5] if r[5] else "", # Si pas de logo, évite le crash
-                "banner": r[6] if r[6] else "",
-                "desc": r[7], "web": r[8], "x": r[9]
-            } for r in res
-        ]
-    finally:
-        c.close(); conn.close()
-
