@@ -101,6 +101,12 @@ async def api_sell_token(request: Request):
     return JSONResponse(status_code=400, content={"error": msg})
 
 
+
+@app.get("/api/launcher/activity/{tid}")
+async def api_get_activity(tid: int):
+    return database.get_token_activity(tid)
+
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -210,6 +216,11 @@ async def web_ui():
                 <div class="energy-bar" style="height:12px;"><div id="det-progress" class="energy-fill" style="background:var(--green)"></div></div>
                 <small style="color:var(--text); font-size:10px;">Progress to Listing: <span id="det-perc">0%</span></small>
             </div>
+
+        <h4 style="margin:20px 0 10px 0; font-size:14px; color:var(--text); border-bottom:1px solid #222; padding-bottom:5px;">LATEST ACTIVITY</h4>
+        <div id="det-activity" style="margin-bottom:100px; max-height: 200px; overflow-y: auto;">
+            </div>
+
             <p id="det-desc" style="color:#ccc; font-size:14px; line-height:1.5;"></p>
         </div>
         <div style="position:fixed; bottom:80px; left:0; right:0; padding:15px; background:rgba(5,5,5,0.95); display:flex; gap:10px; border-top:1px solid #222; z-index:1001;">
@@ -312,10 +323,13 @@ async def web_ui():
             document.getElementById('token-list').innerHTML = html || "<center>No market yet</center>";
         }
 
-        function openToken(t) {
+                async function openToken(t) {
             activeTokenId = t.id;
+            // On affiche la page de détails
             document.getElementById('p-launcher').style.display = 'none';
             document.getElementById('p-token-details').style.display = 'block';
+            
+            // Remplissage des infos de base
             document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
             document.getElementById('det-logo').src = t.logo;
             document.getElementById('det-name').innerText = t.name;
@@ -323,10 +337,35 @@ async def web_ui():
             document.getElementById('det-desc').innerText = t.desc || "No description.";
             document.getElementById('det-price').innerText = t.price.toFixed(6);
             document.getElementById('det-mcap').innerText = t.mcap.toFixed(1);
+            
+            // Barre de progression
             let perc = Math.min((t.mcap / 50000) * 100, 100);
             document.getElementById('det-progress').style.width = perc + "%";
             document.getElementById('det-perc').innerText = perc.toFixed(1) + "%";
+            
+            // Chargement de l'activité en temps réel
+            try {
+                const res = await fetch(`/api/launcher/activity/${t.id}?t=${Date.now()}`);
+                const activity = await res.json();
+                let actHtml = "";
+                activity.forEach(a => {
+                    const color = a.type === 'BUY' ? 'var(--green)' : 'var(--red)';
+                    const icon = a.type === 'BUY' ? '🚀' : '📉';
+                    actHtml += `
+                    <div style="display:flex; justify-content:space-between; font-size:11px; padding:10px 0; border-bottom:1px solid #1c1c1e;">
+                        <span><b style="color:${color}">${icon} ${a.type}</b> by ${a.name}</span>
+                        <span style="font-weight:bold;">${a.amt.toFixed(2)} WPT</span>
+                    </div>`;
+                });
+                document.getElementById('det-activity').innerHTML = actHtml || "<center style='color:#555; padding:20px;'>No activity yet</center>";
+            } catch(e) {
+                console.error("Erreur activité:", e);
+            }
         }
+
+    document.getElementById('det-activity').innerHTML = actHtml || "<small>No activity yet</small>";
+}
+
 
         async function quickBuy(amt) {
             const res = await fetch('/api/launcher/buy', {
