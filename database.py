@@ -86,6 +86,28 @@ def get_user_full(uid):
 
 
 
+def get_leaderboard():
+    conn = get_db_conn()
+    c = conn.cursor()
+    try:
+        # Calcule la somme des 3 minages pour chaque utilisateur
+        c.execute("""
+            SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total 
+            FROM users 
+            ORDER BY total DESC 
+            LIMIT 10
+        """)
+        res = c.fetchall()
+        return res
+    except Exception as e:
+        print(f"Error get_leaderboard: {e}")
+        return []
+    finally:
+        c.close()
+        conn.close()
+
+
+
 def get_community_tokens():
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT id, name, symbol, price, mcap FROM community_tokens ORDER BY mcap DESC")
