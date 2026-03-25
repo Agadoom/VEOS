@@ -76,3 +76,22 @@ async def claim_daily(data: dict):
             "message": "Déjà réclamé aujourd'hui. Reviens demain !"
         }
 
+
+
+@router.get("/leaderboard")
+async def get_leaderboard():
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    # On calcule le score total (genesis + unity + veo)
+    c.execute("""
+        SELECT name, (p_genesis + p_unity + p_veo) as total_score 
+        FROM users 
+        ORDER BY total_score DESC 
+        LIMIT 10
+    """)
+    leaders = [{"name": r[0], "score": round(r[1], 2)} for r in c.fetchall()]
+    c.close()
+    conn.close()
+    return leaders
+
+
