@@ -187,18 +187,38 @@ async def web_ui():
         }
 
         async function loadLauncher() {
-            const r = await fetch('/api/launcher/list');
-            const tokens = await r.json();
-            let html = "";
-            tokens.forEach(t => {
-                html += `<div class="card">
-                    <div style="font-size:24px; margin-right:12px;">${t.img}</div>
-                    <div style="flex:1;"><b>${t.name}</b><br><small style="color:var(--text)">${t.sym} • MCAP: $${t.mcap}</small></div>
-                    <b style="color:var(--green)">${t.price}</b>
-                </div>`;
-            });
-            document.getElementById('token-list').innerHTML = html;
-        }
+    const r = await fetch('/api/launcher/list');
+    const tokens = await r.json();
+    let html = "";
+    tokens.forEach(t => {
+        html += `
+        <div class="card" style="display:block;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center;">
+                    <div style="font-size:24px; margin-right:12px; background:#222; padding:5px; border-radius:10px;">🚀</div>
+                    <div><b>${t.name}</b><br><small style="color:var(--text)">${t.sym}</small></div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green)">${t.price} WPT</b><br>
+                    <small style="color:var(--text)">MCAP: ${t.mcap}$</small>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="trade('${t.id}', 10)">BUY 10</button>
+                <button class="btn" style="flex:1; background:#333; color:#fff;" onclick="trade('${t.id}', -10)">SELL</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById('token-list').innerHTML = html || "<center>No tokens yet</center>";
+}
+
+async function trade(tid, amt) {
+    // Appel API pour acheter/vendre (à créer dans FastAPI)
+    tg.showConfirm(`Confirm trade for ${amt} WPT?`, (ok) => {
+        if(ok) tg.showAlert("Trade executed! (Bonding curve updated)");
+    });
+}
+
 
         async function mine(t) {
             const now = Date.now(); if(now - lastClick < 85) return; lastClick = now;
