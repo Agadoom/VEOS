@@ -74,30 +74,36 @@ async def api_mine(request: Request):
 
 
 
-@app.post("/api/launcher/create-invoice") # Vérifie bien l'orthographe ici
+@app.post("/api/launcher/create-invoice")
 async def api_create_invoice(request: Request):
     data = await request.json()
     uid = data.get("user_id")
     name = data.get("name")
+    symbol = data.get("symbol")
+    desc = data.get("desc")
+
+    # On crée un ID de transaction unique
+    tx_id = f"tx_{uid}_{int(time.time())}"
     
-    # On crée un payload simple (max 128 caractères)
-    # On stocke l'essentiel : ID utilisateur et timestamp
-    payload = f"deploy_{uid}_{int(time.time())}"
-    
+    # --- IMPORTANT : On stocke les infos temporairement ---
+    # On peut tricher en mettant les infos dans le payload si c'est court, 
+    # ou mieux, utiliser une variable globale (pour le test) ou la DB.
+    # Ici, on va passer le strict minimum dans le payload.
+    payload_data = f"{uid}|{name[:15]}|{symbol[:5]}|{desc[:30]}"
+
     try:
-        # On utilise bot_instance.bot pour générer le lien
         link = await bot_instance.bot.create_invoice_link(
-            title=f"Deploy {name[:15]}",
-            description=f"Launch fee for community token",
-            payload=payload,
-            provider_token="", # Vide pour Telegram Stars
-            currency="XTR",    # Code pour les Stars
-            prices=[LabeledPrice("Launch Fee", config.DEPLOY_FEE_STARS)]
+            title=f"Launch ${symbol}",
+            description=f"Deploy {name} to the market",
+            payload=payload_data, # On met les infos ici
+            provider_token="", 
+            currency="XTR",
+            prices=[LabeledPrice("Deployment Fee", config.DEPLOY_FEE_STARS)]
         )
         return {"ok": True, "link": link}
     except Exception as e:
-        print(f"Erreur Invoice: {e}")
         return JSONResponse(status_code=400, content={"error": str(e)})
+
 
 
 # --- WEB UI ---
@@ -328,6 +334,36 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Idéalement, ici tu appelles database.deploy_token()
     await update.message.reply_text("✅ Payment confirmed! Your token is now live in the Launcher.")
+
+
+
+async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # On récupère les infos qu'on a cachées dans le payload
+    payload = update.message.successful_payment.invoice_payload
+    parts = payload.split('|')
+    
+    if len(parts) >= 4:
+        uid = int(parts[0])
+        name = parts[1]
+        symbol = parts[2]
+        desc = parts[3]
+
+        # --- ACTION : On l'ajoute VRAIMENT à la base de données ---
+        # On utilise des images par défaut car le payload est trop petit pour le base64
+        default_logo = "https://cdn-icons-png.flaticon.com/512/2584/2584687.png"
+        default_banner = "https://img.freepik.com/free-vector/abstract-dark-gradient-background_23-2148286251.jpg"
+        
+        database.deploy_token(
+            uid, name, symbol, desc, 
+            default_logo, default_banner, 
+            "https://wpt.hub", "https://x.com/wpt"
+        )
+
+        await update.message.reply_text(f"🚀 **{name}** est maintenant EN LIGNE !\nRetourne dans l'App pour le voir.")
+    else:
+        await update.message.reply_text("✅ Paiement reçu, mais erreur de lecture des données.")
+
+
 
 async def main():
     global bot_instance
