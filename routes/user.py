@@ -48,3 +48,31 @@ async def get_user_data(uid: int):
         "assets": assets,
         "ref_count": ref_count  # <--- Transmis au Frontend
     }
+
+
+
+@router.post("/claim-daily")
+async def claim_daily(data: dict):
+    uid = data.get("user_id")
+    if not uid:
+        return JSONResponse(status_code=400, content={"error": "Missing user_id"})
+    
+    # On appelle la fonction de missions.py que tu as montrée plus haut
+    reward, new_streak = missions.process_daily_login(uid)
+    
+    if reward > 0:
+        return {
+            "ok": True,
+            "reward": reward,
+            "streak": new_streak,
+            "message": f"Félicitations ! +{reward} WPT"
+        }
+    else:
+        # reward est 0 si déjà réclamé aujourd'hui
+        return {
+            "ok": False,
+            "reward": 0,
+            "streak": new_streak,
+            "message": "Déjà réclamé aujourd'hui. Reviens demain !"
+        }
+
