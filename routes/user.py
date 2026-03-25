@@ -1,4 +1,5 @@
-from fastapi import APIRouter, JSONResponse
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse # <--- Correction ici
 import database, config, missions, time
 
 router = APIRouter(prefix="/api/user", tags=["User"])
