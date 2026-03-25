@@ -71,6 +71,35 @@ async def api_mine(request: Request):
         return JSONResponse(status_code=400, content={"error": "Low Energy"})
     finally: c.close(); conn.close()
 
+
+.# --- AJOUTE OU CORRIGE CETTE ROUTE DANS TON MAIN.PY ---
+
+@app.post("/api/launcher/create-invoice") # Vérifie bien l'orthographe ici
+async def api_create_invoice(request: Request):
+    data = await request.json()
+    uid = data.get("user_id")
+    name = data.get("name")
+    
+    # On crée un payload simple (max 128 caractères)
+    # On stocke l'essentiel : ID utilisateur et timestamp
+    payload = f"deploy_{uid}_{int(time.time())}"
+    
+    try:
+        # On utilise bot_instance.bot pour générer le lien
+        link = await bot_instance.bot.create_invoice_link(
+            title=f"Deploy {name[:15]}",
+            description=f"Launch fee for community token",
+            payload=payload,
+            provider_token="", # Vide pour Telegram Stars
+            currency="XTR",    # Code pour les Stars
+            prices=[LabeledPrice("Launch Fee", config.DEPLOY_FEE_STARS)]
+        )
+        return {"ok": True, "link": link}
+    except Exception as e:
+        print(f"Erreur Invoice: {e}")
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
