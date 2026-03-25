@@ -38,15 +38,23 @@ async def serve_index():
 # --- TELEGRAM BOT LOGIC ---
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))]
-    ])
-    await update.message.reply_text(
-        "<b>Welcome to WPT Ecosystem!</b>\n\n"
-        "Mine Genesis, Unity, and Veo AI. Launch your own tokens or trade community assets.",
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
+    uid = update.effective_user.id
+    name = update.effective_user.first_name
+    
+    # 1. Vérifier si c'est un nouveau joueur via parrainage
+    if context.args and context.args[0].isdigit():
+        referrer_id = int(context.args[0])
+        if referrer_id != uid: # On ne peut pas se parrainer soi-même
+            # On vérifie si l'user existe déjà
+            user_data = database.get_user_full(uid)
+            # Si le score est 0, on considère que c'est une première connexion
+            if sum(user_data[0:3]) == 0:
+                database.add_referral_reward(uid, referrer_id)
+                await context.bot.send_message(chat_id=referrer_id, text=f"🎁 Your friend {name} joined! You earned +500 WPT.")
+
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
+    await update.message.reply_text(f"<b>Welcome {name}!</b>\n\nStart mining and trade community tokens.", parse_mode="HTML", reply_markup=keyboard)
+
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.pre_checkout_query
