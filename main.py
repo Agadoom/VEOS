@@ -83,6 +83,21 @@ async def api_deploy_token(request: Request):
     # Logique : Coût 1000 WPT (Score total) pour créer un token
     return {"ok": True, "msg": "Token queued for deployment"}
 
+
+@app.post("/api/launcher/buy")
+async def api_buy_token(request: Request):
+    data = await request.json()
+    uid = data.get("user_id")
+    tid = data.get("token_id")
+    amt = float(data.get("amount", 10))
+    
+    success, msg = database.buy_token(uid, tid, amt)
+    if success:
+        return {"ok": True}
+    return JSONResponse(status_code=400, content={"error": msg})
+
+
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
