@@ -12,24 +12,23 @@ database.init_db_structure()
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-pending_tokens = {}
+pending_tokens = {} # Stocke les créations en attente de paiement
 bot_instance = None
 
-# --- API ROUTES ---
+# --- API ROUTES (BACKEND) ---
 
 @app.get("/api/user/{uid}")
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
     
-    # Calcul de l'énergie et score
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * config.REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, _, _ = missions.get_badge_info(score)
     
-    # RÉCUPÉRATION DE TOUS LES ASSETS (Correction My Wallet)
+    # RÉCUPÉRATION DE TOUS LES TOKENS (Correction fetchall)
     conn = database.get_db_conn(); c = conn.cursor()
     c.execute("""
         SELECT t.name, t.symbol, a.amount 
@@ -46,41 +45,87 @@ async def api_get_user(uid: int):
         "score": round(score, 2), "badge": badge, "assets": assets
     }
 
-@app.post("/api/launcher/buy-request")
-async def api_buy_request(request: Request):
+@app.post("/api/mine")
+async def api_mine(request: Request):
     data = await request.json()
-    uid, tid = data.get("user_id"), data.get("token_id")
-    qty = 100
-    cost_wpt = 50 # Le prix en points Genesis/WPT
-    
-    # Vérification du solde WPT (Genesis)
-    r = database.get_user_full(uid)
-    if (r[0] or 0) < cost_wpt:
-        return JSONResponse(status_code=400, content={"error": f"Il vous faut {cost_wpt} WPT"})
-
-    # Facture Stars pour les FRAIS de service (ex: 10 Stars)
-    payload = f"buy|{uid}|{tid}|{qty}|{cost_wpt}"
-    try:
-        link = await bot_instance.bot.create_invoice_link(
-            title="Frais d'achat",
-            description=f"Frais de réseau pour {qty} tokens",
-            payload=payload, provider_token="", currency="XTR",
-            prices=[LabeledPrice("Frais de service", 10)]
-        )
-        return {"ok": True, "link": link}
-    except Exception as e: return JSONResponse(status_code=400, content={"error": str(e)})
-
-@app.get("/api/launcher/chart/{tid}")
-async def get_chart_data(tid: int):
-    points = [random.uniform(0.0001, 0.0008) for _ in range(15)]
-    points.sort() 
-    return {"points": points}
+    uid, t = data.get("user_id"), data.get("token")
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
+    res = c.fetchone()
+    now_ms = int(time.time()*1000); now_s = now_ms//1000
+    if res and (now_ms - (res[2] or 0)) >= 80:
+        cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
+        if cur_e >= 1:
+            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
+            conn.commit(); c.close(); conn.close(); return {"ok": True}
+    c.close(); conn.close(); return JSONResponse(status_code=400)
 
 @app.get("/api/launcher/list")
 async def api_list_tokens():
     return database.get_community_tokens()
 
-# --- WEB UI ---
+@app.post("/api/launcher/save-pending")
+async def save_pending(request: Request):
+    data = await request.json()
+    temp_id = str(uuid.uuid4())[:8]
+    pending_tokens[temp_id] = data
+    return {"ok": True, "temp_id": temp_id}
+
+@app.post("/api/launcher/create-invoice")
+async def api_create_invoice(request: Request):
+    data = await request.json()
+    temp_id = data.get("temp_id")
+    token = pending_tokens.get(temp_id)
+    link = await bot_instance.bot.create_invoice_link(
+        title=f"Launch {token['symbol']}", 
+        description="Frais de création de token", 
+        payload=temp_id, provider_token="", currency="XTR", 
+        prices=[LabeledPrice("Launch Fee", 500)]
+    )
+    return {"ok": True, "link": link}
+
+@app.post("/api/launcher/buy-request")
+async def api_buy_request(request: Request):
+    data = await request.json()
+    uid, tid = data.get("user_id"), data.get("token_id")
+    qty, cost_wpt = 100, 50 # 100 tokens coûtent 50 WPT
+    
+    r = database.get_user_full(uid)
+    if (r[0] or 0) < cost_wpt:
+        return JSONResponse(status_code=400, content={"error": "Pas assez de WPT (Genesis)"})
+
+    payload = f"buy|{uid}|{tid}|{qty}|{cost_wpt}"
+    link = await bot_instance.bot.create_invoice_link(
+        title="Frais d'achat", description=f"Service fee pour {qty} tokens",
+        payload=payload, provider_token="", currency="XTR",
+        prices=[LabeledPrice("Frais Stars", 10)]
+    )
+    return {"ok": True, "link": link}
+
+@app.post("/api/launcher/sell")
+async def api_sell_token(request: Request):
+    data = await request.json()
+    uid, tid, qty = data.get("user_id"), data.get("token_id"), float(data.get("amount", 0))
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT amount FROM user_community_assets WHERE user_id=%s AND token_id=%s", (uid, tid))
+    res = c.fetchone()
+    if not res or res[0] < qty: return JSONResponse(status_code=400, content={"error": "Solde insuffisant"})
+    
+    c.execute("SELECT price FROM community_tokens WHERE id=%s", (tid,))
+    price = c.fetchone()[0]
+    gain = qty * price
+    c.execute("UPDATE user_community_assets SET amount = amount - %s WHERE user_id=%s AND token_id=%s", (qty, uid, tid))
+    c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id=%s", (gain, uid))
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True, "gain": gain}
+
+@app.get("/api/launcher/chart/{tid}")
+async def get_chart_data(tid: int):
+    points = [random.uniform(0.0001, 0.0009) for _ in range(15)]
+    points.sort() 
+    return {"points": points}
+
+# --- WEB UI (FRONTEND) ---
 
 @app.get("/", response_class=HTMLResponse)
 async def web_ui():
@@ -109,7 +154,7 @@ async def web_ui():
     </style>
 </head>
 <body>
-    <div class="ticker"><div class="t-wrap"><span style="color:var(--gold)">🏆 NETWORK ACTIVE ● TRADING ENABLED ● </span></div></div>
+    <div class="ticker"><div class="t-wrap"><span style="color:var(--gold)">🏆 JACKPOT ACTIVE ● TRADING LIVE ● BUY WITH WPT & STARS</span></div></div>
 
     <div class="container">
         <div id="p-mine" class="page active-page">
@@ -124,6 +169,17 @@ async def web_ui():
 
         <div id="p-launcher" class="page">
             <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
+            <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000;">
+                <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
+                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL">
+                <textarea id="tk-desc" class="l-input" placeholder="Description..."></textarea>
+                <div style="display:flex; gap:10px;">
+                    <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">LOGO<input type="file" id="f-logo" hidden onchange="processFile('logo')"></label>
+                    <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">BANNER<input type="file" id="f-banner" hidden onchange="processFile('banner')"></label>
+                </div>
+                <button class="btn" style="background:var(--gold);" onclick="deployStars()">LAUNCH (500 ★)</button>
+            </div>
+            <h3 style="margin-top:20px;">🔥 MARKET</h3>
             <div id="token-list"></div>
         </div>
 
@@ -140,24 +196,23 @@ async def web_ui():
                 <b id="det-sym" style="color:var(--gold)"></b>
             </div>
             <div style="padding:15px;">
-                <svg id="price-chart" viewBox="0 0 300 100" style="width:100%; height:100px; background:#000; border-radius:15px;">
-                    <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2" points="0,100 300,100" />
+                <svg viewBox="0 0 300 100" style="width:100%; height:100px; background:#000; border-radius:15px; border:1px solid #222;">
+                    <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" points="0,100 300,100" />
                 </svg>
             </div>
             <div style="display:flex; flex-direction:column; gap:10px; padding:15px;">
                 <div style="display:flex; gap:10px;">
-                    <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="buyTokenStars()">BUY</button>
+                    <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="buyTokenStars()">BUY (WPT+★)</button>
                     <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="sellToken()">SELL</button>
                 </div>
-                <button class="btn" style="background:#111; color:var(--blue); border:1px solid #333;" onclick="withdrawToken()">📤 WITHDRAW TO WALLET</button>
+                <button class="btn" style="background:#111; color:var(--blue); border:1px solid #333;" onclick="withdrawToken()">📤 WITHDRAW TO EXTERNAL WALLET</button>
             </div>
-            <center><small style="color:var(--text)">Liquidity Locked ● Holders: <span id="det-holders">1</span></small></center>
         </div>
 
         <div id="p-profil" class="page">
             <div class="prof-header">
                 <h2 id="prof-name">User</h2>
-                <div id="prof-badge" style="color:var(--gold); font-size:12px;">RANK: NOVICE</div>
+                <div id="prof-badge" style="color:var(--gold);">RANK: NOVICE</div>
             </div>
             <h3 style="margin-left:10px;">📦 MY WALLET</h3>
             <div id="prof-assets"></div>
@@ -172,7 +227,7 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let currentTokenId = null;
+        let currentTokenId = null; let b64_logo="", b64_banner="";
 
         async function refresh() {
             const r = await fetch(`/api/user/${uid}`);
@@ -184,7 +239,6 @@ async def web_ui():
             document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
             document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
             
-            // AFFICHAGE DES TOKENS DANS LE WALLET
             let ah = ""; 
             d.assets.forEach(a => { 
                 ah += `<div class="card"><span>${a.n} ($${a.s})</span><b>${a.a.toFixed(2)}</b></div>`; 
@@ -211,30 +265,43 @@ async def web_ui():
             let pts = "";
             points.forEach((p, i) => {
                 const x = (i / (points.length - 1)) * 300;
-                const y = 100 - ((p - min) / (max - min) * 80 + 10);
+                const y = 100 - ((p - min) / (max - min) * 70 + 15);
                 pts += `${x},${y} `;
             });
             poly.setAttribute("points", pts);
         }
 
         async function buyTokenStars() {
-            const res = await fetch('/api/launcher/buy-request', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({user_id: uid, token_id: currentTokenId})
-            });
+            const res = await fetch('/api/launcher/buy-request', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_id:uid, token_id:currentTokenId})});
             const data = await res.json();
-            if(data.ok) {
-                tg.openInvoice(data.link, (status) => {
-                    if(status === 'paid') { tg.showAlert("Achat réussi !"); show('profil'); }
-                });
-            } else { tg.showAlert(data.error); }
+            if(data.ok) tg.openInvoice(data.link, (status) => { if(status==='paid') { tg.showAlert("Success!"); show('profil'); } });
+            else tg.showAlert(data.error);
         }
 
-        async function withdrawToken() {
-            tg.showConfirm("Retrait vers wallet externe ? (Frais : 50 Stars)", (ok) => {
-                if(ok) tg.showAlert("Fonctionnalité en cours de liaison avec TON Connect.");
-            });
+        async function sellToken() {
+            const qty = prompt("Quantité à vendre ?");
+            if(!qty || isNaN(qty)) return;
+            const res = await fetch('/api/launcher/sell', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_id:uid, token_id:currentTokenId, amount:qty})});
+            const data = await res.json();
+            if(res.ok) { tg.showAlert(`Vendu! +${data.gain.toFixed(2)} WPT`); show('profil'); }
+            else tg.showAlert(data.error);
+        }
+
+        async function deployStars() {
+            const name = document.getElementById('tk-name').value;
+            if(!name || !b64_logo) return tg.showAlert("Name & Logo required!");
+            const save = await fetch('/api/launcher/save-pending', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({user_id:uid, name:name, symbol:document.getElementById('tk-sym').value, desc:document.getElementById('tk-desc').value, logo:b64_logo, banner:b64_banner})});
+            const sData = await save.json();
+            const inv = await fetch('/api/launcher/create-invoice', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({temp_id: sData.temp_id})});
+            const iData = await inv.json();
+            if(iData.ok) tg.openInvoice(iData.link, (status) => { if(status==='paid') show('launcher'); });
+        }
+
+        function processFile(type) {
+            const file = document.getElementById('f-' + type).files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => { if(type==='logo') b64_logo=reader.result; else b64_banner=reader.result; };
+            if(file) reader.readAsDataURL(file);
         }
 
         async function loadMarket() {
@@ -243,10 +310,7 @@ async def web_ui():
             let h = "";
             tokens.forEach(t => {
                 h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;">
-                        <b>${t.name}</b>
-                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;"><img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;"><b>${t.name}</b></div>
                     <b style="color:var(--green)">${t.price.toFixed(6)}</b>
                 </div>`;
             });
@@ -256,6 +320,8 @@ async def web_ui():
         function show(p) {
             document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
             document.getElementById('p-' + p).classList.add('active-page');
+            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+            document.getElementById('n-' + (p==='details'?'launcher':p)).classList.add('active');
             if(p === 'launcher') loadMarket();
             refresh();
         }
@@ -265,38 +331,50 @@ async def web_ui():
             refresh();
         }
 
-        tg.expand(); refresh();
+        async function withdrawToken() {
+            tg.showConfirm("Retirer vers wallet externe ? (Frais : 50 Stars)", (ok) => { if(ok) tg.showAlert("Lien TON Connect requis."); });
+        }
+
+        tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
 </body>
 </html>
 """
 
-# --- BOT LOGIC ---
+# --- BOT & START ---
+
 async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payload = update.message.successful_payment.invoice_payload
+    # CAS 1 : ACHAT DE TOKEN (buy|uid|tid|qty|cost)
     if payload.startswith("buy|"):
-        _, uid, tid, qty, cost_wpt = payload.split('|')
+        _, uid, tid, qty, cost = payload.split('|')
         conn = database.get_db_conn(); c = conn.cursor()
-        # On déduit les WPT (Genesis) et on ajoute les tokens
-        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (float(cost_wpt), int(uid)))
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (float(cost), int(uid)))
         database.buy_token(int(uid), int(tid), float(qty))
         conn.commit(); c.close(); conn.close()
-        await update.message.reply_text("✅ Transaction réussie !")
+        await update.message.reply_text("✅ Achat réussi ! Tes tokens sont dans ton profil.")
+    # CAS 2 : CRÉATION DE TOKEN (temp_id)
     else:
-        # Logique pour déploiement initial...
         data = pending_tokens.get(payload)
         if data:
             database.deploy_token(data['user_id'], data['name'], data['symbol'], data['desc'], data['logo'], data['banner'], "", "")
-            await update.message.reply_text(f"🚀 {data['name']} est en ligne !")
+            del pending_tokens[payload]
+            await update.message.reply_text(f"🚀 {data['name']} est maintenant disponible au trading !")
+
+async def start(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
+    await u.message.reply_text("Bienvenue sur le Launcher !", reply_markup=kb)
 
 async def main():
     global bot_instance
     bot_instance = ApplicationBuilder().token(config.TOKEN).build()
+    bot_instance.add_handler(CommandHandler("start", start))
     bot_instance.add_handler(PreCheckoutQueryHandler(lambda u, c: u.pre_checkout_query.answer(ok=True)))
     bot_instance.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, success_payment_callback))
+    
     await bot_instance.initialize(); await bot_instance.start(); await bot_instance.updater.start_polling()
-    conf = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
-    await uvicorn.Server(conf).serve()
+    srv = uvicorn.Server(uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio"))
+    await srv.serve()
 
 if __name__ == "__main__":
     asyncio.run(main())
