@@ -32,15 +32,16 @@ def init_db_structure():
         PRIMARY KEY (user_id, token_id)
     )""")
 
-c.execute("""CREATE TABLE IF NOT EXISTS token_activity (
-    id SERIAL PRIMARY KEY,
-    token_id INTEGER,
-    user_id BIGINT,
-    user_name TEXT,
-    type TEXT, -- 'BUY' ou 'SELL'
-    amount_wpt DOUBLE PRECISION,
-    created_at INTEGER
-)""")
+
+    c.execute("""CREATE TABLE IF NOT EXISTS token_activity (
+        id SERIAL PRIMARY KEY,
+        token_id INTEGER,
+        user_id BIGINT,
+        user_name TEXT,
+        type TEXT,
+        amount_wpt DOUBLE PRECISION,
+        created_at INTEGER
+    )""")
         conn.commit()
     except Exception as e: print(f"DB Error: {e}")
     finally: c.close(); conn.close()
