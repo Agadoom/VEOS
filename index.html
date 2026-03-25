@@ -104,44 +104,63 @@
         <div id="p-profil" class="page">
     <div class="prof-header">
         <h2 id="prof-name">Username</h2>
-        <div style="color:var(--gold); font-size:12px; letter-spacing: 1px;">WPT ECOSYSTEM CITIZEN</div>
+        <div id="u-badge-large" style="color:var(--gold); font-size:14px; font-weight:bold; letter-spacing:2px; margin-top:5px;">BRONZE CITIZEN</div>
     </div>
 
     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 10px;">
-            <small style="color: var(--text);">Friends</small>
-            <b id="ref-count" style="color: var(--gold);">0</b>
+        <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 15px; border-left: 3px solid var(--purple);">
+            <small style="color: var(--text);">Daily Streak</small>
+            <b id="prof-streak" style="font-size:20px;">0 Days</b>
         </div>
-        <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 10px;">
-            <small style="color: var(--text);">Bonus Earned</small>
-            <b id="ref-bonus" style="color: var(--green);">0</b>
+        <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 15px; border-left: 3px solid var(--gold);">
+            <small style="color: var(--text);">Network Rank</small>
+            <b id="prof-rank" style="font-size:18px;">#---</b>
         </div>
     </div>
 
-    <h3 style="margin-left:10px;">📦 MY WALLET</h3>
-    <div id="prof-assets" style="min-height: 50px;">
-        </div>
-
-    <div class="card" style="flex-direction:column; gap:12px; margin-top:20px; background:linear-gradient(45deg, #121214, #1a1a1c); border: 1px solid #333;">
+    <div class="card" style="flex-direction:column; gap:12px; background:linear-gradient(45deg, #121214, #1a1a1c); border: 1px solid #333;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 24px;">🎁</span>
-            <div>
+            <div style="flex:1;">
                 <h4 style="margin:0; color:var(--gold);">REFERRAL PROGRAM</h4>
-                <p style="font-size:11px; color:var(--text); margin:0;">+500 WPT per friend invited</p>
+                <p style="font-size:11px; color:var(--text); margin:0;"><span id="ref-count">0</span> friends invited</p>
             </div>
+            <b id="ref-bonus" style="color:var(--green); font-size:12px;">+0 WPT</b>
         </div>
-        <button class="btn" style="width:100%; background:var(--blue); color:#fff; box-shadow: 0 4px 15px rgba(0,122,255,0.3);" onclick="shareReferral()">
-            INVITE FRIENDS
+        <button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="shareReferral()">INVITE FRIENDS</button>
+    </div>
+
+    <button class="btn" style="width:100%; margin-top:15px; background:#222; color:#fff; border:1px solid #444;" onclick="claimDaily()">
+        📅 CLAIM DAILY REWARD
+    </button>
+</div>
+<div id="p-wallet" class="page">
+    <h2 style="text-align:center;">👛 MY ASSETS</h2>
+    
+    <div class="card" style="background:var(--card); padding:20px; justify-content:center; flex-direction:column; text-align:center;">
+        <small style="color:var(--text)">Genesis Balance</small>
+        <h1 id="wallet-genesis" style="margin:5px 0; color:var(--gold);">0.00</h1>
+    </div>
+
+    <h3 style="margin: 20px 0 10px 10px;">Community Tokens</h3>
+    <div id="prof-assets">
+        </div>
+
+    <div style="margin-top:30px; padding:10px;">
+        <button class="btn" style="width:100%; background:#111; color:var(--text); border:1px dashed #444;" disabled>
+            + STAKING (COMING SOON)
         </button>
     </div>
 </div>
 
+</div>
+
 
     <nav class="nav">
-        <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
-        <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
-        <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
-    </nav>
+    <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
+    <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
+    <div onclick="show('wallet')" id="n-wallet" class="n-i">👛</div> <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
+</nav>
 
     <script>
         let tg = window.Telegram.WebApp; 
