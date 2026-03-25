@@ -13,23 +13,9 @@ database.init_db_structure()
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Stockage temporaire pour les tokens en attente de paiement (mémoire vive)
+# Stockage temporaire pour les tokens (images lourdes) en attente de paiement
 pending_tokens = {}
 bot_instance = None
-
-# --- HELPERS ---
-def get_network_stats():
-    try:
-        conn = database.get_db_conn(); c = conn.cursor()
-        now = int(time.time())
-        c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
-        online = max(1, c.fetchone()[0])
-        c.execute("SELECT COUNT(*) FROM users")
-        total = max(1, c.fetchone()[0])
-        jk = database.get_total_network_score() * 0.1
-        c.close(); conn.close()
-        return online, total, round(jk, 2)
-    except: return 1, 1, 0.0
 
 # --- API ROUTES ---
 
@@ -37,14 +23,21 @@ def get_network_stats():
 async def api_get_user(uid: int):
     r = database.get_user_full(uid)
     if not r: return JSONResponse(status_code=404, content={})
+    
+    # Calcul énergie et score
     now = int(time.time())
     last_update = r[6] if r[6] is not None else now
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * config.REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, _, _ = missions.get_badge_info(score)
-    online, total, jk = get_network_stats()
     
+    # Stats réseau
     conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
+    online = max(1, c.fetchone()[0])
+    jk = database.get_total_network_score() * 0.1
+    
+    # Assets du profil
     c.execute("SELECT t.name, t.symbol, a.amount FROM user_community_assets a JOIN community_tokens t ON a.token_id = t.id WHERE a.user_id = %s AND a.amount > 0", (uid,))
     assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
     c.close(); conn.close()
@@ -52,56 +45,41 @@ async def api_get_user(uid: int):
     return {
         "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0,
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "score": round(score, 2),
-        "badge": badge, "jackpot": jk, "online": online, "total": total, "assets": assets
+        "badge": badge, "jackpot": round(jk, 2), "online": online, "assets": assets
     }
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    database.mine_points(uid, t)
+    data = await request.json()
+    database.mine_points(data.get("user_id"), data.get("token"))
     return {"ok": True}
 
 @app.get("/api/launcher/list")
 async def api_list_tokens():
     return database.get_community_tokens()
 
-# --- NOUVELLE ROUTE : STOCKAGE TEMPORAIRE ---
 @app.post("/api/launcher/save-pending")
 async def save_pending(request: Request):
     data = await request.json()
-    temp_id = str(uuid.uuid4())[:8] # ID court
-    pending_tokens[temp_id] = data # On garde les images base64 ici
+    temp_id = str(uuid.uuid4())[:8]
+    pending_tokens[temp_id] = data
     return {"ok": True, "temp_id": temp_id}
 
 @app.post("/api/launcher/create-invoice")
 async def api_create_invoice(request: Request):
     data = await request.json()
     temp_id = data.get("temp_id")
-    token_info = pending_tokens.get(temp_id)
+    token = pending_tokens.get(temp_id)
+    if not token: return JSONResponse(status_code=400, content={"error": "Session expired"})
     
-    if not token_info: return JSONResponse(status_code=400, content={"error": "Session expired"})
-
-    try:
-        link = await bot_instance.bot.create_invoice_link(
-            title=f"Deploy ${token_info['symbol']}",
-            description=f"Launch fee for {token_info['name']}",
-            payload=temp_id, # On passe juste le petit ID
-            provider_token="", currency="XTR",
-            prices=[LabeledPrice("Launch Fee", config.DEPLOY_FEE_STARS)]
-        )
-        return {"ok": True, "link": link}
-    except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
-
-@app.post("/api/launcher/buy")
-async def api_buy_token(request: Request):
-    data = await request.json()
-    success, msg = database.buy_token(data.get("user_id"), data.get("token_id"), float(data.get("amount", 10)))
-    return {"ok": success, "error": msg}
-
-@app.get("/api/launcher/activity/{tid}")
-async def api_get_activity(tid: int):
-    return {"activity": database.get_token_activity(tid), "holders": database.get_token_holders(tid)}
+    link = await bot_instance.bot.create_invoice_link(
+        title=f"Deploy ${token['symbol']}",
+        description=f"Fee for {token['name']}",
+        payload=temp_id,
+        provider_token="", currency="XTR",
+        prices=[LabeledPrice("Launch Fee", config.DEPLOY_FEE_STARS)]
+    )
+    return {"ok": True, "link": link}
 
 # --- WEB UI ---
 
@@ -115,20 +93,30 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --bg: #050505; --card: #121214; --gold: #FFD700; --blue: #007AFF; --green: #34C759; --purple: #A259FF; --text: #8E8E8E; }
-        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
-        .ticker { background: #1a1a1c; padding: 8px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; font-size: 11px; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 0; user-select: none; }
+        
+        .ticker { background: #1a1a1c; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; font-size: 11px; font-weight: bold; }
         .t-wrap { display: inline-block; animation: scroll 20s linear infinite; }
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+
         .container { padding: 15px; padding-bottom: 120px; }
         .main-card { background: radial-gradient(circle at top right, #1c1c1e, #050505); border-radius: 25px; padding: 25px; text-align: center; border: 1px solid #222; margin-bottom: 15px; }
-        .energy-bar { background: #222; height: 6px; border-radius: 10px; margin: 10px 0; overflow: hidden; }
-        .energy-fill { background: var(--gold); height: 100%; width: 0%; transition: 0.3s; }
-        .card { background: var(--card); border-radius: 18px; padding: 15px; margin-bottom: 10px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(10px); padding: 12px 30px; border-radius: 50px; display: flex; gap: 35px; border: 1px solid #333; z-index: 1000; }
-        .n-i { font-size: 24px; opacity: 0.3; }
-        .n-i.active { opacity: 1; color: var(--gold); }
-        .l-input { background: #000; border: 1px solid #222; color: #fff; padding: 12px; border-radius: 12px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
+        
+        .energy-bar { background: #222; height: 8px; border-radius: 10px; margin: 15px 0; overflow: hidden; }
+        .energy-fill { background: var(--gold); height: 100%; width: 0%; transition: 0.4s; }
+
+        .card { background: var(--card); border-radius: 20px; padding: 15px; margin-bottom: 10px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: #FFF; color: #000; border: none; padding: 12px 20px; border-radius: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); }
+
+        /* Navigation Fixée */
+        .nav { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(20,20,20,0.9); backdrop-filter: blur(15px); padding: 12px 35px; border-radius: 50px; display: flex; gap: 40px; border: 1px solid #333; z-index: 9999; }
+        .n-i { font-size: 26px; opacity: 0.2; transition: 0.3s; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .n-i.active { opacity: 1; color: var(--gold); transform: translateY(-5px); }
+
+        .l-input { background: #000; border: 1px solid #222; color: #fff; padding: 14px; border-radius: 14px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
+        .page { display: none; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -138,19 +126,19 @@ async def web_ui():
     </div></div>
 
     <div class="container">
-        <div id="p-mine">
+        <div id="p-mine" class="page" style="display:block;">
             <div class="main-card">
-                <div id="u-badge" style="color:var(--gold); font-size:12px; margin-bottom:5px;">...</div>
-                <h1 id="tot" style="font-size:45px; margin:0;">0.00</h1>
+                <div id="u-badge" style="color:var(--gold); font-size:12px; font-weight:bold;">...</div>
+                <h1 id="tot" style="font-size:50px; margin:10px 0;">0.00</h1>
                 <div class="energy-bar"><div id="e-f" class="energy-fill"></div></div>
-                <small id="e-t">0 / 100</small>
+                <small id="e-t" style="color:var(--text)">0 / 100</small>
             </div>
             <div class="card"><div><b>Genesis</b><br><small id="gv">0.00</small></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
             <div class="card"><div><b>Unity</b><br><small id="uv">0.00</small></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-            <div class="card" style="background:linear-gradient(to right, #121214, #2a0a3e);"><div><b style="color:var(--purple)">Veo AI</b><br><small id="vv">0.00</small></div><button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo')">COMPUTE</button></div>
+            <div class="card" style="border-left: 4px solid var(--purple);"><div><b style="color:var(--purple)">Veo AI</b><br><small id="vv">0.00</small></div><button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo')">COMPUTE</button></div>
         </div>
 
-        <div id="p-launcher" style="display:none">
+        <div id="p-launcher" class="page">
             <h2 style="text-align:center;">🚀 LAUNCHER</h2>
             <div class="card" style="flex-direction:column; align-items:stretch;">
                 <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
@@ -165,30 +153,30 @@ async def web_ui():
             <div id="token-list"></div>
         </div>
 
-        <div id="p-details" style="display:none;">
-            <button class="btn" onclick="show('launcher')" style="margin-bottom:15px;">← BACK</button>
-            <div id="det-banner" style="height:120px; border-radius:15px; background-size:cover; background-color:#222;"></div>
-            <div style="display:flex; align-items:flex-end; gap:15px; margin-top:-30px; padding:0 15px;">
-                <img id="det-logo" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; background:#222;">
+        <div id="p-details" class="page">
+            <button class="btn" onclick="show('launcher')" style="margin-bottom:15px; background:#222; color:#fff;">← BACK</button>
+            <div id="det-banner" style="height:140px; border-radius:20px; background-size:cover; background-color:#1a1a1c;"></div>
+            <div style="display:flex; align-items:flex-end; gap:15px; margin-top:-40px; padding:0 15px;">
+                <img id="det-logo" style="width:70px; height:70px; border-radius:20px; border:4px solid #000; background:#222;">
                 <div><h2 id="det-name" style="margin:0;"></h2><b id="det-sym" style="color:var(--gold)"></b></div>
             </div>
-            <p id="det-desc" style="padding:15px; color:var(--text); font-size:13px;"></p>
-            <div class="card" style="background:#000; flex-direction:column; align-items:stretch;">
-                <div style="display:flex; justify-content:space-between;">
+            <p id="det-desc" style="padding:15px; color:var(--text); font-size:14px; line-height:1.4;"></p>
+            <div class="card" style="background:#000; flex-direction:column;">
+                <div style="display:flex; justify-content:space-between; width:100%;">
                     <span>Price: <b id="det-price" style="color:var(--green)"></b></span>
                     <span>Holders: <b id="det-holders" style="color:var(--blue)">0</b></span>
                 </div>
-                <button class="btn" style="background:var(--green); color:#fff; margin-top:15px; padding:15px;" onclick="quickBuy(10)">BUY 10 WPT</button>
+                <button class="btn" style="background:var(--green); color:#fff; width:100%; margin-top:15px;" onclick="tg.showAlert('Buying system coming with TON Connect!')">BUY TOKEN</button>
             </div>
         </div>
 
-        <div id="p-profil" style="display:none">
+        <div id="p-profil" class="page">
             <div class="main-card">
-                <div style="font-size:50px;">👤</div>
+                <div style="font-size:60px;">💎</div>
                 <h2 id="prof-name">...</h2>
-                <div id="prof-badge" style="color:var(--gold)">...</div>
+                <div id="prof-badge" style="color:var(--gold); font-weight:bold;">...</div>
             </div>
-            <h4>MY TOKENS</h4>
+            <h4 style="margin-left:10px;">MY WALLET</h4>
             <div id="prof-assets"></div>
         </div>
     </div>
@@ -201,27 +189,46 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        let b64_logo = "", b64_banner = "", activeTokenId = null;
+        let b64_logo = "", b64_banner = "";
 
         async function refresh() {
-            const r = await fetch(`/api/user/${uid}`);
-            const d = await r.json();
-            document.getElementById('tot').innerText = d.score.toFixed(2);
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('jk-v').innerText = d.jackpot.toLocaleString();
-            document.getElementById('on-v').innerText = d.online;
-            document.getElementById('u-badge').innerText = d.badge.toUpperCase();
-            document.getElementById('prof-name').innerText = d.name;
-            document.getElementById('prof-badge').innerText = d.badge.toUpperCase();
-            document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
-            document.getElementById('e-t').innerText = `${d.energy} / ${d.max_energy}`;
+            try {
+                const r = await fetch(`/api/user/${uid}`);
+                const d = await r.json();
+                document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('jk-v').innerText = d.jackpot;
+                document.getElementById('on-v').innerText = d.online;
+                document.getElementById('u-badge').innerText = d.badge.toUpperCase();
+                document.getElementById('prof-name').innerText = d.name;
+                document.getElementById('prof-badge').innerText = d.badge.toUpperCase();
+                document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
+                document.getElementById('e-t').innerText = `${Math.floor(d.energy)} / ${d.max_energy}`;
 
-            let ah = ""; d.assets.forEach(a => {
-                ah += `<div class="card"><span>${a.n} ($${a.s})</span><b>${a.a.toFixed(2)}</b></div>`;
-            });
-            document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444'>No assets</center>";
+                let ah = ""; d.assets.forEach(a => {
+                    ah += `<div class="card"><span>${a.n} ($${a.s})</span><b>${a.a.toFixed(2)}</b></div>`;
+                });
+                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; margin-top:20px;'>No tokens held</center>";
+            } catch(e) {}
+        }
+
+        function show(pageId) {
+            // Masquer toutes les pages
+            document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+            // Afficher la page demandée
+            document.getElementById('p-' + pageId).style.display = 'block';
+            
+            // Gérer l'état de la navigation
+            document.querySelectorAll('.n-i').forEach(nav => nav.classList.remove('active'));
+            const activeNav = document.getElementById('n-' + pageId);
+            if(activeNav) activeNav.classList.add('active');
+
+            // Actions spécifiques
+            if(pageId === 'launcher') loadMarket();
+            refresh();
+            tg.HapticFeedback.impactOccurred('light');
         }
 
         function processFile(type) {
@@ -233,19 +240,18 @@ async def web_ui():
 
         async function deployStars() {
             const name = document.getElementById('tk-name').value;
-            if(!name || !b64_logo) return tg.showAlert("Name and Logo required!");
+            const sym = document.getElementById('tk-sym').value;
+            if(!name || !b64_logo) return tg.showAlert("Logo and Name are required!");
 
-            // 1. Sauvegarder en cache temporaire
             const save = await fetch('/api/launcher/save-pending', {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({
-                    user_id:uid, name:name, symbol:document.getElementById('tk-sym').value,
+                    user_id:uid, name:name, symbol:sym,
                     desc:document.getElementById('tk-desc').value, logo:b64_logo, banner:b64_banner
                 })
             });
             const sData = await save.json();
 
-            // 2. Créer la facture avec le temp_id
             const res = await fetch('/api/launcher/create-invoice', {
                 method:'POST', headers:{'Content-Type':'application/json'},
                 body: JSON.stringify({temp_id: sData.temp_id})
@@ -254,25 +260,29 @@ async def web_ui():
             if(data.ok) tg.openInvoice(data.link, (status) => { if(status==='paid') show('launcher'); });
         }
 
-        async function loadLauncher() {
+        async function loadMarket() {
             const r = await fetch('/api/launcher/list');
             const tokens = await r.json();
             let h = "";
             tokens.forEach(t => {
                 h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                    <div style="display:flex; align-items:center; gap:10px;"><img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;"><b>${t.name}</b></div>
-                    <b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <img src="${t.logo}" style="width:40px;height:40px;border-radius:10px;">
+                        <b>${t.name} <br><small style="color:var(--text)">$${t.sym}</small></b>
+                    </div>
+                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+                </div>`;
             });
-            document.getElementById('token-list').innerHTML = h;
+            document.getElementById('token-list').innerHTML = h || "<center style='color:#444; margin-top:20px;'>Market empty</center>";
         }
 
         async function openToken(t) {
-            activeTokenId = t.id; show('details');
+            show('details');
             document.getElementById('det-banner').style.backgroundImage = `url(${t.banner})`;
             document.getElementById('det-logo').src = t.logo;
             document.getElementById('det-name').innerText = t.name;
             document.getElementById('det-sym').innerText = "$"+t.sym;
-            document.getElementById('det-desc').innerText = t.desc;
+            document.getElementById('det-desc').innerText = t.desc || "Community token launched on WPT.";
             document.getElementById('det-price').innerText = t.price.toFixed(6);
             const res = await fetch(`/api/launcher/activity/${t.id}`);
             const d = await res.json();
@@ -282,27 +292,21 @@ async def web_ui():
         async function mine(t) {
             await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
             refresh();
+            tg.HapticFeedback.impactOccurred('medium');
         }
 
-        function show(p) {
-            ['mine', 'launcher', 'details', 'profil'].forEach(id => {
-                document.getElementById('p-' + id).style.display = (id === p ? 'block' : 'none');
-                if(document.getElementById('n-' + id)) document.getElementById('n-' + id).classList.toggle('active', id === p);
-            });
-            if(p === 'launcher') loadLauncher();
-            refresh();
-        }
-
-        tg.expand(); refresh();
+        tg.expand();
+        refresh();
+        setInterval(refresh, 5000); // Auto-refresh every 5s
     </script>
 </body>
 </html>
 """
 
-# --- BOT HANDLERS ---
+# --- BOT ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
-    await update.message.reply_text("Welcome!", reply_markup=kb)
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 ENTER HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
+    await update.message.reply_text("Welcome back! Ready to manage your tokens?", reply_markup=kb)
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
@@ -310,15 +314,10 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     temp_id = update.message.successful_payment.invoice_payload
     data = pending_tokens.get(temp_id)
-    
     if data:
-        # On déploie RÉELLEMENT le token avec les images complètes
-        database.deploy_token(
-            data['user_id'], data['name'], data['symbol'], data['desc'],
-            data['logo'], data['banner'], "https://web.site", "https://x.com"
-        )
-        del pending_tokens[temp_id] # Nettoyage
-        await update.message.reply_text(f"🚀 {data['name']} is now LIVE!")
+        database.deploy_token(data['user_id'], data['name'], data['symbol'], data['desc'], data['logo'], data['banner'], "", "")
+        del pending_tokens[temp_id]
+        await update.message.reply_text(f"✅ Your token {data['name']} is now live!")
 
 async def main():
     global bot_instance
