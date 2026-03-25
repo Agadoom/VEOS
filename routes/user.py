@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse # <--- Correction ici
+from fastapi.responses import JSONResponse
 import database, config, missions, time
 
 router = APIRouter(prefix="/api/user", tags=["User"])
@@ -16,9 +16,10 @@ async def get_user_data(uid: int):
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, _, _ = missions.get_badge_info(score)
     
-    # FETCH ALL ASSETS (Multiple tokens fix)
     conn = database.get_db_conn()
     c = conn.cursor()
+
+    # 1. FETCH ALL ASSETS
     c.execute("""
         SELECT t.name, t.symbol, a.amount 
         FROM user_community_assets a 
@@ -26,11 +27,24 @@ async def get_user_data(uid: int):
         WHERE a.user_id = %s AND a.amount > 0
     """, (uid,))
     assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
+
+    # 2. COUNT REFERRALS (Nouveau !)
+    c.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (uid,))
+    ref_count = c.fetchone()[0] or 0
+
     c.close()
     conn.close()
     
     return {
-        "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, 
-        "energy": int(current_e), "max_energy": config.MAX_ENERGY, 
-        "score": round(score, 2), "badge": badge, "assets": assets
+        "uid": uid, 
+        "name": r[4], 
+        "g": r[0] or 0, 
+        "u": r[1] or 0, 
+        "v": r[2] or 0, 
+        "energy": int(current_e), 
+        "max_energy": config.MAX_ENERGY, 
+        "score": round(score, 2), 
+        "badge": badge, 
+        "assets": assets,
+        "ref_count": ref_count  # <--- Transmis au Frontend
     }
