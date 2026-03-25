@@ -159,231 +159,120 @@
     <nav class="nav">
     <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
     <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
-    <div onclick="show('wallet')" id="n-wallet" class="n-i">👛</div> <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
+    <div onclick="show('wallet')" id="n-wallet" class="n-i">👛</div> 
+    <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
 </nav>
 
+
     <script>
-        let tg = window.Telegram.WebApp; 
-        const uid = tg.initDataUnsafe.user?.id || 0;
-        let currentTokenId = null;
-        let b64_logo = "", b64_banner = "";
+    let tg = window.Telegram.WebApp; 
+    const uid = tg.initDataUnsafe.user?.id || 0;
+    let currentTokenId = null;
+    let b64_logo = "", b64_banner = "";
 
-        // Core Refresh Logic
-        async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`);
-                const d = await r.json();
-                document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('u-badge').innerText = d.badge.toUpperCase();
-                document.getElementById('prof-name').innerText = d.name;
-                document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
-                document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
-                
-                let ah = ""; 
-                d.assets.forEach(a => { 
-                    ah += `<div class="card"><span>${a.n} ($${a.s})</span><b>${a.a.toFixed(2)}</b></div>`; 
-                });
-                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Your wallet is empty</center>";
-            } catch(e) { console.error("Refresh error", e); }
-        }
+    // --- LOGIQUE DE RAFRAÎCHISSEMENT UNIQUE ---
+    async function refresh() {
+        try {
+            const r = await fetch(`/api/user/${uid}`);
+            const d = await r.json();
 
-        // Mining Logic
-        async function mine(type) {
-            const res = await fetch('/api/mine', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({user_id:uid, token:type})
+            // 1. Éléments de la page MINE
+            if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
+            if(document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toFixed(2);
+            if(document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toFixed(2);
+            if(document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toFixed(2);
+            if(document.getElementById('u-badge')) document.getElementById('u-badge').innerText = d.badge.toUpperCase();
+            
+            // Énergie
+            if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
+            if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
+
+            // 2. Éléments de la page PROFIL
+            if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
+            if(document.getElementById('u-badge-large')) document.getElementById('u-badge-large').innerText = d.badge.toUpperCase() + " CITIZEN";
+            if(document.getElementById('prof-streak')) document.getElementById('prof-streak').innerText = (d.streak || 0) + " Days";
+            
+            // Referral Stats
+            const count = d.ref_count || 0;
+            if(document.getElementById('ref-count')) document.getElementById('ref-count').innerText = count;
+            if(document.getElementById('ref-bonus')) document.getElementById('ref-bonus').innerText = "+" + (count * 500) + " WPT";
+
+            // 3. Éléments de la page WALLET
+            if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
+            
+            let ah = ""; 
+            d.assets.forEach(a => { 
+                ah += `<div class="card">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="background:var(--blue); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px;">$</div>
+                            <span>${a.n} <small style="color:var(--text)">$${a.s}</small></span>
+                        </div>
+                        <b>${a.a.toFixed(2)}</b>
+                       </div>`; 
             });
-            if(res.ok) {
-                tg.HapticFeedback.impactOccurred('light');
-                refresh();
+            if(document.getElementById('prof-assets')) {
+                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>No community tokens yet</center>";
             }
-        }
 
-        // Launcher Logic
-        async function loadMarket() {
-            const r = await fetch('/api/launcher/list');
-            const tokens = await r.json();
-            let h = "";
-            tokens.forEach(t => {
-                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
-                        <b>${t.name}</b>
-                    </div>
-                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-                </div>`;
-            });
-            document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
-        }
+        } catch(e) { console.error("Refresh error", e); }
+    }
 
-        async function openToken(t) {
-            currentTokenId = t.id;
-            show('details');
-            document.getElementById('det-banner').style.backgroundImage = `url(${t.banner})`;
-            document.getElementById('det-logo').src = t.logo;
-            document.getElementById('det-name').innerText = t.name;
-            document.getElementById('det-sym').innerText = "$" + t.sym;
-            document.getElementById('det-price-top').innerText = t.price.toFixed(6);
-            
-            const cRes = await fetch(`/api/launcher/chart/${t.id}`);
-            const cData = await cRes.json();
-            drawChart(cData.points);
-        }
-
-        function drawChart(points) {
-            const poly = document.getElementById('chart-line');
-            const max = Math.max(...points), min = Math.min(...points);
-            let pts = "";
-            points.forEach((p, i) => {
-                const x = (i / (points.length - 1)) * 300;
-                const y = 100 - ((p - min) / (max - min) * 70 + 15);
-                pts += `${x},${y} `;
-            });
-            poly.setAttribute("points", pts);
-        }
-
-        // Buy/Sell Actions
-        async function buyToken() {
-            const res = await fetch('/api/launcher/buy-request', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body: JSON.stringify({user_id:uid, token_id:currentTokenId})
-            });
-            const data = await res.json();
-            if(data.ok) {
-                tg.openInvoice(data.link, (status) => {
-                    if(status === 'paid') { tg.showAlert("Purchase Successful!"); show('profil'); }
-                });
-            } else { tg.showAlert(data.error); }
-        }
-
-        async function sellToken() {
-            const amount = prompt("Amount to sell?");
-            if(!amount || isNaN(amount)) return;
-            const res = await fetch('/api/launcher/sell', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body: JSON.stringify({user_id:uid, token_id:currentTokenId, amount: amount})
-            });
-            const data = await res.json();
-            if(res.ok) {
-                tg.showAlert(`Sold! +${data.gain.toFixed(2)} WPT received.`);
-                show('profil');
-            } else { tg.showAlert(data.error); }
-        }
-
-        // Deployment
-        async function deployToken() {
-            const name = document.getElementById('tk-name').value;
-            const sym = document.getElementById('tk-sym').value;
-            if(!name || !b64_logo) return tg.showAlert("Missing Name or Logo!");
-            
-            // 1. Save pending data
-            const save = await fetch('/api/launcher/save-pending', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body: JSON.stringify({user_id:uid, name:name, symbol:sym, desc:document.getElementById('tk-desc').value, logo:b64_logo, banner:b64_banner})
-            });
-            const sData = await save.json();
-            
-            // 2. Create Invoice
-            const inv = await fetch('/api/launcher/create-invoice', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body: JSON.stringify({temp_id: sData.temp_id})
-            });
-            const iData = await inv.json();
-            
-            if(iData.ok) {
-                tg.openInvoice(iData.link, (status) => {
-                    if(status === 'paid') show('launcher');
-                });
-            }
-        }
-
-        function processFile(type) {
-            const file = document.getElementById('f-' + type).files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                if(type === 'logo') b64_logo = reader.result;
-                else b64_banner = reader.result;
-            };
-            if(file) reader.readAsDataURL(file);
-        }
-
-
-function shareReferral() {
-    const inviteLink = `https://t.me/OWPCsbot?start=${uid}`; // Remplace par le pseudo de ton bot
-    const text = encodeURIComponent("🚀 Join me on WPT Hub! Mine Veo AI and trade community tokens with me. Get 100 WPT bonus!");
-    window.open(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
-}
-
-
-
-
-        // Navigation
-        function show(p) {
-            document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-            document.getElementById('p-' + p).classList.add('active-page');
-            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-            // Map details page to launcher icon
-            const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
-            document.getElementById(navId).classList.add('active');
-            
-            if(p === 'launcher') loadMarket();
+    // --- FONCTIONS ACTIONS ---
+    async function mine(type) {
+        const res = await fetch('/api/mine', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({user_id:uid, token:type})
+        });
+        if(res.ok) {
+            tg.HapticFeedback.impactOccurred('light');
             refresh();
         }
+    }
 
-        function withdrawToken() {
-            tg.showConfirm("Withdraw tokens to external wallet? (Fee: 50 Stars)", (ok) => {
-                if(ok) tg.showAlert("Linking to TON Connect... Coming soon!");
-            });
+    async function claimDaily() {
+        // Appelle la fonction de missions.py
+        const res = await fetch('/api/user/claim-daily', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({user_id:uid})
+        });
+        const data = await res.json();
+        if(res.ok && data.reward > 0) {
+            tg.showAlert(`🔥 Day ${data.streak}! Reward: +${data.reward} WPT`);
+        } else {
+            tg.showAlert("Come back tomorrow for your next reward!");
         }
-
-
-                // Core Refresh Logic
-        async function refresh() {
-            try {
-                const r = await fetch(`/api/user/${uid}`);
-                const d = await r.json();
-                
-                // Stats principales
-                document.getElementById('tot').innerText = d.score.toFixed(2);
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-                document.getElementById('u-badge').innerText = d.badge.toUpperCase();
-                document.getElementById('prof-name').innerText = d.name;
-                
-                // Barre d'énergie
-                document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
-                document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
-                
-                // --- AJOUT POUR LE REFERRAL ---
-                // On affiche le nombre d'amis et on calcule le bonus (500 WPT par ami)
-                const count = d.ref_count || 0;
-                document.getElementById('ref-count').innerText = count;
-                document.getElementById('ref-bonus').innerText = (count * 500).toFixed(0) + " WPT";
-                // ------------------------------
-
-                let ah = ""; 
-                d.assets.forEach(a => { 
-                    ah += `<div class="card"><span>${a.n} ($${a.s})</span><b>${a.a.toFixed(2)}</b></div>`; 
-                });
-                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Your wallet is empty</center>";
-            } catch(e) { console.error("Refresh error", e); }
-        }
-
- 
-
-        // Init
-        tg.expand();
         refresh();
-        setInterval(refresh, 10000); // Auto-refresh every 10s
-    </script>
+    }
+
+    function shareReferral() {
+        const inviteLink = `https://t.me/OWPCsbot?start=${uid}`; 
+        const text = encodeURIComponent("🚀 Join me on WPT Hub! Mine Veo AI and trade community tokens. Get 100 WPT bonus!");
+        window.open(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
+    }
+
+    // --- NAVIGATION ---
+    function show(p) {
+        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+        document.getElementById('p-' + p).classList.add('active-page');
+        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+        
+        const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
+        const navElem = document.getElementById(navId);
+        if(navElem) navElem.classList.add('active');
+        
+        if(p === 'launcher') loadMarket();
+        refresh();
+    }
+
+    // (Garde tes fonctions existantes pour le Market, Deploy, Chart, etc. ici...)
+
+    // --- INIT ---
+    tg.expand();
+    refresh();
+    setInterval(refresh, 10000);
+</script>
+
 </body>
 </html>
