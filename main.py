@@ -98,6 +98,14 @@ async def api_sell_token(request: Request):
 async def api_get_activity(tid: int):
     return database.get_token_activity(tid)
 
+
+
+@app.get("/api/launcher/activity/{tid}")
+async def api_get_activity(tid: int):
+    activity = database.get_token_activity(tid)
+    holders = database.get_token_holders(tid)
+    return {"activity": activity, "holders": holders}
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -190,26 +198,49 @@ async def web_ui():
         <div id="token-list"></div>
     </div>
 
-    <div id="p-token-details" style="display:none;">
+    <    <div id="p-token-details" style="display:none; padding-bottom:150px;">
         <div style="position:relative;">
-            <div id="det-banner" style="height:150px; background-size:cover; background-position:center; background-color:#111;"></div>
-            <button class="btn" onclick="show('launcher')" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.5); color:#fff; border-radius:50%; width:40px; height:40px; padding:0;">←</button>
+            <div id="det-banner" style="height:120px; background-size:cover; background-position:center; background-color:#111;"></div>
+            <button class="btn" onclick="show('launcher')" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:35px; height:35px; padding:0; border:1px solid #444;">←</button>
         </div>
-        <div style="padding:15px; margin-top:-40px;">
-            <img id="det-logo" src="" style="width:80px; height:80px; border-radius:20px; border:4px solid var(--bg); background:#222; object-fit:cover;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-                <h2 id="det-name" style="margin:0;">Name</h2>
-                <div id="det-socials" style="display:flex; gap:15px;"></div>
-            </div>
-            <b id="det-sym" style="color:var(--gold)">$SYM</b>
-            <div class="card" style="margin-top:20px; background:#1a1a1c; flex-direction:column; align-items:stretch;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                    <span>Price: <b id="det-price" style="color:var(--green)">0.00</b></span>
-                    <span>MCAP: <b id="det-mcap">0</b> WPT</span>
+        
+        <div style="padding:15px; margin-top:-30px;">
+            <div style="display:flex; align-items:flex-end; gap:15px;">
+                <img id="det-logo" src="" style="width:70px; height:70px; border-radius:15px; border:3px solid var(--bg); background:#222; object-fit:cover;">
+                <div>
+                    <h2 id="det-name" style="margin:0; font-size:20px;">Name</h2>
+                    <b id="det-sym" style="color:var(--gold); font-size:14px;">$SYM</b>
                 </div>
-                <div class="energy-bar" style="height:12px;"><div id="det-progress" class="energy-fill" style="background:var(--green)"></div></div>
-                <small style="color:var(--text); font-size:10px;">Progress to Listing: <span id="det-perc">0%</span></small>
             </div>
+
+            <div class="card" style="margin-top:15px; background:#000; flex-direction:column; align-items:stretch; border-color:#333;">
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:10px;">
+                    <span>Price: <b id="det-price" style="color:var(--green)">0.00</b></span>
+                    <span>Holders: <b id="det-holders" style="color:var(--blue)">0</b></span>
+                </div>
+                
+                <div style="height:60px; width:100%; background:#0a0a0a; border-radius:8px; margin:5px 0; overflow:hidden; position:relative;">
+                    <svg viewBox="0 0 100 40" preserveAspectRatio="none" style="width:100%; height:100%;">
+                        <path d="M0 35 Q 25 30, 40 20 T 70 25 T 100 5" fill="none" stroke="var(--green)" stroke-width="2" />
+                    </svg>
+                    <div style="position:absolute; top:5px; right:5px; display:flex; gap:5px;">
+                        <span style="font-size:8px; padding:2px 4px; background:#222; border-radius:4px;">1m</span>
+                        <span style="font-size:8px; padding:2px 4px; background:#111; border-radius:4px; color:#555;">5m</span>
+                        <span style="font-size:8px; padding:2px 4px; background:#111; border-radius:4px; color:#555;">15m</span>
+                    </div>
+                </div>
+
+                <div class="energy-bar" style="height:8px; margin-top:10px;"><div id="det-progress" class="energy-fill" style="background:var(--green)"></div></div>
+                <small style="color:var(--text); font-size:9px; margin-top:5px;">Listing Progress: <span id="det-perc">0%</span></small>
+            </div>
+
+            <p id="det-desc" style="color:#888; font-size:12px; line-height:1.4; margin:15px 0;"></p>
+
+            <h4 style="margin:15px 0 8px 0; font-size:13px; color:var(--text); text-transform:uppercase;">Live Trades</h4>
+            <div id="det-activity"></div>
+        </div>
+    </div>
+
             
             <h4 style="margin:20px 0 10px 0; font-size:14px; color:var(--text); border-bottom:1px solid #222; padding-bottom:5px;">LATEST ACTIVITY</h4>
             <div id="det-activity" style="margin-bottom:20px; max-height: 200px; overflow-y: auto;">
@@ -318,34 +349,46 @@ async def web_ui():
             document.getElementById('token-list').innerHTML = html || "<center>No market yet</center>";
         }
 
-        async function openToken(t) {
+                async function openToken(t) {
             activeTokenId = t.id;
             show('token-details');
             
+            // Textes de base
             document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
             document.getElementById('det-logo').src = t.logo;
             document.getElementById('det-name').innerText = t.name;
             document.getElementById('det-sym').innerText = "$" + t.sym;
-            document.getElementById('det-desc').innerText = t.desc || "No description.";
+            document.getElementById('det-desc').innerText = t.desc || "No description provided.";
             document.getElementById('det-price').innerText = t.price.toFixed(6);
-            document.getElementById('det-mcap').innerText = t.mcap.toFixed(1);
             
-            let perc = Math.min((t.mcap / 50000) * 100, 100);
+            // Calculer progression
+            let mcap = t.mcap || 0;
+            let perc = Math.min((mcap / 50000) * 100, 100);
             document.getElementById('det-progress').style.width = perc + "%";
             document.getElementById('det-perc').innerText = perc.toFixed(1) + "%";
 
-            // Load activity
-            const res = await fetch(`/api/launcher/activity/${t.id}?t=${Date.now()}`);
-            if(res.ok) {
-                const activity = await res.json();
-                let actHtml = "";
-                activity.forEach(a => {
-                    const color = a.type === 'BUY' ? 'var(--green)' : 'var(--red)';
-                    actHtml += `<div class="act-item"><span><b style="color:${color}">${a.type}</b> by ${a.name}</span><span>${a.amt.toFixed(2)} WPT</span></div>`;
-                });
-                document.getElementById('det-activity').innerHTML = actHtml || "<small>No activity yet</small>";
-            }
+            // Charger holders et activité
+            try {
+                const res = await fetch(`/api/launcher/activity/${t.id}?t=${Date.now()}`);
+                if(res.ok) {
+                    const data = await res.json();
+                    document.getElementById('det-holders').innerText = data.holders;
+                    
+                    let actHtml = "";
+                    data.activity.forEach(a => {
+                        const color = a.type === 'BUY' ? 'var(--green)' : 'var(--red)';
+                        const timeStr = new Date(a.time * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        actHtml += `
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:8px 0; border-bottom:1px solid #1a1a1c;">
+                            <span><b style="color:${color}">${a.type}</b> by ${a.name}</span>
+                            <span style="color:#555">${timeStr} · <b>${a.amt.toFixed(1)} WPT</b></span>
+                        </div>`;
+                    });
+                    document.getElementById('det-activity').innerHTML = actHtml || "<center style='color:#444; padding:20px;'>No trades yet</center>";
+                }
+            } catch(e) { console.error(e); }
         }
+
 
         async function quickBuy(amt) {
             const res = await fetch('/api/launcher/buy', {
