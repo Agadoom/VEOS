@@ -44,19 +44,17 @@ async def api_get_user(uid: int):
 
 @app.post("/api/mine")
 async def api_mine(request: Request):
-    data = await request.json()
-    uid = data.get("user_id")
-    # On vérifie l'énergie côté serveur avant d'accepter le minage
+    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
     conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("SELECT energy, last_energy_update FROM users WHERE user_id = %s", (uid,))
+    c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
     res = c.fetchone()
-    now = int(time.time())
-    if res:
-        cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now))/60)*config.REGEN_RATE)
+    now_ms = int(time.time()*1000); now_s = now_ms//1000
+    if res and (now_ms - (res[2] or 0)) >= 85:
+        cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
         if cur_e >= 1:
-            database.mine_points(uid, data.get("token"))
-            return {"ok": True, "energy": cur_e - 1}
-    return JSONResponse(status_code=400, content={"error": "Low energy"})
+            c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
+            conn.commit(); c.close(); conn.close(); return {"ok": True}
+    c.close(); conn.close(); return JSONResponse(status_code=400)
 
 # --- WEB UI ---
 
