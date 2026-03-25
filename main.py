@@ -173,16 +173,43 @@ async def web_ui():
         <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
-    <div id="p-launcher" style="display:none">
-        <h3 style="text-align:center; color:var(--gold);">🚀 TOKEN LAUNCHER</h3>
+   <div id="p-launcher" style="display:none">
+    <h3 style="text-align:center; color:var(--gold);">🚀 TOKEN LAUNCHER</h3>
+    
+    <div id="l-step-config">
         <div class="card" style="flex-direction:column; align-items:stretch;">
-            <input type="text" id="tk-name" class="l-input" placeholder="Token Name (ex: Pepe)">
+            <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
             <input type="text" id="tk-sym" class="l-input" placeholder="Symbol (ex: PEPE)">
-            <button class="btn" style="background:var(--gold); width:100%;" onclick="deploy()">DEPLOY NEW TOKEN (1000 WPT)</button>
+            <textarea id="tk-desc" class="l-input" placeholder="Description du projet..."></textarea>
+            <input type="text" id="tk-logo" class="l-input" placeholder="URL du Logo (https://...)">
+            <input type="text" id="tk-banner" class="l-input" placeholder="URL de la Bannière">
+            <input type="text" id="tk-web" class="l-input" placeholder="Site Web (Optionnel)">
+            <input type="text" id="tk-x" class="l-input" placeholder="Lien Twitter / X">
+            <button class="btn" style="background:var(--gold); width:100%;" onclick="openPreview()">VOIR LA PREVIEW</button>
         </div>
-        <h4 style="margin-left:5px;">LIVE TOKENS</h4>
-        <div id="token-list"></div>
     </div>
+
+    <div id="l-step-preview" style="display:none;">
+        <div class="card" style="flex-direction:column; align-items:stretch; padding:0; overflow:hidden;">
+            <div id="pre-banner" style="height:80px; background:#333; background-size:cover;"></div>
+            <div style="padding:15px; margin-top:-30px;">
+                <img id="pre-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid var(--card); background:#222;">
+                <h2 id="pre-name" style="margin:10px 0 0 0;">Name</h2>
+                <small id="pre-sym" style="color:var(--gold)">$SYM</small>
+                <p id="pre-desc" style="font-size:12px; color:var(--text);">Description...</p>
+                <div id="pre-links" style="font-size:10px; display:flex; gap:10px;"></div>
+            </div>
+            <div style="padding:10px; display:flex; gap:10px;">
+                <button class="btn" style="flex:1; background:#333; color:#fff;" onclick="backToConfig()">MODIFIER</button>
+                <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="deploy()">PAYER 1000 WPT & LANCER</button>
+            </div>
+        </div>
+    </div>
+
+    <h4 style="margin:20px 0 10px 5px;">LIVE TOKENS</h4>
+    <div id="token-list"></div>
+</div>
+
 
     <div id="p-rank" style="display:none">
         <h3 style="text-align:center;">🏆 WORLD RANKING</h3>
