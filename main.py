@@ -89,9 +89,17 @@ async def api_buy_token(request: Request):
 
 @app.post("/api/launcher/sell")
 async def api_sell_token(request: Request):
-    # Cette route nécessite d'ajouter database.sell_token(uid, token_id, amount) dans database.py
     data = await request.json()
-    return {"ok": False, "error": "Systeme de vente en cours de déploiement"}
+    uid = data.get("user_id")
+    tid = data.get("token_id")
+    
+    # On appelle la fonction database
+    success, msg = database.sell_token(uid, tid) 
+    
+    if success:
+        return {"ok": True, "message": msg}
+    return JSONResponse(status_code=400, content={"error": msg})
+
 
 # --- WEB UI ---
 
@@ -329,7 +337,32 @@ async def web_ui():
             else { const e = await res.json(); tg.showAlert(e.error); }
         }
 
-        function sellToken() { tg.showAlert("Systeme de vente bientôt disponible !"); }
+        async function sellToken() {
+    if(!activeTokenId) return;
+    
+    // Demander confirmation car on vend TOUT le solde de ce token
+    if(!confirm("Voulez-vous vendre tous vos tokens pour récupérer des WPT ?")) return;
+
+    const res = await fetch('/api/launcher/sell', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            user_id: uid,
+            token_id: activeTokenId
+        })
+    });
+
+    const data = await res.json();
+    if(res.ok) {
+        tg.HapticFeedback.notificationOccurred('success');
+        tg.showAlert(data.message);
+        show('launcher'); // Retour au market
+        refresh(); // Update les balances WPT
+    } else {
+        tg.showAlert(data.error);
+    }
+}
+
 
         async function mine(t) {
             const now = Date.now(); if(now - lastClick < 85) return; lastClick = now;
