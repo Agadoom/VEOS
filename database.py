@@ -20,6 +20,7 @@ def init_db_structure():
             last_energy_update INTEGER,
             last_click_time BIGINT,
             streak INTEGER DEFAULT 0
+            referrer_id BIGINT
         )""")
 
         # Table des tokens communautaires
@@ -140,3 +141,22 @@ def buy_token(uid, token_id, qty):
         conn.rollback(); return False
     finally:
         c.close(); conn.close()
+
+
+def add_referral_reward(new_user_id, referrer_id):
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        # On vérifie si le parrain existe
+        c.execute("SELECT user_id FROM users WHERE user_id = %s", (referrer_id,))
+        if c.fetchone():
+            # Récompense : 500 WPT pour le parrain, 100 WPT pour le nouvel ami
+            c.execute("UPDATE users SET p_genesis = p_genesis + 500 WHERE user_id = %s", (referrer_id,))
+            c.execute("UPDATE users SET p_genesis = p_genesis + 100, referrer_id = %s WHERE user_id = %s", (referrer_id, new_user_id))
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Referral Error: {e}")
+    finally:
+        c.close(); conn.close()
+    return False
+
