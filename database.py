@@ -31,6 +31,16 @@ def init_db_structure():
         amount DOUBLE PRECISION DEFAULT 0,
         PRIMARY KEY (user_id, token_id)
     )""")
+
+c.execute("""CREATE TABLE IF NOT EXISTS token_activity (
+    id SERIAL PRIMARY KEY,
+    token_id INTEGER,
+    user_id BIGINT,
+    user_name TEXT,
+    type TEXT, -- 'BUY' ou 'SELL'
+    amount_wpt DOUBLE PRECISION,
+    created_at INTEGER
+)""")
         conn.commit()
     except Exception as e: print(f"DB Error: {e}")
     finally: c.close(); conn.close()
@@ -174,6 +184,9 @@ def buy_token(uid, token_id, amount_wpt):
         c.execute("""INSERT INTO user_portfolio (user_id, token_id, amount) VALUES (%s, %s, %s)
                      ON CONFLICT (user_id, token_id) DO UPDATE SET amount = user_portfolio.amount + %s""",
                   (uid, token_id, tokens_bought, tokens_bought))
+
+c.execute("INSERT INTO token_activity (token_id, user_id, user_name, type, amount_wpt, created_at) VALUES (%s, %s, %s, %s, %s, %s)", 
+#           (token_id, uid, user_name, 'BUY', amount, int(time.time())))
         
         conn.commit()
         return True, "Achat validé !"
@@ -217,7 +230,8 @@ def sell_token(uid, token_id, amount_to_sell=None):
         new_price = max(0.00001, current_price * 0.99) 
         new_mcap = max(0, t_info[1] - gain_wpt)
         c.execute("UPDATE community_tokens SET price = %s, mcap = %s WHERE id = %s", (new_price, new_mcap, token_id))
-        
+        c.execute("INSERT INTO token_activity (token_id, user_id, user_name, type, amount_wpt, created_at) VALUES (%s, %s, %s, %s, %s, %s)", 
+#           (token_id, uid, user_name, 'BUY', amount, int(time.time())))
         conn.commit()
         return True, f"Vendu ! +{round(gain_wpt, 2)} WPT"
     except Exception as e:
