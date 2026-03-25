@@ -16,6 +16,19 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # Variable globale pour le bot
 bot_instance = None
 
+# --- HELPERS ---
+def get_network_stats():
+    try:
+        conn = database.get_db_conn(); c = conn.cursor()
+        now = int(time.time())
+        c.execute("SELECT COUNT(*) FROM users WHERE last_energy_update > %s", (now - 300,))
+        online = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM users")
+        total = c.fetchone()[0]
+        c.close(); conn.close()
+        return (online if online > 0 else 1), total
+    except: return 1, 1
+
 # --- API ROUTES ---
 
 @app.get("/api/user/{uid}")
@@ -27,42 +40,67 @@ async def api_get_user(uid: int):
     current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * config.REGEN_RATE)
     score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
     badge, _, _ = missions.get_badge_info(score)
+    
+    # Récupérer les assets du profil
+    conn = database.get_db_conn(); c = conn.cursor()
+    c.execute("SELECT t.name, t.symbol, a.amount FROM user_community_assets a JOIN community_tokens t ON a.token_id = t.id WHERE a.user_id = %s AND a.amount > 0", (uid,))
+    assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
+    c.close(); conn.close()
+
     return {
         "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0,
         "energy": int(current_e), "max_energy": config.MAX_ENERGY, "score": round(score, 2),
-        "badge": badge
+        "badge": badge, "assets": assets
     }
+
+@app.post("/api/mine")
+async def api_mine(request: Request):
+    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
+    # Utilisation de la logique de mine avec énergie
+    conn = database.get_db_conn(); c = conn.cursor()
+    try:
+        c.execute("SELECT energy, last_energy_update FROM users WHERE user_id = %s", (uid,))
+        res = c.fetchone()
+        now = int(time.time())
+        if res:
+            cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now - (res[1] or now))/60)*config.REGEN_RATE)
+            if cur_e >= 1:
+                c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s WHERE user_id=%s", (cur_e-1, now, uid))
+                conn.commit(); return {"ok": True}
+        return JSONResponse(status_code=400, content={"error": "No energy"})
+    finally: c.close(); conn.close()
+
+@app.get("/api/launcher/list")
+async def api_list_tokens():
+    return database.get_community_tokens()
+
+@app.get("/api/launcher/activity/{tid}")
+async def api_get_activity(tid: int):
+    return {"activity": database.get_token_activity(tid), "holders": database.get_token_holders(tid)}
 
 @app.post("/api/launcher/create-invoice")
 async def api_create_invoice(request: Request):
     data = await request.json()
     uid = data.get("user_id")
-    # On crée une référence unique pour le paiement (évite le payload trop lourd)
-    # Dans un vrai projet, on stockerait 'data' en DB temporaire ici.
-    # Pour l'exemple, on passe juste l'UID et le NOM (court).
-    
+    # On génère un payload simple pour identifier le paiement
     payload = f"deploy_{uid}_{int(time.time())}"
-    
     try:
         link = await bot_instance.bot.create_invoice_link(
             title=f"Deploy {data.get('name')[:15]}",
-            description="Fee for launching your community token",
+            description=f"Launch fee for ${data.get('symbol')}",
             payload=payload,
-            provider_token="", 
-            currency="XTR",
+            provider_token="", currency="XTR",
             prices=[LabeledPrice("Launch Fee", config.DEPLOY_FEE_STARS)]
         )
         return {"ok": True, "link": link}
     except Exception as e:
-        print(f"Invoice Error: {e}")
-        return JSONResponse(status_code=400, content={"error": "Check bot permissions or Stars config"})
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
-@app.post("/api/mine")
-async def api_mine(request: Request):
-    data = await request.json(); uid, t = data.get("user_id"), data.get("token")
-    # Logique de mine simplifiée pour le code complet
-    database.mine_points(uid, t)
-    return {"ok": True}
+@app.post("/api/launcher/buy")
+async def api_buy_token(request: Request):
+    data = await request.json()
+    success, msg = database.buy_token(data.get("user_id"), data.get("token_id"), float(data.get("amount", 10)))
+    return {"ok": success, "error": msg if not success else None}
 
 # --- WEB UI ---
 
@@ -76,62 +114,79 @@ async def web_ui():
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --green: #34C759; --red: #FF3B30; --text: #8E8E8E; }
-        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 120px; overflow-x: hidden; }
         .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; border: 1px solid #1c1c1e; }
-        .btn { background: #FFF; color: #000; border: none; padding: 12px 18px; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); padding: 12px 25px; border-radius: 40px; display: flex; gap: 25px; border: 1px solid #333; z-index: 1000; }
-        .n-i { font-size: 20px; opacity: 0.3; }
-        .n-i.active { opacity: 1; color: var(--gold); }
+        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.95); padding: 12px 25px; border-radius: 40px; display: flex; gap: 30px; border: 1px solid #333; z-index: 1000; backdrop-filter: blur(10px); }
+        .n-i { font-size: 22px; opacity: 0.3; transition: 0.3s; }
+        .n-i.active { opacity: 1; color: var(--gold); transform: scale(1.1); }
         .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 12px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
-        #det-banner { height: 120px; background-size: cover; border-radius: 15px; background-color: #222; }
+        .energy-bar { background: #222; height: 6px; border-radius: 3px; margin: 10px 0; overflow: hidden; }
+        .energy-fill { background: var(--gold); height: 100%; width: 0%; transition: 0.3s; }
     </style>
 </head>
 <body>
+
     <div id="p-mine">
-        <div style="text-align:center; padding:20px;">
-            <small id="u-badge" style="color:var(--gold)"></small>
-            <h1 id="tot" style="font-size:40px; margin:5px 0;">0.00</h1>
+        <div style="text-align:center; padding:30px 0;">
+            <small id="u-badge" style="color:var(--gold); letter-spacing:2px;"></small>
+            <h1 id="tot" style="font-size:45px; margin:10px 0;">0.00</h1>
+            <div class="energy-bar"><div id="e-f" class="energy-fill"></div></div>
+            <small id="e-t" style="color:var(--text)">Energy: 0/100</small>
         </div>
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Genesis Points</span><button class="btn" onclick="mine('genesis')">MINE</button>
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div><b>Genesis</b><br><small id="gv" style="color:var(--green)">0.00</small></div>
+                <button class="btn" onclick="mine('genesis')">MINE</button>
+            </div>
+        </div>
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div><b>Unity</b><br><small id="uv" style="color:var(--blue)">0.00</small></div>
+                <button class="btn" onclick="mine('unity')">SYNC</button>
+            </div>
         </div>
     </div>
 
     <div id="p-launcher" style="display:none">
-        <h3 style="text-align:center;">🚀 LAUNCHER</h3>
+        <h3 style="text-align:center;">🚀 TOKEN LAUNCHER</h3>
         <div class="card">
             <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
-            <input type="text" id="tk-sym" class="l-input" placeholder="Symbol">
-            <textarea id="tk-desc" class="l-input" placeholder="Description"></textarea>
-            <button class="btn" style="width:100%; background:var(--gold)" onclick="deployStars()">LAUNCH WITH STARS</button>
+            <input type="text" id="tk-sym" class="l-input" placeholder="Symbol (ex: BTC)">
+            <textarea id="tk-desc" class="l-input" placeholder="Description..."></textarea>
+            <button class="btn" style="width:100%; background:var(--gold);" onclick="deployStars()">LAUNCH (★ STARS)</button>
         </div>
+        <h4 style="margin:20px 0 10px 5px;">MARKET</h4>
         <div id="token-list"></div>
     </div>
 
-    <div id="p-details" style="display:none">
-        <button class="btn" style="background:#222; color:#fff; margin-bottom:10px;" onclick="show('launcher')">← BACK</button>
-        <div id="det-banner"></div>
-        <div class="card" style="margin-top:10px;">
-            <h2 id="det-name" style="margin:0;"></h2>
-            <p id="det-desc" style="color:var(--text)"></p>
-            <div style="display:flex; justify-content:space-between;">
-                <span>Holders: <b id="det-holders">0</b></span>
-                <span style="color:var(--green)" id="det-price">0.00</span>
+    <div id="p-details" style="display:none; padding-bottom:100px;">
+        <div style="position:relative; height:120px; background:#222; border-radius:15px; background-size:cover;" id="det-banner">
+            <button class="btn" onclick="show('launcher')" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.5); color:#fff; border-radius:50%; width:30px; height:30px; padding:0;">←</button>
+        </div>
+        <div style="padding:10px;">
+            <h2 id="det-name" style="margin:5px 0;"></h2>
+            <p id="det-desc" style="font-size:12px; color:var(--text);"></p>
+            <div class="card" style="background:#000;">
+                <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:10px;">
+                    <span>Price: <b id="det-price" style="color:var(--green)"></b></span>
+                    <span>Holders: <b id="det-holders" style="color:var(--blue)">0</b></span>
+                </div>
+                <svg viewBox="0 0 100 30" style="width:100%; height:50px;"><path d="M0 25 Q 20 20, 40 5 T 80 15 T 100 2" fill="none" stroke="var(--green)" stroke-width="2"/></svg>
             </div>
+            <button class="btn" style="width:100%; background:var(--green); color:#fff; padding:15px;" onclick="quickBuy(10)">BUY 10 WPT</button>
         </div>
     </div>
 
     <div id="p-profil" style="display:none">
         <h3 style="text-align:center;">👤 MY PROFILE</h3>
         <div class="card" style="text-align:center;">
-            <div style="font-size:50px;">👤</div>
-            <h2 id="prof-name">User</h2>
-            <div id="prof-badge" style="color:var(--gold)">NOVICE</div>
+            <div style="font-size:40px; margin-bottom:10px;">💎</div>
+            <h2 id="prof-name" style="margin:0;">User</h2>
+            <small id="prof-badge" style="color:var(--gold)"></small>
         </div>
-        <div class="card">
-            <h4>My Assets</h4>
-            <div id="prof-assets"><small style="color:#555">No tokens held yet</small></div>
-        </div>
+        <h4 style="margin:20px 0 10px 5px;">MY TOKENS</h4>
+        <div id="prof-assets"></div>
     </div>
 
     <nav class="nav">
@@ -142,63 +197,83 @@ async def web_ui():
 
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
-        
+        let activeTokenId = null;
+
         async function refresh() {
             const r = await fetch(`/api/user/${uid}`);
             const d = await r.json();
             document.getElementById('tot').innerText = d.score.toFixed(2);
-            document.getElementById('u-badge').innerText = d.badge;
-            document.getElementById('prof-name').innerText = d.name || "User";
+            document.getElementById('gv').innerText = d.g.toFixed(2);
+            document.getElementById('uv').innerText = d.u.toFixed(2);
+            document.getElementById('u-badge').innerText = d.badge.toUpperCase();
+            document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
+            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
+            
+            // Profil
+            document.getElementById('prof-name').innerText = d.name;
             document.getElementById('prof-badge').innerText = d.badge;
+            let ah = ""; d.assets.forEach(a => {
+                ah += `<div class="card"><span>${a.n} ($${a.s})</span><b>${a.a.toFixed(2)}</b></div>`;
+            });
+            document.getElementById('prof-assets').innerHTML = ah || "<small style='color:#444'>No assets</small>";
+        }
+
+        async function mine(t) {
+            const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
+            if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
 
         async function deployStars() {
             const name = document.getElementById('tk-name').value;
-            if(!name) return tg.showAlert("Name required!");
-            
+            if(!name) return tg.showAlert("Name required");
             const res = await fetch('/api/launcher/create-invoice', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, name: name, symbol: document.getElementById('tk-sym').value, desc: document.getElementById('tk-desc').value })
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({user_id:uid, name:name, symbol:document.getElementById('tk-sym').value, desc:document.getElementById('tk-desc').value})
             });
             const data = await res.json();
-            if(data.ok) {
-                tg.openInvoice(data.link, function(status) {
-                    if(status === 'paid') tg.showAlert("Success! Token will be listed.");
-                });
-            } else { tg.showAlert(data.error); }
-        }
-
-        async function openToken(t) {
-            show('details');
-            document.getElementById('det-name').innerText = t.name;
-            document.getElementById('det-desc').innerText = t.desc;
-            document.getElementById('det-price').innerText = t.price.toFixed(6);
-            // On peut appeler l'API pour les holders ici
-        }
-
-        async function mine(t) {
-            await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
-            refresh();
-        }
-
-        function show(p) {
-            ['mine', 'launcher', 'details', 'profil'].forEach(id => {
-                document.getElementById('p-' + id).style.display = (id === p ? 'block' : 'none');
-                if(document.getElementById('n-' + id)) document.getElementById('n-' + id).classList.toggle('active', id === p);
-            });
-            if(p === 'launcher') loadLauncher();
-            refresh();
+            if(data.ok) tg.openInvoice(data.link, (status) => { if(status==='paid') show('launcher'); });
         }
 
         async function loadLauncher() {
             const r = await fetch('/api/launcher/list');
             const tokens = await r.json();
-            let html = "";
+            let h = "";
             tokens.forEach(t => {
-                html += `<div class="card" onclick='openToken(${JSON.stringify(t)})'><b>${t.name}</b> <span>${t.price.toFixed(6)}</span></div>`;
+                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})' style="display:flex; justify-content:space-between;">
+                    <b>${t.name} <small style="color:#555">$${t.sym}</small></b>
+                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+                </div>`;
             });
-            document.getElementById('token-list').innerHTML = html;
+            document.getElementById('token-list').innerHTML = h;
+        }
+
+        async function openToken(t) {
+            activeTokenId = t.id;
+            show('details');
+            document.getElementById('det-name').innerText = t.name;
+            document.getElementById('det-desc').innerText = t.desc;
+            document.getElementById('det-price').innerText = t.price.toFixed(6);
+            const res = await fetch(`/api/launcher/activity/${t.id}`);
+            const data = await res.json();
+            document.getElementById('det-holders').innerText = data.holders;
+        }
+
+        async function quickBuy(amt) {
+            const res = await fetch('/api/launcher/buy', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({user_id:uid, token_id:activeTokenId, amount:amt})
+            });
+            if(res.ok) { tg.showAlert("Bought!"); refresh(); }
+        }
+
+        function show(p) {
+            ['mine', 'launcher', 'details', 'profil'].forEach(id => {
+                document.getElementById('p-' + id).style.display = (id === p ? 'block' : 'none');
+                const nav = document.getElementById('n-' + id);
+                if(nav) nav.classList.toggle('active', id === p);
+            });
+            if(p === 'launcher') loadLauncher();
+            refresh();
         }
 
         tg.expand(); refresh();
@@ -207,16 +282,16 @@ async def web_ui():
 </html>
 """
 
+# --- BOT ---
 async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
-    await update.message.reply_text("Welcome!", reply_markup=kb)
+    await update.message.reply_text("Welcome to WPT HUB!", reply_markup=kb)
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
 
 async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Ici tu enregistres le token final en DB
-    await update.message.reply_text("✅ Payment Received! Token is live.")
+    await update.message.reply_text("✅ Payment Success! Your token is now live.")
 
 async def main():
     global bot_instance
