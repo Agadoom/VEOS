@@ -9,9 +9,6 @@ def get_db_conn():
 def init_db_structure():
     conn = get_db_conn(); c = conn.cursor()
     try:
-        # Table Users... (inchangée)
-        
-        # On recrée la table Community Tokens avec les nouveaux champs
         c.execute("DROP TABLE IF EXISTS community_tokens CASCADE") 
         c.execute("""CREATE TABLE community_tokens (
             id SERIAL PRIMARY KEY, 
@@ -19,8 +16,8 @@ def init_db_structure():
             name TEXT NOT NULL, 
             symbol TEXT NOT NULL, 
             description TEXT,
-            logo_url TEXT,
-            banner_url TEXT,
+            logo_url TEXT,   -- Stockera le Base64 du logo
+            banner_url TEXT, -- Stockera le Base64 de la bannière
             website TEXT,
             twitter_x TEXT,
             price DOUBLE PRECISION DEFAULT 0.0001, 
@@ -29,9 +26,27 @@ def init_db_structure():
             created_at BIGINT
         )""")
         conn.commit()
-        print("✅ DB Structure Reset & Updated with Social Fields")
     except Exception as e: print(f"DB Error: {e}")
     finally: c.close(); conn.close()
+
+# N'oublie pas de mettre à jour la fonction de déploiement pour accepter ces nouveaux champs
+def deploy_token(uid, name, symbol, desc, logo, banner, web, x):
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
+        bal = c.fetchone()[0]
+        if bal < 1000: return False, "1000 WPT requis"
+
+        now = int(time.time())
+        c.execute("UPDATE users SET p_genesis = p_genesis - 1000 WHERE user_id = %s", (uid,))
+        c.execute("""INSERT INTO community_tokens (creator_id, name, symbol, description, logo_url, banner_url, website, twitter_x, created_at) 
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""", 
+                  (uid, name, symbol, desc, logo, banner, web, x, now))
+        conn.commit()
+        return True, "Token lancé !"
+    except Exception as e: return False, str(e)
+    finally: c.close(); conn.close()
+
 
 
 # --- FONCTIONS UTILISATEURS ---
