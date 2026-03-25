@@ -325,6 +325,42 @@ function shareReferral() {
             });
         }
 
+
+                // Core Refresh Logic
+        async function refresh() {
+            try {
+                const r = await fetch(`/api/user/${uid}`);
+                const d = await r.json();
+                
+                // Stats principales
+                document.getElementById('tot').innerText = d.score.toFixed(2);
+                document.getElementById('gv').innerText = d.g.toFixed(2);
+                document.getElementById('uv').innerText = d.u.toFixed(2);
+                document.getElementById('vv').innerText = d.v.toFixed(2);
+                document.getElementById('u-badge').innerText = d.badge.toUpperCase();
+                document.getElementById('prof-name').innerText = d.name;
+                
+                // Barre d'énergie
+                document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
+                document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
+                
+                // --- AJOUT POUR LE REFERRAL ---
+                // On affiche le nombre d'amis et on calcule le bonus (500 WPT par ami)
+                const count = d.ref_count || 0;
+                document.getElementById('ref-count').innerText = count;
+                document.getElementById('ref-bonus').innerText = (count * 500).toFixed(0) + " WPT";
+                // ------------------------------
+
+                let ah = ""; 
+                d.assets.forEach(a => { 
+                    ah += `<div class="card"><span>${a.n} ($${a.s})</span><b>${a.a.toFixed(2)}</b></div>`; 
+                });
+                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Your wallet is empty</center>";
+            } catch(e) { console.error("Refresh error", e); }
+        }
+
+ 
+
         // Init
         tg.expand();
         refresh();
