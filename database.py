@@ -84,21 +84,20 @@ def get_total_network_score():
 def get_community_tokens():
     conn = get_db_conn(); c = conn.cursor()
     try:
-        # On récupère l'ID, le Nom, le Symbole, le PRIX, le MCAP et le LOGO
-        c.execute("SELECT id, name, symbol, price, mcap, logo_url FROM community_tokens ORDER BY mcap DESC")
+        c.execute("""SELECT id, name, symbol, price, mcap, logo_url, 
+                     banner_url, description, website, twitter_x 
+                     FROM community_tokens ORDER BY mcap DESC""")
         res = c.fetchall()
         return [
             {
-                "id": r[0], 
-                "name": r[1], 
-                "sym": r[2], 
-                "price": r[3], 
-                "mcap": r[4], 
-                "logo": r[5] # Le Base64 du logo
+                "id": r[0], "name": r[1], "sym": r[2], "price": r[3], 
+                "mcap": r[4], "logo": r[5], "banner": r[6], 
+                "desc": r[7], "web": r[8], "x": r[9]
             } for r in res
         ]
     finally:
         c.close(); conn.close()
+
 
 
 def deploy_token(uid, name, symbol, desc, logo, banner, web, x):
