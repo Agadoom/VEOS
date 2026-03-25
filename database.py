@@ -20,7 +20,8 @@ def init_db_structure():
             last_energy_update INTEGER,
             last_click_time BIGINT,
             streak INTEGER DEFAULT 0,
-            referrer_id BIGINT
+            referrer_id BIGINT,
+            last_login_date TXT
         )""")
 
         # 2. SÉCURITÉ : Ajouter la colonne referrer_id si elle n'existe pas encore
