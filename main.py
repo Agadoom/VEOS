@@ -90,22 +90,13 @@ async def api_buy_token(request: Request):
 @app.post("/api/launcher/sell")
 async def api_sell_token(request: Request):
     data = await request.json()
-    uid = data.get("user_id")
-    tid = data.get("token_id")
-    
-    # On appelle la fonction database
-    success, msg = database.sell_token(uid, tid) 
-    
-    if success:
-        return {"ok": True, "message": msg}
+    success, msg = database.sell_token(data.get("user_id"), data.get("token_id")) 
+    if success: return {"ok": True, "message": msg}
     return JSONResponse(status_code=400, content={"error": msg})
-
-
 
 @app.get("/api/launcher/activity/{tid}")
 async def api_get_activity(tid: int):
     return database.get_token_activity(tid)
-
 
 # --- WEB UI ---
 
@@ -139,6 +130,9 @@ async def web_ui():
         .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 12px; width: 100%; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; }
         .preview-banner { height: 120px; background: #222; background-size: cover; background-position: center; border-radius: 15px 15px 0 0; }
         .preview-logo { width: 70px; height: 70px; border-radius: 20px; border: 4px solid var(--card); margin-top: -35px; margin-left: 15px; background: #333; object-fit: cover; }
+        
+        /* Activity List Style */
+        .act-item { display: flex; justify-content: space-between; font-size: 11px; padding: 10px 0; border-bottom: 1px solid #1c1c1e; }
     </style>
 </head>
 <body>
@@ -216,9 +210,10 @@ async def web_ui():
                 <div class="energy-bar" style="height:12px;"><div id="det-progress" class="energy-fill" style="background:var(--green)"></div></div>
                 <small style="color:var(--text); font-size:10px;">Progress to Listing: <span id="det-perc">0%</span></small>
             </div>
-
-        <h4 style="margin:20px 0 10px 0; font-size:14px; color:var(--text); border-bottom:1px solid #222; padding-bottom:5px;">LATEST ACTIVITY</h4>
-        <div id="det-activity" style="margin-bottom:100px; max-height: 200px; overflow-y: auto;">
+            
+            <h4 style="margin:20px 0 10px 0; font-size:14px; color:var(--text); border-bottom:1px solid #222; padding-bottom:5px;">LATEST ACTIVITY</h4>
+            <div id="det-activity" style="margin-bottom:20px; max-height: 200px; overflow-y: auto;">
+                <small style="color:#444">Loading activity...</small>
             </div>
 
             <p id="det-desc" style="color:#ccc; font-size:14px; line-height:1.5;"></p>
@@ -323,13 +318,10 @@ async def web_ui():
             document.getElementById('token-list').innerHTML = html || "<center>No market yet</center>";
         }
 
-                async function openToken(t) {
+        async function openToken(t) {
             activeTokenId = t.id;
-            // On affiche la page de détails
-            document.getElementById('p-launcher').style.display = 'none';
-            document.getElementById('p-token-details').style.display = 'block';
+            show('token-details');
             
-            // Remplissage des infos de base
             document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
             document.getElementById('det-logo').src = t.logo;
             document.getElementById('det-name').innerText = t.name;
@@ -338,34 +330,22 @@ async def web_ui():
             document.getElementById('det-price').innerText = t.price.toFixed(6);
             document.getElementById('det-mcap').innerText = t.mcap.toFixed(1);
             
-            // Barre de progression
             let perc = Math.min((t.mcap / 50000) * 100, 100);
             document.getElementById('det-progress').style.width = perc + "%";
             document.getElementById('det-perc').innerText = perc.toFixed(1) + "%";
-            
-            // Chargement de l'activité en temps réel
-            try {
-                const res = await fetch(`/api/launcher/activity/${t.id}?t=${Date.now()}`);
+
+            // Load activity
+            const res = await fetch(`/api/launcher/activity/${t.id}?t=${Date.now()}`);
+            if(res.ok) {
                 const activity = await res.json();
                 let actHtml = "";
                 activity.forEach(a => {
                     const color = a.type === 'BUY' ? 'var(--green)' : 'var(--red)';
-                    const icon = a.type === 'BUY' ? '🚀' : '📉';
-                    actHtml += `
-                    <div style="display:flex; justify-content:space-between; font-size:11px; padding:10px 0; border-bottom:1px solid #1c1c1e;">
-                        <span><b style="color:${color}">${icon} ${a.type}</b> by ${a.name}</span>
-                        <span style="font-weight:bold;">${a.amt.toFixed(2)} WPT</span>
-                    </div>`;
+                    actHtml += `<div class="act-item"><span><b style="color:${color}">${a.type}</b> by ${a.name}</span><span>${a.amt.toFixed(2)} WPT</span></div>`;
                 });
-                document.getElementById('det-activity').innerHTML = actHtml || "<center style='color:#555; padding:20px;'>No activity yet</center>";
-            } catch(e) {
-                console.error("Erreur activité:", e);
+                document.getElementById('det-activity').innerHTML = actHtml || "<small>No activity yet</small>";
             }
         }
-
-    document.getElementById('det-activity').innerHTML = actHtml || "<small>No activity yet</small>";
-}
-
 
         async function quickBuy(amt) {
             const res = await fetch('/api/launcher/buy', {
@@ -377,31 +357,20 @@ async def web_ui():
         }
 
         async function sellToken() {
-    if(!activeTokenId) return;
-    
-    // Demander confirmation car on vend TOUT le solde de ce token
-    if(!confirm("Voulez-vous vendre tous vos tokens pour récupérer des WPT ?")) return;
-
-    const res = await fetch('/api/launcher/sell', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            user_id: uid,
-            token_id: activeTokenId
-        })
-    });
-
-    const data = await res.json();
-    if(res.ok) {
-        tg.HapticFeedback.notificationOccurred('success');
-        tg.showAlert(data.message);
-        show('launcher'); // Retour au market
-        refresh(); // Update les balances WPT
-    } else {
-        tg.showAlert(data.error);
-    }
-}
-
+            if(!activeTokenId) return;
+            if(!confirm("Sell ALL of your tokens for WPT?")) return;
+            const res = await fetch('/api/launcher/sell', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_id: uid, token_id: activeTokenId})
+            });
+            const data = await res.json();
+            if(res.ok) {
+                tg.HapticFeedback.notificationOccurred('success');
+                tg.showAlert(data.message);
+                show('launcher');
+            } else { tg.showAlert(data.error); }
+        }
 
         async function mine(t) {
             const now = Date.now(); if(now - lastClick < 85) return; lastClick = now;
@@ -424,8 +393,6 @@ async def web_ui():
     </script>
 </body>
 </html>
-"""
-
 """
 
 # --- BOT LAUNCH ---
