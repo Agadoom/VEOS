@@ -176,13 +176,32 @@
     let currentTokenId = null;
     let b64_logo = "", b64_banner = "";
 
-    // --- LOGIQUE DE RAFRAÎCHISSEMENT UNIQUE ---
+    // --- 1. SYSTÈME DE NAVIGATION UNIQUE ---
+    function show(p) {
+        // Switch de pages
+        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+        document.getElementById('p-' + p).classList.add('active-page');
+        
+        // Update icônes Navigation
+        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+        const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
+        const navElem = document.getElementById(navId);
+        if(navElem) navElem.classList.add('active');
+        
+        // Chargements spécifiques
+        if(p === 'launcher') loadMarket();
+        if(p === 'profil') loadLeaderboard();
+        
+        refresh(); // Update les balances
+    }
+
+    // --- 2. RAFRAÎCHISSEMENT DES DONNÉES ---
     async function refresh() {
         try {
             const r = await fetch(`/api/user/${uid}`);
             const d = await r.json();
 
-            // 1. Éléments de la page MINE
+            // Stats page Mine
             if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
             if(document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toFixed(2);
             if(document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toFixed(2);
@@ -193,17 +212,16 @@
             if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
             if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
 
-            // 2. Éléments de la page PROFIL
+            // Stats page Profil
             if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
             if(document.getElementById('u-badge-large')) document.getElementById('u-badge-large').innerText = d.badge.toUpperCase() + " CITIZEN";
             if(document.getElementById('prof-streak')) document.getElementById('prof-streak').innerText = (d.streak || 0) + " Days";
             
-            // Referral Stats
             const count = d.ref_count || 0;
             if(document.getElementById('ref-count')) document.getElementById('ref-count').innerText = count;
             if(document.getElementById('ref-bonus')) document.getElementById('ref-bonus').innerText = "+" + (count * 500) + " WPT";
 
-            // 3. Éléments de la page WALLET
+            // Stats page Wallet
             if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
             
             let ah = ""; 
@@ -217,109 +235,112 @@
                        </div>`; 
             });
             if(document.getElementById('prof-assets')) {
-                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>No community tokens yet</center>";
+                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Your wallet is empty</center>";
             }
-
         } catch(e) { console.error("Refresh error", e); }
     }
 
-    // --- FONCTIONS ACTIONS ---
-    async function mine(type) {
-        const res = await fetch('/api/mine', {
-            method:'POST', 
-            headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({user_id:uid, token:type})
-        });
-        if(res.ok) {
-            tg.HapticFeedback.impactOccurred('light');
-            refresh();
-        }
+    // --- 3. LEADERBOARD & MISSIONS ---
+    async function loadLeaderboard() {
+        try {
+            const res = await fetch('/api/user/leaderboard');
+            const data = await res.json();
+            let html = "";
+            data.forEach(user => {
+                let medal = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
+                let color = user.rank === 1 ? "var(--gold)" : "#fff";
+                html += `<div class="card" style="margin-bottom:8px; background: #161618;">
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <b style="width:25px; color:${color}">${medal}</b>
+                        <span>${user.name}</span>
+                    </div>
+                    <b style="color:var(--text); font-size:13px;">${user.score} WPT</b>
+                </div>`;
+            });
+            document.getElementById('leaderboard-list').innerHTML = html || "No data";
+        } catch(e) { console.error("Leaderboard error", e); }
     }
 
     async function claimDaily() {
-        // Appelle la fonction de missions.py
         const res = await fetch('/api/user/claim-daily', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body: JSON.stringify({user_id:uid})
         });
         const data = await res.json();
-        if(res.ok && data.reward > 0) {
-            tg.showAlert(`🔥 Day ${data.streak}! Reward: +${data.reward} WPT`);
-        } else {
-            tg.showAlert("Come back tomorrow for your next reward!");
-        }
+        if(res.ok && data.reward > 0) tg.showAlert(`🔥 Day ${data.streak}! +${data.reward} WPT`);
+        else tg.showAlert("Come back tomorrow!");
         refresh();
     }
 
-async function loadLeaderboard() {
-    try {
-        const res = await fetch('/api/user/leaderboard');
-        const data = await res.json();
-        let html = "";
-        
-        data.forEach(user => {
-            // Style spécial pour le Top 3
-            let medal = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
-            let color = user.rank === 1 ? "var(--gold)" : "#fff";
-            
-            html += `
-            <div class="card" style="margin-bottom:8px; background: #161618;">
-                <div style="display:flex; align-items:center; gap:15px;">
-                    <b style="width:25px; color:${color}">${medal}</b>
-                    <span style="font-weight:600;">${user.name}</span>
-                </div>
-                <b style="color:var(--text); font-size:13px;">${user.score} WPT</b>
-            </div>`;
+    // --- 4. ACTIONS DE MINAGE & PARTAGE ---
+    async function mine(type) {
+        const res = await fetch('/api/mine', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({user_id:uid, token:type})
         });
-        document.getElementById('leaderboard-list').innerHTML = html || "No data";
-    } catch(e) {
-        console.error("Leaderboard error", e);
+        if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
     }
-}
-
-// MODIFIE ta fonction show() pour inclure le chargement
-function show(p) {
-    document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-    document.getElementById('p-' + p).classList.add('active-page');
-    
-    // ... reste de ta fonction show ...
-    
-    if(p === 'launcher') loadMarket();
-    if(p === 'profil') loadLeaderboard(); // <--- AJOUT ICI
-    refresh();
-}
-
-
-
 
     function shareReferral() {
         const inviteLink = `https://t.me/OWPCsbot?start=${uid}`; 
-        const text = encodeURIComponent("🚀 Join me on WPT Hub! Mine Veo AI and trade community tokens. Get 100 WPT bonus!");
+        const text = encodeURIComponent("🚀 Join me on WPT Hub! Mine Veo AI and trade tokens. Get 100 WPT bonus!");
         window.open(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
     }
 
-    // --- NAVIGATION ---
-    function show(p) {
-        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-        document.getElementById('p-' + p).classList.add('active-page');
-        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-        
-        const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
-        const navElem = document.getElementById(navId);
-        if(navElem) navElem.classList.add('active');
-        
-        if(p === 'launcher') loadMarket();
-        refresh();
+    // --- 5. LAUNCHPAD (MARKET & DEPLOY) ---
+    async function loadMarket() {
+        const r = await fetch('/api/launcher/list');
+        const tokens = await r.json();
+        let h = "";
+        tokens.forEach(t => {
+            h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;background:#222;">
+                    <b>${t.name}</b>
+                </div>
+                <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+            </div>`;
+        });
+        document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
     }
 
-    // (Garde tes fonctions existantes pour le Market, Deploy, Chart, etc. ici...)
+    function processFile(type) {
+        const file = document.getElementById('f-' + type).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if(type === 'logo') b64_logo = reader.result;
+            else b64_banner = reader.result;
+        };
+        if(file) reader.readAsDataURL(file);
+    }
+
+    async function deployToken() {
+        const name = document.getElementById('tk-name').value;
+        const sym = document.getElementById('tk-sym').value;
+        if(!name || !b64_logo) return tg.showAlert("Missing Name or Logo!");
+        
+        const save = await fetch('/api/launcher/save-pending', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body: JSON.stringify({user_id:uid, name:name, symbol:sym, desc:document.getElementById('tk-desc').value, logo:b64_logo, banner:b64_banner})
+        });
+        const sData = await save.json();
+        const inv = await fetch('/api/launcher/create-invoice', {
+            method:'POST', headers:{'Content-Type':'application/json'}, 
+            body: JSON.stringify({temp_id: sData.temp_id})
+        });
+        const iData = await inv.json();
+        if(iData.ok) tg.openInvoice(iData.link, (s) => { if(s==='paid') show('launcher'); });
+    }
 
     // --- INIT ---
     tg.expand();
     refresh();
     setInterval(refresh, 10000);
 </script>
+
 
 </body>
 </html>
