@@ -255,52 +255,68 @@ async def web_ui():
             document.getElementById('l-step-preview').style.display = 'none';
         }
 
-        async function deploy() {
-            const res = await fetch('/api/launcher/deploy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid, name: document.getElementById('tk-name').value,
-                    symbol: document.getElementById('tk-sym').value,
-                    desc: document.getElementById('tk-desc').value,
-                    logo: b64_logo, banner: b64_banner,
-                    web: document.getElementById('tk-web').value, x: document.getElementById('tk-x').value
-                })
-            });
-            if(res.ok) {
-                tg.showAlert("🚀 Token Deployed Successfully!");
-                backToConfig(); loadLauncher(); refresh();
-            } else {
-                const err = await res.json();
-                tg.showAlert("❌ Error: " + err.error);
-            }
-        }
+        let activeTokenId = null;
 
-        async function loadLauncher() {
-            const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
-            const tokens = await r.json();
-            let html = "";
-            tokens.forEach(t => {
-                html += `
-                <div class="card" style="flex-direction:column; align-items:stretch; gap:10px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <img src="${t.logo || ''}" style="width:50px; height:50px; border-radius:12px; background:#222;">
-                            <div><b>${t.name}</b><br><small style="color:var(--gold)">$${t.sym}</small></div>
-                        </div>
-                        <div style="text-align:right">
-                            <div style="color:var(--green); font-weight:bold;">${t.price.toFixed(6)}</div>
-                            <small style="color:var(--text)">MCAP: ${t.mcap.toFixed(1)} WPT</small>
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn" style="flex:1; background:var(--green); color:#fff" onclick="buyToken(${t.id}, 10)">BUY 10</button>
-                        <button class="btn" style="flex:1; background:var(--gold);" onclick="buyToken(${t.id}, 100)">BUY 100</button>
-                    </div>
-                </div>`;
-            });
-            document.getElementById('token-list').innerHTML = html || "<center>No tokens yet</center>";
-        }
+async function loadLauncher() {
+    const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
+    const tokens = await r.json();
+    let html = "";
+    tokens.forEach(t => {
+        html += `
+        <div class="card" onclick="openToken(${JSON.stringify(t).replace(/"/g, '&quot;')})" style="cursor:pointer; padding:10px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <img src="${t.logo || ''}" style="width:50px; height:50px; border-radius:10px; object-fit:cover;">
+                <div>
+                    <b style="font-size:16px;">${t.name}</b><br>
+                    <small style="color:var(--text)">MCAP: ${t.mcap.toFixed(1)} WPT</small>
+                </div>
+            </div>
+            <div style="text-align:right">
+                <div style="color:var(--green); font-weight:bold;">${t.price.toFixed(6)}</div>
+                <div style="font-size:10px; color:var(--text)">${t.sym}</div>
+            </div>
+        </div>`;
+    });
+    document.getElementById('token-list').innerHTML = html || "<center>No market yet</center>";
+}
+
+function openToken(t) {
+    activeTokenId = t.id;
+    // Switch de vue
+    document.getElementById('p-launcher').style.display = 'none';
+    document.getElementById('p-token-details').style.display = 'block';
+    
+    // Remplissage
+    document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+    document.getElementById('det-logo').src = t.logo;
+    document.getElementById('det-name').innerText = t.name;
+    document.getElementById('det-sym').innerText = "$" + t.sym;
+    document.getElementById('det-desc').innerText = t.desc || "No description.";
+    document.getElementById('det-price').innerText = t.price.toFixed(6);
+    document.getElementById('det-mcap').innerText = t.mcap.toFixed(1);
+    
+    // Socials
+    let links = "";
+    if(t.x) links += `<a href="${t.x}" target="_blank" style="text-decoration:none; font-size:20px;">𝕏</a>`;
+    if(t.web) links += `<a href="${t.web}" target="_blank" style="text-decoration:none; font-size:20px;">🌐</a>`;
+    document.getElementById('det-socials').innerHTML = links;
+
+    // Progrès (ex: palier à 50,000 WPT pour "Listing")
+    let perc = Math.min((t.mcap / 50000) * 100, 100);
+    document.getElementById('det-progress').style.width = perc + "%";
+    document.getElementById('det-perc').innerText = perc.toFixed(1) + "%";
+}
+
+async function quickBuy(amt) {
+    if(!activeTokenId) return;
+    await buyToken(activeTokenId, amt);
+    // On rafraîchit les infos après l'achat sans quitter la page
+    const r = await fetch(`/api/launcher/list`);
+    const tokens = await r.json();
+    const updated = tokens.find(tk => tk.id === activeTokenId);
+    if(updated) openToken(updated);
+}
+
 
         async function buyToken(tid, amt) {
             const res = await fetch('/api/launcher/buy', {
@@ -328,6 +344,40 @@ async def web_ui():
 
         tg.expand(); refresh(); setInterval(refresh, 8000);
     </script>
+
+
+<div id="p-token-details" style="display:none;">
+    <div style="position:relative;">
+        <div id="det-banner" style="height:150px; background-size:cover; background-position:center;"></div>
+        <button onclick="show('launcher')" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.5); border:none; color:#fff; border-radius:50%; width:35px; height:35px;">←</button>
+    </div>
+    <div style="padding:15px; margin-top:-40px;">
+        <img id="det-logo" src="" style="width:80px; height:80px; border-radius:20px; border:4px solid var(--bg); background:#222;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <h2 id="det-name" style="margin:0;">Name</h2>
+            <div id="det-socials" style="display:flex; gap:15px;">
+                </div>
+        </div>
+        <b id="det-sym" style="color:var(--gold)">$SYM</b>
+        
+        <div class="card" style="margin-top:20px; background:#1a1a1c; border:1px solid #333;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <span>Price: <b id="det-price" style="color:var(--green)">0.00</b></span>
+                <span>MCAP: <b id="det-mcap">0</b> WPT</span>
+            </div>
+            <div class="energy-bar" style="height:12px;"><div id="det-progress" class="energy-fill" style="background:var(--green)"></div></div>
+            <small style="color:var(--text); font-size:10px;">Progress to Raydium/Listing: <span id="det-perc">0%</span></small>
+        </div>
+
+        <p id="det-desc" style="color:#ccc; font-size:14px; line-height:1.5;"></p>
+
+        <div style="position:fixed; bottom:80px; left:0; right:0; padding:15px; background:rgba(5,5,5,0.9); display:flex; gap:10px;">
+            <button class="btn" style="flex:1; background:var(--green); color:#fff; height:50px;" onclick="quickBuy(10)">BUY 10 WPT</button>
+            <button class="btn" style="flex:1; background:var(--gold); height:50px;" onclick="quickBuy(100)">BUY 100 WPT</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
 """
