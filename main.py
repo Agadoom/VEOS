@@ -307,6 +307,66 @@ function openToken(t) {
     document.getElementById('det-perc').innerText = perc.toFixed(1) + "%";
 }
 
+
+
+async function deploy() {
+    console.log("Tentative de déploiement...");
+    
+    // Récupération des valeurs
+    const name = document.getElementById('tk-name').value;
+    const symbol = document.getElementById('tk-sym').value;
+    const desc = document.getElementById('tk-desc').value;
+    const web = document.getElementById('tk-web').value;
+    const x = document.getElementById('tk-x').value;
+
+    // Protection : si le logo est vide, on ne peut pas lancer
+    if(!b64_logo) {
+        tg.showAlert("❌ Erreur : Le logo est obligatoire !");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/launcher/deploy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid,
+                name: name,
+                symbol: symbol,
+                desc: desc,
+                logo: b64_logo,    
+                banner: b64_banner, 
+                web: web,
+                x: x
+            })
+        });
+
+        const data = await res.json();
+
+        if(res.ok) {
+            tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("🚀 Token lancé avec succès !");
+            
+            // Nettoyage et retour à la liste
+            b64_logo = ""; b64_banner = "";
+            document.getElementById('tk-name').value = "";
+            document.getElementById('tk-sym').value = "";
+            
+            backToConfig(); // Ferme la preview
+            show('launcher'); // Retourne au market
+        } else {
+            tg.showAlert("❌ " + (data.error || "Erreur lors du lancement"));
+        }
+    } catch (e) {
+        console.error(e);
+        tg.showAlert("❌ Erreur réseau ou serveur");
+    }
+}
+
+
+
+
+
 async function quickBuy(amt) {
     if(!activeTokenId) return;
     await buyToken(activeTokenId, amt);
