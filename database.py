@@ -21,7 +21,7 @@ def init_db_structure():
             last_click_time BIGINT,
             streak INTEGER DEFAULT 0,
             referrer_id BIGINT,
-            last_login_date TXT
+            last_login_date TEXT
         )""")
 
         # 2. SÉCURITÉ : Ajouter la colonne referrer_id si elle n'existe pas encore
