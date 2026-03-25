@@ -59,7 +59,7 @@ async def api_mine(request: Request):
         c.execute("SELECT energy, last_energy_update, last_click_time FROM users WHERE user_id = %s", (uid,))
         res = c.fetchone()
         now_ms = int(time.time()*1000); now_s = now_ms//1000
-        if res and (now_ms - (res[2] or 0)) >= 85: # Protection 85ms
+        if res and (now_ms - (res[2] or 0)) >= 85: 
             cur_e = min(config.MAX_ENERGY, (res[0] or 0) + ((now_s - (res[1] or now_s))/60)*config.REGEN_RATE)
             if cur_e >= 1:
                 c.execute(f"UPDATE users SET p_{t}=COALESCE(p_{t},0)+0.05, energy=%s, last_energy_update=%s, last_click_time=%s WHERE user_id=%s", (cur_e-1, now_s, now_ms, uid))
@@ -67,56 +67,29 @@ async def api_mine(request: Request):
         return JSONResponse(status_code=400)
     finally: c.close(); conn.close()
 
-
-@app.post("/api/launcher/deploy")
-async def api_deploy_token(request: Request):
-    try:
-        data = await request.json()
-        uid = data.get("user_id")
-        name = data.get("name")
-        symbol = data.get("symbol")
-
-        if not name or not symbol:
-            return JSONResponse(status_code=400, content={"error": "Nom ou Symbole manquant"})
-
-        # Appel à la fonction qu'on a créée dans database.py
-        success, msg = database.deploy_token(uid, name, symbol)
-        
-        if success:
-            return {"ok": True, "message": msg}
-        else:
-            return JSONResponse(status_code=400, content={"error": msg})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-
-# --- LAUNCHER API (Dev Special Start) ---
+# --- LAUNCHER API ---
 
 @app.get("/api/launcher/list")
 async def api_list_tokens():
     return database.get_community_tokens()
 
-@app.post("/api/launcher/buy")
-async def api_buy_token(request: Request):
+@app.post("/api/launcher/deploy")
+async def api_deploy_token(request: Request):
     data = await request.json()
-    success, msg = database.buy_token(data['user_id'], data['token_id'], float(data['amount']))
-    return {"ok": success, "msg": msg}
-
-
-@app.post("/api/launcher/buy")
-async def api_buy_token(request: Request):
-    data = await request.json()
-    uid = data.get("user_id")
-    tid = data.get("token_id")
-    amt = float(data.get("amount", 10))
-    
-    success, msg = database.buy_token(uid, tid, amt)
-    if success:
-        return {"ok": True}
+    success, msg = database.deploy_token(
+        data.get("user_id"), data.get("name"), data.get("symbol"),
+        data.get("desc"), data.get("logo"), data.get("banner"),
+        data.get("web"), data.get("x")
+    )
+    if success: return {"ok": True}
     return JSONResponse(status_code=400, content={"error": msg})
 
-
+@app.post("/api/launcher/buy")
+async def api_buy_token(request: Request):
+    data = await request.json()
+    success, msg = database.buy_token(data.get("user_id"), data.get("token_id"), float(data.get("amount", 10)))
+    if success: return {"ok": True}
+    return JSONResponse(status_code=400, content={"error": msg})
 
 # --- WEB UI ---
 
@@ -132,7 +105,6 @@ async def web_ui():
         :root { --bg: #050505; --card: #111; --gold: #FFD700; --blue: #007AFF; --green: #34C759; --purple: #A259FF; --text: #8E8E8E; }
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 15px; padding-bottom: 100px; overflow-x: hidden; }
         
-        /* Layout */
         .ticker { background: #1a1a1c; margin: -15px -15px 15px -15px; padding: 10px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; font-size: 10px; font-weight: bold; }
         .t-wrap { display: inline-block; animation: scroll 25s linear infinite; }
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
@@ -141,16 +113,16 @@ async def web_ui():
         .energy-bar { background: #222; height: 8px; border-radius: 4px; margin: 15px 0; overflow: hidden; }
         .energy-fill { background: linear-gradient(90deg, var(--gold), #FFA500); height: 100%; width: 0%; transition: width 0.4s; }
 
-        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; }
+        .card { background: var(--card); padding: 15px; border-radius: 18px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #1c1c1e; position: relative; overflow: hidden; }
+        .btn { background: #FFF; color: #000; border: none; padding: 12px 18px; border-radius: 12px; font-weight: 800; cursor: pointer; font-size: 11px; text-transform: uppercase; }
 
-        /* Navigation */
         .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,0.9); backdrop-filter: blur(20px); padding: 12px 25px; border-radius: 40px; display: flex; gap: 20px; border: 1px solid #333; z-index: 1000; }
         .n-i { font-size: 20px; opacity: 0.3; transition: 0.3s; cursor: pointer; }
         .n-i.active { opacity: 1; color: var(--gold); transform: scale(1.2); }
 
-        /* Launcher Styles */
-        .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 10px; width: 100%; margin-bottom: 10px; box-sizing: border-box; }
+        .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 12px; width: 100%; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; }
+        .preview-banner { height: 100px; background: #222; background-size: cover; background-position: center; border-radius: 15px 15px 0 0; }
+        .preview-logo { width: 70px; height: 70px; border-radius: 20px; border: 4px solid var(--card); margin-top: -35px; margin-left: 15px; background: #333; object-fit: cover; }
     </style>
 </head>
 <body>
@@ -168,48 +140,52 @@ async def web_ui():
                 <span>ENERGY</span><span id="e-t">0 / 100</span>
             </div>
         </div>
-        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv">0.00</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
-        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
+        <div class="card"><div><small style="color:var(--green)">GENESIS</small><div id="gv" style="font-weight:bold; font-size:18px;">0.00</div></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
+        <div class="card"><div><small style="color:var(--blue)">UNITY</small><div id="uv" style="font-weight:bold; font-size:18px;">0.00</div></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
+        <div class="card"><div><small style="color:var(--purple)">VEO AI</small><div id="vv" style="font-weight:bold; font-size:18px;">0.00</div></div><button class="btn" onclick="mine('veo')" style="background:var(--purple); color:#FFF">COMPUTE</button></div>
     </div>
 
-   <div id="p-launcher" style="display:none">
-    <h3 style="text-align:center; color:var(--gold);">🚀 TOKEN LAUNCHER</h3>
-    
-    <div id="l-step-config">
-        <div class="card" style="flex-direction:column; align-items:stretch;">
-            <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
-            <input type="text" id="tk-sym" class="l-input" placeholder="Symbol (ex: PEPE)">
-            <textarea id="tk-desc" class="l-input" placeholder="Description du projet..."></textarea>
-            <input type="text" id="tk-logo" class="l-input" placeholder="URL du Logo (https://...)">
-            <input type="text" id="tk-banner" class="l-input" placeholder="URL de la Bannière">
-            <input type="text" id="tk-web" class="l-input" placeholder="Site Web (Optionnel)">
-            <input type="text" id="tk-x" class="l-input" placeholder="Lien Twitter / X">
-            <button class="btn" style="background:var(--gold); width:100%;" onclick="openPreview()">VOIR LA PREVIEW</button>
-        </div>
-    </div>
-
-    <div id="l-step-preview" style="display:none;">
-        <div class="card" style="flex-direction:column; align-items:stretch; padding:0; overflow:hidden;">
-            <div id="pre-banner" style="height:80px; background:#333; background-size:cover;"></div>
-            <div style="padding:15px; margin-top:-30px;">
-                <img id="pre-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid var(--card); background:#222;">
-                <h2 id="pre-name" style="margin:10px 0 0 0;">Name</h2>
-                <small id="pre-sym" style="color:var(--gold)">$SYM</small>
-                <p id="pre-desc" style="font-size:12px; color:var(--text);">Description...</p>
-                <div id="pre-links" style="font-size:10px; display:flex; gap:10px;"></div>
-            </div>
-            <div style="padding:10px; display:flex; gap:10px;">
-                <button class="btn" style="flex:1; background:#333; color:#fff;" onclick="backToConfig()">MODIFIER</button>
-                <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="deploy()">PAYER 1000 WPT & LANCER</button>
+    <div id="p-launcher" style="display:none">
+        <h3 style="text-align:center; color:var(--gold);">🚀 TOKEN LAUNCHER</h3>
+        
+        <div id="l-step-config">
+            <div class="card" style="flex-direction:column; align-items:stretch; gap:5px;">
+                <input type="text" id="tk-name" class="l-input" placeholder="Token Name (ex: Pepe Gold)">
+                <input type="text" id="tk-sym" class="l-input" placeholder="Symbol (ex: PEPE)">
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <label class="btn" style="flex:1; background:#222; color:#fff; text-align:center; border:1px solid #444;">
+                        🖼️ LOGO <input type="file" id="f-logo" hidden accept="image/*" onchange="processFile('logo')">
+                    </label>
+                    <label class="btn" style="flex:1; background:#222; color:#fff; text-align:center; border:1px solid #444;">
+                        📺 BANNER <input type="file" id="f-banner" hidden accept="image/*" onchange="processFile('banner')">
+                    </label>
+                </div>
+                <textarea id="tk-desc" class="l-input" placeholder="Description du projet..."></textarea>
+                <input type="text" id="tk-web" class="l-input" placeholder="Website URL (Optionnel)">
+                <input type="text" id="tk-x" class="l-input" placeholder="Twitter / X Link">
+                <button class="btn" style="background:var(--gold); width:100%; margin-top:10px;" onclick="openPreview()">PREVIEW TOKEN</button>
             </div>
         </div>
+
+        <div id="l-step-preview" style="display:none;">
+            <div class="card" style="flex-direction:column; align-items:stretch; padding:0; border:1px solid var(--gold);">
+                <div id="pre-banner" class="preview-banner"></div>
+                <img id="pre-logo" src="" class="preview-logo">
+                <div style="padding:15px;">
+                    <h2 id="pre-name" style="margin:0;">Name</h2>
+                    <b id="pre-sym" style="color:var(--gold)">$SYM</b>
+                    <p id="pre-desc" style="font-size:12px; color:var(--text); margin:10px 0;">Description...</p>
+                </div>
+                <div style="padding:10px; display:flex; gap:10px; background:rgba(255,255,255,0.05);">
+                    <button class="btn" style="flex:1; background:#333; color:#fff;" onclick="backToConfig()">EDIT</button>
+                    <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="deploy()">LAUNCH (1000 WPT)</button>
+                </div>
+            </div>
+        </div>
+
+        <h4 style="margin:20px 0 10px 5px;">LIVE MARKET</h4>
+        <div id="token-list"></div>
     </div>
-
-    <h4 style="margin:20px 0 10px 5px;">LIVE TOKENS</h4>
-    <div id="token-list"></div>
-</div>
-
 
     <div id="p-rank" style="display:none">
         <h3 style="text-align:center;">🏆 WORLD RANKING</h3>
@@ -225,6 +201,7 @@ async def web_ui():
     <script>
         let tg = window.Telegram.WebApp; const uid = tg.initDataUnsafe.user?.id || 0;
         let lastClick = 0;
+        let b64_logo = "", b64_banner = "";
 
         async function refresh() {
             try {
@@ -240,7 +217,6 @@ async def web_ui():
                 document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
                 document.getElementById('e-t').innerText = `${d.energy} / ${d.max_energy}`;
 
-                // Ranking
                 let rl = ""; d.top.forEach((u, i) => { 
                     rl += `<div class="card"><span>${i+1}. ${u.n} <small style="color:#555">(${u.b})</small></span><b>${u.p}</b></div>`; 
                 });
@@ -248,126 +224,98 @@ async def web_ui():
             } catch(e) {}
         }
 
-        async function loadLauncher() {
-    const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
-    const tokens = await r.json();
-    let html = "";
-    tokens.forEach(t => {
-        html += `
-        <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; border: 1px solid #333;">
-            <div style="display:flex; justify-content:space-between;">
-                <div>
-                    <b style="font-size:18px;">${t.name}</b> <small style="color:var(--text)">$${t.sym}</small>
-                    <div style="color:var(--green); font-family:monospace; margin-top:4px;">${t.price.toFixed(6)} WPT</div>
-                </div>
-                <div style="text-align:right">
-                    <small style="color:var(--text)">LIQUIDITY</small><br>
-                    <b>${t.mcap.toFixed(2)} WPT</b>
-                </div>
-            </div>
-            <div style="display:flex; gap:8px;">
-                <button class="btn" style="flex:1; background:var(--green); color:white" onclick="trade(${t.id}, 10)">BUY 10</button>
-                <button class="btn" style="flex:1; background:var(--gold);" onclick="trade(${t.id}, 100)">BUY 100</button>
-            </div>
-        </div>`;
-    });
-    document.getElementById('token-list').innerHTML = html || "<center style='padding:20px; color:#666;'>No community tokens yet. Be the first!</center>";
-}
+        function processFile(type) {
+            const file = document.getElementById('f-' + type).files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                if(type === 'logo') b64_logo = reader.result;
+                else b64_banner = reader.result;
+                tg.HapticFeedback.impactOccurred('medium');
+            };
+            if(file) reader.readAsDataURL(file);
+        }
 
-async function trade(tid, amt) {
-    const res = await fetch('/api/launcher/buy', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({user_id: uid, token_id: tid, amount: amt})
-    });
-    const data = await res.json();
-    if(data.ok) {
-        tg.HapticFeedback.notificationOccurred('success');
-        refresh(); loadLauncher();
-    } else {
-        tg.showAlert(data.msg);
-    }
-}
+        function openPreview() {
+            const n = document.getElementById('tk-name').value;
+            const s = document.getElementById('tk-sym').value;
+            if(!n || !s || !b64_logo) return tg.showAlert("Name, Symbol and Logo are required!");
+
+            document.getElementById('pre-name').innerText = n;
+            document.getElementById('pre-sym').innerText = "$" + s.toUpperCase();
+            document.getElementById('pre-desc').innerText = document.getElementById('tk-desc').value || "No description provided.";
+            document.getElementById('pre-logo').src = b64_logo;
+            document.getElementById('pre-banner').style.backgroundImage = `url(${b64_banner})`;
+            
+            document.getElementById('l-step-config').style.display = 'none';
+            document.getElementById('l-step-preview').style.display = 'block';
+        }
+
+        function backToConfig() {
+            document.getElementById('l-step-config').style.display = 'block';
+            document.getElementById('l-step-preview').style.display = 'none';
+        }
+
+        async function deploy() {
+            const res = await fetch('/api/launcher/deploy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: uid, name: document.getElementById('tk-name').value,
+                    symbol: document.getElementById('tk-sym').value,
+                    desc: document.getElementById('tk-desc').value,
+                    logo: b64_logo, banner: b64_banner,
+                    web: document.getElementById('tk-web').value, x: document.getElementById('tk-x').value
+                })
+            });
+            if(res.ok) {
+                tg.showAlert("🚀 Token Deployed Successfully!");
+                backToConfig(); loadLauncher(); refresh();
+            } else {
+                const err = await res.json();
+                tg.showAlert("❌ Error: " + err.error);
+            }
+        }
+
+        async function loadLauncher() {
+            const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
+            const tokens = await r.json();
+            let html = "";
+            tokens.forEach(t => {
+                html += `
+                <div class="card" style="flex-direction:column; align-items:stretch; gap:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <img src="${t.logo || ''}" style="width:50px; height:50px; border-radius:12px; background:#222;">
+                            <div><b>${t.name}</b><br><small style="color:var(--gold)">$${t.sym}</small></div>
+                        </div>
+                        <div style="text-align:right">
+                            <div style="color:var(--green); font-weight:bold;">${t.price.toFixed(6)}</div>
+                            <small style="color:var(--text)">MCAP: ${t.mcap.toFixed(1)} WPT</small>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn" style="flex:1; background:var(--green); color:#fff" onclick="buyToken(${t.id}, 10)">BUY 10</button>
+                        <button class="btn" style="flex:1; background:var(--gold);" onclick="buyToken(${t.id}, 100)">BUY 100</button>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('token-list').innerHTML = html || "<center>No tokens yet</center>";
+        }
+
+        async function buyToken(tid, amt) {
+            const res = await fetch('/api/launcher/buy', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({user_id:uid, token_id:tid, amount:amt})
+            });
+            if(res.ok) { tg.HapticFeedback.notificationOccurred('success'); loadLauncher(); refresh(); }
+            else { const err = await res.json(); tg.showAlert(err.error); }
+        }
 
         async function mine(t) {
             const now = Date.now(); if(now - lastClick < 85) return; lastClick = now;
             const res = await fetch('/api/mine', {method:'POST', body:JSON.stringify({user_id:uid, token:t})});
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
-
-
-async function loadLauncher() {
-    const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
-    const tokens = await r.json();
-    let html = "";
-    tokens.forEach(t => {
-        html += `
-        <div class="card" style="flex-direction:column; align-items:stretch; gap:10px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="font-size:30px; background:#222; padding:8px; border-radius:12px;">🚀</div>
-                    <div><b>${t.name}</b><br><small style="color:var(--text)">${t.sym}</small></div>
-                </div>
-                <div style="text-align:right">
-                    <div style="color:var(--green); font-weight:bold;">${t.price.toFixed(6)} WPT</div>
-                    <small style="color:var(--text)">MCAP: $${t.mcap.toFixed(2)}</small>
-                </div>
-            </div>
-            <div style="display:flex; gap:8px;">
-                <button class="btn" style="flex:1; background:var(--green); color:#fff" onclick="buyToken(${t.id}, 10)">BUY 10</button>
-                <button class="btn" style="flex:1; background:var(--gold);" onclick="buyToken(${t.id}, 100)">BUY 100</button>
-            </div>
-        </div>`;
-    });
-    document.getElementById('token-list').innerHTML = html || "<center>No tokens found</center>";
-}
-
-async function buyToken(tid, amt) {
-    const res = await fetch('/api/launcher/buy', {
-        method:'POST', 
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({user_id:uid, token_id:tid, amount:amt})
-    });
-    if(res.ok) {
-        tg.HapticFeedback.notificationOccurred('success');
-        tg.showAlert(`🚀 Purchase of ${amt} WPT Successful! The price has increased.`);
-        loadLauncher();
-        refresh();
-    } else {
-        const err = await res.json();
-        tg.showAlert("❌ Error: " + err.error);
-    }
-}
-
-
-
-        async function deploy() {
-    const n = document.getElementById('tk-name').value;
-    const s = document.getElementById('tk-sym').value;
-    
-    if(!n || !s) return tg.showAlert("Veuillez remplir tous les champs");
-
-    const res = await fetch('/api/launcher/deploy', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            user_id: uid, 
-            name: n, 
-            symbol: s
-        })
-    });
-
-    const data = await res.json();
-    if(res.ok) {
-        tg.showAlert("🚀 Félicitations ! Votre token est en ligne.");
-        document.getElementById('tk-name').value = "";
-        document.getElementById('tk-sym').value = "";
-        show('launcher'); // Rafraîchit la liste
-    } else {
-        tg.showAlert("❌ Erreur: " + (data.error || "Échec du déploiement"));
-    }
-}
-
 
         function show(p) {
             ['mine','launcher','rank'].forEach(id => {
