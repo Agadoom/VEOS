@@ -16,7 +16,7 @@ GIFT_COOLDOWN = 12 * 3600 # 12 heures en secondes
 ADMIN_WALLET = "UQAvZ1e88yhxpRcfNtJyUNEHD31cDfvF8q_J-PIAukHsNTYi"
 DEPLOY_FEE_TON = 0.5  # Exemple : 0.5 TON pour lancer un token
 # config.py
-DEPLOY_FEE_STARS = 0  # Environ 5$ (ajuste selon tes besoins)
+DEPLOY_FEE_STARS = 1  # Environ 5$ (ajuste selon tes besoins)
 # Tu peux aussi ajouter des frais pour "Boost" un token
 BOOST_FEE_STARS = 100 
 
