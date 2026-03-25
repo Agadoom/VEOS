@@ -113,6 +113,33 @@ async def get_chart_data(tid: int):
     return {"points": points}
 
 
+
+@app.post("/api/launcher/sell")
+async def api_sell_token(request: Request):
+    data = await request.json()
+    uid, tid, qty = data.get("user_id"), data.get("token_id"), float(data.get("amount", 0))
+    
+    conn = database.get_db_conn(); c = conn.cursor()
+    # 1. Vérifier si l'utilisateur a assez de tokens
+    c.execute("SELECT amount FROM user_community_assets WHERE user_id=%s AND token_id=%s", (uid, tid))
+    res = c.fetchone()
+    if not res or res[0] < qty:
+        return JSONResponse(status_code=400, content={"error": "Not enough tokens"})
+    
+    # 2. Récupérer le prix actuel du token
+    c.execute("SELECT price FROM community_tokens WHERE id=%s", (tid,))
+    price = c.fetchone()[0]
+    gain = qty * price # Calcul du gain en points Genesis
+    
+    # 3. Transaction : Enlever les tokens et ajouter les points
+    c.execute("UPDATE user_community_assets SET amount = amount - %s WHERE user_id=%s AND token_id=%s", (qty, uid, tid))
+    c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id=%s", (gain, uid))
+    
+    conn.commit(); c.close(); conn.close()
+    return {"ok": True, "gain": gain}
+
+
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -197,11 +224,24 @@ async def web_ui():
         <b id="det-sym" style="color:var(--gold)"></b>
     </div>
 
-    <div style="padding:15px;">
-        <svg id="price-chart" viewBox="0 0 300 100" style="width:100%; height:120px; background:#0a0a0a; border-radius:15px; border:1px solid #1a1a1c;">
-            <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2" points="0,100 300,100" />
-        </svg>
+    <div style="padding:10px 15px;">
+    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+        <small style="color:var(--text)">Price Action (24h)</small>
+        <small style="color:var(--green)">+12.5%</small>
     </div>
+    <svg id="price-chart" viewBox="0 0 300 100" style="width:100%; height:120px; background:linear-gradient(to bottom, #0f0f11, #050505); border-radius:15px; border:1px solid #222;">
+        <line x1="0" y1="25" x2="300" y2="25" stroke="#1a1a1c" />
+        <line x1="0" y1="50" x2="300" y2="50" stroke="#1a1a1c" />
+        <line x1="0" y1="75" x2="300" y2="75" stroke="#1a1a1c" />
+        <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" stroke-linejoin="round" points="0,100 300,100" />
+    </svg>
+</div>
+
+<div style="display:flex; gap:10px; padding:15px;">
+    <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="buyTokenStars()">BUY</button>
+    <button class="btn" style="flex:1; background:#eb4034; color:#fff;" onclick="sellToken()">SELL</button>
+</div>
+
 
     <p id="det-desc" style="padding:0 15px; color:var(--text); font-size:13px;"></p>
 
@@ -333,6 +373,50 @@ async function buyToken() {
         });
     }
 }
+
+
+
+async function sellToken() {
+    const qty = prompt("How many tokens to sell?");
+    if (!qty || isNaN(qty) || qty <= 0) return;
+
+    const res = await fetch('/api/launcher/sell', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            user_id: uid,
+            token_id: currentTokenId,
+            amount: qty
+        })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+        tg.showConfirm(`Sold! You gained ${data.gain.toFixed(2)} Genesis points.`, () => {
+            show('profil');
+        });
+    } else {
+        tg.showAlert(data.error || "Error during sale.");
+    }
+}
+
+// Amélioration de drawChart pour un effet "Glow"
+function drawChart(points) {
+    const poly = document.getElementById('chart-line');
+    const width = 300;
+    const height = 100;
+    const max = Math.max(...points) * 1.1; // Un peu de marge en haut
+    const min = Math.min(...points) * 0.9; // Un peu de marge en bas
+    
+    let ptsString = "";
+    points.forEach((p, i) => {
+        const x = (i / (points.length - 1)) * width;
+        const y = height - ((p - min) / (max - min) * 80 + 10); 
+        ptsString += `${x},${y} `;
+    });
+    poly.setAttribute("points", ptsString);
+}
+
 
 
 
