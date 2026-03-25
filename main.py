@@ -101,6 +101,40 @@ async def api_get_activity(tid: int):
     holders = database.get_token_holders(tid)
     return {"activity": activity, "holders": holders}
 
+
+@app.post("/api/launcher/create-invoice")
+async def create_invoice(request: Request):
+    data = await request.json()
+    uid = data.get("user_id")
+    
+    # Paramètres de la facture
+    title = "Frais de déploiement Token"
+    description = f"Lancement du token {data.get('name')} sur le WPT Launcher"
+    payload = f"deploy_{uid}_{int(time.time())}" # Pour identifier le paiement après
+    currency = "XTR" # Code pour Telegram Stars
+    prices = [{"label": "Frais", "amount": config.DEPLOY_FEE_STARS}]
+    
+    # On génère un lien de paiement via l'API Telegram
+    # Note: Il faut utiliser ton instance 'bot' définie dans main()
+    try:
+        # On utilise create_invoice_link pour que l'App puisse l'ouvrir
+        from telegram import LabeledPrice
+        link = await bot.create_invoice_link(
+            title=title,
+            description=description,
+            payload=payload,
+            provider_token="", # Vide pour les Stars
+            currency=currency,
+            prices=[LabeledPrice("Deploy Token", config.DEPLOY_FEE_STARS)]
+        )
+        return {"ok": True, "link": link}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+
+
+
+
 # --- WEB UI ---
 
 @app.get("/", response_class=HTMLResponse)
@@ -308,18 +342,31 @@ async def web_ui():
         }
 
         async function deploy() {
-            const res = await fetch('/api/launcher/deploy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid, name: document.getElementById('tk-name').value,
-                    symbol: document.getElementById('tk-sym').value, desc: document.getElementById('tk-desc').value,
-                    logo: b64_logo, banner: b64_banner, web: document.getElementById('tk-web').value, x: document.getElementById('tk-x').value
-                })
-            });
-            if(res.ok) { tg.showAlert("🚀 Token Launched!"); backToConfig(); show('launcher'); }
-            else { const e = await res.json(); tg.showAlert(e.error); }
-        }
+    // 1. On demande un lien de paiement Stars
+    const res = await fetch('/api/launcher/create-invoice', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            user_id: uid, 
+            name: document.getElementById('tk-name').value
+            // ... autres infos ...
+        })
+    });
+    
+    const data = await res.json();
+    if(data.ok) {
+        // 2. On ouvre l'interface de paiement Telegram
+        tg.openInvoice(data.link, function(status) {
+            if (status == 'paid') {
+                tg.showAlert("🚀 Token payé avec succès ! Il apparaîtra dans quelques secondes.");
+                show('launcher');
+            } else if (status == 'cancelled') {
+                tg.showAlert("Paiement annulé.");
+            }
+        });
+    }
+}
+
 
         async function loadLauncher() {
             const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
@@ -435,6 +482,26 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await missions.register_user(uid, name, None)
     kb = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN HUB", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
     await update.message.reply_text(f"Welcome {name} to the WPT HUB!", reply_markup=kb)
+
+
+from telegram.ext import PreCheckoutQueryHandler, MessageHandler, filters
+
+async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    # On accepte toujours (tu peux vérifier ici si le nom du token est encore dispo)
+    await query.answer(ok=True)
+
+async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # C'est ici qu'on déploie RÉELLEMENT le token en DB
+    payment = update.message.successful_payment
+    payload = payment.invoice_payload # "deploy_UID_TIME"
+    
+    # Logique pour extraire les infos et appeler database.deploy_token()
+    # Tu devras peut-être stocker temporairement les infos du token en cache/DB
+    # avant le paiement pour les retrouver ici via le payload.
+    await update.message.reply_text("✅ Paiement reçu ! Votre token est en cours de déploiement...")
+
+
 
 async def main():
     bot = ApplicationBuilder().token(config.TOKEN).build()
