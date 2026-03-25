@@ -10,7 +10,21 @@ pending_tokens = {}
 
 @router.get("/list")
 async def get_tokens():
-    return database.get_community_tokens()
+    tokens = database.get_community_tokens()
+    # On s'assure que tout est compatible JSON (float, string, etc.)
+    clean_tokens = []
+    for t in tokens:
+        clean_tokens.append({
+            "id": t["id"],
+            "name": str(t["name"]),
+            "sym": str(t["sym"]),
+            "price": float(t["price"]),
+            "mcap": float(t["mcap"]),
+            "logo": t["logo"] or "",
+            "banner": t["banner"] or ""
+        })
+    return clean_tokens
+
 
 @router.post("/save-pending")
 async def save_pending(request: Request):
