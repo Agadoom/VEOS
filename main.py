@@ -96,12 +96,7 @@ async def api_sell_token(request: Request):
 
 @app.get("/api/launcher/activity/{tid}")
 async def api_get_activity(tid: int):
-    return database.get_token_activity(tid)
-
-
-
-@app.get("/api/launcher/activity/{tid}")
-async def api_get_activity(tid: int):
+    # On récupère l'activité ET les holders depuis database.py
     activity = database.get_token_activity(tid)
     holders = database.get_token_holders(tid)
     return {"activity": activity, "holders": holders}
@@ -138,9 +133,6 @@ async def web_ui():
         .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 12px; width: 100%; margin-bottom: 10px; box-sizing: border-box; font-size: 14px; }
         .preview-banner { height: 120px; background: #222; background-size: cover; background-position: center; border-radius: 15px 15px 0 0; }
         .preview-logo { width: 70px; height: 70px; border-radius: 20px; border: 4px solid var(--card); margin-top: -35px; margin-left: 15px; background: #333; object-fit: cover; }
-        
-        /* Activity List Style */
-        .act-item { display: flex; justify-content: space-between; font-size: 11px; padding: 10px 0; border-bottom: 1px solid #1c1c1e; }
     </style>
 </head>
 <body>
@@ -198,7 +190,7 @@ async def web_ui():
         <div id="token-list"></div>
     </div>
 
-    <    <div id="p-token-details" style="display:none; padding-bottom:150px;">
+    <div id="p-token-details" style="display:none; padding-bottom:150px;">
         <div style="position:relative;">
             <div id="det-banner" style="height:120px; background-size:cover; background-position:center; background-color:#111;"></div>
             <button class="btn" onclick="show('launcher')" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; width:35px; height:35px; padding:0; border:1px solid #444;">←</button>
@@ -239,16 +231,7 @@ async def web_ui():
             <h4 style="margin:15px 0 8px 0; font-size:13px; color:var(--text); text-transform:uppercase;">Live Trades</h4>
             <div id="det-activity"></div>
         </div>
-    </div>
 
-            
-            <h4 style="margin:20px 0 10px 0; font-size:14px; color:var(--text); border-bottom:1px solid #222; padding-bottom:5px;">LATEST ACTIVITY</h4>
-            <div id="det-activity" style="margin-bottom:20px; max-height: 200px; overflow-y: auto;">
-                <small style="color:#444">Loading activity...</small>
-            </div>
-
-            <p id="det-desc" style="color:#ccc; font-size:14px; line-height:1.5;"></p>
-        </div>
         <div style="position:fixed; bottom:80px; left:0; right:0; padding:15px; background:rgba(5,5,5,0.95); display:flex; gap:10px; border-top:1px solid #222; z-index:1001;">
             <button class="btn" style="flex:2; background:var(--green); color:#fff; height:50px;" onclick="quickBuy(10)">BUY 10</button>
             <button class="btn" style="flex:2; background:var(--green); border:1px solid #fff; color:#fff; height:50px;" onclick="quickBuy(100)">BUY 100</button>
@@ -343,17 +326,16 @@ async def web_ui():
                         <img src="${t.logo}" style="width:40px; height:40px; border-radius:8px; object-fit:cover;">
                         <div><b>${t.name}</b><br><small>$${t.sym}</small></div>
                     </div>
-                    <div style="text-align:right"><b style="color:var(--green)">${t.price.toFixed(6)}</b><br><small>${t.mcap.toFixed(1)} WPT</small></div>
+                    <div style="text-align:right"><b style="color:var(--green)">${t.price.toFixed(6)}</b><br><small>${(t.mcap || 0).toFixed(1)} WPT</small></div>
                 </div>`;
             });
-            document.getElementById('token-list').innerHTML = html || "<center>No market yet</center>";
+            document.getElementById('token-list').innerHTML = html || "<center style='padding:20px; color:#555;'>No tokens yet. Be the first!</center>";
         }
 
-                async function openToken(t) {
+        async function openToken(t) {
             activeTokenId = t.id;
             show('token-details');
             
-            // Textes de base
             document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
             document.getElementById('det-logo').src = t.logo;
             document.getElementById('det-name').innerText = t.name;
@@ -361,13 +343,11 @@ async def web_ui():
             document.getElementById('det-desc').innerText = t.desc || "No description provided.";
             document.getElementById('det-price').innerText = t.price.toFixed(6);
             
-            // Calculer progression
             let mcap = t.mcap || 0;
             let perc = Math.min((mcap / 50000) * 100, 100);
             document.getElementById('det-progress').style.width = perc + "%";
             document.getElementById('det-perc').innerText = perc.toFixed(1) + "%";
 
-            // Charger holders et activité
             try {
                 const res = await fetch(`/api/launcher/activity/${t.id}?t=${Date.now()}`);
                 if(res.ok) {
@@ -388,7 +368,6 @@ async def web_ui():
                 }
             } catch(e) { console.error(e); }
         }
-
 
         async function quickBuy(amt) {
             const res = await fetch('/api/launcher/buy', {
@@ -422,13 +401,19 @@ async def web_ui():
         }
 
         function show(p) {
-            ['mine','launcher','rank','token-details'].forEach(id => {
-                const el = document.getElementById('p-'+id);
-                if(el) el.style.display = (id===p?'block':'none');
-                const nav = document.getElementById('n-'+id);
-                if(nav) nav.classList.toggle('active', id===p);
+            // Liste toutes les pages possibles
+            const pages = ['mine', 'launcher', 'rank', 'token-details'];
+            pages.forEach(id => {
+                const el = document.getElementById('p-' + id);
+                if(el) el.style.display = (id === p ? 'block' : 'none');
+                
+                // Active/Désactive l'icône de nav correspondante
+                const nav = document.getElementById('n-' + id);
+                if(nav) nav.classList.toggle('active', id === p);
             });
-            if(p==='launcher') loadLauncher();
+            
+            // Rechargement spécifique
+            if(p === 'launcher') loadLauncher();
             refresh();
         }
 
