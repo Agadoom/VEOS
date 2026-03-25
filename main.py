@@ -58,14 +58,29 @@ async def save_pending(request: Request):
     pending_tokens[temp_id] = data
     return {"ok": True, "temp_id": temp_id}
 
-@app.post("/api/launcher/create-invoice")
-async def api_create_invoice(request: Request):
+@app.post("/api/launcher/buy-invoice")
+async def api_buy_invoice(request: Request):
     data = await request.json()
-    temp_id = data.get("temp_id")
-    token = pending_tokens.get(temp_id)
-    if not token: return JSONResponse(status_code=400, content={"error": "Expired"})
-    link = await bot_instance.bot.create_invoice_link(title=f"Deploy ${token['symbol']}", description=f"Fee for {token['name']}", payload=temp_id, provider_token="", currency="XTR", prices=[LabeledPrice("Launch Fee", config.DEPLOY_FEE_STARS)])
-    return {"ok": True, "link": link}
+    uid = data.get("user_id")
+    token_id = data.get("token_id")
+    amount_stars = 50 # Par exemple, prix fixe pour 10 tokens
+
+    # On prépare le payload : "buy|user_id|token_id|quantité"
+    payload = f"buy|{uid}|{token_id}|10"
+
+    try:
+        link = await bot_instance.bot.create_invoice_link(
+            title="Buy Community Token",
+            description="Get 10 tokens of this project",
+            payload=payload,
+            provider_token="", 
+            currency="XTR",
+            prices=[LabeledPrice("Purchase", amount_stars)]
+        )
+        return {"ok": True, "link": link}
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
 
 # --- WEB UI ---
 
@@ -241,6 +256,7 @@ async def web_ui():
             document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
         }
 
+          let currentViewedTokenId = t.id;
         async function openToken(t) {
             show('details');
             document.getElementById('det-banner').style.backgroundImage = `url(${t.banner})`;
@@ -250,6 +266,27 @@ async def web_ui():
             document.getElementById('det-desc').innerText = t.desc || "Community token.";
             document.getElementById('det-price').innerText = t.price.toFixed(6);
         }
+
+
+async function buyToken() {
+    const res = await fetch('/api/launcher/buy-invoice', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            user_id: uid,
+            token_id: currentViewedTokenId
+        })
+    });
+    const data = await res.json();
+    if(data.ok) {
+        tg.openInvoice(data.link, (status) => {
+            if(status === 'paid') {
+                tg.showAlert("Achat réussi ! Vérifie ton profil.");
+                show('profil');
+            }
+        });
+    }
+}
 
         function show(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
@@ -277,12 +314,22 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.pre_checkout_query.answer(ok=True)
 
 async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    temp_id = update.message.successful_payment.invoice_payload
-    data = pending_tokens.get(temp_id)
-    if data:
-        database.deploy_token(data['user_id'], data['name'], data['symbol'], data['desc'], data['logo'], data['banner'], "", "")
-        del pending_tokens[temp_id]
-        await update.message.reply_text(f"✅ Your token {data['name']} is now live!")
+    payload = update.message.successful_payment.invoice_payload
+    
+    # Si c'est un ACHAT (format buy|uid|tid|qty)
+    if payload.startswith("buy|"):
+        _, uid, tid, qty = payload.split('|')
+        # On ajoute les assets dans la DB
+        database.buy_token(int(uid), int(tid), float(qty))
+        await update.message.reply_text("✅ Tokens ajoutés à ton portefeuille !")
+        
+    # Si c'est un DÉPLOIEMENT (temp_id)
+    else:
+        data = pending_tokens.get(payload)
+        if data:
+            database.deploy_token(data['user_id'], data['name'], data['symbol'], data['desc'], data['logo'], data['banner'], "", "")
+            del pending_tokens[payload]
+            await update.message.reply_text(f"🚀 {data['name']} est en ligne !")
 
 async def main():
     global bot_instance
