@@ -1,0 +1,35 @@
+from fastapi import APIRouter, JSONResponse
+import database, config, missions, time
+
+router = APIRouter(prefix="/api/user", tags=["User"])
+
+@router.get("/{uid}")
+async def get_user_data(uid: int):
+    r = database.get_user_full(uid)
+    if not r: return JSONResponse(status_code=404, content={"error": "User not found"})
+    
+    # Energy & Score Calculation
+    now = int(time.time())
+    last_update = r[6] if r[6] is not None else now
+    current_e = min(config.MAX_ENERGY, (r[5] or 0) + ((now - last_update) / 60) * config.REGEN_RATE)
+    score = (r[0] or 0) + (r[1] or 0) + (r[2] or 0)
+    badge, _, _ = missions.get_badge_info(score)
+    
+    # FETCH ALL ASSETS (Multiple tokens fix)
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    c.execute("""
+        SELECT t.name, t.symbol, a.amount 
+        FROM user_community_assets a 
+        JOIN community_tokens t ON a.token_id = t.id 
+        WHERE a.user_id = %s AND a.amount > 0
+    """, (uid,))
+    assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
+    c.close()
+    conn.close()
+    
+    return {
+        "uid": uid, "name": r[4], "g": r[0] or 0, "u": r[1] or 0, "v": r[2] or 0, 
+        "energy": int(current_e), "max_energy": config.MAX_ENERGY, 
+        "score": round(score, 2), "badge": badge, "assets": assets
+    }
