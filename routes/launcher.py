@@ -1,7 +1,7 @@
-import main 
-from fastapi import APIRouter, Request, JSONResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse # <--- Correction ici
 from telegram import LabeledPrice
-import database, uuid, random
+import database, uuid, random, main # On importe main pour le bot_instance
 
 router = APIRouter(prefix="/api/launcher", tags=["Launcher"])
 
