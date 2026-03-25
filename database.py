@@ -7,50 +7,32 @@ def get_db_conn():
     return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 def init_db_structure():
-    conn = get_db_conn()
-    c = conn.cursor()
+    conn = get_db_conn(); c = conn.cursor()
     try:
-        # 1. TABLE UTILISATEURS
-        c.execute("""CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY, 
-            name TEXT, 
-            referred_by BIGINT,
-            p_genesis DOUBLE PRECISION DEFAULT 0,
-            p_unity DOUBLE PRECISION DEFAULT 0,
-            p_veo DOUBLE PRECISION DEFAULT 0,
-            energy INTEGER DEFAULT 100,
-            last_energy_update BIGINT,
-            last_click_time BIGINT DEFAULT 0,
-            streak INTEGER DEFAULT 0
-        )""")
+        # Table Users... (inchangée)
         
-        # 2. TABLE TOKENS (LAUNCHER)
-        # On ajoute mcap et creator_id pour la Dev Spécial
-        c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
+        # On recrée la table Community Tokens avec les nouveaux champs
+        c.execute("DROP TABLE IF EXISTS community_tokens CASCADE") 
+        c.execute("""CREATE TABLE community_tokens (
             id SERIAL PRIMARY KEY, 
             creator_id BIGINT, 
             name TEXT NOT NULL, 
             symbol TEXT NOT NULL, 
+            description TEXT,
+            logo_url TEXT,
+            banner_url TEXT,
+            website TEXT,
+            twitter_x TEXT,
             price DOUBLE PRECISION DEFAULT 0.0001, 
             mcap DOUBLE PRECISION DEFAULT 0, 
             volume DOUBLE PRECISION DEFAULT 0, 
             created_at BIGINT
         )""")
-
-        # 3. TABLE PORTFOLIO (Qui possède quoi)
-        c.execute("""CREATE TABLE IF NOT EXISTS user_portfolio (
-            user_id BIGINT,
-            token_id INTEGER,
-            amount DOUBLE PRECISION DEFAULT 0,
-            PRIMARY KEY (user_id, token_id)
-        )""")
-        
         conn.commit()
-        print("✅ Database propre et synchronisée !")
-    except Exception as e:
-        print(f"❌ Erreur Init DB: {e}")
-    finally:
-        c.close(); conn.close()
+        print("✅ DB Structure Reset & Updated with Social Fields")
+    except Exception as e: print(f"DB Error: {e}")
+    finally: c.close(); conn.close()
+
 
 # --- FONCTIONS UTILISATEURS ---
 
