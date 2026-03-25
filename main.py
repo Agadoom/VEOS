@@ -72,7 +72,7 @@ async def api_mine(request: Request):
     finally: c.close(); conn.close()
 
 
-.# --- AJOUTE OU CORRIGE CETTE ROUTE DANS TON MAIN.PY ---
+
 
 @app.post("/api/launcher/create-invoice") # Vérifie bien l'orthographe ici
 async def api_create_invoice(request: Request):
