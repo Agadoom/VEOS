@@ -1,154 +1,71 @@
-import psycopg2
-import os
-import time
+import psycopg2, os, time
 
 def get_db_conn():
-    # Remplace par ta DATABASE_URL Railway si nécessaire
     return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 def init_db_structure():
-    conn = get_db_conn()
-    conn.rollback() # Nettoie les transactions en cours
-    c = conn.cursor()
+    conn = get_db_conn(); c = conn.cursor()
     try:
-        # Table Utilisateurs
+        # Table Users
         c.execute("""CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY, 
-            name TEXT, 
-            referred_by BIGINT,
-            ref_count INTEGER DEFAULT 0,
-            ref_claimed INTEGER DEFAULT 0,
-            p_genesis DOUBLE PRECISION DEFAULT 0,
-            p_unity DOUBLE PRECISION DEFAULT 0,
-            p_veo DOUBLE PRECISION DEFAULT 0,
-            energy INTEGER DEFAULT 100,
-            last_energy_update BIGINT,
-            last_click_time BIGINT DEFAULT 0,
-            staked_amount DOUBLE PRECISION DEFAULT 0,
-            streak INTEGER DEFAULT 0,
-            last_login_date TEXT
+            user_id BIGINT PRIMARY KEY, name TEXT, referred_by BIGINT,
+            p_genesis DOUBLE PRECISION DEFAULT 0, p_unity DOUBLE PRECISION DEFAULT 0,
+            p_veo DOUBLE PRECISION DEFAULT 0, energy INTEGER DEFAULT 100,
+            last_energy_update BIGINT, last_click_time BIGINT DEFAULT 0,
+            streak INTEGER DEFAULT 0
         )""")
         
-        # Table Tokens Communautaires (Launcher)
-          # Table Tokens : On force des valeurs par défaut pour éviter le "0" ou le vide
+        # Table Tokens : Ajout MCAP pour la Bonding Curve
         c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
-            id SERIAL PRIMARY KEY, 
-            creator_id BIGINT, 
-            name TEXT NOT NULL, 
-            symbol TEXT NOT NULL, 
-            logo TEXT, 
+            id SERIAL PRIMARY KEY, creator_id BIGINT, 
+            name TEXT NOT NULL, symbol TEXT NOT NULL, 
             price DOUBLE PRECISION DEFAULT 0.0001, 
-            reserve_wpt DOUBLE PRECISION DEFAULT 500, 
-            holders INTEGER DEFAULT 1, 
+            mcap DOUBLE PRECISION DEFAULT 0, 
             volume DOUBLE PRECISION DEFAULT 0, 
             created_at BIGINT
         )""")
-        conn.commit()
-    except Exception as e:
-        print(f"DB Init Error: {e}")
-    finally:
-        c.close(); conn.close()
-
-def get_user_full(uid):
-    conn = get_db_conn(); c = conn.cursor()
-    # ORDRE CRITIQUE : 0:gen, 1:uni, 2:veo, 3:ref, 4:name, 5:energy, 6:last_upd, 7:streak, 8:staked
-    c.execute("""SELECT p_genesis, p_unity, p_veo, ref_count, name, energy, 
-                 last_energy_update, streak, staked_amount FROM users WHERE user_id=%s""", (uid,))
-    res = c.fetchone()
-    c.close(); conn.close()
-    return res
-
-
-def get_leaderboard():
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("""SELECT name, (COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) as total 
-                 FROM users ORDER BY total DESC LIMIT 10""")
-    res = c.fetchall()
-    c.close(); conn.close()
-    return res
-
-def get_total_network_score():
-    conn = get_db_conn(); c = conn.cursor()
-    c.execute("SELECT SUM(COALESCE(p_genesis,0)+COALESCE(p_unity,0)+COALESCE(p_veo,0)) FROM users")
-    res = c.fetchone()
-    c.close(); conn.close()
-    return res[0] if res and res[0] else 0
-
-def get_tokens_ordered(sort_type="new"):
-    conn = get_db_conn(); c = conn.cursor()
-    order = "created_at DESC" if sort_type == "new" else "mcap DESC"
-    c.execute(f"SELECT name, symbol, logo, price, creator_id, mcap, volume, id FROM community_tokens ORDER BY {order}")
-    res = c.fetchall(); c.close(); conn.close()
-    return res
-
-def buy_community_token(uid, token_id, amount_wpt):
-    conn = get_db_conn(); c = conn.cursor()
-    try:
-        # 1. Vérifier solde WPT (Genesis)
-        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
-        balance = c.fetchone()[0]
-        if balance < amount_wpt: return False, "Pas assez de WPT"
-
-        # 2. Calculer combien de tokens l'utilisateur reçoit (simplifié)
-        c.execute("SELECT price, mcap FROM community_tokens WHERE id = %s", (token_id,))
-        t_data = c.fetchone()
-        price = float(t_data[0])
-        tokens_received = amount_wpt / price
-
-        # 3. Update : Augmenter le prix de 1% après chaque achat (Bonding Curve)
-        new_price = price * 1.01
-        new_mcap = float(t_data[1]) + amount_wpt
-
-        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount_wpt, uid))
-        c.execute("UPDATE community_tokens SET price = %s, mcap = %s, volume = volume + %s WHERE id = %s", 
-                  (new_price, new_mcap, amount_wpt, token_id))
         
+        # Table Portfolio (Pour savoir qui possède quoi)
+        c.execute("""CREATE TABLE IF NOT EXISTS user_portfolio (
+            user_id BIGINT, token_id INTEGER, amount DOUBLE PRECISION DEFAULT 0,
+            PRIMARY KEY(user_id, token_id)
+        )""")
         conn.commit()
-        return True, tokens_received
-    except Exception as e:
-        conn.rollback(); return False, str(e)
-    finally:
-        c.close(); conn.close()
-
+    except Exception as e: print(f"DB Error: {e}")
+    finally: c.close(); conn.close()
 
 def buy_token(uid, token_id, amount_wpt):
     conn = get_db_conn(); c = conn.cursor()
     try:
-        # 1. Vérifier si l'utilisateur a assez de Genesis (WPT)
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
-        res = c.fetchone()
-        if not res or float(res[0] or 0) < amount_wpt:
-            return False, "Solde insuffisant"
+        bal = c.fetchone()[0]
+        if bal < amount_wpt: return False, "Solde WPT insuffisant"
 
-        # 2. Récupérer les infos du token
         c.execute("SELECT price, mcap, creator_id FROM community_tokens WHERE id = %s", (token_id,))
         t = c.fetchone()
-        if not t: return False, "Token introuvable"
+        cur_price = t[0]; creator_id = t[2]
+
+        # Calcul tokens reçus et frais
+        tokens_out = amount_wpt / cur_price
+        fee = amount_wpt * 0.02
+
+        # Bonding Curve : Prix augmente de 0.1% par unité de volume relative
+        new_price = cur_price * (1 + (amount_wpt / 5000))
         
-        current_price = float(t[0])
-        creator_id = t[2]
-
-        # 3. Calculer les frais (1% pour le créateur, 1% pour la plateforme/Michael)
-        fee = amount_wpt * 0.02 
-        net_amount = amount_wpt - fee
-
-        # 4. Courbe de prix (Bonding Curve) : Le prix augmente de 0.5% par achat
-        new_price = current_price * (1 + (net_amount / 10000)) 
-        new_mcap = float(t[1]) + net_amount
-
-        # 5. EXECUTION DES TRANSACTIONS
-        # Déduire de l'acheteur
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount_wpt, uid))
-        # Donner une partie au créateur (Frais de créateur)
-        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (fee/2, creator_id))
-        # Mettre à jour le token
-        c.execute("UPDATE community_tokens SET price = %s, mcap = %s, volume = volume + %s WHERE id = %s", 
-                  (new_price, new_mcap, amount_wpt, token_id))
+        c.execute("UPDATE community_tokens SET price = %s, mcap = mcap + %s, volume = volume + %s WHERE id = %s", (new_price, amount_wpt, amount_wpt, token_id))
+        
+        # Mise à jour portfolio
+        c.execute("INSERT INTO user_portfolio (user_id, token_id, amount) VALUES (%s, %s, %s) ON CONFLICT (user_id, token_id) DO UPDATE SET amount = user_portfolio.amount + %s", (uid, token_id, tokens_out, tokens_out))
         
         conn.commit()
-        return True, "Success"
-    except Exception as e:
-        conn.rollback(); return False, str(e)
-    finally:
-        c.close(); conn.close()
+        return True, f"Achat réussi : {tokens_out:.2f} tokens"
+    except Exception as e: return False, str(e)
+    finally: c.close(); conn.close()
 
+# Ajoute cette fonction pour lister les tokens dans l'API
+def get_community_tokens():
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT id, name, symbol, price, mcap FROM community_tokens ORDER BY mcap DESC")
+    res = c.fetchall(); c.close(); conn.close()
+    return [{"id":r[0], "name":r[1], "sym":r[2], "price":r[3], "mcap":r[4]} for r in res]
