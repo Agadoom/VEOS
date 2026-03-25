@@ -67,6 +67,30 @@ async def api_mine(request: Request):
         return JSONResponse(status_code=400)
     finally: c.close(); conn.close()
 
+
+@app.post("/api/launcher/deploy")
+async def api_deploy_token(request: Request):
+    try:
+        data = await request.json()
+        uid = data.get("user_id")
+        name = data.get("name")
+        symbol = data.get("symbol")
+
+        if not name or not symbol:
+            return JSONResponse(status_code=400, content={"error": "Nom ou Symbole manquant"})
+
+        # Appel à la fonction qu'on a créée dans database.py
+        success, msg = database.deploy_token(uid, name, symbol)
+        
+        if success:
+            return {"ok": True, "message": msg}
+        else:
+            return JSONResponse(status_code=400, content={"error": msg})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+
 # --- LAUNCHER API (Dev Special Start) ---
 
 @app.get("/api/launcher/list")
@@ -291,12 +315,32 @@ async function buyToken(tid, amt) {
 
 
         async function deploy() {
-            const n = document.getElementById('tk-name').value;
-            const s = document.getElementById('tk-sym').value;
-            if(!n || !s) return tg.showAlert("Fill all fields");
-            const res = await fetch('/api/launcher/deploy', {method:'POST', body:JSON.stringify({user_id:uid, name:n, symbol:s})});
-            if(res.ok) { tg.showAlert("Deployment request sent!"); loadLauncher(); }
-        }
+    const n = document.getElementById('tk-name').value;
+    const s = document.getElementById('tk-sym').value;
+    
+    if(!n || !s) return tg.showAlert("Veuillez remplir tous les champs");
+
+    const res = await fetch('/api/launcher/deploy', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            user_id: uid, 
+            name: n, 
+            symbol: s
+        })
+    });
+
+    const data = await res.json();
+    if(res.ok) {
+        tg.showAlert("🚀 Félicitations ! Votre token est en ligne.");
+        document.getElementById('tk-name').value = "";
+        document.getElementById('tk-sym').value = "";
+        show('launcher'); // Rafraîchit la liste
+    } else {
+        tg.showAlert("❌ Erreur: " + (data.error || "Échec du déploiement"));
+    }
+}
+
 
         function show(p) {
             ['mine','launcher','rank'].forEach(id => {
