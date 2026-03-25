@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Request, JSONResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse # <--- Correction ici
 import database, config, time
 
 router = APIRouter(prefix="/api/mine", tags=["Mining"])
