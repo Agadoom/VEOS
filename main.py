@@ -57,15 +57,38 @@ async def save_pending(request: Request):
     pending_tokens[temp_id] = data
     return {"ok": True, "temp_id": temp_id}
 
-@app.post("/api/launcher/buy-stars")
-async def api_buy_stars(request: Request):
+@app.post("/api/launcher/buy-request")
+async def api_buy_request(request: Request):
     data = await request.json()
-    uid, tid = data.get("user_id"), data.get("token_id")
-    payload = f"buy|{uid}|{tid}|100" 
-    try:
-        link = await bot_instance.bot.create_invoice_link(title="Buy Tokens", description="Get 100 units", payload=payload, provider_token="", currency="XTR", prices=[LabeledPrice("100 Units", 50)])
-        return {"ok": True, "link": link}
-    except Exception as e: return JSONResponse(status_code=400, content={"error": str(e)})
+    uid, tid, qty = data.get("user_id"), data.get("token_id"), float(data.get("qty", 100))
+    
+    # 1. Vérifier si l'user a assez de WPT (Score global ou Genesis)
+    r = database.get_user_full(uid)
+    if (r[0] or 0) < 50: # Exemple: l'achat coûte 50 WPT
+        return JSONResponse(status_code=400, content={"error": "Pas assez de WPT"})
+
+    # 2. Créer la facture Stars pour les FRAIS de réseau/service (ex: 10 Stars)
+    payload = f"buy|{uid}|{tid}|{qty}|50" # buy|user|token|quantité|prix_wpt
+    link = await bot_instance.bot.create_invoice_link(
+        title="Frais d'achat Token",
+        description=f"Frais de service pour {qty} tokens",
+        payload=payload, provider_token="", currency="XTR",
+        prices=[LabeledPrice("Service Fee", 10)] # Frais en Stars
+    )
+    return {"ok": True, "link": link}
+
+# Dans success_payment_callback du Bot :
+async def success_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    payload = update.message.successful_payment.invoice_payload
+    
+    if payload.startswith("buy|"):
+        _, uid, tid, qty, cost_wpt = payload.split('|')
+        conn = database.get_db_conn(); c = conn.cursor()
+        # On déduit les WPT et on ajoute le token
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (float(cost_wpt), uid))
+        database.buy_token(int(uid), int(tid), float(qty))
+        await update.message.reply_text("✅ Achat réussi : Frais payés (Stars) et WPT déduits !")
+
 
 @app.get("/api/launcher/chart/{tid}")
 async def get_chart_data(tid: int):
@@ -194,6 +217,16 @@ async def web_ui():
                 <span>Holders: <b id="det-holders" style="color:var(--blue)">0</b></span>
                 <span>Liquidity: <b style="color:var(--gold)">Locked</b></span>
             </div>
+
+<div style="display:flex; flex-direction:column; gap:10px; padding:15px;">
+    <div style="display:flex; gap:10px;">
+        <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="buyTokenStars()">BUY (WPT + Stars)</button>
+        <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="sellToken()">SELL</button>
+    </div>
+    <button class="btn" style="background:#222; color:var(--blue); border:1px solid var(--blue);" onclick="withdrawToken()">📤 WITHDRAW TO EXTERNAL WALLET</button>
+</div>
+
+
         </div>
 
         <div id="p-profil" class="page">
