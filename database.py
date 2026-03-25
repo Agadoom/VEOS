@@ -25,6 +25,12 @@ def init_db_structure():
             volume DOUBLE PRECISION DEFAULT 0, 
             created_at BIGINT
         )""")
+ c.execute("""CREATE TABLE IF NOT EXISTS user_community_assets (
+        user_id BIGINT,
+        token_id INTEGER,
+        amount DOUBLE PRECISION DEFAULT 0,
+        PRIMARY KEY (user_id, token_id)
+    )""")
         conn.commit()
     except Exception as e: print(f"DB Error: {e}")
     finally: c.close(); conn.close()
@@ -171,6 +177,49 @@ def buy_token(uid, token_id, amount_wpt):
         
         conn.commit()
         return True, "Achat validé !"
+    except Exception as e:
+        conn.rollback(); return False, str(e)
+    finally:
+        c.close(); conn.close()
+
+
+
+
+
+def sell_token(uid, token_id, amount_to_sell=None):
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        # 1. Vérifier combien de tokens l'utilisateur possède
+        c.execute("SELECT amount FROM user_community_assets WHERE user_id = %s AND token_id = %s", (uid, token_id))
+        res = c.fetchone()
+        user_balance = res[0] if res else 0
+
+        if user_balance <= 0:
+            return False, "Tu ne possèdes pas ce token."
+        
+        # Si on ne précise pas le montant, on vend TOUT
+        amt = amount_to_sell if amount_to_sell else user_balance
+        if amt > user_balance: return False, "Solde insuffisant."
+
+        # 2. Récupérer le prix actuel du token
+        c.execute("SELECT price, mcap FROM community_tokens WHERE id = %s", (token_id,))
+        t_info = c.fetchone()
+        current_price = t_info[0]
+
+        # 3. Calculer le gain en WPT
+        gain_wpt = amt * current_price
+        
+        # 4. Update : Moins de tokens pour l'user, plus de WPT Genesis
+        c.execute("UPDATE user_community_assets SET amount = amount - %s WHERE user_id = %s AND token_id = %s", (amt, uid, token_id))
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (gain_wpt, uid))
+        
+        # 5. Faire baisser légèrement le prix (Loi de l'offre et la demande)
+        new_price = max(0.00001, current_price * 0.99) 
+        new_mcap = max(0, t_info[1] - gain_wpt)
+        c.execute("UPDATE community_tokens SET price = %s, mcap = %s WHERE id = %s", (new_price, new_mcap, token_id))
+        
+        conn.commit()
+        return True, f"Vendu ! +{round(gain_wpt, 2)} WPT"
     except Exception as e:
         conn.rollback(); return False, str(e)
     finally:
