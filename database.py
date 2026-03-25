@@ -64,6 +64,28 @@ def buy_token(uid, token_id, amount_wpt):
     finally: c.close(); conn.close()
 
 # Ajoute cette fonction pour lister les tokens dans l'API
+
+
+def get_user_full(uid):
+    conn = get_db_conn()
+    c = conn.cursor()
+    try:
+        # L'ordre doit correspondre à ce que main.py attend :
+        # 0:gen, 1:uni, 2:veo, 3:ref, 4:name, 5:energy, 6:last_upd, 7:streak, 8:staked
+        c.execute("""SELECT p_genesis, p_unity, p_veo, 0, name, energy, 
+                     last_energy_update, streak, 0 FROM users WHERE user_id=%s""", (uid,))
+        res = c.fetchone()
+        return res
+    except Exception as e:
+        print(f"Error get_user_full: {e}")
+        return None
+    finally:
+        c.close()
+        conn.close()
+
+
+
+
 def get_community_tokens():
     conn = get_db_conn(); c = conn.cursor()
     c.execute("SELECT id, name, symbol, price, mcap FROM community_tokens ORDER BY mcap DESC")
