@@ -12,3 +12,6 @@ REGEN_RATE = 1  # 1% par minute
 STAKE_MIN = 100
 BOOST_PRICE = 50
 GIFT_COOLDOWN = 12 * 3600 # 12 heures en secondes
+# Dans ton fichier config.py
+ADMIN_WALLET = "UQAvZ1e88yhxpRcfNtJyUNEHD31cDfvF8q_J-PIAukHsNTYi"
+DEPLOY_FEE_TON = 0.5  # Exemple : 0.5 TON pour lancer un token
