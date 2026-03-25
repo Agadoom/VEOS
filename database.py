@@ -76,17 +76,39 @@ def get_total_network_score():
 
 def get_tokens_ordered(sort_type="new"):
     conn = get_db_conn(); c = conn.cursor()
-    # On utilise COALESCE pour donner une valeur par défaut de 0 si la colonne est vide
-    if sort_type == "mcap": 
-        order = "COALESCE(reserve_wpt, 0) DESC"
-    elif sort_type == "vol": 
-        order = "COALESCE(volume, 0) DESC"
-    else: 
-        order = "id DESC" # Pour l'onglet NEW
-        
-    c.execute(f"SELECT name, symbol, logo, price, holders, reserve_wpt, volume FROM community_tokens ORDER BY {order}")
-    res = c.fetchall()
-    c.close(); conn.close()
+    order = "created_at DESC" if sort_type == "new" else "mcap DESC"
+    c.execute(f"SELECT name, symbol, logo, price, creator_id, mcap, volume, id FROM community_tokens ORDER BY {order}")
+    res = c.fetchall(); c.close(); conn.close()
     return res
+
+def buy_community_token(uid, token_id, amount_wpt):
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        # 1. Vérifier solde WPT (Genesis)
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
+        balance = c.fetchone()[0]
+        if balance < amount_wpt: return False, "Pas assez de WPT"
+
+        # 2. Calculer combien de tokens l'utilisateur reçoit (simplifié)
+        c.execute("SELECT price, mcap FROM community_tokens WHERE id = %s", (token_id,))
+        t_data = c.fetchone()
+        price = float(t_data[0])
+        tokens_received = amount_wpt / price
+
+        # 3. Update : Augmenter le prix de 1% après chaque achat (Bonding Curve)
+        new_price = price * 1.01
+        new_mcap = float(t_data[1]) + amount_wpt
+
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount_wpt, uid))
+        c.execute("UPDATE community_tokens SET price = %s, mcap = %s, volume = volume + %s WHERE id = %s", 
+                  (new_price, new_mcap, amount_wpt, token_id))
+        
+        conn.commit()
+        return True, tokens_received
+    except Exception as e:
+        conn.rollback(); return False, str(e)
+    finally:
+        c.close(); conn.close()
+
 
 
