@@ -200,3 +200,12 @@ def get_token_activity(token_id):
         return [{"name": r[0], "type": r[1], "amt": r[2], "time": r[3]} for r in res]
     finally:
         c.close(); conn.close()
+
+def get_token_holders(token_id):
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        c.execute("SELECT COUNT(DISTINCT user_id) FROM user_community_assets WHERE token_id = %s AND amount > 0", (token_id,))
+        return c.fetchone()[0]
+    finally:
+        c.close(); conn.close()
+
