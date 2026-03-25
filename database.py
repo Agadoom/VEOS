@@ -91,22 +91,54 @@ def get_community_tokens():
     finally:
         c.close(); conn.close()
 
-def deploy_token(uid, name, symbol):
-    conn = get_db_conn(); c = conn.cursor()
+def deploy_token(uid, name, symbol, desc, logo, banner, web, x):
+    conn = get_db_conn()
+    c = conn.cursor()
     try:
-        # Coût de création : 1000 WPT (Genesis)
+        # 1. Vérifier si l'utilisateur a assez de WPT (1000 Genesis)
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
-        bal = c.fetchone()[0]
-        if bal < 1000: return False, "Il vous faut 1000 WPT (Genesis) pour lancer un projet."
+        res = c.fetchone()
+        if not res or float(res[0] or 0) < 1000:
+            return False, "Solde insuffisant (1000 WPT requis)"
 
         now = int(time.time())
+
+        # 2. Déduire les 1000 WPT
         c.execute("UPDATE users SET p_genesis = p_genesis - 1000 WHERE user_id = %s", (uid,))
-        c.execute("""INSERT INTO community_tokens (creator_id, name, symbol, price, mcap, created_at) 
-                     VALUES (%s, %s, %s, 0.0001, 0, %s)""", (uid, name, symbol, now))
+
+        # 3. Insérer le nouveau token avec tous les champs (Logo/Banner en Base64)
+        c.execute("""
+            INSERT INTO community_tokens 
+            (creator_id, name, symbol, description, logo_url, banner_url, website, twitter_x, price, mcap, created_at) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0.0001, 0, %s)
+        """, (uid, name, symbol, desc, logo, banner, web, x, now))
+        
         conn.commit()
         return True, "Token déployé avec succès !"
     except Exception as e:
-        conn.rollback(); return False, str(e)
+        conn.rollback()
+        print(f"Erreur Deploy: {e}")
+        return False, str(e)
+    finally:
+        c.close()
+        conn.close()
+
+def get_community_tokens():
+    conn = get_db_conn(); c = conn.cursor()
+    try:
+        # On récupère l'ID, le Nom, le Symbole, le PRIX, le MCAP et le LOGO
+        c.execute("SELECT id, name, symbol, price, mcap, logo_url FROM community_tokens ORDER BY mcap DESC")
+        res = c.fetchall()
+        return [
+            {
+                "id": r[0], 
+                "name": r[1], 
+                "sym": r[2], 
+                "price": r[3], 
+                "mcap": r[4], 
+                "logo": r[5] # Le Base64 du logo
+            } for r in res
+        ]
     finally:
         c.close(); conn.close()
 
