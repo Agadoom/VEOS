@@ -82,16 +82,26 @@ async def claim_daily(data: dict):
 async def get_leaderboard():
     conn = database.get_db_conn()
     c = conn.cursor()
-    # On calcule le score total (genesis + unity + veo)
-    c.execute("""
-        SELECT name, (p_genesis + p_unity + p_veo) as total_score 
-        FROM users 
-        ORDER BY total_score DESC 
-        LIMIT 10
-    """)
-    leaders = [{"name": r[0], "score": round(r[1], 2)} for r in c.fetchall()]
-    c.close()
-    conn.close()
-    return leaders
+    try:
+        # On additionne les 3 assets pour le score global
+        c.execute("""
+            SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total_score 
+            FROM users 
+            WHERE name IS NOT NULL
+            ORDER BY total_score DESC 
+            LIMIT 10
+        """)
+        leaders = []
+        for i, r in enumerate(c.fetchall()):
+            leaders.append({
+                "rank": i + 1,
+                "name": r[0] or "Unknown",
+                "score": round(r[1], 2)
+            })
+        return leaders
+    finally:
+        c.close()
+        conn.close()
+
 
 
