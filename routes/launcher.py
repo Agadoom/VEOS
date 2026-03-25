@@ -1,3 +1,4 @@
+import main 
 from fastapi import APIRouter, Request, JSONResponse
 from telegram import LabeledPrice
 import database, uuid, random
@@ -23,7 +24,7 @@ async def buy_token_request(request: Request):
 
     # Prepare Stars Invoice for the Service Fee
     payload = f"buy|{uid}|{tid}|{qty}|{cost_wpt}"
-    link = await bot_instance.bot.create_invoice_link(
+    link = await main.bot_instance.bot.create_invoice_link(
         title="Transaction Fee",
         description=f"Purchase of {qty} community tokens",
         payload=payload, provider_token="", currency="XTR",
