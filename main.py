@@ -241,6 +241,52 @@ async function trade(tid, amt) {
             if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
         }
 
+
+async function loadLauncher() {
+    const r = await fetch(`/api/launcher/list?t=${Date.now()}`);
+    const tokens = await r.json();
+    let html = "";
+    tokens.forEach(t => {
+        html += `
+        <div class="card" style="flex-direction:column; align-items:stretch; gap:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="font-size:30px; background:#222; padding:8px; border-radius:12px;">🚀</div>
+                    <div><b>${t.name}</b><br><small style="color:var(--text)">${t.sym}</small></div>
+                </div>
+                <div style="text-align:right">
+                    <div style="color:var(--green); font-weight:bold;">${t.price.toFixed(6)} WPT</div>
+                    <small style="color:var(--text)">MCAP: $${t.mcap.toFixed(2)}</small>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" style="flex:1; background:var(--green); color:#fff" onclick="buyToken(${t.id}, 10)">BUY 10</button>
+                <button class="btn" style="flex:1; background:var(--gold);" onclick="buyToken(${t.id}, 100)">BUY 100</button>
+            </div>
+        </div>`;
+    });
+    document.getElementById('token-list').innerHTML = html || "<center>No tokens found</center>";
+}
+
+async function buyToken(tid, amt) {
+    const res = await fetch('/api/launcher/buy', {
+        method:'POST', 
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({user_id:uid, token_id:tid, amount:amt})
+    });
+    if(res.ok) {
+        tg.HapticFeedback.notificationOccurred('success');
+        tg.showAlert(`🚀 Purchase of ${amt} WPT Successful! The price has increased.`);
+        loadLauncher();
+        refresh();
+    } else {
+        const err = await res.json();
+        tg.showAlert("❌ Error: " + err.error);
+    }
+}
+
+
+
         async function deploy() {
             const n = document.getElementById('tk-name').value;
             const s = document.getElementById('tk-sym').value;
