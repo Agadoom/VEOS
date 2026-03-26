@@ -109,3 +109,14 @@ async def deploy_token(req: DeployRequest):
     finally:
         c.close(); conn.close()
 
+
+@router.get("/history/{tid}")
+async def get_token_history(tid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    c.execute("SELECT price FROM token_price_history WHERE token_id = %s ORDER BY timestamp ASC LIMIT 50", (tid,))
+    prices = [float(r[0]) for r in c.fetchall()]
+    c.close(); conn.close()
+    return prices
+
+
