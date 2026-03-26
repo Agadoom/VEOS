@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 import database
 from pydantic import BaseModel
+import time  # <--- NE PAS OUBLIER CET IMPORT
 
-# Le préfixe est défini ICI une seule fois
 router = APIRouter(prefix="/api/launcher", tags=["Launcher"])
 
 class TradeRequest(BaseModel):
@@ -22,7 +22,6 @@ async def list_tokens():
     finally:
         c.close(); conn.close()
 
-# IMPORTANT : Juste "/buy", pas "/api/launcher/buy"
 @router.post("/buy")
 async def buy_token(req: TradeRequest):
     print(f"📥 Tentative d'achat : User {req.user_id} -> Token {req.token_id}")
@@ -53,13 +52,14 @@ async def buy_token(req: TradeRequest):
             DO UPDATE SET amount = user_community_assets.amount + %s
         """, (req.user_id, req.token_id, qty, qty))
         
+        # Mise à jour du prix (Hausse de 1%)
         c.execute("UPDATE community_tokens SET price = price * 1.01 WHERE id = %s", (req.token_id,))
 
-# AJOUTE CECI :
-c.execute("""
-    INSERT INTO token_price_history (token_id, price, timestamp) 
-    VALUES (%s, (SELECT price FROM community_tokens WHERE id = %s), %s)
-""", (req.token_id, req.token_id, int(time.time())))
+        # ENREGISTREMENT DANS L'HISTORIQUE (Bien indenté dans le TRY)
+        c.execute("""
+            INSERT INTO token_price_history (token_id, price, timestamp) 
+            VALUES (%s, (SELECT price FROM community_tokens WHERE id = %s), %s)
+        """, (req.token_id, req.token_id, int(time.time())))
         
         conn.commit()
         print(f"✅ Achat réussi : {qty} tokens pour l'user {req.user_id}")
@@ -70,7 +70,6 @@ c.execute("""
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
     finally:
         c.close(); conn.close()
-
 
 class DeployRequest(BaseModel):
     user_id: int
@@ -86,17 +85,13 @@ async def deploy_token(req: DeployRequest):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Vérifier si l'utilisateur a assez de fonds pour les frais (ex: 10 WPT)
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
         res = c.fetchone()
         if not res or float(res[0]) < 10:
             return {"ok": False, "error": "Frais de déploiement insuffisants (10 WPT requis)"}
 
-        # 2. Prélever les frais
         c.execute("UPDATE users SET p_genesis = p_genesis - 10 WHERE user_id = %s", (req.user_id,))
 
-        # 3. Créer le token
-        # On initialise le prix à 0.0001 et la supply à 0
         query = """
             INSERT INTO community_tokens (name, symbol, description, logo, banner, price, supply, creator_id)
             VALUES (%s, %s, %s, %s, %s, 0.0001, 0, %s)
@@ -105,9 +100,11 @@ async def deploy_token(req: DeployRequest):
         c.execute(query, (req.name, req.symbol, req.description, req.logo, req.banner, req.user_id))
         new_id = c.fetchone()[0]
 
+        # On crée le premier point de la courbe au déploiement
+        c.execute("INSERT INTO token_price_history (token_id, price, timestamp) VALUES (%s, 0.0001, %s)", (new_id, int(time.time())))
+
         conn.commit()
         return {"ok": True, "token_id": new_id}
-
     except Exception as e:
         conn.rollback()
         print(f"❌ Erreur Deploy: {e}")
@@ -115,14 +112,16 @@ async def deploy_token(req: DeployRequest):
     finally:
         c.close(); conn.close()
 
-
 @router.get("/history/{tid}")
 async def get_token_history(tid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
-    c.execute("SELECT price FROM token_price_history WHERE token_id = %s ORDER BY timestamp ASC LIMIT 50", (tid,))
-    prices = [float(r[0]) for r in c.fetchall()]
-    c.close(); conn.close()
-    return prices
-
-
+    try:
+        c.execute("SELECT price FROM token_price_history WHERE token_id = %s ORDER BY timestamp ASC LIMIT 50", (tid,))
+        prices = [float(r[0]) for r in c.fetchall()]
+        # Si historique vide, on met le prix de base
+        if not prices:
+            return [0.0001]
+        return prices
+    finally:
+        c.close(); conn.close()
