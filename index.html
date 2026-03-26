@@ -207,31 +207,67 @@
 
 
     <script>
-    // 1. Initialisation des variables globales
-    let tg = window.Telegram.WebApp; 
+    const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
-    let currentTokenId = null;
-    let b64_logo = "", b64_banner = "";
-    let connectedAddress = null;
 
-    // 2. Configuration TonConnect
-    const connector = new TonConnectSDK.TonConnect({
-        manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
-    });
+    // Initialisation sécurisée de TonConnect
+    let connector;
+    try {
+        connector = new TonConnectSDK.TonConnect({
+            manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
+        });
+    } catch(e) {
+        console.error("TonConnect Init Error", e);
+    }
 
-    // 3. Gestionnaire d'état du Wallet
-    connector.onStatusChange(wallet => {
-        const walletZone = document.getElementById('wallet-zone');
-        if (!walletZone) return;
-        if (wallet) {
-            connectedAddress = wallet.account.address;
-            const shortAddr = connectedAddress.substring(0, 4) + "..." + connectedAddress.substring(connectedAddress.length - 4);
-            walletZone.innerHTML = `<div style="color:var(--blue); font-size:12px; font-weight:bold;">Linked: ${shortAddr}</div>`;
-        } else {
-            connectedAddress = null;
-            walletZone.innerHTML = `<button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET</button>`;
+    // Fonction de Navigation (S'assure que les pages s'affichent)
+    function show(p) {
+        try {
+            document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+            const target = document.getElementById('p-' + p);
+            if (target) target.classList.add('active-page');
+
+            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+            const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
+            const navElem = document.getElementById(navId);
+            if(navElem) navElem.classList.add('active');
+
+            if(p === 'launcher') loadMarket();
+            refresh();
+        } catch(e) { console.error("Nav Error", e); }
+    }
+
+    // Fonction Refresh (Remplit Rank et Energy)
+    async function refresh() {
+        if(!uid) return;
+        try {
+            const res = await fetch(`/api/user/${uid}`);
+            const d = await res.json();
+            
+            // On met à jour chaque élément s'il existe dans le HTML
+            if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
+            if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
+            if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
+            if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
+            
+            console.log("Data refreshed for UID:", uid);
+        } catch(e) {
+            console.error("Refresh Error", e);
         }
-    });
+    }
+
+    // Connexion Wallet
+    async function connectWallet() {
+        try {
+            const url = connector.connect({
+                universalLink: 'https://tonkeeper.com/ton-connect',
+                bridgeUrl: 'https://bridge.tonapi.io/bridge'
+            });
+            if (url) tg.openTelegramLink(url);
+        } catch (e) {
+            tg.showAlert("Wallet Error: " + e.message);
+        }
+    }
 
     // 4. Fonction de Navigation (C'est elle qui fait bouger l'interface)
     function show(p) {
