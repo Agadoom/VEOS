@@ -3,10 +3,10 @@ import config
 from database import get_db_conn
 
 def get_badge_info(score):
-    if score >= 500: return "💎 Diamond", 1000, "#00D1FF"
-    if score >= 150: return "🥇 Gold", 500, "#FFD700"
-    if score >= 50:  return "🥈 Silver", 150, "#C0C0C0"
-    return "🥉 Bronze", 50, "#CD7F32"
+    if score >= 10000: return "Gold", 10000, 50000
+    if score >= 1000: return "Silver", 1000, 10000
+    return "Bronze", 0, 1000
+
 
 async def register_user(uid, name, ref_id):
     conn = get_db_conn(); c = conn.cursor()
