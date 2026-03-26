@@ -327,6 +327,32 @@
         } catch(e) { console.error("Market load error", e); }
     }
 
+
+async function sellToken() {
+    const qty = prompt("Quantity of tokens to sell:");
+    if(!qty || isNaN(qty) || parseFloat(qty) <= 0) return;
+    
+    try {
+        const res = await fetch('/api/launcher/sell', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: parseInt(uid),
+                token_id: parseInt(currentTokenId),
+                amount_wpt: parseFloat(qty) // On envoie la quantité de tokens ici
+            })
+        });
+        const data = await res.json();
+        if(data.ok) {
+            tg.showAlert(`✅ Sold! You received ${data.earned.toFixed(2)} WPT`);
+            show('wallet');
+        } else {
+            tg.showAlert("Error: " + data.error);
+        }
+    } catch(e) { tg.showAlert("Server unreachable"); }
+}
+
+
     async function loadLeaderboard() {
         const listElem = document.getElementById('leaderboard-list');
         try {
