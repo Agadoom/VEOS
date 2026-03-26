@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
+from fastapi.responses import FileResponse
 
 # Import de tes configurations et modules
 import config, database
@@ -49,6 +50,10 @@ async def create_invoice(uid: int):
     except Exception as e:
         print(f"Invoice Error: {e}")
         return {"error": str(e)}
+
+@app.get("/tonconnect-manifest.json")
+async def get_manifest():
+    return FileResponse("tonconnect-manifest.json")
 
 # --- SERVING THE FRONTEND ---
 @app.get("/", response_class=HTMLResponse)
