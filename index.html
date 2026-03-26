@@ -213,7 +213,7 @@
     let b64_logo = "", b64_banner = "";
     let connectedAddress = null;
 
-    // --- 1. INITIALISATION TON CONNECT (DOIT ÊTRE AU DÉBUT) ---
+    // --- 1. INITIALISATION TON CONNECT (CORRIGÉ AVEC HTTPS) ---
     const connector = new TonConnectSDK.TonConnect({
         manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
     });
@@ -222,7 +222,7 @@
     connector.onStatusChange(wallet => {
         const walletZone = document.getElementById('wallet-zone');
         const withdrawBtn = document.getElementById('btn-withdraw-final');
-        if (!walletZone) return; // Sécurité si la page n'est pas chargée
+        if (!walletZone) return; 
 
         if (wallet) {
             connectedAddress = wallet.account.address;
@@ -258,14 +258,25 @@
         }
     }
 
-    // --- 2. LOGIQUE DE NAVIGATION ---
+    // --- 2. LOGIQUE DE NAVIGATION (RESTITUÉE) ---
     function show(p) {
-        // ... (Ton code show actuel reste identique ici)
+        try {
+            document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+            const targetPage = document.getElementById('p-' + p);
+            if (targetPage) targetPage.classList.add('active-page');
+            
+            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+            const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
+            const navElem = document.getElementById(navId);
+            if(navElem) navElem.classList.add('active');
+            
+            if(p === 'launcher') loadMarket();
+            if(p === 'profil') loadLeaderboard();
+            refresh();
+        } catch(e) { console.error("Navigation error", e); }
     }
 
-
-
-
+    // --- 3. RESTE DE TES FONCTIONS (MINE, REFRESH, etc.) ---
     async function refresh() {
         try {
             const r = await fetch(`/api/user/${uid}`);
@@ -289,243 +300,117 @@
             let ah = ""; 
             if(d.assets && d.assets.length > 0) {
                 d.assets.forEach(a => { 
-                    ah += `<div class="card">
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <div style="background:var(--blue); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px;">$</div>
-                                <span>${a.n} <small style="color:var(--text)">$${a.s}</small></span>
-                            </div>
-                            <b>${a.a.toFixed(2)}</b>
-                           </div>`; 
+                    ah += `<div class="card"><div style="display:flex; align-items:center; gap:10px;"><div style="background:var(--blue); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px;">$</div><span>${a.n} <small style="color:var(--text)">$${a.s}</small></span></div><b>${a.a.toFixed(2)}</b></div>`; 
                 });
             }
-            if(document.getElementById('prof-assets')) {
-                document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Your wallet is empty</center>";
-            }
+            if(document.getElementById('prof-assets')) document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Your wallet is empty</center>";
         } catch(e) { console.error("Refresh error", e); }
     }
 
-       // --- CHART & TOKEN DETAILS ---
     async function openToken(t) {
         if(!t || !t.id) return tg.showAlert("Token data missing");
         currentTokenId = t.id;
-        
-        // 1. Remplir les infos de base
         document.getElementById('det-name').innerText = t.name;
         document.getElementById('det-sym').innerText = "$" + t.symbol;
         document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
         document.getElementById('det-logo').src = t.logo || "";
         document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
-        
         show('details');
 
-        // 2. Charger les Stats (Market Cap & Holders) - Toujours exécuté
         try {
             const sRes = await fetch(`/api/launcher/stats/${t.id}`);
-const stats = await sRes.json();
-
-document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
-document.getElementById('det-holders').innerText = stats.holders;
+            const stats = await sRes.json();
+            document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
             document.getElementById('det-holders').innerText = stats.holders;
-        } catch(e) { 
-            console.error("Stats error", e); 
-        }
+        } catch(e) {}
 
-        // 3. Charger l'historique pour la courbe
         try {
             const res = await fetch(`/api/launcher/history/${t.id}`);
             const history = await res.json(); 
-
             if (history && history.length > 1) {
-                const max = Math.max(...history);
-                const min = Math.min(...history);
-                const range = max - min || 1;
-                
-                const points = history.map((p, i) => {
-                    const x = (i / (history.length - 1)) * 300;
-                    const y = 80 - ((p - min) / range * 60); 
-                    return `${x},${y}`;
-                }).join(' ');
-                
+                const max = Math.max(...history), min = Math.min(...history);
+                const range = (max - min) || 1;
+                const points = history.map((p, i) => `${(i / (history.length - 1)) * 300},${80 - ((p - min) / range * 60)}`).join(' ');
                 document.getElementById('chart-line').setAttribute('points', points);
             } else {
-                // Ligne plate si pas d'historique
                 document.getElementById('chart-line').setAttribute('points', "0,80 150,80 300,80");
             }
-        } catch(e) { 
-            console.error("Chart load error", e); 
-        }
+        } catch(e) {}
     }
 
-
-    // --- BUTTON ACTIONS ---
     async function mine(type) {
-        const res = await fetch('/api/mine', {
-            method:'POST', 
-            headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({user_id:uid, token:type})
-        });
+        const res = await fetch('/api/mine', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:type}) });
         if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
     }
 
     async function buyToken() {
         const amount = prompt("Amount of WPT to spend:");
-        if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
-        
-        try {
-            const res = await fetch('/api/launcher/buy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: parseInt(uid),
-                    token_id: parseInt(currentTokenId),
-                    amount_wpt: parseFloat(amount)
-                })
-            });
-            const data = await res.json();
-            if(data.ok) {
-                tg.showAlert(`✅ Success! Tokens received.`);
-                show('wallet');
-            } else {
-                tg.showAlert("Error: " + (data.error || "Transaction failed"));
-            }
-        } catch(e) { tg.showAlert("Server unreachable"); }
+        if(!amount || isNaN(amount)) return;
+        const res = await fetch('/api/launcher/buy', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: parseInt(uid), token_id: parseInt(currentTokenId), amount_wpt: parseFloat(amount) }) });
+        if(res.ok) { tg.showAlert("✅ Success!"); show('wallet'); }
     }
 
-    function shareReferral() {
-        const inviteLink = `https://t.me/OWPCsBot?start=${uid}`; 
-        const shareText = "🚀 Join me on One World Peace Coins!";
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
+    async function sellToken() {
+        const qty = prompt("Quantity of tokens to sell:");
+        if(!qty || isNaN(qty)) return;
+        const res = await fetch('/api/launcher/sell', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: parseInt(uid), token_id: parseInt(currentTokenId), amount_wpt: parseFloat(qty) }) });
+        if(res.ok) { tg.showAlert("✅ Sold!"); show('wallet'); }
     }
 
-    // --- LOADING DATA ---
+    async function withdrawToken() {
+        if(!connectedAddress) return tg.showAlert("Connect wallet first!");
+        const amount = prompt("Amount to withdraw:");
+        const res = await fetch('/api/user/withdraw', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: parseInt(uid), address: connectedAddress, amount: parseFloat(amount) }) });
+        if(res.ok) { tg.showAlert("✅ Sent!"); refresh(); }
+    }
+
     async function loadMarket() {
         try {
             const r = await fetch('/api/launcher/list');
             const tokens = await r.json();
             let h = "";
             tokens.forEach(t => {
-                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;background:#222;">
-                        <div><b>${t.name}</b><br><small style="color:var(--text)">$${t.symbol}</small></div>
-                    </div>
-                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-                </div>`;
+                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'><div style="display:flex; align-items:center; gap:10px;"><img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;"><div><b>${t.name}</b><br><small>$${t.symbol}</small></div></div><b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
             });
-            document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
-        } catch(e) { console.error("Market load error", e); }
+            document.getElementById('token-list').innerHTML = h || "<center>No tokens</center>";
+        } catch(e) {}
     }
 
-
-async function sellToken() {
-    const qty = prompt("Quantity of tokens to sell:");
-    if(!qty || isNaN(qty) || parseFloat(qty) <= 0) return;
-    
-    try {
-        const res = await fetch('/api/launcher/sell', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: parseInt(uid),
-                token_id: parseInt(currentTokenId),
-                amount_wpt: parseFloat(qty) // On envoie la quantité de tokens ici
-            })
-        });
-        const data = await res.json();
-        if(data.ok) {
-            tg.showAlert(`✅ Sold! You received ${data.earned.toFixed(2)} WPT`);
-            show('wallet');
-        } else {
-            tg.showAlert("Error: " + data.error);
-        }
-    } catch(e) { tg.showAlert("Server unreachable"); }
-}
-
-
-function buyStarsPack() {
-    // On utilise l'API de Telegram WebApp pour ouvrir une facture
-    // Le lien de la facture sera généré par ton backend Python
-    fetch(`/api/stars/create-invoice/${uid}`)
-        .then(res => res.json())
-        .then(data => {
-            if(data.invoice_link) {
-                tg.openInvoice(data.invoice_link, (status) => {
-                    if(status === 'paid') {
-                        tg.showAlert("✅ Payment Successful! 10,000 WPT added.");
-                        refresh();
-                    }
-                });
-            }
-        });
-}
-
-
-async function withdrawToken() {
-    if(!connectedAddress) return tg.showAlert("Please connect your wallet first!");
-    
-    const amount = prompt("Amount of WPT to withdraw:");
-    if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
-
-    try {
-        const res = await fetch('/api/user/withdraw', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: parseInt(uid),
-                address: connectedAddress, // On utilise l'adresse du wallet connecté !
-                amount: parseFloat(amount)
-            })
-        });
-        const data = await res.json();
-        if(data.ok) {
-            tg.showAlert("✅ Withdrawal request sent to Admin!");
-            refresh();
-        } else {
-            tg.showAlert("Error: " + data.error);
-        }
-    } catch(e) { tg.showAlert("Server Error"); }
-}
-
-
-
-
-
     async function loadLeaderboard() {
-        const listElem = document.getElementById('leaderboard-list');
         try {
             const res = await fetch('/api/user/leaderboard');
             const data = await res.json();
             let html = "";
             data.forEach(user => {
-                let medal = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
-                html += `<div class="card" style="margin-bottom:8px; background: #161618; border: 1px solid #222;">
-                    <div style="display:flex; align-items:center; gap:15px;">
-                        <b style="width:25px; color:#fff">${medal}</b>
-                        <span style="font-weight:600;">${user.name || 'Anonymous'}</span>
-                    </div>
-                    <b style="color:var(--text); font-size:13px;">${user.score.toFixed(2)} WPT</b>
-                </div>`;
+                html += `<div class="card"><div style="display:flex; align-items:center; gap:15px;"><b>#${user.rank}</b><span>${user.name}</span></div><b>${user.score.toFixed(2)} WPT</b></div>`;
             });
-            listElem.innerHTML = html || "<center>No rankings</center>";
-        } catch(e) { listElem.innerHTML = "<center>Sync Error</center>"; }
+            document.getElementById('leaderboard-list').innerHTML = html;
+        } catch(e) {}
+    }
+
+    function shareReferral() {
+        const link = `https://t.me/OWPCsBot?start=${uid}`;
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=Join me!`);
     }
 
     function processFile(type) {
         const file = document.getElementById('f-' + type).files[0];
         const reader = new FileReader();
-        reader.onloadend = () => {
-            if (type === 'logo') b64_logo = reader.result;
-            else b64_banner = reader.result;
-            tg.showAlert(type.toUpperCase() + " loaded!");
-        };
+        reader.onloadend = () => { if (type === 'logo') b64_logo = reader.result; else b64_banner = reader.result; };
         if (file) reader.readAsDataURL(file);
     }
 
-    // --- START ---
+    function buyStarsPack() {
+        fetch(`/api/stars/create-invoice/${uid}`).then(res => res.json()).then(data => {
+            if(data.invoice_link) tg.openInvoice(data.invoice_link, (status) => { if(status === 'paid') refresh(); });
+        });
+    }
+
     tg.expand();
     refresh();
-    setInterval(refresh, 10000); // Auto-refresh every 10s
+    setInterval(refresh, 10000);
 </script>
+
 
 
 </body>
