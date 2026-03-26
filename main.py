@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
+from aiogram import types
 
 # Import de tes configurations et modules
 import config, database
@@ -86,6 +87,43 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             await update.message.reply_text(f"🚀 Success! <b>{data['name']}</b> has been deployed!")
 
 # --- MAIN SERVER RUNNER ---
+@router.get("/api/stars/create-invoice/{uid}")
+async def create_invoice(uid: int):
+    # Prix en Stars (50 Stars par exemple)
+    prices = [types.LabeledPrice(label="10,000 WPT Pack", amount=50)]
+    
+    # Génération du lien de paiement via le bot
+    invoice_link = await bot.create_invoice_link(
+        title="WPT Boost Pack",
+        description="Get 10,000 WPT instantly to trade community tokens!",
+        payload=f"buy_wpt_10k_{uid}",
+        provider_token="", # Vide pour les Telegram Stars
+        currency="XTR",    # Code obligatoire pour les Stars
+        prices=prices
+    )
+    return {"invoice_link": invoice_link}
+
+# Gérer la confirmation du paiement (Côté Telegram Bot)
+@dp.pre_checkout_query_handler(lambda q: True)
+async def checkout(pre_checkout_query: types.PreCheckoutQuery):
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+@dp.message_handler(content_types=types.ContentType.SUCCESSFUL_PAYMENT)
+async def got_payment(message: types.Message):
+    payload = message.successful_payment.invoice_payload
+    if "buy_wpt_10k" in payload:
+        uid = int(payload.split("_")[-1])
+        # AJOUTE LES POINTS EN BASE DE DONNÉES
+        conn = database.get_db_conn()
+        c = conn.cursor()
+        c.execute("UPDATE users SET p_genesis = p_genesis + 10000 WHERE user_id = %s", (uid,))
+        conn.commit()
+        c.close(); conn.close()
+        await message.answer("✅ Thank you! 10,000 WPT have been credited to your account.")
+
+
+
+
 
 async def main():
     # 1. Initialisation du Bot
