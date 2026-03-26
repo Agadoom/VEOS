@@ -74,7 +74,7 @@ async def get_leaderboard():
         c.execute("""
             SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total_score 
             FROM users 
-            WHERE name IS NOT NULL
+            WHERE name IS NOT NULL 
             ORDER BY total_score DESC 
             LIMIT 10
         """)
