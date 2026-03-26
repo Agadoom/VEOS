@@ -112,20 +112,25 @@ async def request_withdraw(req: WithdrawRequest):
 
 
 
+# Assure-toi que cette classe est définie en haut ou juste avant la route
 class WalletUpdate(BaseModel):
     user_id: int
     wallet_address: str
 
-@app.post("/api/user/update-wallet")
+# Utilise @router.post et non @app.post
+@router.post("/update-wallet")
 async def update_wallet(req: WalletUpdate):
+    print(f"🔐 Linking Wallet: {req.wallet_address} to UID {req.user_id}")
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On enregistre l'adresse dans la colonne wallet de ta table users
+        # On met à jour la colonne wallet pour l'utilisateur
         c.execute("UPDATE users SET wallet = %s WHERE user_id = %s", (req.wallet_address, req.user_id))
         conn.commit()
         return {"ok": True}
     except Exception as e:
+        conn.rollback()
+        print(f"❌ Wallet Update Error: {e}")
         return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
