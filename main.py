@@ -57,7 +57,7 @@ async def manifest():
     return {
         "url": "https://veos-production-a2de.up.railway.app",
         "name": "WPT Hub",
-        "iconUrl": "https://veos-production-a2de.up.railway.app/owpc_logo.png"
+        "iconUrl": "https://veos-production-a2de.up.railway.app/media/owpc_logo.png"
     }
 
 
