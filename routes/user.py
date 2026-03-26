@@ -80,7 +80,7 @@ async def get_user_data(uid: int):
         # On renvoie tout proprement au Frontend
         return {
             "uid": uid, 
-            "name": r[4] or "User", 
+            "name": r[3] or "User", 
             "g": round(r[0] or 0, 2), 
             "u": round(r[1] or 0, 2), 
             "v": round(r[2] or 0, 2), 
