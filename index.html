@@ -260,12 +260,12 @@
         } catch(e) { console.error("Refresh error", e); }
     }
 
-    // --- CHART & TOKEN DETAILS ---
+       // --- CHART & TOKEN DETAILS ---
     async function openToken(t) {
         if(!t || !t.id) return tg.showAlert("Token data missing");
         currentTokenId = t.id;
         
-        // Fill UI
+        // 1. Remplir les infos de base
         document.getElementById('det-name').innerText = t.name;
         document.getElementById('det-sym').innerText = "$" + t.symbol;
         document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
@@ -274,7 +274,17 @@
         
         show('details');
 
-        // Fetch Chart History
+        // 2. Charger les Stats (Market Cap & Holders) - Toujours exécuté
+        try {
+            const sRes = await fetch(`/api/launcher/stats/${t.id}`);
+            const stats = await sRes.json();
+            document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
+            document.getElementById('det-holders').innerText = stats.holders;
+        } catch(e) { 
+            console.error("Stats error", e); 
+        }
+
+        // 3. Charger l'historique pour la courbe
         try {
             const res = await fetch(`/api/launcher/history/${t.id}`);
             const history = await res.json(); 
@@ -286,24 +296,20 @@
                 
                 const points = history.map((p, i) => {
                     const x = (i / (history.length - 1)) * 300;
-                    const y = 80 - ((p - min) / range * 60); // Scale y between 20 and 80
+                    const y = 80 - ((p - min) / range * 60); 
                     return `${x},${y}`;
                 }).join(' ');
                 
-
-try {
-        const sRes = await fetch(`/api/launcher/stats/${t.id}`);
-        const stats = await sRes.json();
-        
-        document.getElementById('det-mcap').innerText = stats.mcap.toFixed(2) + " WPT";
-        document.getElementById('det-holders').innerText = stats.holders;
-    } catch(e) { console.error("Stats error", e); }
                 document.getElementById('chart-line').setAttribute('points', points);
             } else {
+                // Ligne plate si pas d'historique
                 document.getElementById('chart-line').setAttribute('points', "0,80 150,80 300,80");
             }
-        } catch(e) { console.error("Chart load error", e); }
+        } catch(e) { 
+            console.error("Chart load error", e); 
+        }
     }
+
 
     // --- BUTTON ACTIONS ---
     async function mine(type) {
