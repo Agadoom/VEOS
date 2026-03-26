@@ -198,3 +198,19 @@ async def deploy_token(req: DeployRequest):
     finally:
         c.close(); conn.close()
 
+
+@router.get("/balance/{uid}/{tid}")
+async def get_user_token_balance(uid: int, tid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT amount FROM user_community_assets WHERE user_id = %s AND token_id = %s", (uid, tid))
+        res = c.fetchone()
+        balance = float(res[0]) if res else 0.0
+        return {"ok": True, "balance": balance}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        c.close(); conn.close()
+
+
