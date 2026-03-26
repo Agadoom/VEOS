@@ -64,3 +64,48 @@ async def buy_token(req: TradeRequest):
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
     finally:
         c.close(); conn.close()
+
+
+class DeployRequest(BaseModel):
+    user_id: int
+    name: str
+    symbol: str
+    description: str = ""
+    logo: str = ""
+    banner: str = ""
+
+@router.post("/deploy")
+async def deploy_token(req: DeployRequest):
+    print(f"🚀 Nouveau déploiement : {req.name} par {req.user_id}")
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Vérifier si l'utilisateur a assez de fonds pour les frais (ex: 10 WPT)
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
+        res = c.fetchone()
+        if not res or float(res[0]) < 10:
+            return {"ok": False, "error": "Frais de déploiement insuffisants (10 WPT requis)"}
+
+        # 2. Prélever les frais
+        c.execute("UPDATE users SET p_genesis = p_genesis - 10 WHERE user_id = %s", (req.user_id,))
+
+        # 3. Créer le token
+        # On initialise le prix à 0.0001 et la supply à 0
+        query = """
+            INSERT INTO community_tokens (name, symbol, description, logo, banner, price, supply, creator_id)
+            VALUES (%s, %s, %s, %s, %s, 0.0001, 0, %s)
+            RETURNING id
+        """
+        c.execute(query, (req.name, req.symbol, req.description, req.logo, req.banner, req.user_id))
+        new_id = c.fetchone()[0]
+
+        conn.commit()
+        return {"ok": True, "token_id": new_id}
+
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ Erreur Deploy: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        c.close(); conn.close()
+
