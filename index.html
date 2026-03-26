@@ -357,21 +357,34 @@
         if(res.ok) { tg.showAlert("✅ Sold!"); show('wallet'); }
     }
 
-    async function withdrawToken() {
-        if(!connectedAddress) return tg.showAlert("Connect wallet first!");
-        const amount = prompt("Amount to withdraw:");
-        const res = await fetch('/api/user/withdraw', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: parseInt(uid), address: connectedAddress, amount: parseFloat(amount) }) });
-        if(res.ok) { tg.showAlert("✅ Sent!"); refresh(); }
+        async function connectWallet() {
+        try {
+            // On vérifie si on est déjà connecté
+            if (connector.connected) {
+                await connector.disconnect();
+            }
+
+            const walletConnectionSource = {
+                universalLink: 'https://tonkeeper.com/ton-connect',
+                bridgeUrl: 'https://bridge.tonapi.io/bridge'
+            };
+
+            const url = connector.connect(walletConnectionSource);
+
+            // IMPORTANT: Sur Telegram, il faut utiliser tg.openTelegramLink 
+            // pour les liens universels afin que l'app wallet s'ouvre correctement.
+            if (url) {
+                tg.openTelegramLink(url);
+            } else {
+                tg.showAlert("Impossible de générer le lien de connexion.");
+            }
+        } catch (e) {
+            console.error("Connect error", e);
+            // Si ça échoue, on affiche l'erreur réelle pour débugger
+            tg.showAlert("Erreur: " + e.message);
+        }
     }
 
-    async function loadMarket() {
-        try {
-            const r = await fetch('/api/launcher/list');
-            const tokens = await r.json();
-            let h = "";
-            tokens.forEach(t => {
-                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'><div style="display:flex; align-items:center; gap:10px;"><img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;"><div><b>${t.name}</b><br><small>$${t.symbol}</small></div></div><b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
-            });
             document.getElementById('token-list').innerHTML = h || "<center>No tokens</center>";
         } catch(e) {}
     }
