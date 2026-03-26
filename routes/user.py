@@ -26,10 +26,11 @@ async def get_leaderboard():
                 "name": r[0] if r[0] else "Unknown",
                 "score": round(r[1], 2)
             })
-        return leaders
-    except Exception as e:
-        print(f"Leaderboard DB Error: {e}")
-        return []
+        return {
+            "uid": uid, "name": r[4], "g": r[0], "u": r[1], "v": r[2],
+            "score": round(score, 2), "rank": user_rank, "energy": int(current_e),
+            "max_energy": config.MAX_ENERGY, "badge": badge, "streak": r[7] or 0
+        }
     finally:
         c.close(); conn.close()
 
