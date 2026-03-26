@@ -9,31 +9,18 @@ def init_db_structure():
     c = conn.cursor()
     try:
         # 1. Table Users
-        # On sélectionne les colonnes une par une pour être sûr
-        c.execute("""
-            SELECT p_genesis, p_unity, p_veo, name, energy, 
-                   last_energy_update, streak, referrer_id, last_login_date 
-            FROM users WHERE user_id=%s
-        """, (uid,))
-        res = c.fetchone()
-        
-        if not res: 
-            # Si l'utilisateur n'existe pas, on le crée proprement
-            now = int(time.time())
-            c.execute("""
-                INSERT INTO users (user_id, name, energy, last_energy_update, streak, p_genesis, p_unity, p_veo) 
-                VALUES (%s, 'New Citizen', 100, %s, 0, 0, 0, 0)
-            """, (uid, now))
-            conn.commit()
-            # Retourne un tuple par défaut compatible avec ton frontend
-            return (0.0, 0.0, 0.0, 'New Citizen', 100, now, 0, None, None)
-        
-        return res
-    except Exception as e:
-        print(f"❌ Error in get_user_full: {e}")
-        return (0.0, 0.0, 0.0, 'Error User', 0, 0, 0, None, None)
-    finally:
-        c.close(); conn.close()
+        c.execute("""CREATE TABLE IF NOT EXISTS users (
+            user_id BIGINT PRIMARY KEY,
+            name TEXT,
+            p_genesis DOUBLE PRECISION DEFAULT 0,
+            p_unity DOUBLE PRECISION DEFAULT 0,
+            p_veo DOUBLE PRECISION DEFAULT 0,
+            energy INTEGER DEFAULT 100,
+            last_energy_update INTEGER,
+            streak INTEGER DEFAULT 0,
+            referrer_id BIGINT,
+            last_login_date TEXT
+        )""")
 
         # 2. Table Tokens
         c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
