@@ -247,37 +247,41 @@ if(document.getElementById('prof-rank')) {
     }
 
     // --- 3. LEADERBOARD & MISSIONS ---
-    async function loadLeaderboard() {
+    aasync function loadLeaderboard() {
+    const listElem = document.getElementById('leaderboard-list');
     try {
         const res = await fetch('/api/user/leaderboard');
-        if(!res.ok) {
-            const errData = await res.json();
-            console.error("Détails erreur:", errData); // Regarde ça dans F12
-            throw new Error();
-        }
         const data = await res.json();
         
-        let html = "";
-        if (data.length === 0) {
-            html = "<center style='color:#444; padding:20px;'>No rankings yet</center>";
-        } else {
-            data.forEach(user => {
-                let medal = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
-                let color = user.rank === 1 ? "var(--gold)" : "#fff";
-                html += `<div class="card" style="margin-bottom:8px; background: #161618;">
-                    <div style="display:flex; align-items:center; gap:15px;">
-                        <b style="width:25px; color:${color}">${medal}</b>
-                        <span>${user.name}</span>
-                    </div>
-                    <b style="color:var(--text); font-size:13px;">${user.score} WPT</b>
-                </div>`;
-            });
+        console.log("Données reçues du leaderboard:", data); // Vérifie la console F12 !
+
+        if (!Array.isArray(data) || data.length === 0) {
+            listElem.innerHTML = "<center style='color:#666; padding:20px;'>No rankings available yet.<br><small>Be the first one!</small></center>";
+            return;
         }
+
+        let html = "";
+        data.forEach(user => {
+            let medal = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
+            let color = user.rank === 1 ? "var(--gold)" : "#fff";
+            
+            html += `
+            <div class="card" style="margin-bottom:8px; background: #161618; border: 1px solid #222;">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <b style="width:25px; color:${color}">${medal}</b>
+                    <span style="font-weight:600;">${user.name || 'Anonymous'}</span>
+                </div>
+                <b style="color:var(--text); font-size:13px;">${user.score.toLocaleString()} WPT</b>
+            </div>`;
+        });
         listElem.innerHTML = html;
+
     } catch(e) {
-        document.getElementById('leaderboard-list').innerHTML = "<center style='color:#eb4034; padding:20px;'>Leaderboard Offline</center>";
+        console.error("Erreur critique Leaderboard:", e);
+        listElem.innerHTML = "<center style='color:#eb4034; padding:20px;'>Leaderboard Sync Error</center>";
     }
 }
+
 
 
     async function claimDaily() {
