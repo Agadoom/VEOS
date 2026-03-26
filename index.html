@@ -41,6 +41,19 @@
 
         /* Chart */
         .chart-container { padding: 15px; background: #000; border-radius: 15px; border: 1px solid #222; margin: 10px 0; }
+
+<div style="display:flex; justify-content:space-around; background:#111; padding:15px; border-radius:15px; margin:10px 0; border:1px solid #222;">
+    <div style="text-align:center;">
+        <small style="color:var(--text); display:block;">MARKET CAP</small>
+        <b id="det-mcap" style="color:var(--gold); font-size:18px;">$0</b>
+    </div>
+    <div style="text-align:center;">
+        <small style="color:var(--text); display:block;">HOLDERS</small>
+        <b id="det-holders" style="color:#fff; font-size:18px;">0</b>
+    </div>
+</div>
+
+
     </style>
 </head>
 <body>
@@ -277,6 +290,14 @@
                     return `${x},${y}`;
                 }).join(' ');
                 
+
+try {
+        const sRes = await fetch(`/api/launcher/stats/${t.id}`);
+        const stats = await sRes.json();
+        
+        document.getElementById('det-mcap').innerText = stats.mcap.toFixed(2) + " WPT";
+        document.getElementById('det-holders').innerText = stats.holders;
+    } catch(e) { console.error("Stats error", e); }
                 document.getElementById('chart-line').setAttribute('points', points);
             } else {
                 document.getElementById('chart-line').setAttribute('points', "0,80 150,80 300,80");
