@@ -157,6 +157,17 @@
             + STAKING (COMING SOON)
         </button>
     </div>
+
+<div class="card" style="background:linear-gradient(45deg, #1a1a1c, #222); border:1px solid var(--gold);">
+    <div style="flex:1;">
+        <h4 style="margin:0; color:var(--gold);">GET MORE WPT</h4>
+        <p style="font-size:11px; color:var(--text); margin:0;">Buy 10,000 WPT with Stars</p>
+    </div>
+    <button class="btn" style="background:var(--gold); color:#000;" onclick="buyStarsPack()">⭐ 50 STARS</button>
+</div>
+
+
+
 </div>
 
 </div>
@@ -351,6 +362,26 @@ async function sellToken() {
         }
     } catch(e) { tg.showAlert("Server unreachable"); }
 }
+
+
+function buyStarsPack() {
+    // On utilise l'API de Telegram WebApp pour ouvrir une facture
+    // Le lien de la facture sera généré par ton backend Python
+    fetch(`/api/stars/create-invoice/${uid}`)
+        .then(res => res.json())
+        .then(data => {
+            if(data.invoice_link) {
+                tg.openInvoice(data.invoice_link, (status) => {
+                    if(status === 'paid') {
+                        tg.showAlert("✅ Payment Successful! 10,000 WPT added.");
+                        refresh();
+                    }
+                });
+            }
+        });
+}
+
+
 
 
     async function loadLeaderboard() {
