@@ -207,53 +207,106 @@
 
 
     <script>
+    // 1. Initialisation de base
     const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
+    let currentTokenId = null;
+    let connectedAddress = null;
 
-    // Initialisation sécurisée de TonConnect
+    // 2. Initialisation TonConnect (Tentative sécurisée)
     let connector;
     try {
         connector = new TonConnectSDK.TonConnect({
             manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
         });
-    } catch(e) {
-        console.error("TonConnect Init Error", e);
+
+        // Écouter le changement de statut du wallet
+        connector.onStatusChange(wallet => {
+            const walletZone = document.getElementById('wallet-zone');
+            if (!walletZone) return;
+            if (wallet) {
+                connectedAddress = wallet.account.address;
+                const shortAddr = connectedAddress.substring(0, 4) + "..." + connectedAddress.substring(connectedAddress.length - 4);
+                walletZone.innerHTML = `<div style="color:var(--blue); font-size:12px; font-weight:bold; padding:10px; background:rgba(0,122,255,0.1); border-radius:10px; text-align:center;">Linked: ${shortAddr}</div>`;
+            } else {
+                connectedAddress = null;
+                walletZone.innerHTML = `<button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET</button>`;
+            }
+        });
+    } catch(e) { console.error("TonConnect Init Error", e); }
+
+    // 3. Fonction de Connexion (Celle qui ouvrait l'erreur WebAppTgUrlInvalid)
+    async function connectWallet() {
+        try {
+            if (connector.connected) await connector.disconnect();
+            
+            const url = connector.connect({
+                universalLink: 'https://tonkeeper.com/ton-connect',
+                bridgeUrl: 'https://bridge.tonapi.io/bridge'
+            });
+
+            if (url) {
+                tg.openTelegramLink(url);
+            } else {
+                tg.showAlert("Impossible de générer le lien de connexion.");
+            }
+        } catch (e) {
+            tg.showAlert("Wallet Error: " + e.message);
+        }
     }
 
-    // Fonction de Navigation (S'assure que les pages s'affichent)
+    // 4. Fonction de Navigation (Pour que les boutons fonctionnent)
     function show(p) {
         try {
+            // Masquer les pages
             document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
             const target = document.getElementById('p-' + p);
             if (target) target.classList.add('active-page');
 
+            // Update barre de navigation
             document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
             const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
             const navElem = document.getElementById(navId);
-            if(navElem) navElem.classList.add('active');
+            if (navElem) navElem.classList.add('active');
 
-            if(p === 'launcher') loadMarket();
+            if (p === 'launcher') loadMarket();
+            if (p === 'profil') loadLeaderboard();
             refresh();
-        } catch(e) { console.error("Nav Error", e); }
+        } catch(e) { console.error("Nav error", e); }
     }
 
-    // Fonction Refresh (Remplit Rank et Energy)
+    // 5. Fonction Refresh (RANK & ENERGY FIX)
     async function refresh() {
-        if(!uid) return;
+        if (!uid) return;
         try {
             const res = await fetch(`/api/user/${uid}`);
+            if (!res.ok) return;
             const d = await res.json();
             
-            // On met à jour chaque élément s'il existe dans le HTML
-            if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
-            if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
-            if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
-            if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
-            
-            console.log("Data refreshed for UID:", uid);
-        } catch(e) {
-            console.error("Refresh Error", e);
-        }
+            // Mise à jour des éléments s'ils existent
+            const map = {
+                'tot': d.score.toFixed(2),
+                'gv': d.g.toFixed(2),
+                'uv': d.u.toFixed(2),
+                'vv': d.v.toFixed(2),
+                'u-badge': d.badge ? d.badge.toUpperCase() : "PLAYER",
+                'prof-rank': d.rank ? "#" + d.rank : "#---",
+                'prof-name': d.name || "Anonymous",
+                'wallet-genesis': d.g.toFixed(2)
+            };
+
+            for (let id in map) {
+                const el = document.getElementById(id);
+                if (el) el.innerText = map[id];
+            }
+
+            // Barre d'énergie
+            const energyText = document.getElementById('e-t');
+            const energyFill = document.getElementById('e-f');
+            if (energyText) energyText.innerText = `Energy: ${Math.floor(d.energy)}/100`;
+            if (energyFill) energyFill.style.width = (d.energy / d.max_energy * 100) + "%";
+
+        } catch(e) { console.error("Refresh Error", e); }
     }
 
     // Connexion Wallet
@@ -402,7 +455,7 @@
     // 7. Initialisation au démarrage
     tg.expand();
     refresh();
-    setInterval(refresh, 10000);
+    setInterval(refresh, 8000); // Refresh toutes les 8s
 </script>
 
 
