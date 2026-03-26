@@ -89,7 +89,7 @@ async def get_user_data(uid: int):
             "score": round(score_total, 2), 
             "badge": badge, 
             "rank": user_rank,
-            "streak": r[7] or 0,
+            "streak": r[6] or 0,
             "assets": assets,
             "ref_count": ref_count
         }
