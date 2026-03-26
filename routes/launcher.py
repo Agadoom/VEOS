@@ -128,3 +128,31 @@ async def sell_token(req: TradeRequest):
     finally:
         c.close(); conn.close()
 
+
+
+@router.get("/stats/{tid}")
+async def get_token_stats(tid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Calcul du Supply Total et nombre de Holders
+        c.execute("SELECT SUM(amount), COUNT(DISTINCT user_id) FROM user_community_assets WHERE token_id = %s", (tid,))
+        res = c.fetchone()
+        supply = float(res[0]) if res[0] else 0
+        holders = res[1] if res[1] else 0
+        
+        # 2. Récupérer le prix
+        c.execute("SELECT price FROM community_tokens WHERE id = %s", (tid,))
+        price = float(c.fetchone()[0])
+        
+        mcap = supply * price
+        
+        return {
+            "mcap": round(mcap, 2),
+            "holders": holders,
+            "supply": round(supply, 2)
+        }
+    finally:
+        c.close(); conn.close()
+
+
