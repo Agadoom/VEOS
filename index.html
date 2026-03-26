@@ -86,6 +86,8 @@
 
     <div style="margin-top:30px; padding:0 15px;">
         <h2 id="det-name" style="margin:0;"></h2>
+<p id="det-user-balance" style="color:var(--text); font-size:12px; margin-top:5px;">Balance: 0.00</p>
+
         <b id="det-sym" style="color:var(--gold)"></b>
     </div>
 
@@ -96,8 +98,9 @@
     </div>
 
     <div style="display:flex; gap:10px; padding:15px;">
-        <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="tg.showAlert('Buying coming soon...')">BUY</button>
-        <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="tg.showAlert('Selling coming soon...')">SELL</button>
+        <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="buyToken()">BUY</button>
+        <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="sellToken()">SELL</button>
+
     </div>
 </div>
 
