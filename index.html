@@ -176,7 +176,6 @@
     let currentTokenId = null;
     let b64_logo = "", b64_banner = "";
 
-    // --- 1. SYSTÈME DE NAVIGATION ---
     function show(p) {
         try {
             document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
@@ -190,43 +189,36 @@
             
             if(p === 'launcher') loadMarket();
             if(p === 'profil') loadLeaderboard();
-            
             refresh();
         } catch(e) { console.error("Navigation error", e); }
     }
 
-    // --- 2. REFRESH ---
     async function refresh() {
         try {
             const r = await fetch(`/api/user/${uid}`);
             if (!r.ok) return;
             const d = await r.json();
 
+            // Update stats (Mine & Header)
             if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
             if(document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toFixed(2);
             if(document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toFixed(2);
             if(document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toFixed(2);
             if(document.getElementById('u-badge')) document.getElementById('u-badge').innerText = d.badge.toUpperCase();
             
+            // Energy bar
             if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
             if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
 
+            // Profil & Wallet
             if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
-            if(document.getElementById('u-badge-large')) document.getElementById('u-badge-large').innerText = d.badge.toUpperCase() + " CITIZEN";
             if(document.getElementById('prof-streak')) document.getElementById('prof-streak').innerText = (d.streak || 0) + " Days";
-            
-            const count = d.ref_count || 0;
-            if(document.getElementById('ref-count')) document.getElementById('ref-count').innerText = count;
-            if(document.getElementById('ref-bonus')) document.getElementById('ref-bonus').innerText = "+" + (count * 10) + " WPT";
-
-            if(document.getElementById('prof-rank')) {
-                document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
-            }
-
+            if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
             if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
             
+            // Assets (Holders list)
             let ah = ""; 
-            if(d.assets) {
+            if(d.assets && d.assets.length > 0) {
                 d.assets.forEach(a => { 
                     ah += `<div class="card">
                             <div style="display:flex; align-items:center; gap:10px;">
@@ -243,180 +235,93 @@
         } catch(e) { console.error("Refresh error", e); }
     }
 
-    // --- 3. LEADERBOARD (CORRIGÉ ICI) ---
+    async function loadMarket() {
+        try {
+            const r = await fetch('/api/launcher/list');
+            const tokens = await r.json();
+            let h = "";
+            tokens.forEach(t => {
+                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;background:#222;">
+                        <div><b>${t.name}</b><br><small style="color:var(--text)">$${t.symbol}</small></div>
+                    </div>
+                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+                </div>`;
+            });
+            document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
+        } catch(e) { console.error("Market load error", e); }
+    }
+
+    function openToken(t) {
+        if(!t || !t.id) return tg.showAlert("Token data missing");
+        currentTokenId = t.id;
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+        document.getElementById('det-logo').src = t.logo || "";
+        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+        show('details');
+    }
+
+    async function buyToken() {
+        const amount = prompt("Amount of WPT to spend:");
+        if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
+        
+        try {
+            const res = await fetch('/api/launcher/buy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: parseInt(uid),
+                    token_id: parseInt(currentTokenId),
+                    amount_wpt: parseFloat(amount)
+                })
+            });
+            const data = await res.json();
+            if(res.ok && data.ok) {
+                tg.showAlert(`✅ Success! Received tokens.`);
+                show('wallet');
+            } else {
+                tg.showAlert("Error: " + (data.error || "Transaction failed"));
+            }
+        } catch(e) { tg.showAlert("Server unreachable"); }
+    }
+
     async function loadLeaderboard() {
         const listElem = document.getElementById('leaderboard-list');
         try {
             const res = await fetch('/api/user/leaderboard');
             const data = await res.json();
-            
-            if (!Array.isArray(data) || data.length === 0) {
-                listElem.innerHTML = "<center style='color:#666; padding:20px;'>No rankings available yet.</center>";
-                return;
-            }
-
             let html = "";
             data.forEach(user => {
                 let medal = user.rank === 1 ? "🥇" : user.rank === 2 ? "🥈" : user.rank === 3 ? "🥉" : `#${user.rank}`;
-                let color = user.rank === 1 ? "var(--gold)" : "#fff";
                 html += `<div class="card" style="margin-bottom:8px; background: #161618; border: 1px solid #222;">
                     <div style="display:flex; align-items:center; gap:15px;">
-                        <b style="width:25px; color:${color}">${medal}</b>
+                        <b style="width:25px; color:#fff">${medal}</b>
                         <span style="font-weight:600;">${user.name || 'Anonymous'}</span>
                     </div>
                     <b style="color:var(--text); font-size:13px;">${user.score} WPT</b>
                 </div>`;
             });
-            listElem.innerHTML = html;
-        } catch(e) {
-            listElem.innerHTML = "<center style='color:#eb4034; padding:20px;'>Leaderboard Sync Error</center>";
-        }
-    }
-
-    async function claimDaily() {
-        try {
-            const res = await fetch('/api/user/claim-daily', {
-                method:'POST',
-                headers:{'Content-Type':'application/json'},
-                body: JSON.stringify({user_id:uid})
-            });
-            const data = await res.json();
-            if(res.ok && data.reward > 0) tg.showAlert(`🔥 Day ${data.streak}! +${data.reward} WPT`);
-            else tg.showAlert("Come back tomorrow!");
-            refresh();
-        } catch(e) { tg.showAlert("Error claiming reward"); }
+            listElem.innerHTML = html || "<center>No rankings</center>";
+        } catch(e) { listElem.innerHTML = "<center>Sync Error</center>"; }
     }
 
     async function mine(type) {
-        try {
-            const res = await fetch('/api/mine', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({user_id:uid, token:type})
-            });
-            if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
-        } catch(e) {}
-    }
-
-    function shareReferral() {
-        const inviteLink = `https://t.me/OWPCsbot?start=${uid}`; 
-        const text = encodeURIComponent("🚀 Join me on WPT Hub!");
-        tg.openTelegramLink(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
-    }
-
-
-
-
-    // --- 6. GESTION DES DÉTAILS DU TOKEN ---
-    function openToken(t) {
-        currentTokenId = t.id;
-        
-        // Remplir les textes
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = "$" + t.symbol;
-        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
-        
-        // Remplir les images
-        document.getElementById('det-logo').src = t.logo || "";
-        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
-        
-        // Dessiner un graphique simple (simulation)
-        const points = "0,80 50,70 100,85 150,50 200,60 250,30 300,40";
-        document.getElementById('chart-line').setAttribute("points", points);
-        
-        // Afficher la page
-        show('details');
-    }
-
-    async function buyToken() {
-    const amount = prompt("Amount of WPT to spend:");
-    if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
-    if(!currentTokenId) return tg.showAlert("Select a token first");
-
-    try {
-        const res = await fetch('/api/launcher/buy', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: parseInt(uid), // Forcer le format nombre
-                token_id: parseInt(currentTokenId), // Forcer le format nombre
-                amount_wpt: parseFloat(amount)
-            })
+        const res = await fetch('/api/mine', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({user_id:uid, token:type})
         });
-        
-        const data = await res.json();
-        
-        if(res.ok && data.ok) {
-            tg.showAlert(`✅ Success! Received tokens.`);
-            show('wallet');
-        } else {
-            tg.showAlert("Error: " + (data.error || "Transaction failed"));
-        }
-    } catch(e) {
-        tg.showAlert("Server unreachable");
+        if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
     }
-}
-
-
-    async function sellToken() {
-        tg.showAlert("Selling feature coming in next update!");
-    }
-
-    async function withdrawToken() {
-        tg.showConfirm("Withdraw to external wallet? (Fee: 5 WPT)", (ok) => {
-            if(ok) tg.showAlert("Processing withdrawal...");
-        });
-    }
-
-
-
-
-
-
-    async function loadMarket() {
-    try {
-        const r = await fetch('/api/launcher/list');
-        const tokens = await r.json();
-        let h = "";
-        tokens.forEach(t => {
-            // On s'assure que l'ID est bien passé en paramètre
-            h += `
-            <div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;background:#222;">
-                    <div>
-                        <b>${t.name}</b><br>
-                        <small style="color:var(--text)">$${t.symbol}</small>
-                    </div>
-                </div>
-                <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-            </div>`;
-        });
-        document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
-    } catch(e) { console.error("Market load error", e); }
-}
-
-function openToken(t) {
-    if(!t || !t.id) {
-        tg.showAlert("Error: Token data missing");
-        return;
-    }
-    currentTokenId = t.id; // C'est ici que l'ID est stocké pour le bouton BUY
-    
-    document.getElementById('det-name').innerText = t.name;
-    document.getElementById('det-sym').innerText = "$" + t.symbol;
-    document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
-    document.getElementById('det-logo').src = t.logo || "";
-    document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
-    
-    show('details');
-}
-
 
     tg.expand();
     refresh();
     setInterval(refresh, 10000);
 </script>
+
 
 
 
