@@ -40,21 +40,23 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         /* Chart */
-        .chart-container { padding: 15px; background: #000; border-radius: 15px; border: 1px solid #222; margin: 10px 0; }
-
-<b id="det-mcap">0 WPT</b>
-<b id="det-holders">0</b>
+       <div class="chart-container">
+    <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
+        <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 150,80 300,80" />
+    </svg>
+</div>
 
 <div style="display:flex; justify-content:space-around; background:#111; padding:15px; border-radius:15px; margin:10px 0; border:1px solid #222;">
     <div style="text-align:center;">
-        <small style="color:var(--text); display:block;">MARKET CAP</small>
-        <b id="det-mcap" style="color:var(--gold); font-size:18px;">$0</b>
+        <small style="color:var(--text); display:block; font-size:10px; margin-bottom:4px;">MARKET CAP</small>
+        <b id="det-mcap" style="color:var(--gold); font-size:18px;">0 WPT</b>
     </div>
     <div style="text-align:center;">
-        <small style="color:var(--text); display:block;">HOLDERS</small>
+        <small style="color:var(--text); display:block; font-size:10px; margin-bottom:4px;">HOLDERS</small>
         <b id="det-holders" style="color:#fff; font-size:18px;">0</b>
     </div>
 </div>
+
 
 
     </style>
@@ -280,8 +282,10 @@
         // 2. Charger les Stats (Market Cap & Holders) - Toujours exécuté
         try {
             const sRes = await fetch(`/api/launcher/stats/${t.id}`);
-            const stats = await sRes.json();
-            document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
+const stats = await sRes.json();
+
+document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
+document.getElementById('det-holders').innerText = stats.holders;
             document.getElementById('det-holders').innerText = stats.holders;
         } catch(e) { 
             console.error("Stats error", e); 
