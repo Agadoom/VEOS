@@ -1,25 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WPT Hub</title>
+    <title>WPT Ecosystem</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://unpkg.com/@tonconnect/sdk@latest/dist/tonconnect-sdk.min.js"></script>
     <style>
-        :root { --bg: #050505; --card: #121214; --gold: #FFD700; --blue: #007AFF; --text: #8E8E8E; }
-        body { background: var(--bg); color: #FFF; font-family: sans-serif; margin: 0; padding: 0; overflow: hidden; }
+        :root { --bg: #050505; --card: #121214; --gold: #FFD700; --blue: #007AFF; --green: #34C759; --text: #8E8E8E; }
+        body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 0; overflow: hidden; }
+        
         .container { padding: 15px; padding-bottom: 100px; height: 100vh; overflow-y: auto; box-sizing: border-box; }
         .page { display: none; }
-        .active-page { display: block; animation: fadeIn 0.2s; }
+        .active-page { display: block; animation: fadeIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .card { background: var(--card); border-radius: 15px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #222; }
-        .btn { background: #FFF; color: #000; border: none; padding: 10px 15px; border-radius: 10px; font-weight: bold; cursor: pointer; }
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #111; padding: 10px 30px; border-radius: 50px; display: flex; gap: 30px; border: 1px solid #333; z-index: 9999; }
-        .n-i { font-size: 22px; opacity: 0.4; cursor: pointer; }
-        .n-i.active { opacity: 1; color: var(--gold); }
-        .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 10px; width: 100%; margin-bottom: 10px; }
-        .prof-header { text-align: center; padding: 20px; background: #111; border-radius: 20px; margin-bottom: 20px; }
+
+        .prof-header { background: linear-gradient(135deg, #1c1c1e 0%, #050505 100%); border-radius: 25px; padding: 20px; border: 1px solid #222; margin-bottom: 20px; text-align: center; }
+        .card { background: var(--card); border-radius: 18px; padding: 15px; margin-bottom: 10px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; }
+        
+        .btn { background: #FFF; color: #000; border: none; padding: 12px 18px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .btn-blue { background: var(--blue); color: #fff; width: 100%; }
+        .btn-gold { background: var(--gold); color: #000; width: 100%; }
+
+        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(10px); padding: 12px 30px; border-radius: 50px; display: flex; gap: 35px; border: 1px solid #333; z-index: 1000; }
+        .n-i { font-size: 22px; opacity: 0.3; cursor: pointer; transition: 0.3s; }
+        .n-i.active { opacity: 1; color: var(--gold); transform: scale(1.2); }
+
+        input, textarea { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+        label { font-size: 12px; color: var(--text); margin-bottom: 5px; display: block; }
     </style>
 </head>
 <body>
@@ -27,42 +35,57 @@
 <div class="container">
     <div id="p-mine" class="page active-page">
         <div class="prof-header">
-            <h1 id="tot">0.00</h1>
-            <div style="background:#222; height:5px; border-radius:5px;"><div id="e-f" style="background:var(--gold); width:0%; height:100%;"></div></div>
-            <small id="e-t">Energy: 0/100</small>
+            <small id="prof-rank" style="color:var(--gold)">RANK #---</small>
+            <h1 id="tot" style="font-size: 40px; margin: 10px 0;">0.00</h1>
+            <div style="background:#222; height:6px; border-radius:10px;"><div id="e-f" style="background:var(--gold); width:0%; height:100%; transition:0.3s;"></div></div>
+            <small id="e-t" style="color:var(--text)">Energy: 0/100</small>
         </div>
         <div class="card"><div><b>Genesis</b><br><small id="gv">0.00</small></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
         <div class="card"><div><b>Unity</b><br><small id="uv">0.00</small></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
     </div>
 
     <div id="p-launcher" class="page">
-        <h2>🚀 Launch Token</h2>
+        <h2 style="text-align:center;">🚀 Launchpad</h2>
         <div class="card" style="flex-direction:column; align-items:stretch;">
-            <input type="text" id="tk-name" class="l-input" placeholder="Name">
-            <input type="text" id="tk-sym" class="l-input" placeholder="$SYM">
-            <button class="btn" style="background:var(--gold)" onclick="deployToken()">DEPLOY (5000 WPT)</button>
+            <input type="text" id="tk-name" placeholder="Nom du Token">
+            <input type="text" id="tk-sym" placeholder="$SYMBOLE">
+            <textarea id="tk-desc" placeholder="Description..."></textarea>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">
+                    LOGO <input type="file" id="f-logo" hidden onchange="processFile('logo')">
+                </label>
+                <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">
+                    BANNER <input type="file" id="f-banner" hidden onchange="processFile('banner')">
+                </label>
+            </div>
+            <button class="btn btn-gold" onclick="deployToken()">LANCER (5,000 WPT)</button>
         </div>
-        <h3>Market</h3>
+        <h3>Marché en direct</h3>
         <div id="token-list"></div>
     </div>
 
     <div id="p-wallet" class="page">
-        <h2>💼 Wallet</h2>
-        <div class="card" style="text-align:center; flex-direction:column;">
-            <small>Total WPT</small>
-            <h2 id="wallet-genesis" style="color:var(--gold)">0.00</h2>
+        <h2 style="text-align:center;">💼 Portefeuille</h2>
+        <div class="card" style="flex-direction:column; text-align:center; padding:30px;">
+            <small style="color:var(--text)">Solde Total</small>
+            <h1 id="wallet-balance" style="color:var(--gold); margin:10px 0;">0.00</h1>
+            <button class="btn btn-blue" onclick="connectWallet()" id="btn-connect">💎 CONNECTER WALLET</button>
+            <div id="wallet-addr" style="margin-top:10px; font-size:10px; color:var(--blue);"></div>
         </div>
-        <button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET</button>
-        <div id="wallet-zone" style="margin-top:10px; text-align:center;"></div>
+        <div class="card" style="background:linear-gradient(45deg, #1a1a1c, #121214);">
+            <div><b>Acheter 10,000 WPT</b><br><small>Prix: 50 Stars ⭐</small></div>
+            <button class="btn" style="background:var(--green); color:#fff;" onclick="buyStarsPack()">ACHETER</button>
+        </div>
     </div>
 
     <div id="p-profil" class="page">
         <div class="prof-header">
-            <h2 id="prof-name">User</h2>
-            <b id="prof-rank" style="color:var(--gold)">RANK #---</b>
+            <h2 id="prof-name">Utilisateur</h2>
+            <p id="prof-id" style="font-size:10px; color:var(--text);"></p>
         </div>
-        <button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="shareReferral()">INVITE FRIENDS</button>
-        <div id="leaderboard-list" style="margin-top:20px;"></div>
+        <button class="btn btn-blue" onclick="shareRef()">🔗 INVITER DES AMIS</button>
+        <h3 style="margin-top:20px;">🏆 Classement</h3>
+        <div id="leaderboard"></div>
     </div>
 </div>
 
@@ -78,20 +101,20 @@
     const uid = tg.initDataUnsafe.user?.id || 0;
     const BASE_URL = 'https://veos-production-a2de.up.railway.app';
     
-    // NAVIGATION
+    let b64_logo = "", b64_banner = "";
+
+    // --- 1. NAVIGATION ---
     function show(p) {
-        console.log("Switching to page:", p);
-        document.querySelectorAll('.page').forEach(page => page.classList.remove('active-page'));
+        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
         document.getElementById('p-' + p).classList.add('active-page');
-        
-        document.querySelectorAll('.n-i').forEach(icon => icon.classList.remove('active'));
-        document.getElementById('n-' + p).classList.add('active');
-        
+        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+        document.getElementById('n-' + (p === 'details' ? 'launcher' : p)).classList.add('active');
         if(p === 'launcher') loadMarket();
+        if(p === 'profil') loadLeaderboard();
         refresh();
     }
 
-    // DATA
+    // --- 2. DATA & REFRESH ---
     async function refresh() {
         try {
             const r = await fetch(`${BASE_URL}/api/user/${uid}`);
@@ -99,41 +122,95 @@
             document.getElementById('tot').innerText = d.score.toFixed(2);
             document.getElementById('gv').innerText = d.g.toFixed(2);
             document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('wallet-genesis').innerText = d.score.toFixed(2);
+            document.getElementById('wallet-balance').innerText = d.score.toFixed(2);
             document.getElementById('prof-rank').innerText = "RANK #" + (d.rank || "---");
+            document.getElementById('prof-name').innerText = d.name || "User";
+            document.getElementById('prof-id').innerText = "ID: " + uid;
             document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
-            document.getElementById('e-t').innerText = "Energy: " + Math.floor(d.energy) + "/100";
-        } catch(e) { console.log("Refresh error"); }
+            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
+        } catch(e) { console.error("Erreur refresh"); }
     }
 
-    // ACTIONS
-    async function mine(type) {
-        await fetch(`${BASE_URL}/api/mine`, {
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({user_id:uid, token:type})
+    // --- 3. ACTIONS ---
+    async function mine(t) {
+        const r = await fetch(`${BASE_URL}/api/mine`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({user_id:uid, token:t})
         });
-        tg.HapticFeedback.impactOccurred('light');
-        refresh();
+        if(r.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
+    }
+
+    function processFile(t) {
+        const f = document.getElementById('f-'+t).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if(t === 'logo') b64_logo = reader.result;
+            else b64_banner = reader.result;
+            tg.showAlert(t.toUpperCase() + " chargé !");
+        };
+        reader.readAsDataURL(f);
+    }
+
+    async function deployToken() {
+        const n = document.getElementById('tk-name').value;
+        const s = document.getElementById('tk-sym').value;
+        if(!n || !s || !b64_logo) return tg.showAlert("Infos ou Logo manquants");
+
+        const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                user_id:uid, name:n, symbol:s, 
+                description:document.getElementById('tk-desc').value,
+                logo_b64:b64_logo, banner_b64:b64_banner
+            })
+        });
+        const data = await res.json();
+        if(data.ok) { tg.showAlert("🚀 Token déployé !"); show('launcher'); }
+        else { tg.showAlert("Erreur: " + data.error); }
     }
 
     async function loadMarket() {
         const r = await fetch(`${BASE_URL}/api/launcher/list`);
         const tokens = await r.json();
         document.getElementById('token-list').innerHTML = tokens.map(t => `
-            <div class="card"><b>${t.name}</b> <span>${t.price.toFixed(6)} WPT</span></div>
+            <div class="card">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${t.logo}" style="width:30px; height:30px; border-radius:5px;">
+                    <b>${t.name}</b>
+                </div>
+                <b style="color:var(--green)">${t.price.toFixed(6)} WPT</b>
+            </div>
         `).join('');
     }
 
-    function shareReferral() {
-        const link = `https://t.me/OWPCsBot?start=${uid}`;
-        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=Join%20me!`);
+    function buyStarsPack() {
+        fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`).then(r=>r.json()).then(d=>{
+            if(d.invoice_link) tg.openInvoice(d.invoice_link, s => { if(s==='paid') refresh(); });
+        });
+    }
+
+    // --- 4. TON CONNECT ---
+    const connector = new TonConnectSDK.TonConnect({ manifestUrl: `${BASE_URL}/tonconnect-manifest.json` });
+    connector.onStatusChange(w => {
+        if(w) {
+            const addr = w.account.address;
+            document.getElementById('btn-connect').style.display = 'none';
+            document.getElementById('wallet-addr').innerText = addr.slice(0,6) + "..." + addr.slice(-6);
+        }
+    });
+
+    async function connectWallet() {
+        const url = connector.connect({ universalLink: 'https://tonkeeper.com/ton-connect', bridgeUrl: 'https://bridge.tonapi.io/bridge' });
+        if(url) tg.openTelegramLink(url);
+    }
+
+    function shareRef() {
+        tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/OWPCsBot?start=${uid}&text=Rejoins-moi sur WPT!`);
     }
 
     tg.expand();
     refresh();
     setInterval(refresh, 8000);
 </script>
-
 </body>
 </html>
