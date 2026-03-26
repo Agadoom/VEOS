@@ -155,3 +155,29 @@ async def get_token_stats(tid: int):
     finally:
         c.close(); conn.close()
 
+
+
+
+
+
+
+router = APIRouter()
+
+# On définit ce que le serveur attend comme données
+class TradeRequest(BaseModel):
+    user_id: int
+    token_id: int
+    amount: float
+
+@router.post("/buy") # Pas besoin de mettre tout le chemin si le router est déjà préfixé
+async def buy_token(req: TradeRequest):
+    # Ici, on utilise req.user_id, req.token_id, req.amount
+    # ... TON CODE POUR L'ACHAT ICI ...
+    return {"ok": True, "received": 123.45}
+
+@router.post("/sell")
+async def sell_token(req: TradeRequest):
+    # ... TON CODE POUR LA VENTE ICI ...
+    return {"ok": True, "received": 50.0}
+
+
