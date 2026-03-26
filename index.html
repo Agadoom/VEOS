@@ -253,34 +253,52 @@
 
 
 
-async function buyToken() {
-    const amount = await new Promise(resolve => {
-        tg.showPopup({
-            title: 'Buy Token',
-            message: 'Enter WPT amount to invest:',
-            buttons: [{id: 'ok', type: 'default', text: 'Confirm'}]
-        }, (id) => resolve(100)); // Pour l'instant on fixe à 100 pour le test
-    });
+let tradeType = 'buy';
+
+function openTrade(type) {
+    tradeType = type;
+    document.getElementById('trade-modal').style.display = 'flex';
+    document.getElementById('modal-title').innerText = (type === 'buy') ? 'Buy Token' : 'Sell Token';
+    document.getElementById('modal-info').innerText = (type === 'buy') ? 'Enter WPT amount to spend' : 'Enter Token amount to sell';
+    document.getElementById('modal-confirm-btn').style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+    document.getElementById('modal-confirm-btn').onclick = executeTrade;
+    document.getElementById('trade-amount').value = "";
+    document.getElementById('trade-amount').focus();
+}
+
+function closeTrade() {
+    document.getElementById('trade-modal').style.display = 'none';
+}
+
+async function executeTrade() {
+    const amount = document.getElementById('trade-amount').value;
+    if (!amount || amount <= 0) return tg.showAlert("Please enter a valid amount");
+
+    closeTrade(); // On ferme la modale avant de lancer l'appel
+    tg.MainButton.showProgress();
 
     try {
-        const r = await fetch(`${BASE_URL}/api/launcher/buy`, {
+        const endpoint = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+        const r = await fetch(`${BASE_URL}${endpoint}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 user_id: uid,
                 token_id: currentTokenId,
-                amount: 100 // L'utilisateur mise 100 WPT
+                amount: parseFloat(amount)
             })
         });
         const res = await r.json();
         if(res.ok) {
-            tg.showAlert(`✅ Purchase successful! You got ${res.received.toFixed(2)} tokens.`);
-            refresh(); // Update the balance
+            tg.showAlert(`✅ Success! Received: ${res.received.toFixed(2)}`);
+            refresh();
         } else {
             tg.showAlert("❌ Error: " + res.error);
         }
     } catch(e) {
         tg.showAlert("Server unreachable");
+    } finally {
+        tg.MainButton.hideProgress();
     }
 }
 
@@ -289,36 +307,8 @@ async function buyToken() {
 
 
 
-async function sellToken() {
-    if (!currentTokenId) return;
 
-    // On demande confirmation à l'utilisateur
-    tg.showConfirm("Do you want to sell your tokens for WPT?", async (ok) => {
-        if (ok) {
-            try {
-                const r = await fetch(`${BASE_URL}/api/launcher/sell`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        user_id: uid,
-                        token_id: currentTokenId,
-                        amount: 'all' // On vend tout pour le test, ou tu peux mettre un montant
-                    })
-                });
-                const res = await r.json();
-                if (res.ok) {
-                    tg.showAlert(`💰 Sold! You received ${res.received.toFixed(2)} WPT.`);
-                    refresh(); // Pour mettre à jour la balance Genesis
-                    show('launcher'); // On retourne au marché
-                } else {
-                    tg.showAlert("❌ Error: " + (res.error || "Insufficient tokens"));
-                }
-            } catch (e) {
-                tg.showAlert("Server error during sale");
-            }
-        }
-    });
-}
+
 
 
 
@@ -348,5 +338,20 @@ async function sellToken() {
     refresh();
     setInterval(refresh, 8000);
 </script>
+
+<div id="trade-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; align-items:center; justify-content:center;">
+    <div class="card" style="width:80%; flex-direction:column; padding:25px; gap:15px; border:1px solid var(--gold);">
+        <h3 id="modal-title" style="margin:0;">Buy Token</h3>
+        <p id="modal-info" style="font-size:12px; color:var(--text); margin:0;">Enter amount in WPT</p>
+        
+        <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:18px; text-align:center;">
+        
+        <div style="display:flex; gap:10px; width:100%;">
+            <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
+            <button id="modal-confirm-btn" class="btn" style="flex:1; background:var(--gold); color:#000;">CONFIRM</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
