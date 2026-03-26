@@ -236,14 +236,19 @@
     }
 
     function openToken(t) {
-        currentTokenId = t.id;
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = "$" + t.symbol;
-        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
-        document.getElementById('det-logo').src = t.logo || "";
-        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
-        show('details'); // Switch to details page
-    }
+    currentTokenId = t.id;
+    document.getElementById('det-name').innerText = t.name;
+    document.getElementById('det-sym').innerText = "$" + t.symbol;
+    document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+    document.getElementById('det-logo').src = t.logo || "";
+    document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+    
+    // On peut essayer de récupérer la balance si ton API le permet
+    document.getElementById('det-user-balance').innerText = "Holdings: checking..."; 
+    
+    show('details');
+}
+
 
 
 
