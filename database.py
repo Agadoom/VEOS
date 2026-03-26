@@ -1,6 +1,7 @@
 import psycopg2, os, time
 
 def get_db_conn():
+    # Assure-toi que DATABASE_URL est bien configurée dans tes variables d'environnement Railway
     return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 def init_db_structure():
@@ -21,7 +22,7 @@ def init_db_structure():
             last_login_date TEXT
         )""")
 
-        # 2. Table Tokens (CORRIGÉE)
+        # 2. Table Tokens
         c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
             id SERIAL PRIMARY KEY, 
             creator_id BIGINT, 
@@ -36,66 +37,60 @@ def init_db_structure():
             created_at BIGINT
         )""")
 
-        # FORCE L'AJOUT DES COLONNES SI LA TABLE EXISTAIT DÉJÀ
-        cols_to_check = [
-            ("community_tokens", "logo", "TEXT"),
-            ("community_tokens", "banner", "TEXT"),
-            ("community_tokens", "description", "TEXT"),
-            ("community_tokens", "creator_id", "BIGINT")
-        ]
-        for table, col, col_type in cols_to_check:
-            try:
-                c.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type}")
-            except: pass
-
-        # 3. Table Assets
+        # 3. Table Assets (Possessions des utilisateurs)
+        # Utilisation de PRIMARY KEY pour gérer le ON CONFLICT plus tard
         c.execute("""CREATE TABLE IF NOT EXISTS user_community_assets (
             user_id BIGINT,
             token_id INTEGER,
             amount DOUBLE PRECISION DEFAULT 0,
             PRIMARY KEY (user_id, token_id)
         )""")
-        
 
-
-
-c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
-    id SERIAL PRIMARY KEY, 
-    creator_id BIGINT, 
-    name TEXT NOT NULL, 
-    symbol TEXT NOT NULL, 
-    description TEXT,
-    logo TEXT,
-    banner TEXT,
-    price DOUBLE PRECISION DEFAULT 0.0001, 
-    mcap DOUBLE PRECISION DEFAULT 0, 
-    supply DOUBLE PRECISION DEFAULT 0,
-    created_at BIGINT
-)""")
+        # SÉCURITÉ : Forcer l'ajout des colonnes si la table existait déjà sans elles
+        cols_to_check = [
+            ("community_tokens", "logo", "TEXT"),
+            ("community_tokens", "banner", "TEXT"),
+            ("community_tokens", "description", "TEXT"),
+            ("community_tokens", "creator_id", "BIGINT"),
+            ("community_tokens", "supply", "DOUBLE PRECISION DEFAULT 0")
+        ]
+        for table, col, col_type in cols_to_check:
+            try:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type}")
+            except Exception:
+                pass
 
         conn.commit()
         print("🚀 Database structure verified and updated!")
     except Exception as e:
-        print(f"DB Error Init: {e}")
+        print(f"❌ DB Error Init: {e}")
     finally:
         c.close(); conn.close()
 
-# --- FONCTIONS RÉPARÉES ---
+# --- FONCTIONS DE RÉCUPÉRATION ---
 
 def get_community_tokens():
-    conn = get_db_conn(); c = conn.cursor()
+    conn = get_db_conn()
+    c = conn.cursor()
     try:
-        # On utilise les noms exacts : logo et banner
+        # On sélectionne les noms de colonnes exacts
         c.execute("""SELECT id, name, symbol, price, mcap, logo, 
                      banner, description FROM community_tokens ORDER BY id DESC""")
         res = c.fetchall()
         return [
             {
-                "id": r[0], "name": r[1], "symbol": r[2], 
-                "price": float(r[3] or 0), "mcap": float(r[4] or 0), 
-                "logo": r[5] or "", "banner": r[6] or "",
+                "id": r[0], 
+                "name": r[1], 
+                "symbol": r[2], 
+                "price": float(r[3] or 0), 
+                "mcap": float(r[4] or 0), 
+                "logo": r[5] or "", 
+                "banner": r[6] or "",
                 "desc": r[7] or ""
             } for r in res
         ]
+    except Exception as e:
+        print(f"❌ Error fetching tokens: {e}")
+        return []
     finally:
         c.close(); conn.close()
