@@ -73,6 +73,40 @@
             <div id="token-list"></div>
         </div>
 
+
+<div id="p-details" class="page">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
+        <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
+    </div>
+
+    <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
+        <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
+    </div>
+
+    <div style="margin-top:30px; padding:0 15px;">
+        <h2 id="det-name" style="margin:0;"></h2>
+        <b id="det-sym" style="color:var(--gold)"></b>
+    </div>
+
+    <div class="chart-container" style="margin-top:20px;">
+        <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
+            <polyline fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 50,70 100,85 150,50 200,60 250,30 300,40" />
+        </svg>
+    </div>
+
+    <div style="display:flex; gap:10px; padding:15px;">
+        <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="tg.showAlert('Buying coming soon...')">BUY</button>
+        <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="tg.showAlert('Selling coming soon...')">SELL</button>
+    </div>
+</div>
+
+
+
+
+
+
+
         <div id="p-wallet" class="page">
             <h2 style="text-align:center;">💼 WALLET</h2>
             <div class="card" style="flex-direction:column; text-align:center; padding:30px;">
@@ -180,19 +214,34 @@
         if(res.ok) { tg.showAlert("🚀 TOKEN LIVE!"); show('launcher'); }
     }
 
+        let currentTokenId = null;
+
     async function loadMarket() {
-        const r = await fetch(`${BASE_URL}/api/launcher/list`);
-        const tokens = await r.json();
-        document.getElementById('token-list').innerHTML = tokens.map(t => `
-            <div class="card">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <img src="${t.logo}" style="width:30px; height:30px; border-radius:5px; object-fit:cover;">
-                    <b>${t.name}</b>
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/list`);
+            const tokens = await r.json();
+            document.getElementById('token-list').innerHTML = tokens.map(t => `
+                <div class="card" onclick='openToken(${JSON.stringify(t)})' style="cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
+                        <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                    </div>
+                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
                 </div>
-                <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-            </div>
-        `).join('');
+            `).join('');
+        } catch(e) { console.error("Market error", e); }
     }
+
+    function openToken(t) {
+        currentTokenId = t.id;
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+        document.getElementById('det-logo').src = t.logo || "";
+        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+        show('details'); // Switch to details page
+    }
+
 
     function buyStarsPack() {
         fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`).then(r=>r.json()).then(d=>{
