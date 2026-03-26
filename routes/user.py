@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 import database, config, missions, time
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/user", tags=["User"])
 
@@ -105,7 +106,10 @@ async def get_user_data(uid: int):
             "rank": user_rank,
             "streak": streak or 0,
             "assets": assets,
-            "ref_count": ref_count
+            "ref_count": ref_count,
+             user_id: int,
+             address: str,
+             amount: float
         }
     except Exception as e:
         print(f"❌ Error in user route for UID {uid}: {e}")
@@ -139,4 +143,14 @@ async def request_withdraw(req: WithdrawRequest):
     except Exception as e:
         conn.rollback()
         return {"ok": False, "error": str(e)}
+
+
+
+@router.post("/withdraw") # ou /api/user/withdraw selon ton prefixe
+async def request_withdraw(req: WithdrawRequest):
+    # Ton code actuel de retrait...
+    # Tu accèdes aux données avec req.user_id, req.address, etc.
+    print(f"Demande de retrait de {req.amount} pour {req.address}")
+    return {"ok": True}
+
 
