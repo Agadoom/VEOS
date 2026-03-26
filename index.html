@@ -304,6 +304,72 @@
         tg.openTelegramLink(`https://t.me/share/url?url=${inviteLink}&text=${text}`);
     }
 
+
+
+
+    // --- 6. GESTION DES DÉTAILS DU TOKEN ---
+    function openToken(t) {
+        currentTokenId = t.id;
+        
+        // Remplir les textes
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+        
+        // Remplir les images
+        document.getElementById('det-logo').src = t.logo || "";
+        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+        
+        // Dessiner un graphique simple (simulation)
+        const points = "0,80 50,70 100,85 150,50 200,60 250,30 300,40";
+        document.getElementById('chart-line').setAttribute("points", points);
+        
+        // Afficher la page
+        show('details');
+    }
+
+    async function buyToken() {
+        // Logique simplifiée pour le moment
+        const amount = prompt("Amount of WPT to spend:");
+        if(!amount || isNaN(amount)) return;
+
+        try {
+            const res = await fetch('/api/launcher/buy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: uid,
+                    token_id: currentTokenId,
+                    amount_wpt: parseFloat(amount)
+                })
+            });
+            const data = await res.json();
+            if(data.ok) {
+                tg.showAlert("Success! Token purchased.");
+                show('wallet'); // Rediriger vers le wallet pour voir l'achat
+            } else {
+                tg.showAlert("Error: " + (data.error || "Purchase failed"));
+            }
+        } catch(e) {
+            tg.showAlert("Connection error");
+        }
+    }
+
+    async function sellToken() {
+        tg.showAlert("Selling feature coming in next update!");
+    }
+
+    async function withdrawToken() {
+        tg.showConfirm("Withdraw to external wallet? (Fee: 5 WPT)", (ok) => {
+            if(ok) tg.showAlert("Processing withdrawal...");
+        });
+    }
+
+
+
+
+
+
     async function loadMarket() {
         try {
             const r = await fetch('/api/launcher/list');
