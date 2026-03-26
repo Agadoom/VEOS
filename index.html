@@ -94,30 +94,46 @@
         </div>
 
         <div id="p-details" class="page">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
-                <b id="det-price-top" style="color:var(--green); font-family:monospace;">0.000000</b>
-            </div>
-            <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c;">
-                <img id="det-logo" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px;">
-            </div>
-            <div style="margin-top:30px; padding:0 15px;">
-                <h2 id="det-name" style="margin:0;"></h2>
-                <b id="det-sym" style="color:var(--gold)"></b>
-            </div>
-            <div class="chart-container">
-                <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
-                    <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" points="0,100 300,100" />
-                </svg>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:10px; padding:15px;">
-                <div style="display:flex; gap:10px;">
-                    <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="buyToken()">BUY (WPT+★)</button>
-                    <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="sellToken()">SELL</button>
-                </div>
-                <button class="btn" style="background:#111; color:var(--blue); border:1px solid #333;" onclick="withdrawToken()">📤 WITHDRAW TO EXTERNAL WALLET</button>
-            </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
+        <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
+    </div>
+
+    <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
+        <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
+    </div>
+
+    <div style="margin-top:30px; padding:0 15px;">
+        <h2 id="det-name" style="margin:0;"></h2>
+        <b id="det-sym" style="color:var(--gold)"></b>
+    </div>
+
+    <div style="display:flex; justify-content:space-around; background:#111; padding:12px; border-radius:15px; margin:15px 10px; border:1px solid #222;">
+        <div style="text-align:center;">
+            <small style="color:var(--text); display:block; font-size:10px; text-transform:uppercase;">Market Cap</small>
+            <b id="det-mcap" style="color:var(--gold); font-size:16px;">0 WPT</b>
         </div>
+        <div style="text-align:center;">
+            <small style="color:var(--text); display:block; font-size:10px; text-transform:uppercase;">Holders</small>
+            <b id="det-holders" style="color:#fff; font-size:16px;">0</b>
+        </div>
+    </div>
+
+    <div class="chart-container" style="padding: 10px; background: #000; border-radius: 15px; border: 1px solid #222; margin: 10px;">
+        <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
+            <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 150,80 300,80" />
+        </svg>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:10px; padding:15px;">
+        <div style="display:flex; gap:10px;">
+            <button class="btn" style="flex:1; background:var(--green); color:#fff; font-weight:bold;" onclick="buyToken()">BUY</button>
+            <button class="btn" style="flex:1; background:var(--red); color:#fff; font-weight:bold;" onclick="sellToken()">SELL</button>
+        </div>
+        <button class="btn" style="background:#111; color:var(--blue); border:1px solid #333; font-size:12px;" onclick="withdrawToken()">📤 WITHDRAW TO EXTERNAL WALLET</button>
+    </div>
+</div>
+
 
         <div id="p-profil" class="page">
     <div class="prof-header">
