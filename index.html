@@ -210,55 +210,58 @@
     let tg = window.Telegram.WebApp; 
     const uid = tg.initDataUnsafe.user?.id || 0;
     let currentTokenId = null;
-    let b64_logo = "", b64_banner = "";
     let connectedAddress = null;
 
-    // --- 1. INITIALISATION TON CONNECT ---
+    // --- INITIALISATION ---
     const connector = new TonConnectSDK.TonConnect({
         manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
     });
 
+    // Surveillance du Wallet
     connector.onStatusChange(wallet => {
         const walletZone = document.getElementById('wallet-zone');
-        const withdrawBtn = document.getElementById('btn-withdraw-final');
-        if (!walletZone) return; 
-
+        if (!walletZone) return;
         if (wallet) {
             connectedAddress = wallet.account.address;
             const shortAddr = connectedAddress.substring(0, 4) + "..." + connectedAddress.substring(connectedAddress.length - 4);
-            walletZone.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#0a1a2f; padding:10px; border-radius:12px; border:1px solid #007AFF33;">
-                    <span style="font-size:11px; color:var(--blue);">Linked: <b>${shortAddr}</b></span>
-                    <button onclick="connector.disconnect()" style="background:none; border:none; color:var(--red); font-size:10px; cursor:pointer;">Disconnect</button>
-                </div>`;
-            if(withdrawBtn) withdrawBtn.style.display = "block";
+            walletZone.innerHTML = `<div style="color:var(--blue); font-size:12px;">Connected: ${shortAddr}</div>`;
         } else {
             connectedAddress = null;
-            walletZone.innerHTML = `<button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET TO WITHDRAW</button>`;
-            if(withdrawBtn) withdrawBtn.style.display = "none";
+            walletZone.innerHTML = `<button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET</button>`;
         }
     });
 
-    async function connectWallet() {
-    try {
-        // Purge l'ancienne session pour éviter le blocage
-        if (connector.connected) { await connector.disconnect(); }
+    // --- NAVIGATION (RÉPARÉE) ---
+    function show(p) {
+        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+        const target = document.getElementById('p-' + p);
+        if (target) target.classList.add('active-page');
 
-        const walletConnectionSource = {
-            universalLink: 'https://tonkeeper.com/ton-connect',
-            bridgeUrl: 'https://bridge.tonapi.io/bridge'
-        };
+        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+        const navElem = document.getElementById('n-' + (p === 'details' ? 'launcher' : p));
+        if (navElem) navElem.classList.add('active');
 
-        const url = connector.connect(walletConnectionSource);
-
-        if (url) {
-            // Force l'ouverture dans Telegram
-            tg.openTelegramLink(url);
-        }
-    } catch (e) {
-        tg.showAlert("Erreur : " + e.message);
+        if(p === 'launcher') loadMarket();
     }
-}
+
+    // --- WALLET CONNECT (FIXÉ POUR TELEGRAM) ---
+    async function connectWallet() {
+        try {
+            if (connector.connected) await connector.disconnect();
+            
+            // On génère le lien vers Tonkeeper
+            const url = connector.connect({
+                universalLink: 'https://tonkeeper.com/ton-connect',
+                bridgeUrl: 'https://bridge.tonapi.io/bridge'
+            });
+
+            if (url) {
+                tg.openTelegramLink(url);
+            }
+        } catch (e) {
+            tg.showAlert("Erreur : " + e.message);
+        }
+    }
 
 
     // --- 2. NAVIGATION (RÉPARÉE) ---
