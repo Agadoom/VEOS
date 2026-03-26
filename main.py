@@ -52,13 +52,16 @@ async def create_invoice(uid: int):
         return {"error": str(e)}
 
 
+from fastapi.responses import JSONResponse
+
 @app.get("/tonconnect-manifest.json")
-async def manifest():
-    return {
+async def get_manifest():
+    return JSONResponse({
         "url": "https://veos-production-a2de.up.railway.app",
-        "name": "WPT Hub",
+        "name": "WPT Ecosystem",
         "iconUrl": "https://veos-production-a2de.up.railway.app/media/owpc_logo.png"
-    }
+    })
+
 
 
 
