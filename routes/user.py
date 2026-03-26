@@ -21,10 +21,15 @@ async def get_user_data(uid: int):
 
     try:
         # 1. Calcul du RANG
-        c.execute("""SELECT COUNT(*) + 1 FROM users 
-                     WHERE (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) > 
-                     (SELECT (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s)""", (uid,))
-        rank = c.fetchone()[0]
+         # Calcul du rang basé sur le score total
+        c.execute("""
+            SELECT rank FROM (
+                SELECT user_id, RANK() OVER (ORDER BY (p_genesis + p_unity + p_veo) DESC) as rank 
+                FROM users
+            ) as ranking WHERE user_id = %s
+        """, (uid,))
+        res_rank = c.fetchone()
+        rank = res_rank[0] if res_rank else "---"
 
         # 2. FETCH ALL ASSETS
         c.execute("""
