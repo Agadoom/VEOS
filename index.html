@@ -248,10 +248,13 @@ if(document.getElementById('prof-rank')) {
 
     // --- 3. LEADERBOARD & MISSIONS ---
     async function loadLeaderboard() {
-    const listElem = document.getElementById('leaderboard-list');
     try {
         const res = await fetch('/api/user/leaderboard');
-        if (!res.ok) throw new Error("Server Error");
+        if(!res.ok) {
+            const errData = await res.json();
+            console.error("Détails erreur:", errData); // Regarde ça dans F12
+            throw new Error();
+        }
         const data = await res.json();
         
         let html = "";
