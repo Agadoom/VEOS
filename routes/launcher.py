@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 import database
 from pydantic import BaseModel
-import time  # <--- NE PAS OUBLIER CET IMPORT
+import time
 
 router = APIRouter(prefix="/api/launcher", tags=["Launcher"])
 
@@ -24,25 +24,25 @@ async def list_tokens():
 
 @router.post("/buy")
 async def buy_token(req: TradeRequest):
-    print(f"📥 Tentative d'achat : User {req.user_id} -> Token {req.token_id}")
+    print(f"📥 Trade Attempt: User {req.user_id} -> Token {req.token_id}")
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Check solde
+        # 1. Balance check
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
         u = c.fetchone()
         if not u or float(u[0]) < req.amount_wpt:
-            return JSONResponse(status_code=400, content={"ok": False, "error": "Solde insuffisant"})
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Insufficient Balance"})
 
-        # 2. Check token
+        # 2. Token check
         c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
         t = c.fetchone()
         if not t:
-            return JSONResponse(status_code=404, content={"ok": False, "error": "Token introuvable"})
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Token not found"})
             
         qty = req.amount_wpt / float(t[0])
 
-        # 3. Exécution de la transaction
+        # 3. Execution
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount_wpt, req.user_id))
         
         c.execute("""
@@ -52,63 +52,21 @@ async def buy_token(req: TradeRequest):
             DO UPDATE SET amount = user_community_assets.amount + %s
         """, (req.user_id, req.token_id, qty, qty))
         
-        # Mise à jour du prix (Hausse de 1%)
         c.execute("UPDATE community_tokens SET price = price * 1.01 WHERE id = %s", (req.token_id,))
 
-        # ENREGISTREMENT DANS L'HISTORIQUE (Bien indenté dans le TRY)
+        # Update Chart History
         c.execute("""
             INSERT INTO token_price_history (token_id, price, timestamp) 
             VALUES (%s, (SELECT price FROM community_tokens WHERE id = %s), %s)
         """, (req.token_id, req.token_id, int(time.time())))
         
         conn.commit()
-        print(f"✅ Achat réussi : {qty} tokens pour l'user {req.user_id}")
+        print(f"✅ Trade Success: {qty} tokens for UID {req.user_id}")
         return {"ok": True, "received": qty}
     except Exception as e:
         conn.rollback()
-        print(f"❌ Erreur achat : {e}")
+        print(f"❌ Trade Error: {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
-    finally:
-        c.close(); conn.close()
-
-class DeployRequest(BaseModel):
-    user_id: int
-    name: str
-    symbol: str
-    description: str = ""
-    logo: str = ""
-    banner: str = ""
-
-@router.post("/deploy")
-async def deploy_token(req: DeployRequest):
-    print(f"🚀 Nouveau déploiement : {req.name} par {req.user_id}")
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    try:
-        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
-        res = c.fetchone()
-        if not res or float(res[0]) < 10:
-            return {"ok": False, "error": "Frais de déploiement insuffisants (10 WPT requis)"}
-
-        c.execute("UPDATE users SET p_genesis = p_genesis - 10 WHERE user_id = %s", (req.user_id,))
-
-        query = """
-            INSERT INTO community_tokens (name, symbol, description, logo, banner, price, supply, creator_id)
-            VALUES (%s, %s, %s, %s, %s, 0.0001, 0, %s)
-            RETURNING id
-        """
-        c.execute(query, (req.name, req.symbol, req.description, req.logo, req.banner, req.user_id))
-        new_id = c.fetchone()[0]
-
-        # On crée le premier point de la courbe au déploiement
-        c.execute("INSERT INTO token_price_history (token_id, price, timestamp) VALUES (%s, 0.0001, %s)", (new_id, int(time.time())))
-
-        conn.commit()
-        return {"ok": True, "token_id": new_id}
-    except Exception as e:
-        conn.rollback()
-        print(f"❌ Erreur Deploy: {e}")
-        return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
 
@@ -119,9 +77,6 @@ async def get_token_history(tid: int):
     try:
         c.execute("SELECT price FROM token_price_history WHERE token_id = %s ORDER BY timestamp ASC LIMIT 50", (tid,))
         prices = [float(r[0]) for r in c.fetchall()]
-        # Si historique vide, on met le prix de base
-        if not prices:
-            return [0.0001]
-        return prices
+        return prices if prices else [0.0001]
     finally:
         c.close(); conn.close()
