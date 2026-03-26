@@ -19,81 +19,53 @@ async def get_user_data(uid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
 
+    try:
+        # 1. Calcul du RANG
+        c.execute("""SELECT COUNT(*) + 1 FROM users 
+                     WHERE (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) > 
+                     (SELECT (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users WHERE user_id = %s)""", (uid,))
+        rank = c.fetchone()[0]
 
-# AJOUT : Calcul du rang en temps réel
-    c.execute("""SELECT COUNT(*) + 1 FROM users 
-                 WHERE (p_genesis + p_unity + p_veo) > 
-                 (SELECT (p_genesis + p_unity + p_veo) FROM users WHERE user_id = %s)""", (uid,))
-    rank = c.fetchone()[0]
-    c.close(); conn.close()
- 
+        # 2. FETCH ALL ASSETS
+        c.execute("""
+            SELECT t.name, t.symbol, a.amount 
+            FROM user_community_assets a 
+            JOIN community_tokens t ON a.token_id = t.id 
+            WHERE a.user_id = %s AND a.amount > 0
+        """, (uid,))
+        assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
 
-    # 1. FETCH ALL ASSETS
-    c.execute("""
-        SELECT t.name, t.symbol, a.amount 
-        FROM user_community_assets a 
-        JOIN community_tokens t ON a.token_id = t.id 
-        WHERE a.user_id = %s AND a.amount > 0
-    """, (uid,))
-    assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
+        # 3. COUNT REFERRALS
+        c.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (uid,))
+        ref_count = c.fetchone()[0] or 0
 
-    # 2. COUNT REFERRALS (Nouveau !)
-    c.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (uid,))
-    ref_count = c.fetchone()[0] or 0
-
-    c.close()
-    conn.close()
-    
-    return {
-        "uid": uid, 
-        "name": r[4], 
-        "g": r[0] or 0, 
-        "u": r[1] or 0, 
-        "v": r[2] or 0, 
-        "energy": int(current_e), 
-        "max_energy": config.MAX_ENERGY, 
-        "score": round(score, 2), 
-        "badge": badge, 
-        "assets": assets,
-        "ref_count": ref_count,  # <--- Transmis au Frontend
-        
-    }
-
-
-
-@router.post("/claim-daily")
-async def claim_daily(data: dict):
-    uid = data.get("user_id")
-    if not uid:
-        return JSONResponse(status_code=400, content={"error": "Missing user_id"})
-    
-    # On appelle la fonction de missions.py que tu as montrée plus haut
-    reward, new_streak = missions.process_daily_login(uid)
-    
-    if reward > 0:
         return {
-            "ok": True,
-            "reward": reward,
-            "streak": new_streak,
-            "message": f"Félicitations ! +{reward} WPT"
+            "uid": uid, 
+            "name": r[4], 
+            "g": round(r[0] or 0, 2), 
+            "u": round(r[1] or 0, 2), 
+            "v": round(r[2] or 0, 2), 
+            "energy": int(current_e), 
+            "max_energy": config.MAX_ENERGY, 
+            "score": round(score, 2), 
+            "badge": badge, 
+            "rank": rank, # <-- AJOUTÉ
+            "streak": r[7] or 0, # <-- AJOUTÉ
+            "assets": assets,
+            "ref_count": ref_count
         }
-    else:
-        # reward est 0 si déjà réclamé aujourd'hui
-        return {
-            "ok": False,
-            "reward": 0,
-            "streak": new_streak,
-            "message": "Déjà réclamé aujourd'hui. Reviens demain !"
-        }
-
-
+    except Exception as e:
+        print(f"Error fetching user data: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
+    finally:
+        c.close()
+        conn.close()
 
 @router.get("/leaderboard")
 async def get_leaderboard():
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On additionne les 3 assets pour le score global
         c.execute("""
             SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total_score 
             FROM users 
@@ -113,5 +85,13 @@ async def get_leaderboard():
         c.close()
         conn.close()
 
-
-
+@router.post("/claim-daily")
+async def claim_daily(data: dict):
+    uid = data.get("user_id")
+    if not uid: return JSONResponse(status_code=400, content={"error": "Missing user_id"})
+    reward, new_streak = missions.process_daily_login(uid)
+    return {
+        "ok": reward > 0,
+        "reward": reward,
+        "streak": new_streak
+    }
