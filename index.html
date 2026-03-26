@@ -329,31 +329,34 @@
     }
 
     async function buyToken() {
-        // Logique simplifiée pour le moment
-        const amount = prompt("Amount of WPT to spend:");
-        if(!amount || isNaN(amount)) return;
+    const amount = prompt("Amount of WPT to spend:");
+    if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
+    if(!currentTokenId) return tg.showAlert("Select a token first");
 
-        try {
-            const res = await fetch('/api/launcher/buy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid,
-                    token_id: currentTokenId,
-                    amount_wpt: parseFloat(amount)
-                })
-            });
-            const data = await res.json();
-            if(data.ok) {
-                tg.showAlert("Success! Token purchased.");
-                show('wallet'); // Rediriger vers le wallet pour voir l'achat
-            } else {
-                tg.showAlert("Error: " + (data.error || "Purchase failed"));
-            }
-        } catch(e) {
-            tg.showAlert("Connection error");
+    try {
+        const res = await fetch('/api/launcher/buy', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: parseInt(uid), // Forcer le format nombre
+                token_id: parseInt(currentTokenId), // Forcer le format nombre
+                amount_wpt: parseFloat(amount)
+            })
+        });
+        
+        const data = await res.json();
+        
+        if(res.ok && data.ok) {
+            tg.showAlert(`✅ Success! Received tokens.`);
+            show('wallet');
+        } else {
+            tg.showAlert("Error: " + (data.error || "Transaction failed"));
         }
+    } catch(e) {
+        tg.showAlert("Server unreachable");
     }
+}
+
 
     async function sellToken() {
         tg.showAlert("Selling feature coming in next update!");
@@ -371,22 +374,44 @@
 
 
     async function loadMarket() {
-        try {
-            const r = await fetch('/api/launcher/list');
-            const tokens = await r.json();
-            let h = "";
-            tokens.forEach(t => {
-                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;background:#222;">
-                        <b>${t.name}</b>
+    try {
+        const r = await fetch('/api/launcher/list');
+        const tokens = await r.json();
+        let h = "";
+        tokens.forEach(t => {
+            // On s'assure que l'ID est bien passé en paramètre
+            h += `
+            <div class="card" onclick='openToken(${JSON.stringify(t)})'>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;background:#222;">
+                    <div>
+                        <b>${t.name}</b><br>
+                        <small style="color:var(--text)">$${t.symbol}</small>
                     </div>
-                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-                </div>`;
-            });
-            document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
-        } catch(e) {}
+                </div>
+                <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+            </div>`;
+        });
+        document.getElementById('token-list').innerHTML = h || "<center style='color:#444'>No tokens active</center>";
+    } catch(e) { console.error("Market load error", e); }
+}
+
+function openToken(t) {
+    if(!t || !t.id) {
+        tg.showAlert("Error: Token data missing");
+        return;
     }
+    currentTokenId = t.id; // C'est ici que l'ID est stocké pour le bouton BUY
+    
+    document.getElementById('det-name').innerText = t.name;
+    document.getElementById('det-sym').innerText = "$" + t.symbol;
+    document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+    document.getElementById('det-logo').src = t.logo || "";
+    document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+    
+    show('details');
+}
+
 
     tg.expand();
     refresh();
