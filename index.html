@@ -174,29 +174,30 @@
 
 
 // Initialisation du connecteur
-const connector = new TonConnectSDK.TonConnect({
-    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
-});
-
-// Écouteur de changement de statut (se lance au démarrage et à chaque connexion)
-connector.onStatusChange(wallet => {
+connector.onStatusChange(async (wallet) => {
     if (wallet) {
         const addr = wallet.account.address;
-        // On formate l'adresse pour qu'elle soit jolie (ex: EQB1...4z2)
         const shortAddr = addr.substring(0, 4) + "..." + addr.substring(addr.length - 4);
         
         document.getElementById('btn-connect').innerText = "💎 " + shortAddr;
         document.getElementById('btn-connect').style.background = "var(--purple)";
-        document.getElementById('wallet-addr').innerText = "Connected to TON Network";
         
-        console.log("Wallet connected:", addr);
-        // Ici, tu pourrais envoyer l'adresse à ton backend pour l'enregistrer
+        // --- NOUVEAU : Envoi au serveur ---
+        try {
+            await fetch(`${BASE_URL}/api/user/update-wallet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, wallet_address: addr })
+            });
+        } catch(e) { console.error("Update wallet failed"); }
+        // ----------------------------------
+        
     } else {
         document.getElementById('btn-connect').innerText = "💎 CONNECT WALLET";
         document.getElementById('btn-connect').style.background = "var(--blue)";
-        document.getElementById('wallet-addr').innerText = "";
     }
 });
+
 
 async function connectWallet() {
     if (connector.connected) {
