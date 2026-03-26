@@ -158,7 +158,7 @@
     const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
     const BASE_URL = 'https://veos-production-a2de.up.railway.app';
-    let b64_logo = "", b64_banner = "";
+    let b64_logo = "", b64_banner = "", currentTokenId = null;
 
     function show(p) {
         document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
@@ -166,85 +166,79 @@
         document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
         document.getElementById('n-' + p).classList.add('active');
         if(p === 'launcher') loadMarket();
-        if(p === 'profil') loadLeaderboard();
+        if(p === 'profil') {
+            loadLeaderboard();
+            if(typeof loadPortfolio === 'function') loadPortfolio();
+        }
         refresh();
     }
 
+    // --- TONCONNECT CONFIG ---
+    const connector = new TonConnectSDK.TonConnect({
+        manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
+    });
 
+    connector.onStatusChange(async (wallet) => {
+        const btn = document.getElementById('btn-connect');
+        if (wallet) {
+            const addr = wallet.account.address;
+            const shortAddr = addr.substring(0, 4) + "..." + addr.substring(addr.length - 4);
+            if(btn) btn.innerText = "💎 " + shortAddr;
+            fetch(`${BASE_URL}/api/user/update-wallet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, wallet_address: addr })
+            }).catch(e => console.log("Wallet sync pending..."));
+        } else {
+            if(btn) btn.innerText = "💎 CONNECT WALLET";
+        }
+    });
 
-
-// 1. Initialisation TonConnect (Une seule fois)
-const connector = new TonConnectSDK.TonConnect({
-    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
-});
-
-// 2. Gestion du Wallet (onStatusChange doit être bien fermé)
-connector.onStatusChange(async (wallet) => {
-    if (wallet) {
-        const addr = wallet.account.address;
-        const shortAddr = addr.substring(0, 4) + "..." + addr.substring(addr.length - 4);
-        document.getElementById('btn-connect').innerText = "💎 " + shortAddr;
-        
-        // On envoie au serveur sans bloquer le reste
-        fetch(`${BASE_URL}/api/user/update-wallet`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ user_id: uid, wallet_address: addr })
-        }).catch(err => console.log("Wallet sync pending..."));
-    } else {
-        document.getElementById('btn-connect').innerText = "💎 CONNECT WALLET";
-    }
-}); // <--- VERIFIE BIEN CETTE PARENTHÈSE ET CE POINT-VIRGULE
-
-// 3. Ta fonction pour le bouton Connect
-async function connectWallet() {
-    const walletConnectionSource = {
-        universalLink: 'https://tonkeeper.com/ton-connect',
-        bridgeUrl: 'https://bridge.tonapi.io/bridge'
-    };
-    const url = connector.connect(walletConnectionSource);
-    if (url) tg.openTelegramLink(url);
-}
-
-// 4. TA FONCTION LOADMARKET (Celle qui rend les tokens cliquables)
-async function loadMarket() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/list`);
-        const tokens = await r.json();
-        document.getElementById('token-list').innerHTML = tokens.map(t => `
-            <div class="card" onclick='openToken(${JSON.stringify(t)})' style="cursor:pointer;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
-                    <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
-                </div>
-                <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-            </div>
-        `).join('');
-    } catch(e) { console.error("Market error", e); }
-}
-
-
-
-async function connectWallet() {
-    if (connector.connected) {
-        // Optionnel : Proposer la déconnexion si déjà connecté
-        tg.showConfirm("Disconnect wallet?", (ok) => {
-            if (ok) connector.disconnect();
-        });
-    } else {
-        const walletConnectionSource = {
-            universalLink: 'https://tonkeeper.com/ton-connect',
-            bridgeUrl: 'https://bridge.tonapi.io/bridge'
-        };
-        
-        const url = connector.connect(walletConnectionSource);
-        
-        // Si on est sur Telegram, on ouvre le lien directement
-        if (url) {
-            tg.openTelegramLink(url);
+    async function connectWallet() {
+        if (connector.connected) {
+            tg.showConfirm("Disconnect wallet?", (ok) => { if (ok) connector.disconnect(); });
+        } else {
+            const walletConnectionSource = {
+                universalLink: 'https://tonkeeper.com/ton-connect',
+                bridgeUrl: 'https://bridge.tonapi.io/bridge'
+            };
+            const url = connector.connect(walletConnectionSource);
+            if (url) tg.openTelegramLink(url);
         }
     }
-}
+
+    // --- MARKET & TOKENS ---
+    async function loadMarket() {
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/list`);
+            const tokens = await r.json();
+            document.getElementById('token-list').innerHTML = tokens.map(t => `
+                <div class="card" onclick='openToken(${JSON.stringify(t)})' style="cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
+                        <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                    </div>
+                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+                </div>
+            `).join('');
+        } catch(e) { console.error("Market error", e); }
+    }
+
+    // CETTE FONCTION ÉTAIT MANQUANTE :
+    function openToken(t) {
+        currentTokenId = t.id;
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+        document.getElementById('det-logo').src = t.logo || "";
+        const bannerDiv = document.getElementById('det-banner');
+        if(bannerDiv) bannerDiv.style.backgroundImage = `url(${t.banner || ''})`;
+        
+        // On essaie de mettre à jour la balance si la fonction existe
+        if(typeof updateHoldings === 'function') updateHoldings(t.id);
+        
+        show('details');
+    }
 
 
 
