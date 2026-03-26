@@ -199,24 +199,20 @@
             if (!r.ok) return;
             const d = await r.json();
 
-            // Update stats (Mine & Header)
             if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
             if(document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toFixed(2);
             if(document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toFixed(2);
             if(document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toFixed(2);
             if(document.getElementById('u-badge')) document.getElementById('u-badge').innerText = d.badge.toUpperCase();
             
-            // Energy bar
             if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
             if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
 
-            // Profil & Wallet
             if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
             if(document.getElementById('prof-streak')) document.getElementById('prof-streak').innerText = (d.streak || 0) + " Days";
             if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
             if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
             
-            // Assets (Holders list)
             let ah = ""; 
             if(d.assets && d.assets.length > 0) {
                 d.assets.forEach(a => { 
@@ -235,70 +231,84 @@
         } catch(e) { console.error("Refresh error", e); }
     }
 
+    // --- CHART & TOKEN DETAILS ---
+    async function openToken(t) {
+        if(!t || !t.id) return tg.showAlert("Token data missing");
+        currentTokenId = t.id;
+        
+        // Fill UI
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+        document.getElementById('det-logo').src = t.logo || "";
+        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
+        
+        show('details');
 
-    // --- GESTION DES FICHIERS (LOGO/BANNER) ---
-    function processFile(type) {
-        const file = document.getElementById('f-' + type).files[0];
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            if (type === 'logo') b64_logo = reader.result;
-            else b64_banner = reader.result;
-            tg.showAlert(type.toUpperCase() + " loaded!");
-        };
-        if (file) reader.readAsDataURL(file);
-    }
+        // Fetch Chart History
+        try {
+            const res = await fetch(`/api/launcher/history/${t.id}`);
+            const history = await res.json(); 
 
-    // --- CRÉATION DE TOKEN ---
-    async function deployToken() {
-        const name = document.getElementById('tk-name').value;
-        const sym = document.getElementById('tk-sym').value;
-        const desc = document.getElementById('tk-desc').value;
-
-        if(!name || !sym) return tg.showAlert("Name and Symbol required!");
-
-        tg.showConfirm(`Deploy ${name} ($${sym})?`, async (ok) => {
-            if(!ok) return;
-            
-            try {
-                const res = await fetch('/api/launcher/deploy', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        user_id: uid,
-                        name: name,
-                        symbol: sym,
-                        description: desc,
-                        logo: b64_logo,
-                        banner: b64_banner
-                    })
-                });
-                const data = await res.json();
-                if(data.ok) {
-                    tg.showAlert("🚀 Token deployed successfully!");
-                    show('launcher'); // Rafraîchit la liste
-                } else {
-                    tg.showAlert("Error: " + (data.error || "Deployment failed"));
-                }
-            } catch(e) {
-                tg.showAlert("Connection error");
+            if (history && history.length > 1) {
+                const max = Math.max(...history);
+                const min = Math.min(...history);
+                const range = max - min || 1;
+                
+                const points = history.map((p, i) => {
+                    const x = (i / (history.length - 1)) * 300;
+                    const y = 80 - ((p - min) / range * 60); // Scale y between 20 and 80
+                    return `${x},${y}`;
+                }).join(' ');
+                
+                document.getElementById('chart-line').setAttribute('points', points);
+            } else {
+                document.getElementById('chart-line').setAttribute('points', "0,80 150,80 300,80");
             }
-        });
+        } catch(e) { console.error("Chart load error", e); }
     }
 
-function shareReferral() {
-    // On crée le lien de parrainage avec l'ID de l'utilisateur
-    const inviteLink = `https://t.me/OWPCsBot?start=${uid}`; 
-    const shareText = "🚀 Join me on One World Peace Coins! Mine WPT and trade community tokens. Start with a bonus!";
-    
-    // Utilise l'API native de Telegram pour ouvrir la fenêtre de partage
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
-    
-    // Ouvre le lien dans le navigateur externe ou Telegram
-    tg.openTelegramLink(shareUrl);
-}
+    // --- BUTTON ACTIONS ---
+    async function mine(type) {
+        const res = await fetch('/api/mine', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({user_id:uid, token:type})
+        });
+        if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
+    }
 
+    async function buyToken() {
+        const amount = prompt("Amount of WPT to spend:");
+        if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
+        
+        try {
+            const res = await fetch('/api/launcher/buy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: parseInt(uid),
+                    token_id: parseInt(currentTokenId),
+                    amount_wpt: parseFloat(amount)
+                })
+            });
+            const data = await res.json();
+            if(data.ok) {
+                tg.showAlert(`✅ Success! Tokens received.`);
+                show('wallet');
+            } else {
+                tg.showAlert("Error: " + (data.error || "Transaction failed"));
+            }
+        } catch(e) { tg.showAlert("Server unreachable"); }
+    }
 
+    function shareReferral() {
+        const inviteLink = `https://t.me/OWPCsBot?start=${uid}`; 
+        const shareText = "🚀 Join me on One World Peace Coins!";
+        tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`);
+    }
 
+    // --- LOADING DATA ---
     async function loadMarket() {
         try {
             const r = await fetch('/api/launcher/list');
@@ -317,61 +327,6 @@ function shareReferral() {
         } catch(e) { console.error("Market load error", e); }
     }
 
-    function openToken(t) {
-        if(!t || !t.id) return tg.showAlert("Token data missing");
-        currentTokenId = t.id;
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = "$" + t.symbol;
-        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
-        document.getElementById('det-logo').src = t.logo || "";
-        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
-        show('details');
-
-
-// Récupérer l'historique
-    const res = await fetch(`/api/launcher/history/${t.id}`);
-    const history = await res.json(); // ex: [0.0001, 0.00012, 0.00015]
-
-    if (history.length > 1) {
-        const points = history.map((p, i) => `${(i / (history.length-1)) * 300},${100 - (p / Math.max(...history) * 100)}`).join(' ');
-        document.getElementById('chart-line').setAttribute('points', points);
-        document.getElementById('chart-line').setAttribute('stroke', '#34C759');
-    } else {
-        // Ligne plate par défaut si pas assez de données
-        document.getElementById('chart-line').setAttribute('points', "0,80 150,80 300,80");
-    }
-    show('details');
-}
-
-
-
-
-    }
-
-    async function buyToken() {
-        const amount = prompt("Amount of WPT to spend:");
-        if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
-        
-        try {
-            const res = await fetch('/api/launcher/buy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: parseInt(uid),
-                    token_id: parseInt(currentTokenId),
-                    amount_wpt: parseFloat(amount)
-                })
-            });
-            const data = await res.json();
-            if(res.ok && data.ok) {
-                tg.showAlert(`✅ Success! Received tokens.`);
-                show('wallet');
-            } else {
-                tg.showAlert("Error: " + (data.error || "Transaction failed"));
-            }
-        } catch(e) { tg.showAlert("Server unreachable"); }
-    }
-
     async function loadLeaderboard() {
         const listElem = document.getElementById('leaderboard-list');
         try {
@@ -385,31 +340,30 @@ function shareReferral() {
                         <b style="width:25px; color:#fff">${medal}</b>
                         <span style="font-weight:600;">${user.name || 'Anonymous'}</span>
                     </div>
-                    <b style="color:var(--text); font-size:13px;">${user.score} WPT</b>
+                    <b style="color:var(--text); font-size:13px;">${user.score.toFixed(2)} WPT</b>
                 </div>`;
             });
             listElem.innerHTML = html || "<center>No rankings</center>";
         } catch(e) { listElem.innerHTML = "<center>Sync Error</center>"; }
     }
 
-    async function mine(type) {
-        const res = await fetch('/api/mine', {
-            method:'POST', 
-            headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({user_id:uid, token:type})
-        });
-        if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
+    function processFile(type) {
+        const file = document.getElementById('f-' + type).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (type === 'logo') b64_logo = reader.result;
+            else b64_banner = reader.result;
+            tg.showAlert(type.toUpperCase() + " loaded!");
+        };
+        if (file) reader.readAsDataURL(file);
     }
 
+    // --- START ---
     tg.expand();
     refresh();
-    setInterval(refresh, 10000);
-
-
-
-
-
+    setInterval(refresh, 10000); // Auto-refresh every 10s
 </script>
+
 
 
 
