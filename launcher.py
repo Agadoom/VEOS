@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 import database
 from pydantic import BaseModel
 
+# On définit le prefixe ICI et nulle part ailleurs
 router = APIRouter(prefix="/api/launcher", tags=["Launcher"])
 
 class TradeRequest(BaseModel):
@@ -14,36 +15,47 @@ class TradeRequest(BaseModel):
 async def list_tokens():
     conn = database.get_db_conn()
     c = conn.cursor()
-    c.execute("SELECT id, name, symbol, logo, banner, price FROM community_tokens ORDER BY id DESC")
-    res = c.fetchall()
-    c.close(); conn.close()
-    return [{"id": r[0], "name": r[1], "symbol": r[2], "logo": r[3], "banner": r[4], "price": float(r[5])} for r in res]
+    try:
+        c.execute("SELECT id, name, symbol, logo, banner, price FROM community_tokens ORDER BY id DESC")
+        res = c.fetchall()
+        return [{"id": r[0], "name": r[1], "symbol": r[2], "logo": r[3], "banner": r[4], "price": float(r[5])} for r in res]
+    finally:
+        c.close(); conn.close()
 
-@router.post("/buy") # <-- SURTOUT NE PAS METTRE /api/launcher ICI
+# ICI : La route doit être "/buy" TOUT COURT. 
+# FastAPI va automatiquement la transformer en "/api/launcher/buy"
+@router.post("/buy")
 async def buy_token(req: TradeRequest):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # Vérification solde
+        # 1. Check solde
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
-        row = c.fetchone()
-        if not row or float(row[0]) < req.amount_wpt:
-            return JSONResponse(status_code=400, content={"ok": False, "error": "Pas assez de WPT"})
+        u = c.fetchone()
+        if not u or float(u[0]) < req.amount_wpt:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Solde WPT insuffisant"})
 
-        # Infos Token
+        # 2. Check token
         c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
-        t_row = c.fetchone()
-        qty = req.amount_wpt / float(t_row[0])
+        t = c.fetchone()
+        if not t:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Token introuvable"})
+            
+        qty = req.amount_wpt / float(t[0])
 
-        # Transaction
+        # 3. Transaction
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount_wpt, req.user_id))
+        
+        # Le ON CONFLICT nécessite la contrainte unique en base de données
         c.execute("""
             INSERT INTO user_community_assets (user_id, token_id, amount) 
             VALUES (%s, %s, %s)
-            ON CONFLICT (user_id, token_id) DO UPDATE SET amount = user_community_assets.amount + %s
+            ON CONFLICT (user_id, token_id) 
+            DO UPDATE SET amount = user_community_assets.amount + %s
         """, (req.user_id, req.token_id, qty, qty))
         
         c.execute("UPDATE community_tokens SET price = price * 1.01 WHERE id = %s", (req.token_id,))
+        
         conn.commit()
         return {"ok": True, "received": qty}
     except Exception as e:
