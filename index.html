@@ -463,6 +463,34 @@ function buyStarsPack() {
 }
 
 
+async function withdrawToken() {
+    if(!connectedAddress) return tg.showAlert("Please connect your wallet first!");
+    
+    const amount = prompt("Amount of WPT to withdraw:");
+    if(!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
+
+    try {
+        const res = await fetch('/api/user/withdraw', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: parseInt(uid),
+                address: connectedAddress, // On utilise l'adresse du wallet connecté !
+                amount: parseFloat(amount)
+            })
+        });
+        const data = await res.json();
+        if(data.ok) {
+            tg.showAlert("✅ Withdrawal request sent to Admin!");
+            refresh();
+        } else {
+            tg.showAlert("Error: " + data.error);
+        }
+    } catch(e) { tg.showAlert("Server Error"); }
+}
+
+
+
 
 
     async function loadLeaderboard() {
