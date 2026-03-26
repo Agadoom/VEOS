@@ -279,6 +279,41 @@ async function buyToken() {
 
 
 
+
+
+async function sellToken() {
+    if (!currentTokenId) return;
+
+    // On demande confirmation à l'utilisateur
+    tg.showConfirm("Do you want to sell your tokens for WPT?", async (ok) => {
+        if (ok) {
+            try {
+                const r = await fetch(`${BASE_URL}/api/launcher/sell`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: uid,
+                        token_id: currentTokenId,
+                        amount: 'all' // On vend tout pour le test, ou tu peux mettre un montant
+                    })
+                });
+                const res = await r.json();
+                if (res.ok) {
+                    tg.showAlert(`💰 Sold! You received ${res.received.toFixed(2)} WPT.`);
+                    refresh(); // Pour mettre à jour la balance Genesis
+                    show('launcher'); // On retourne au marché
+                } else {
+                    tg.showAlert("❌ Error: " + (res.error || "Insufficient tokens"));
+                }
+            } catch (e) {
+                tg.showAlert("Server error during sale");
+            }
+        }
+    });
+}
+
+
+
     function buyStarsPack() {
         fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`).then(r=>r.json()).then(d=>{
             if(d.invoice_link) tg.openInvoice(d.invoice_link, s => { if(s==='paid') refresh(); });
