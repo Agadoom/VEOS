@@ -61,6 +61,23 @@ async def manifest():
     }
 
 
+@app.route('/api/launcher/buy', methods=['POST']) # <--- IL FAUT LE METHODS=['POST']
+def buy_token():
+    data = request.json
+    user_id = data.get('user_id')
+    token_id = data.get('token_id')
+    amount = data.get('amount')
+    # ... ton code pour l'achat ...
+    return jsonify({"ok": True, "received": 123.45})
+
+@app.route('/api/launcher/sell', methods=['POST']) # <--- PAREIL ICI
+def sell_token():
+    data = request.json
+    # ... ton code pour la vente ...
+    return jsonify({"ok": True, "received": 50.0})
+
+
+
 # --- SERVING THE FRONTEND ---
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
