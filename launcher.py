@@ -32,11 +32,51 @@ async def buy_token(req: TradeRequest):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Vérifier le solde WPT de l'utilisateur (p_genesis)
+        # Vérification du solde
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
-        user_wpt = c.fetchone()
-        if not user_wpt or user_wpt[0] < req.amount_wpt:
-            return {"ok": False, "error": "Insufficient WPT balance"}
+        res = c.fetchone()
+        user_wpt = float(res[0]) if res else 0.0
+        
+        if user_wpt < req.amount_wpt:
+            return {"ok": False, "error": f"Solde insuffisant ({user_wpt} WPT)"}
+
+        # Infos du token
+        c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
+        t_res = c.fetchone()
+        if not t_res:
+            return {"ok": False, "error": "Token introuvable"}
+        
+        current_price = float(t_res[0])
+        if current_price <= 0: current_price = 0.000001
+        
+        amount_to_receive = req.amount_wpt / current_price
+
+        # DÉBUT DE LA TRANSACTION
+        # 1. Déduire WPT
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount_wpt, req.user_id))
+        
+        # 2. Ajouter Asset
+        c.execute("""
+            INSERT INTO user_community_assets (user_id, token_id, amount) 
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, token_id) 
+            DO UPDATE SET amount = user_community_assets.amount + EXCLUDED.amount
+        """, (req.user_id, req.token_id, amount_to_receive))
+
+        # 3. Monter le prix
+        new_price = current_price * 1.01 # +1% par achat pour tester
+        c.execute("UPDATE community_tokens SET price = %s WHERE id = %s", (new_price, req.token_id))
+
+        conn.commit()
+        return {"ok": True, "received": amount_to_receive}
+
+    except Exception as e:
+        conn.rollback()
+        print(f"DEBUG BUY ERROR: {e}")
+        return {"ok": False, "error": str(e)} # On renvoie l'erreur réelle
+    finally:
+        c.close(); conn.close()
+
 
         # 2. Infos du token
         c.execute("SELECT price, supply, symbol FROM community_tokens WHERE id = %s", (req.token_id,))
