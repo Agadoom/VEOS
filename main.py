@@ -51,6 +51,7 @@ async def create_invoice(uid: int):
         print(f"Invoice Error: {e}")
         return {"error": str(e)}
 
+
 @app.get("/tonconnect-manifest.json")
 async def get_manifest():
     return FileResponse("tonconnect-manifest.json")
