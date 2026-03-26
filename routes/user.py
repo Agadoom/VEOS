@@ -108,3 +108,25 @@ async def request_withdraw(req: WithdrawRequest):
         return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
+
+
+
+
+class WalletUpdate(BaseModel):
+    user_id: int
+    wallet_address: str
+
+@app.post("/api/user/update-wallet")
+async def update_wallet(req: WalletUpdate):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # On enregistre l'adresse dans la colonne wallet de ta table users
+        c.execute("UPDATE users SET wallet = %s WHERE user_id = %s", (req.wallet_address, req.user_id))
+        conn.commit()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    finally:
+        c.close(); conn.close()
+
