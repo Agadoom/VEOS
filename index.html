@@ -308,6 +308,47 @@ async function executeTrade() {
 
 
 
+async function deployToken() {
+    const n = document.getElementById('tk-name').value;
+    const s = document.getElementById('tk-sym').value;
+    const d = document.getElementById('tk-desc').value;
+
+    if(!n || !s || !b64_logo) {
+        return tg.showAlert("⚠️ Missing Information: Name, Symbol and Logo are required!");
+    }
+
+    tg.MainButton.setText("CREATING TOKEN...");
+    tg.MainButton.show();
+
+    try {
+        const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid, 
+                name: n, 
+                symbol: s, 
+                description: d,
+                logo_b64: b64_logo, 
+                banner_b64: b64_banner
+            })
+        });
+
+        const result = await res.json();
+
+        if(res.ok) {
+            tg.showAlert("🚀 SUCCESS! Your token is live on the market!");
+            show('launcher'); // Retour au marché pour voir le token
+        } else {
+            tg.showAlert("❌ Error: " + (result.error || "Unknown error"));
+        }
+    } catch(e) {
+        console.error("Deploy Error:", e);
+        tg.showAlert("📡 Server connection failed");
+    } finally {
+        tg.MainButton.hide();
+    }
+}
 
 
 
