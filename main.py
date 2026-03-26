@@ -53,8 +53,13 @@ async def create_invoice(uid: int):
 
 
 @app.get("/tonconnect-manifest.json")
-async def get_manifest():
-    return FileResponse("tonconnect-manifest.json")
+async def manifest():
+    return {
+        "url": "https://veos-production-a2de.up.railway.app",
+        "name": "WPT Hub",
+        "iconUrl": "https://veos-production-a2de.up.railway.app/owpc_logo.png"
+    }
+
 
 # --- SERVING THE FRONTEND ---
 @app.get("/", response_class=HTMLResponse)
