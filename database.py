@@ -56,6 +56,23 @@ def init_db_structure():
             PRIMARY KEY (user_id, token_id)
         )""")
         
+
+
+
+c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
+    id SERIAL PRIMARY KEY, 
+    creator_id BIGINT, 
+    name TEXT NOT NULL, 
+    symbol TEXT NOT NULL, 
+    description TEXT,
+    logo TEXT,
+    banner TEXT,
+    price DOUBLE PRECISION DEFAULT 0.0001, 
+    mcap DOUBLE PRECISION DEFAULT 0, 
+    supply DOUBLE PRECISION DEFAULT 0,
+    created_at BIGINT
+)""")
+
         conn.commit()
         print("🚀 Database structure verified and updated!")
     except Exception as e:
