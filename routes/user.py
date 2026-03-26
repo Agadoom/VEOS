@@ -21,13 +21,7 @@ async def get_user_data(uid: int):
 
 
 
- # AJOUT : Calcul du rang en temps réel
-    conn = database.get_db_conn(); c = conn.cursor()
-    c.execute("""SELECT COUNT(*) + 1 FROM users 
-                 WHERE (p_genesis + p_unity + p_veo) > 
-                 (SELECT (p_genesis + p_unity + p_veo) FROM users WHERE user_id = %s)""", (uid,))
-    rank = c.fetchone()[0]
-    c.close(); conn.close()
+ 
 
     # 1. FETCH ALL ASSETS
     c.execute("""
