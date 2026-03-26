@@ -315,6 +315,33 @@
         finally { tg.MainButton.hide(); }
     }
 
+
+
+async function buyStarsPack() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`);
+        const d = await r.json();
+        if(d.invoice_link) {
+            tg.openInvoice(d.invoice_link, (status) => {
+                if(status === 'paid') {
+                    tg.showAlert("✨ Payment Successful! Your WPT Pack is added.");
+                    refresh();
+                }
+            });
+        } else {
+            tg.showAlert("❌ Could not create invoice");
+        }
+    } catch(e) {
+        tg.showAlert("📡 Connection error");
+    }
+}
+
+
+
+
+
+
+
     // --- USER PROFILE & DATA ---
     async function refresh() {
         try {
