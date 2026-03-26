@@ -214,3 +214,37 @@ async def get_user_token_balance(uid: int, tid: int):
         c.close(); conn.close()
 
 
+
+@router.get("/portfolio/{uid}")
+async def get_user_portfolio(uid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # On joint la table des assets avec celle des infos tokens
+        c.execute("""
+            SELECT t.name, t.symbol, t.logo, a.amount, t.price 
+            FROM user_community_assets a
+            JOIN community_tokens t ON a.token_id = t.id
+            WHERE a.user_id = %s AND a.amount > 0
+            ORDER BY (a.amount * t.price) DESC
+        """, (uid,))
+        res = c.fetchall()
+        
+        portfolio = []
+        for r in res:
+            portfolio.append({
+                "name": r[0],
+                "symbol": r[1],
+                "logo": r[2],
+                "amount": float(r[3]),
+                "price": float(r[4])
+            })
+        return portfolio
+    except Exception as e:
+        print(f"Portfolio Error: {e}")
+        return []
+    finally:
+        c.close(); conn.close()
+
+
+
