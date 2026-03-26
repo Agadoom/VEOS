@@ -1,10 +1,9 @@
-import asyncio, uvicorn, os
+import asyncio, uvicorn, os, time
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
-from aiogram import types
 
 # Import de tes configurations et modules
 import config, database
@@ -15,7 +14,6 @@ database.init_db_structure()
 
 app = FastAPI(title="WPT Hub API")
 
-# Middleware pour éviter les erreurs de connexion depuis le Webview
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,9 +22,33 @@ app.add_middleware(
 )
 
 # --- INDEXATION DES ROUTES ---
-app.include_router(user.router)     # /api/user
-app.include_router(mine.router)     # /api/mine
-app.include_router(launcher.router) # /api/launcher
+app.include_router(user.router)
+app.include_router(mine.router)
+app.include_router(launcher.router)
+
+# --- API STARS (Générer le lien de paiement) ---
+@app.get("/api/stars/create-invoice/{uid}")
+async def create_invoice(uid: int):
+    # On récupère l'instance du bot stockée dans l'app
+    bot = app.state.bot
+    
+    # Prix : 50 Stars (En Telegram Stars, 1 Star = 1 unité, pas de centimes)
+    prices = [LabeledPrice(label="10,000 WPT Pack", amount=50)]
+    
+    try:
+        # Génération du lien de paiement officiel Telegram Stars (XTR)
+        invoice_link = await bot.create_invoice_link(
+            title="WPT Boost Pack",
+            description="Get 10,000 WPT instantly to trade community tokens!",
+            payload=f"buy_wpt_10k_{uid}",
+            provider_token="", # Vide pour Telegram Stars
+            currency="XTR",    # Code pour les Stars
+            prices=prices
+        )
+        return {"invoice_link": invoice_link}
+    except Exception as e:
+        print(f"Invoice Error: {e}")
+        return {"error": str(e)}
 
 # --- SERVING THE FRONTEND ---
 @app.get("/", response_class=HTMLResponse)
@@ -36,120 +58,70 @@ async def serve_index():
             return f.read()
     return "<h1>Frontend index.html not found!</h1>"
 
-# --- TELEGRAM BOT LOGIC ---
+# --- TELEGRAM BOT HANDLERS ---
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     name = update.effective_user.first_name
     
-    # 1. Vérifier si c'est un nouveau joueur via parrainage
+    # Referral logic
     if context.args and context.args[0].isdigit():
         referrer_id = int(context.args[0])
-        if referrer_id != uid: # On ne peut pas se parrainer soi-même
-            # On vérifie si l'user existe déjà
+        if referrer_id != uid:
             user_data = database.get_user_full(uid)
-            # Si le score est 0, on considère que c'est une première connexion
-            if sum(user_data[0:3]) == 0:
+            if not user_data or sum(user_data[0:3]) == 0:
                 database.add_referral_reward(uid, referrer_id)
                 await context.bot.send_message(chat_id=referrer_id, text=f"🎁 Your friend {name} joined! You earned +500 WPT.")
 
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
-    await update.message.reply_text(f"<b>Welcome {name}!</b>\n\nStart mining and trade community tokens.", parse_mode="HTML", reply_markup=keyboard)
-
+    await update.message.reply_text(f"<b>Welcome {name}!</b>\n\nStart mining and trade tokens.", parse_mode="HTML", reply_markup=keyboard)
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Répondre OUI à Telegram pour autoriser le paiement"""
     query = update.pre_checkout_query
     await query.answer(ok=True)
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Livraison des WPT après paiement réussi"""
     payment = update.message.successful_payment
     payload = payment.invoice_payload
 
-    if payload.startswith("buy|"):
-        _, uid, tid, qty, cost_wpt = payload.split('|')
-        conn = database.get_db_conn()
-        c = conn.cursor()
-        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (float(cost_wpt), int(uid)))
-        database.buy_token(int(uid), int(tid), float(qty))
-        conn.commit()
-        c.close(); conn.close()
-        await update.message.reply_text("✅ Purchase Confirmed! Your tokens are now in your wallet.")
-    else:
-        # Import local pour éviter l'import circulaire
-        from routes.launcher import pending_tokens
-        data = pending_tokens.get(payload)
-        if data:
-            database.deploy_token(
-                data['user_id'], data['name'], data['symbol'], 
-                data['desc'], data['logo'], data['banner'], "", ""
-            )
-            del pending_tokens[payload]
-            await update.message.reply_text(f"🚀 Success! <b>{data['name']}</b> has been deployed!")
-
-# --- MAIN SERVER RUNNER ---
-@router.get("/api/stars/create-invoice/{uid}")
-async def create_invoice(uid: int):
-    # Prix en Stars (50 Stars par exemple)
-    prices = [types.LabeledPrice(label="10,000 WPT Pack", amount=50)]
-    
-    # Génération du lien de paiement via le bot
-    invoice_link = await bot.create_invoice_link(
-        title="WPT Boost Pack",
-        description="Get 10,000 WPT instantly to trade community tokens!",
-        payload=f"buy_wpt_10k_{uid}",
-        provider_token="", # Vide pour les Telegram Stars
-        currency="XTR",    # Code obligatoire pour les Stars
-        prices=prices
-    )
-    return {"invoice_link": invoice_link}
-
-# Gérer la confirmation du paiement (Côté Telegram Bot)
-@dp.pre_checkout_query_handler(lambda q: True)
-async def checkout(pre_checkout_query: types.PreCheckoutQuery):
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-@dp.message_handler(content_types=types.ContentType.SUCCESSFUL_PAYMENT)
-async def got_payment(message: types.Message):
-    payload = message.successful_payment.invoice_payload
     if "buy_wpt_10k" in payload:
         uid = int(payload.split("_")[-1])
-        # AJOUTE LES POINTS EN BASE DE DONNÉES
+        
+        # Créditer les 10,000 WPT
         conn = database.get_db_conn()
         c = conn.cursor()
         c.execute("UPDATE users SET p_genesis = p_genesis + 10000 WHERE user_id = %s", (uid,))
         conn.commit()
         c.close(); conn.close()
-        await message.answer("✅ Thank you! 10,000 WPT have been credited to your account.")
+        
+        await update.message.reply_text("✅ <b>Payment Received!</b>\n10,000 WPT have been added to your balance.", parse_mode="HTML")
 
-
-
-
+# --- MAIN RUNNER ---
 
 async def main():
-    # 1. Initialisation du Bot
+    # 1. Init Bot App
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
     
-    # 2. Partage de l'instance pour les routes (Crucial pour éviter le crash)
+    # 2. Stocker le bot dans FastAPI pour y accéder depuis les routes
     app.state.bot = bot_app.bot 
 
-    # 3. Enregistrement des Handlers (Une seule fois !)
+    # 3. Handlers
     bot_app.add_handler(CommandHandler("start", start_command))
     bot_app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     bot_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
-    # 4. Lancement du Bot
+    # 4. Start Bot (Polling mode)
     await bot_app.initialize()
     await bot_app.start()
-    await bot_app.updater.start_polling()
+    asyncio.create_task(bot_app.updater.start_polling()) # Run polling in background
     
-    # 5. Lancement du Serveur Web
-    print(f"🚀 Server running on port {config.PORT}")
-    config_uvicorn = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
-    server = uvicorn.Server(config_uvicorn)
+    # 5. Run FastAPI
+    print(f"🚀 Server & Bot active on port {config.PORT}")
+    uv_config = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
+    server = uvicorn.Server(uv_config)
     await server.serve()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(main())
