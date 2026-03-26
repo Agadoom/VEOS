@@ -332,6 +332,42 @@
         } catch(e) {}
     }
 
+
+function buyStarsPack() {
+    console.log("Stars pack clicked for user:", uid);
+    
+    // 1. On demande au backend de générer le lien de facture (Invoice)
+    fetch(`/api/stars/create-invoice/${uid}`)
+        .then(res => {
+            if (!res.ok) throw new Error("Erreur serveur");
+            return res.json();
+        })
+        .then(data => {
+            if (data.invoice_link) {
+                // 2. On ouvre l'interface de paiement native Telegram
+                tg.openInvoice(data.invoice_link, function(status) {
+                    if (status === 'paid') {
+                        tg.showAlert("✅ Payment Successful! 10,000 WPT added.");
+                        refresh(); // On met à jour le solde
+                    } else if (status === 'cancelled') {
+                        console.log("Payment cancelled by user");
+                    } else {
+                        tg.showAlert("Payment failed or pending.");
+                    }
+                });
+            } else {
+                tg.showAlert("Impossible de générer la facture. Vérifie tes logs backend.");
+            }
+        })
+        .catch(err => {
+            console.error("Invoice error:", err);
+            tg.showAlert("Erreur de connexion au serveur.");
+        });
+}
+
+
+
+
     async function loadMarket() {
         try {
             const r = await fetch('/api/launcher/list');
