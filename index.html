@@ -243,6 +243,42 @@
     }
 
 
+
+
+async function buyToken() {
+    const amount = await new Promise(resolve => {
+        tg.showPopup({
+            title: 'Buy Token',
+            message: 'Enter WPT amount to invest:',
+            buttons: [{id: 'ok', type: 'default', text: 'Confirm'}]
+        }, (id) => resolve(100)); // Pour l'instant on fixe à 100 pour le test
+    });
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/buy`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid,
+                token_id: currentTokenId,
+                amount: 100 // L'utilisateur mise 100 WPT
+            })
+        });
+        const res = await r.json();
+        if(res.ok) {
+            tg.showAlert(`✅ Purchase successful! You got ${res.received.toFixed(2)} tokens.`);
+            refresh(); // Update the balance
+        } else {
+            tg.showAlert("❌ Error: " + res.error);
+        }
+    } catch(e) {
+        tg.showAlert("Server unreachable");
+    }
+}
+
+
+
+
     function buyStarsPack() {
         fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`).then(r=>r.json()).then(d=>{
             if(d.invoice_link) tg.openInvoice(d.invoice_link, s => { if(s==='paid') refresh(); });
