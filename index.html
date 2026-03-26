@@ -3,99 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WPT Ecosystem</title>
+    <title>WPT Hub - Ecosystem</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://unpkg.com/@tonconnect/sdk@latest/dist/tonconnect-sdk.min.js"></script>
     <style>
-        :root { --bg: #050505; --card: #121214; --gold: #FFD700; --blue: #007AFF; --green: #34C759; --purple: #A259FF; --text: #8E8E8E; }
+
+        :root { 
+            --bg: #050505; --card: #121214; --gold: #FFD700; 
+            --blue: #007AFF; --green: #34C759; --purple: #A259FF; 
+            --red: #eb4034; --text: #8E8E8E; 
+        }
         body { background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; margin: 0; padding: 0; overflow: hidden; }
+    
+        /* Ticker Animation */
+        .ticker { background: #1a1a1c; padding: 8px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; font-size: 11px; }
+        .t-wrap { display: inline-block; animation: scroll 20s linear infinite; }
+        @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         
-        .container { padding: 15px; padding-bottom: 100px; height: 100vh; overflow-y: auto; box-sizing: border-box; }
+        /* Layout */
+        .container { padding: 15px; padding-bottom: 110px; height: 90vh; overflow-y: auto; }
+        .prof-header { background: linear-gradient(135deg, #1c1c1e 0%, #050505 100%); border-radius: 30px; padding: 25px 20px; border: 1px solid #222; margin-bottom: 20px; text-align: center; }
+        
+        /* Cards & Buttons */
+        .card { background: var(--card); border-radius: 20px; padding: 15px; margin-bottom: 12px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: #FFF; color: #000; border: none; padding: 12px 20px; border-radius: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+        
+        /* Navigation */
+        .nav { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.95); backdrop-filter: blur(15px); padding: 12px 35px; border-radius: 50px; display: flex; gap: 40px; border: 1px solid #333; z-index: 999; }
+        .n-i { font-size: 24px; opacity: 0.3; transition: 0.3s; cursor:pointer; }
+        .n-i.active { opacity: 1; color: var(--gold); transform: scale(1.1); }
+        
+        /* Form Inputs */
+        .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 12px; width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+        
         .page { display: none; }
         .active-page { display: block; animation: fadeIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        .prof-header { background: linear-gradient(135deg, #1c1c1e 0%, #050505 100%); border-radius: 25px; padding: 20px; border: 1px solid #222; margin-bottom: 20px; text-align: center; }
-        .card { background: var(--card); border-radius: 18px; padding: 15px; margin-bottom: 10px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; }
-        
-        .btn { background: #FFF; color: #000; border: none; padding: 12px 18px; border-radius: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn:active { transform: scale(0.95); }
-        .btn-blue { background: var(--blue); color: #fff; width: 100%; }
-        .btn-gold { background: var(--gold); color: #000; width: 100%; }
-
-        .nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.9); backdrop-filter: blur(10px); padding: 12px 30px; border-radius: 50px; display: flex; gap: 35px; border: 1px solid #333; z-index: 1000; }
-        .n-i { font-size: 22px; opacity: 0.3; cursor: pointer; transition: 0.3s; }
-        .n-i.active { opacity: 1; color: var(--gold); transform: scale(1.2); }
-
-        input, textarea { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; font-family: inherit; }
+        /* Chart container */
+        .chart-container { padding: 10px; background: #000; border-radius: 15px; border: 1px solid #222; margin: 10px; }
     </style>
 </head>
 <body>
+    <div class="ticker"><div class="t-wrap"><span style="color:var(--gold)">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN ● </span></div></div>
 
-<div class="container">
-    <div id="p-mine" class="page active-page">
-        <div class="prof-header">
-            <small id="prof-rank" style="color:var(--gold)">RANK #---</small>
-            <h1 id="tot" style="font-size: 40px; margin: 10px 0;">0.00</h1>
-            <div style="background:#222; height:6px; border-radius:10px;"><div id="e-f" style="background:var(--gold); width:0%; height:100%; transition:0.3s;"></div></div>
-            <small id="e-t" style="color:var(--text)">Energy: 0/100</small>
-        </div>
-        <div class="card"><div><b>Genesis</b><br><small id="gv">0.00</small></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
-        <div class="card"><div><b>Unity</b><br><small id="uv">0.00</small></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
-        <div class="card"><div><b style="color:var(--purple)">Veo AI</b><br><small id="vv">0.00</small></div><button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo')">COMPUTE</button></div>
-    </div>
-
-    <div id="p-launcher" class="page">
-        <h2 style="text-align:center;">🚀 Launchpad</h2>
-        <div class="card" style="flex-direction:column; align-items:stretch;">
-            <input type="text" id="tk-name" placeholder="Token Name">
-            <input type="text" id="tk-sym" placeholder="$SYMBOL">
-            <textarea id="tk-desc" placeholder="Description..."></textarea>
-            <div style="display:flex; gap:10px; margin-bottom:10px;">
-                <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">
-                    LOGO <input type="file" id="f-logo" hidden onchange="processFile('logo')">
-                </label>
-                <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">
-                    BANNER <input type="file" id="f-banner" hidden onchange="processFile('banner')">
-                </label>
+    <div class="container">
+        
+        <div id="p-mine" class="page active-page">
+            <div class="prof-header">
+                <small id="u-badge" style="color:var(--gold); font-weight:bold;">RANK: NOVICE</small>
+                <h1 id="tot" style="font-size:45px; margin:10px 0;">0.00</h1>
+                <div style="background:#222; height:6px; border-radius:10px; margin:10px 0;"><div id="e-f" style="background:var(--gold); height:100%; width:0%; transition:0.3s;"></div></div>
+                <small id="e-t" style="color:var(--text)">Energy: 0/100</small>
             </div>
-            <button class="btn btn-gold" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
+            <div class="card"><div><b>Genesis (WPT)</b><br><small id="gv">0.00</small></div><button class="btn" onclick="mine('genesis')">MINE</button></div>
+            <div class="card"><div><b>Unity</b><br><small id="uv">0.00</small></div><button class="btn" onclick="mine('unity')">SYNC</button></div>
+            <div class="card"><div><b style="color:var(--purple)">Veo AI</b><br><small id="vv">0.00</small></div><button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo')">COMPUTE</button></div>
         </div>
-        <h3>Live Market</h3>
-        <div id="token-list"></div>
-    </div>
 
-    <div id="p-wallet" class="page">
-        <h2 style="text-align:center;">💼 Wallet</h2>
-        <div class="card" style="flex-direction:column; text-align:center; padding:30px;">
-            <small style="color:var(--text)">Total Balance</small>
-            <h1 id="wallet-balance" style="color:var(--gold); margin:10px 0;">0.00</h1>
-            <button class="btn btn-blue" onclick="connectWallet()" id="btn-connect">💎 CONNECT WALLET</button>
-            <div id="wallet-addr" style="margin-top:10px; font-size:10px; color:var(--blue); word-break: break-all;"></div>
+        <div id="p-launcher" class="page">
+            <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
+            <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000;">
+                <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
+                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL">
+                <textarea id="tk-desc" class="l-input" placeholder="Description..."></textarea>
+                <div style="display:flex; gap:10px;">
+                    <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">LOGO<input type="file" id="f-logo" hidden onchange="processFile('logo')"></label>
+                    <label class="btn" style="flex:1; background:#222; color:#fff; font-size:11px; text-align:center;">BANNER<input type="file" id="f-banner" hidden onchange="processFile('banner')"></label>
+                </div>
+                <button class="btn" style="background:var(--gold);" onclick="deployToken()">LAUNCH (10 ★)</button>
+            </div>
+            <h3 style="margin-top:20px;">🔥 LIVE MARKET</h3>
+            <div id="token-list"></div>
         </div>
-        <div class="card" style="background:linear-gradient(45deg, #1a1a1c, #121214);">
-            <div><b>Get 10,000 WPT</b><br><small>Price: 50 Stars ⭐</small></div>
-            <button class="btn" style="background:var(--green); color:#fff;" onclick="buyStarsPack()">BUY</button>
-        </div>
-    </div>
-
-    <div id="p-profil" class="page">
-        <div class="prof-header">
-            <h2 id="prof-name">Username</h2>
-            <p id="prof-id" style="font-size:10px; color:var(--text);"></p>
-        </div>
-        <button class="btn btn-blue" onclick="shareRef()">🔗 INVITE FRIENDS</button>
-        <h3 style="margin-top:20px;">🏆 Leaderboard</h3>
-        <div id="leaderboard"></div>
-    </div>
-</div>
-
-<nav class="nav">
-    <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
-    <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
-    <div onclick="show('wallet')" id="n-wallet" class="n-i">💼</div> 
-    <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
-</nav>
 
 <script>
     const tg = window.Telegram.WebApp;
