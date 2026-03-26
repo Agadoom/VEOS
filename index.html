@@ -370,44 +370,7 @@ function buyStarsPack() {
 
 
 
-async function deployToken() {
-    const name = document.getElementById('launch-name').value;
-    const symbol = document.getElementById('launch-symbol').value;
-    const description = document.getElementById('launch-desc').value;
 
-    if(!name || !symbol) return tg.showAlert("Please fill Name and Symbol");
-    if(!b64_logo) return tg.showAlert("Please upload a Logo");
-
-    // Afficher un petit message de chargement
-    tg.showConfirm("Deploy this token for 5,000 WPT?", async (ok) => {
-        if(!ok) return;
-
-        try {
-            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid,
-                    name: name,
-                    symbol: symbol,
-                    description: description,
-                    logo_b64: b64_logo,
-                    banner_b64: b64_banner
-                })
-            });
-
-            const data = await res.json();
-            if(data.ok) {
-                tg.showAlert("🚀 Token Deployed Successfully!");
-                show('launcher'); // Retour au market
-            } else {
-                tg.showAlert("Error: " + (data.error || "Deployment failed"));
-            }
-        } catch(e) {
-            tg.showAlert("Server error during deployment");
-        }
-    });
-}
 
 
 
@@ -469,6 +432,45 @@ async function deployToken() {
     tg.expand();
     refresh();
     setInterval(refresh, 10000);
+
+async function deployToken() {
+    const name = document.getElementById('launch-name').value;
+    const symbol = document.getElementById('launch-symbol').value;
+    const description = document.getElementById('launch-desc').value;
+
+    if(!name || !symbol) return tg.showAlert("Please fill Name and Symbol");
+    if(!b64_logo) return tg.showAlert("Please upload a Logo");
+
+    // Afficher un petit message de chargement
+    tg.showConfirm("Deploy this token for 5,000 WPT?", async (ok) => {
+        if(!ok) return;
+
+        try {
+            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: uid,
+                    name: name,
+                    symbol: symbol,
+                    description: description,
+                    logo_b64: b64_logo,
+                    banner_b64: b64_banner
+                })
+            });
+
+            const data = await res.json();
+            if(data.ok) {
+                tg.showAlert("🚀 Token Deployed Successfully!");
+                show('launcher'); // Retour au market
+            } else {
+                tg.showAlert("Error: " + (data.error || "Deployment failed"));
+            }
+        } catch(e) {
+            tg.showAlert("Server error during deployment");
+        }
+    });
+}
 </script>
 
 </body>
