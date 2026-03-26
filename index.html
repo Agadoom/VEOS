@@ -207,17 +207,19 @@
 
 
     <script>
+    // 1. Initialisation des variables globales
     let tg = window.Telegram.WebApp; 
     const uid = tg.initDataUnsafe.user?.id || 0;
     let currentTokenId = null;
     let b64_logo = "", b64_banner = "";
     let connectedAddress = null;
 
-    // --- 1. INITIALISATION TON CONNECT ---
+    // 2. Configuration TonConnect
     const connector = new TonConnectSDK.TonConnect({
         manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
     });
 
+    // 3. Gestionnaire d'état du Wallet
     connector.onStatusChange(wallet => {
         const walletZone = document.getElementById('wallet-zone');
         if (!walletZone) return;
@@ -231,6 +233,37 @@
         }
     });
 
+    // 4. Fonction de Navigation (C'est elle qui fait bouger l'interface)
+    function show(p) {
+        console.log("Navigating to:", p); // Debug console
+        try {
+            // Cacher toutes les pages
+            const pages = document.querySelectorAll('.page');
+            pages.forEach(pg => pg.classList.remove('active-page'));
+            
+            // Afficher la page demandée
+            const targetPage = document.getElementById('p-' + p);
+            if (targetPage) {
+                targetPage.classList.add('active-page');
+            }
+
+            // Gérer les icônes de la barre de navigation
+            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+            const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
+            const navElem = document.getElementById(navId);
+            if(navElem) navElem.classList.add('active');
+            
+            // Charger les données selon la page
+            if(p === 'launcher') loadMarket();
+            if(p === 'profil') loadLeaderboard();
+            
+            refresh(); // Mise à jour des scores
+        } catch(e) {
+            console.error("Navigation Error:", e);
+        }
+    }
+
+    // 5. Fonctions Wallet
     async function connectWallet() {
         try {
             if (connector.connected) await connector.disconnect();
@@ -239,51 +272,37 @@
                 bridgeUrl: 'https://bridge.tonapi.io/bridge'
             });
             if (url) tg.openTelegramLink(url);
-        } catch (e) { tg.showAlert("Error: " + e.message); }
+        } catch (e) { 
+            tg.showAlert("Wallet Error: " + e.message); 
+        }
     }
 
-    // --- 2. NAVIGATION (VERSION UNIQUE ET FIXÉE) ---
-    function show(p) {
-        try {
-            document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-            const targetPage = document.getElementById('p-' + p);
-            if (targetPage) targetPage.classList.add('active-page');
-            
-            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-            const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
-            const navElem = document.getElementById(navId);
-            if(navElem) navElem.classList.add('active');
-            
-            if(p === 'launcher') loadMarket();
-            if(p === 'profil') loadLeaderboard();
-            refresh();
-        } catch(e) { console.error("Nav error:", e); }
-    }
-
-    // --- 3. FONCTIONS DATA & ACTIONS ---
+    // 6. Fonctions API (Refresh, Market, Mine...)
     async function refresh() {
         try {
             const r = await fetch(`/api/user/${uid}`);
             if (!r.ok) return;
             const d = await r.json();
-            if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
-            if(document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toFixed(2);
-            if(document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toFixed(2);
-            if(document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toFixed(2);
-            if(document.getElementById('u-badge')) document.getElementById('u-badge').innerText = d.badge.toUpperCase();
+            
+            const ids = {
+                'tot': d.score.toFixed(2),
+                'gv': d.g.toFixed(2),
+                'uv': d.u.toFixed(2),
+                'vv': d.v.toFixed(2),
+                'u-badge': d.badge.toUpperCase(),
+                'prof-name': d.name,
+                'wallet-genesis': d.g.toFixed(2)
+            };
+
+            for (let id in ids) {
+                let el = document.getElementById(id);
+                if(el) el.innerText = ids[id];
+            }
+
             if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
             if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
-            if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
-            if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
-            
-            let ah = ""; 
-            if(d.assets) {
-                d.assets.forEach(a => { 
-                    ah += `<div class="card"><div style="display:flex; align-items:center; gap:10px;"><div style="background:var(--blue); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px;">$</div><span>${a.n} <small style="color:var(--text)">$${a.s}</small></span></div><b>${a.a.toFixed(2)}</b></div>`; 
-                });
-            }
-            if(document.getElementById('prof-assets')) document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Empty</center>";
-        } catch(e) {}
+
+        } catch(e) { console.error("Refresh fail", e); }
     }
 
     async function loadMarket() {
@@ -292,10 +311,17 @@
             const tokens = await r.json();
             let h = "";
             tokens.forEach(t => {
-                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'><div style="display:flex; align-items:center; gap:10px;"><img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;"><div><b>${t.name}</b><br><small>$${t.symbol}</small></div></div><b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
+                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
+                            <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                        </div>
+                        <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+                      </div>`;
             });
-            document.getElementById('token-list').innerHTML = h || "<center>No tokens</center>";
-        } catch(e) {}
+            const list = document.getElementById('token-list');
+            if(list) list.innerHTML = h || "<center>No tokens active</center>";
+        } catch(e) { console.error("Market fail", e); }
     }
 
     async function openToken(t) {
@@ -306,39 +332,22 @@
         document.getElementById('det-logo').src = t.logo || "";
         document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
         show('details');
+        
         try {
             const sRes = await fetch(`/api/launcher/stats/${t.id}`);
             const stats = await sRes.json();
             document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
             document.getElementById('det-holders').innerText = stats.holders;
-            
-            const resH = await fetch(`/api/launcher/history/${t.id}`);
-            const history = await resH.json(); 
-            if (history && history.length > 1) {
-                const max = Math.max(...history), min = Math.min(...history), range = (max - min) || 0.0001;
-                const pts = history.map((p, i) => `${(i / (history.length - 1)) * 300},${80 - ((p - min) / range * 60)}`).join(' ');
-                document.getElementById('chart-line').setAttribute('points', pts);
-            }
         } catch(e) {}
     }
 
     async function mine(type) {
-        const res = await fetch('/api/mine', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:type}) });
+        const res = await fetch('/api/mine', { 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({user_id:uid, token:type}) 
+        });
         if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
-    }
-
-    async function buyToken() {
-        const amount = prompt("WPT amount:");
-        if(!amount) return;
-        const res = await fetch('/api/launcher/buy', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount_wpt: parseFloat(amount) }) });
-        if(res.ok) { tg.showAlert("Bought!"); show('wallet'); }
-    }
-
-    async function sellToken() {
-        const qty = prompt("Quantity:");
-        if(!qty) return;
-        const res = await fetch('/api/launcher/sell', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount_wpt: parseFloat(qty) }) });
-        if(res.ok) { tg.showAlert("Sold!"); show('wallet'); }
     }
 
     async function loadLeaderboard() {
@@ -346,26 +355,20 @@
             const res = await fetch('/api/user/leaderboard');
             const data = await res.json();
             let html = "";
-            data.forEach(u => { html += `<div class="card"><span>#${u.rank} ${u.name}</span><b>${u.score.toFixed(2)}</b></div>`; });
-            document.getElementById('leaderboard-list').innerHTML = html;
+            data.forEach(u => { 
+                html += `<div class="card"><span>#${u.rank} ${u.name}</span><b>${u.score.toFixed(2)}</b></div>`; 
+            });
+            const lb = document.getElementById('leaderboard-list');
+            if(lb) lb.innerHTML = html;
         } catch(e) {}
     }
 
-    function shareReferral() {
-        tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/OWPCsBot?start=${uid}`);
-    }
-
-    function processFile(type) {
-        const file = document.getElementById('f-' + type).files[0];
-        const reader = new FileReader();
-        reader.onloadend = () => { if (type === 'logo') b64_logo = reader.result; else b64_banner = reader.result; };
-        if (file) reader.readAsDataURL(file);
-    }
-
+    // 7. Initialisation au démarrage
     tg.expand();
     refresh();
     setInterval(refresh, 10000);
 </script>
+
 
 
 
