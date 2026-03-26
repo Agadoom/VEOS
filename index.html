@@ -160,8 +160,10 @@
 <script>
     const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
-    const BASE_URL = 'https://veos-production-a2de.up.railway.app';
-    let b64_logo = "", b64_banner = "", currentTokenId = null, tradeType = 'buy';
+   const connector = new TonConnectSDK.TonConnect({ 
+    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json' 
+});
+ currentTokenId = null, tradeType = 'buy';
 
     // --- NAVIGATION ---
     function show(p) {
