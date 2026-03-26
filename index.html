@@ -240,16 +240,26 @@
     });
 
     async function connectWallet() {
-        try {
-            const url = connector.connect({
-                universalLink: 'https://tonkeeper.com/ton-connect',
-                bridgeUrl: 'https://bridge.tonapi.io/bridge'
-            });
-            if (url) tg.openTelegramLink(url);
-        } catch (e) {
-            tg.showAlert("Failed to open Wallet");
+    try {
+        // Purge l'ancienne session pour éviter le blocage
+        if (connector.connected) { await connector.disconnect(); }
+
+        const walletConnectionSource = {
+            universalLink: 'https://tonkeeper.com/ton-connect',
+            bridgeUrl: 'https://bridge.tonapi.io/bridge'
+        };
+
+        const url = connector.connect(walletConnectionSource);
+
+        if (url) {
+            // Force l'ouverture dans Telegram
+            tg.openTelegramLink(url);
         }
+    } catch (e) {
+        tg.showAlert("Erreur : " + e.message);
     }
+}
+
 
     // --- 2. NAVIGATION (RÉPARÉE) ---
     function show(p) {
