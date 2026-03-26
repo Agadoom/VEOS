@@ -210,153 +210,137 @@
 
 
        <script>
-    let tg = window.Telegram.WebApp; 
+    const tg = window.Telegram.WebApp; 
     const uid = tg.initDataUnsafe.user?.id || 0;
-    const BASE_URL = 'https://veos-production-a2de.up.railway.app'; // Défini ici pour tout le script
+    // L'URL de ton API Railway
+    const BASE_URL = 'https://veos-production-a2de.up.railway.app'; 
+
     let currentTokenId = null;
     let b64_logo = "", b64_banner = "";
     let connectedAddress = null;
 
-    // --- 1. INITIALISATION TON CONNECT ---
-    const connector = new TonConnectSDK.TonConnect({
-        manifestUrl: `${BASE_URL}/tonconnect-manifest.json`
-    });
-
-    connector.onStatusChange(wallet => {
-        const walletZone = document.getElementById('wallet-zone');
-        if (!walletZone) return;
-        if (wallet) {
-            connectedAddress = wallet.account.address;
-            const shortAddr = connectedAddress.substring(0, 4) + "..." + connectedAddress.substring(connectedAddress.length - 4);
-            walletZone.innerHTML = `<div style="padding:10px; background:rgba(0,122,255,0.1); border-radius:10px; color:var(--blue); font-size:11px; text-align:center;">Linked: <b>${shortAddr}</b></div>`;
-        } else {
-            connectedAddress = null;
-            walletZone.innerHTML = `<button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET</button>`;
-        }
-    });
-
-    async function connectWallet() {
-        try {
-            if (connector.connected) await connector.disconnect();
-            const url = connector.connect({
-                universalLink: 'https://tonkeeper.com/ton-connect',
-                bridgeUrl: 'https://bridge.tonapi.io/bridge'
-            });
-            if (url) tg.openTelegramLink(url);
-        } catch (e) { tg.showAlert("Wallet Error: " + e.message); }
-    }
-
-    // --- 2. LOGIQUE DE NAVIGATION ---
+    // --- 1. NAVIGATION (FONCTION SHOW) ---
     function show(p) {
+        console.log("Navigating to:", p);
         try {
+            // Masquer les pages
             document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
             const targetPage = document.getElementById('p-' + p);
             if (targetPage) targetPage.classList.add('active-page');
             
+            // Update menu
             document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
             const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
             const navElem = document.getElementById(navId);
             if(navElem) navElem.classList.add('active');
             
+            // Actions auto
             if(p === 'launcher') loadMarket();
             if(p === 'profil') loadLeaderboard();
             refresh();
-        } catch(e) { console.error("Nav error", e); }
+        } catch(e) { console.error("Navigation error:", e); }
     }
 
-    // --- 3. REFRESH DATA ---
+    // --- 2. REFRESH DATA (SOLDE / RANK) ---
     async function refresh() {
+        if(!uid) return;
         try {
             const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            if (!r.ok) return;
             const d = await r.json();
 
-            if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
-            if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
-            if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
-            if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
-            if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
-            if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
-        } catch(e) { console.error("Refresh error", e); }
+            // Mise à jour des textes
+            const updates = {
+                'tot': d.score.toFixed(2),
+                'gv': d.g.toFixed(2),
+                'prof-rank': d.rank ? "#" + d.rank : "#---",
+                'prof-name': d.name || "User",
+                'wallet-genesis': d.g.toFixed(2),
+                'e-t': `Energy: ${Math.floor(d.energy)}/100`
+            };
+
+            for (let id in updates) {
+                const el = document.getElementById(id);
+                if (el) el.innerText = updates[id];
+            }
+
+            if(document.getElementById('e-f')) 
+                document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
+
+        } catch(e) { console.error("Refresh error:", e); }
     }
 
-    // --- 4. GESTION DES FICHIERS (LOGO/BANNER) ---
+    // --- 3. STARS & PAIEMENT ---
+    function buyStarsPack() {
+        console.log("Requesting Stars invoice...");
+        fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`)
+            .then(res => res.json())
+            .then(data => {
+                if(data.invoice_link) {
+                    tg.openInvoice(data.invoice_link, (status) => {
+                        if(status === 'paid') {
+                            tg.showAlert("✅ Success! 10,000 WPT added.");
+                            refresh();
+                        }
+                    });
+                }
+            }).catch(e => console.error("Stars error:", e));
+    }
+
+    // --- 4. LAUNCHER (DEPLOY TOKEN) ---
     function processFile(type) {
         const file = document.getElementById('f-' + type).files[0];
         const reader = new FileReader();
         reader.onloadend = () => {
             if (type === 'logo') b64_logo = reader.result;
             else b64_banner = reader.result;
-            tg.showAlert(type.toUpperCase() + " loaded!");
+            tg.showAlert(type.toUpperCase() + " Loaded!");
         };
         if (file) reader.readAsDataURL(file);
     }
 
-    // --- 5. LAUNCH TOKEN ---
     async function deployToken() {
         const name = document.getElementById('launch-name').value;
         const symbol = document.getElementById('launch-symbol').value;
-        const description = document.getElementById('launch-desc').value;
+        if(!name || !symbol || !b64_logo) return tg.showAlert("Missing Name, Symbol or Logo");
 
-        if(!name || !symbol) return tg.showAlert("Please fill Name and Symbol");
-        if(!b64_logo) return tg.showAlert("Please upload a Logo");
-
-        tg.showConfirm(`Deploy ${name} for 5,000 WPT?`, async (ok) => {
+        tg.showConfirm(`Launch ${name} for 5,000 WPT?`, async (ok) => {
             if(!ok) return;
             try {
                 const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        user_id: uid,
-                        name: name,
-                        symbol: symbol,
-                        description: description,
-                        logo_b64: b64_logo,
-                        banner_b64: b64_banner
+                        user_id: uid, name, symbol,
+                        description: document.getElementById('launch-desc').value,
+                        logo_b64: b64_logo, banner_b64: b64_banner
                     })
                 });
                 const data = await res.json();
                 if(data.ok) {
-                    tg.showAlert("🚀 Token Deployed!");
+                    tg.showAlert("🚀 Token Live!");
                     show('launcher');
                 } else {
                     tg.showAlert("Error: " + data.error);
                 }
-            } catch(e) { tg.showAlert("Server unreachable"); }
+            } catch(e) { tg.showAlert("Server Error"); }
         });
     }
 
-    // --- 6. AUTRES ACTIONS (STARS, MINE, MARKET) ---
-    function buyStarsPack() {
-        fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`)
-            .then(res => res.json())
-            .then(data => {
-                if(data.invoice_link) {
-                    tg.openInvoice(data.invoice_link, (status) => {
-                        if(status === 'paid') { tg.showAlert("✅ Success!"); refresh(); }
-                    });
-                }
-            });
-    }
-
-    async function mine(type) {
-        await fetch(`${BASE_URL}/api/mine`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:type}) });
-        tg.HapticFeedback.impactOccurred('light'); refresh();
-    }
-
+    // --- 5. MARKET & MINING ---
     async function loadMarket() {
-        const r = await fetch(`${BASE_URL}/api/launcher/list`);
-        const tokens = await r.json();
-        let h = "";
-        tokens.forEach(t => {
-            h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
-                    <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
-                </div><b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
-        });
-        document.getElementById('token-list').innerHTML = h || "<center>No tokens</center>";
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/list`);
+            const tokens = await r.json();
+            let h = "";
+            tokens.forEach(t => {
+                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
+                        <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                    </div><b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
+            });
+            document.getElementById('token-list').innerHTML = h || "<center>No tokens active</center>";
+        } catch(e) { console.error("Market error:", e); }
     }
 
     async function openToken(t) {
@@ -369,17 +353,22 @@
         show('details');
     }
 
-    async function loadLeaderboard() {
-        const res = await fetch(`${BASE_URL}/api/user/leaderboard`);
-        const data = await res.json();
-        let html = "";
-        data.forEach(u => { html += `<div class="card"><span>#${u.rank} ${u.name}</span><b>${u.score.toFixed(2)}</b></div>`; });
-        document.getElementById('leaderboard-list').innerHTML = html;
+    async function mine(type) {
+        try {
+            await fetch(`${BASE_URL}/api/mine`, { 
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({user_id:uid, token:type}) 
+            });
+            tg.HapticFeedback.impactOccurred('light');
+            refresh();
+        } catch(e) { console.error("Mine error"); }
     }
 
+    // --- DÉMARRAGE ---
     tg.expand();
     refresh();
-    setInterval(refresh, 10000);
+    setInterval(refresh, 8000);
 </script>
 
 
