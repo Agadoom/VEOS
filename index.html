@@ -202,16 +202,23 @@
     });
 
     async function connectWallet() {
-        if (connector.connected) {
-            tg.showConfirm("Disconnect wallet?", (ok) => { if (ok) connector.disconnect(); });
+    console.log("Tentative de connexion...");
+    try {
+        const walletConnectionSource = {
+            universalLink: 'https://tonkeeper.com/ton-connect',
+            bridgeUrl: 'https://bridge.tonapi.io/bridge'
+        };
+        const url = connector.connect(walletConnectionSource);
+        if (url) {
+            tg.openTelegramLink(url);
         } else {
-            const url = connector.connect({ 
-                universalLink: 'https://tonkeeper.com/ton-connect', 
-                bridgeUrl: 'https://bridge.tonapi.io/bridge' 
-            });
-            if(url) tg.openTelegramLink(url);
+            tg.showAlert("Erreur : Impossible de générer le lien de connexion.");
         }
+    } catch (e) {
+        tg.showAlert("Erreur TonConnect : " + e.message);
     }
+}
+
 
     // --- MARKET & TOKEN DETAILS ---
     async function loadMarket() {
