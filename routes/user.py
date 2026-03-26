@@ -46,7 +46,8 @@ async def get_user_data(uid: int):
         "score": round(score, 2), 
         "badge": badge, 
         "assets": assets,
-        "ref_count": ref_count  # <--- Transmis au Frontend
+        "ref_count": ref_count,  # <--- Transmis au Frontend
+        "rank": rank
     }
 
 
