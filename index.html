@@ -326,6 +326,26 @@ function shareReferral() {
         document.getElementById('det-logo').src = t.logo || "";
         document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
         show('details');
+
+
+// Récupérer l'historique
+    const res = await fetch(`/api/launcher/history/${t.id}`);
+    const history = await res.json(); // ex: [0.0001, 0.00012, 0.00015]
+
+    if (history.length > 1) {
+        const points = history.map((p, i) => `${(i / (history.length-1)) * 300},${100 - (p / Math.max(...history) * 100)}`).join(' ');
+        document.getElementById('chart-line').setAttribute('points', points);
+        document.getElementById('chart-line').setAttribute('stroke', '#34C759');
+    } else {
+        // Ligne plate par défaut si pas assez de données
+        document.getElementById('chart-line').setAttribute('points', "0,80 150,80 300,80");
+    }
+    show('details');
+}
+
+
+
+
     }
 
     async function buyToken() {
