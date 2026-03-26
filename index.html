@@ -235,6 +235,59 @@
         } catch(e) { console.error("Refresh error", e); }
     }
 
+
+    // --- GESTION DES FICHIERS (LOGO/BANNER) ---
+    function processFile(type) {
+        const file = document.getElementById('f-' + type).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (type === 'logo') b64_logo = reader.result;
+            else b64_banner = reader.result;
+            tg.showAlert(type.toUpperCase() + " loaded!");
+        };
+        if (file) reader.readAsDataURL(file);
+    }
+
+    // --- CRÉATION DE TOKEN ---
+    async function deployToken() {
+        const name = document.getElementById('tk-name').value;
+        const sym = document.getElementById('tk-sym').value;
+        const desc = document.getElementById('tk-desc').value;
+
+        if(!name || !sym) return tg.showAlert("Name and Symbol required!");
+
+        tg.showConfirm(`Deploy ${name} ($${sym})?`, async (ok) => {
+            if(!ok) return;
+            
+            try {
+                const res = await fetch('/api/launcher/deploy', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: uid,
+                        name: name,
+                        symbol: sym,
+                        description: desc,
+                        logo: b64_logo,
+                        banner: b64_banner
+                    })
+                });
+                const data = await res.json();
+                if(data.ok) {
+                    tg.showAlert("🚀 Token deployed successfully!");
+                    show('launcher'); // Rafraîchit la liste
+                } else {
+                    tg.showAlert("Error: " + (data.error || "Deployment failed"));
+                }
+            } catch(e) {
+                tg.showAlert("Connection error");
+            }
+        });
+    }
+
+
+
+
     async function loadMarket() {
         try {
             const r = await fetch('/api/launcher/list');
