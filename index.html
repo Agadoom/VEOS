@@ -98,8 +98,11 @@
     </div>
 
     <div style="display:flex; gap:10px; padding:15px;">
-        <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="buyToken()">BUY</button>
-        <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="sellToken()">SELL</button>
+        <div style="display:flex; gap:10px; padding:15px;">
+    <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
+    <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
+</div>
+
 
     </div>
 </div>
