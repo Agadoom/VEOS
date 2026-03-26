@@ -170,6 +170,60 @@
         refresh();
     }
 
+
+
+
+// Initialisation du connecteur
+const connector = new TonConnectSDK.TonConnect({
+    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
+});
+
+// Écouteur de changement de statut (se lance au démarrage et à chaque connexion)
+connector.onStatusChange(wallet => {
+    if (wallet) {
+        const addr = wallet.account.address;
+        // On formate l'adresse pour qu'elle soit jolie (ex: EQB1...4z2)
+        const shortAddr = addr.substring(0, 4) + "..." + addr.substring(addr.length - 4);
+        
+        document.getElementById('btn-connect').innerText = "💎 " + shortAddr;
+        document.getElementById('btn-connect').style.background = "var(--purple)";
+        document.getElementById('wallet-addr').innerText = "Connected to TON Network";
+        
+        console.log("Wallet connected:", addr);
+        // Ici, tu pourrais envoyer l'adresse à ton backend pour l'enregistrer
+    } else {
+        document.getElementById('btn-connect').innerText = "💎 CONNECT WALLET";
+        document.getElementById('btn-connect').style.background = "var(--blue)";
+        document.getElementById('wallet-addr').innerText = "";
+    }
+});
+
+async function connectWallet() {
+    if (connector.connected) {
+        // Optionnel : Proposer la déconnexion si déjà connecté
+        tg.showConfirm("Disconnect wallet?", (ok) => {
+            if (ok) connector.disconnect();
+        });
+    } else {
+        const walletConnectionSource = {
+            universalLink: 'https://tonkeeper.com/ton-connect',
+            bridgeUrl: 'https://bridge.tonapi.io/bridge'
+        };
+        
+        const url = connector.connect(walletConnectionSource);
+        
+        // Si on est sur Telegram, on ouvre le lien directement
+        if (url) {
+            tg.openTelegramLink(url);
+        }
+    }
+}
+
+
+
+
+
+
     async function refresh() {
         try {
             const r = await fetch(`${BASE_URL}/api/user/${uid}`);
