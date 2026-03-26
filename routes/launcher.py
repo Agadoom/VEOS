@@ -80,3 +80,51 @@ async def get_token_history(tid: int):
         return prices if prices else [0.0001]
     finally:
         c.close(); conn.close()
+
+
+@router.post("/sell")
+async def sell_token(req: TradeRequest):
+    print(f"📉 Sell Attempt: User {req.user_id} -> Token {req.token_id}")
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Vérifier si l'utilisateur possède bien ces tokens
+        c.execute("SELECT amount FROM user_community_assets WHERE user_id = %s AND token_id = %s", (req.user_id, req.token_id))
+        res = c.fetchone()
+        
+        # Ici req.amount_wpt représentera la QUANTITÉ de tokens à vendre
+        if not res or float(res[0]) < req.amount_wpt:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Not enough tokens to sell"})
+
+        # 2. Récupérer le prix actuel
+        c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
+        t = c.fetchone()
+        current_price = float(t[0])
+        
+        # Valeur de la vente en WPT
+        total_wpt = req.amount_wpt * current_price
+
+        # 3. Exécution : Retirer tokens -> Ajouter WPT -> Baisser le prix
+        c.execute("UPDATE user_community_assets SET amount = amount - %s WHERE user_id = %s AND token_id = %s", 
+                  (req.amount_wpt, req.user_id, req.token_id))
+        
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (total_wpt, req.user_id))
+        
+        # Le prix baisse de 1% par vente
+        c.execute("UPDATE community_tokens SET price = price * 0.99 WHERE id = %s", (req.token_id,))
+
+        # Mise à jour de l'historique (pour la courbe qui descend !)
+        c.execute("""
+            INSERT INTO token_price_history (token_id, price, timestamp) 
+            VALUES (%s, (SELECT price FROM community_tokens WHERE id = %s), %s)
+        """, (req.token_id, req.token_id, int(time.time())))
+
+        conn.commit()
+        print(f"✅ Sell Success: {total_wpt} WPT earned by UID {req.user_id}")
+        return {"ok": True, "earned": total_wpt}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    finally:
+        c.close(); conn.close()
+
