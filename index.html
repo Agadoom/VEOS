@@ -39,32 +39,15 @@
         .active-page { display: block; animation: fadeIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Chart */
-       <div class="chart-container">
-    <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
-        <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 150,80 300,80" />
-    </svg>
-</div>
-
-<div style="display:flex; justify-content:space-around; background:#111; padding:15px; border-radius:15px; margin:10px 0; border:1px solid #222;">
-    <div style="text-align:center;">
-        <small style="color:var(--text); display:block; font-size:10px; margin-bottom:4px;">MARKET CAP</small>
-        <b id="det-mcap" style="color:var(--gold); font-size:18px;">0 WPT</b>
-    </div>
-    <div style="text-align:center;">
-        <small style="color:var(--text); display:block; font-size:10px; margin-bottom:4px;">HOLDERS</small>
-        <b id="det-holders" style="color:#fff; font-size:18px;">0</b>
-    </div>
-</div>
-
-
-
+        /* Chart container */
+        .chart-container { padding: 10px; background: #000; border-radius: 15px; border: 1px solid #222; margin: 10px; }
     </style>
 </head>
 <body>
     <div class="ticker"><div class="t-wrap"><span style="color:var(--gold)">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN ● </span></div></div>
 
     <div class="container">
+        
         <div id="p-mine" class="page active-page">
             <div class="prof-header">
                 <small id="u-badge" style="color:var(--gold); font-weight:bold;">RANK: NOVICE</small>
@@ -94,130 +77,118 @@
         </div>
 
         <div id="p-details" class="page">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-        <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
-        <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
-    </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
+                <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
+            </div>
 
-    <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
-        <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
-    </div>
+            <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
+                <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
+            </div>
 
-    <div style="margin-top:30px; padding:0 15px;">
-        <h2 id="det-name" style="margin:0;"></h2>
-        <b id="det-sym" style="color:var(--gold)"></b>
-    </div>
+            <div style="margin-top:30px; padding:0 15px;">
+                <h2 id="det-name" style="margin:0;"></h2>
+                <b id="det-sym" style="color:var(--gold)"></b>
+            </div>
 
-    <div style="display:flex; justify-content:space-around; background:#111; padding:12px; border-radius:15px; margin:15px 10px; border:1px solid #222;">
-        <div style="text-align:center;">
-            <small style="color:var(--text); display:block; font-size:10px; text-transform:uppercase;">Market Cap</small>
-            <b id="det-mcap" style="color:var(--gold); font-size:16px;">0 WPT</b>
+            <div style="display:flex; justify-content:space-around; background:#111; padding:12px; border-radius:15px; margin:15px 10px; border:1px solid #222;">
+                <div style="text-align:center;">
+                    <small style="color:var(--text); display:block; font-size:10px; text-transform:uppercase;">Market Cap</small>
+                    <b id="det-mcap" style="color:var(--gold); font-size:16px;">0 WPT</b>
+                </div>
+                <div style="text-align:center;">
+                    <small style="color:var(--text); display:block; font-size:10px; text-transform:uppercase;">Holders</small>
+                    <b id="det-holders" style="color:#fff; font-size:16px;">0</b>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
+                    <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 150,80 300,80" />
+                </svg>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px; padding:15px;">
+                <div style="display:flex; gap:10px;">
+                    <button class="btn" style="flex:1; background:var(--green); color:#fff; font-weight:bold;" onclick="buyToken()">BUY</button>
+                    <button class="btn" style="flex:1; background:var(--red); color:#fff; font-weight:bold;" onclick="sellToken()">SELL</button>
+                </div>
+                <button class="btn" style="background:#111; color:var(--blue); border:1px solid #333; font-size:12px;" onclick="withdrawToken()">📤 WITHDRAW TO EXTERNAL WALLET</button>
+            </div>
         </div>
-        <div style="text-align:center;">
-            <small style="color:var(--text); display:block; font-size:10px; text-transform:uppercase;">Holders</small>
-            <b id="det-holders" style="color:#fff; font-size:16px;">0</b>
-        </div>
-    </div>
-
-    <div class="chart-container" style="padding: 10px; background: #000; border-radius: 15px; border: 1px solid #222; margin: 10px;">
-        <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
-            <polyline id="chart-line" fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 150,80 300,80" />
-        </svg>
-    </div>
-
-    <div style="display:flex; flex-direction:column; gap:10px; padding:15px;">
-        <div style="display:flex; gap:10px;">
-            <button class="btn" style="flex:1; background:var(--green); color:#fff; font-weight:bold;" onclick="buyToken()">BUY</button>
-            <button class="btn" style="flex:1; background:var(--red); color:#fff; font-weight:bold;" onclick="sellToken()">SELL</button>
-        </div>
-        <button class="btn" style="background:#111; color:var(--blue); border:1px solid #333; font-size:12px;" onclick="withdrawToken()">📤 WITHDRAW TO EXTERNAL WALLET</button>
-    </div>
-</div>
-
 
         <div id="p-profil" class="page">
-    <div class="prof-header">
-        <h2 id="prof-name">Username</h2>
-        <div id="u-badge-large" style="color:var(--gold); font-size:14px; font-weight:bold; letter-spacing:2px; margin-top:5px;">BRONZE CITIZEN</div>
-    </div>
-
-    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-        <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 15px; border-left: 3px solid var(--purple);">
-            <small style="color: var(--text);">Daily Streak</small>
-            <b id="prof-streak" style="font-size:20px;">0 Days</b>
-        </div>
-        <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 15px; border-left: 3px solid var(--gold);">
-            <small style="color: var(--text);">Network Rank</small>
-            <b id="prof-rank" style="font-size:18px;">#---</b>
-        </div>
-    </div>
-
-    <div class="card" style="flex-direction:column; gap:12px; background:linear-gradient(45deg, #121214, #1a1a1c); border: 1px solid #333;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 24px;">🎁</span>
-            <div style="flex:1;">
-                <h4 style="margin:0; color:var(--gold);">REFERRAL PROGRAM</h4>
-                <p style="font-size:11px; color:var(--text); margin:0;"><span id="ref-count">0</span> friends invited</p>
+            <div class="prof-header">
+                <h2 id="prof-name">Username</h2>
+                <div id="u-badge-large" style="color:var(--gold); font-size:14px; font-weight:bold; letter-spacing:2px; margin-top:5px;">BRONZE CITIZEN</div>
             </div>
-            <b id="ref-bonus" style="color:var(--green); font-size:12px;">+0 WPT</b>
-        </div>
-        <button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="shareReferral()">INVITE FRIENDS</button>
-    </div>
 
-<h3 style="margin-top:25px; margin-left:10px;">🏆 TOP CITIZENS</h3>
-<div id="leaderboard-list" style="margin-bottom: 20px;">
-    <center style="color:#444; padding:20px;">Loading rankings...</center>
-</div>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 15px; border-left: 3px solid var(--purple);">
+                    <small style="color: var(--text);">Daily Streak</small>
+                    <b id="prof-streak" style="font-size:20px;">0 Days</b>
+                </div>
+                <div class="card" style="flex: 1; flex-direction: column; align-items: center; padding: 15px; border-left: 3px solid var(--gold);">
+                    <small style="color: var(--text);">Network Rank</small>
+                    <b id="prof-rank" style="font-size:18px;">#---</b>
+                </div>
+            </div>
 
+            <div class="card" style="flex-direction:column; gap:12px; background:linear-gradient(45deg, #121214, #1a1a1c); border: 1px solid #333;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 24px;">🎁</span>
+                    <div style="flex:1;">
+                        <h4 style="margin:0; color:var(--gold);">REFERRAL PROGRAM</h4>
+                        <p style="font-size:11px; color:var(--text); margin:0;"><span id="ref-count">0</span> friends invited</p>
+                    </div>
+                    <b id="ref-bonus" style="color:var(--green); font-size:12px;">+0 WPT</b>
+                </div>
+                <button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="shareReferral()">INVITE FRIENDS</button>
+            </div>
 
-    <button class="btn" style="width:100%; margin-top:15px; background:#222; color:#fff; border:1px solid #444;" onclick="claimDaily()">
-        📅 CLAIM DAILY REWARD
-    </button>
-</div>
+            <h3 style="margin-top:25px; margin-left:10px;">🏆 TOP CITIZENS</h3>
+            <div id="leaderboard-list" style="margin-bottom: 20px;">
+                <center style="color:#444; padding:20px;">Loading rankings...</center>
+            </div>
 
-
-
-
-<div id="p-wallet" class="page">
-    <h2 style="text-align:center;">💼 MY ASSETS</h2>
-    
-    <div class="card" style="background:var(--card); padding:20px; justify-content:center; flex-direction:column; text-align:center; border-bottom: 2px solid var(--gold);">
-        <small style="color:var(--text)">Genesis Balance</small>
-        <h1 id="wallet-genesis" style="margin:5px 0; color:var(--gold); font-size: 32px;">0.00</h1>
-    </div>
-
-    <div class="card" style="background:linear-gradient(45deg, #1a1a1c, #222); border:1px solid var(--gold); margin-top:15px; box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);">
-        <div style="flex:1;">
-            <h4 style="margin:0; color:var(--gold);">WPT BOOST PACK</h4>
-            <p style="font-size:11px; color:var(--text); margin:0;">Get 10,000 WPT instantly</p>
-        </div>
-        <button class="btn" style="background:var(--gold); color:#000; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);" onclick="buyStarsPack()">⭐ 50 STARS</button>
-    </div>
-
-    <h3 style="margin: 20px 0 10px 10px;">Community Tokens</h3>
-    <div id="prof-assets">
+            <button class="btn" style="width:100%; margin-top:15px; background:#222; color:#fff; border:1px solid #444;" onclick="claimDaily()">
+                📅 CLAIM DAILY REWARD
+            </button>
         </div>
 
-    <div style="margin-top:30px; padding:10px;">
-        <button class="btn" style="width:100%; background:#111; color:var(--text); border:1px dashed #444;" disabled>
-            + STAKING (COMING SOON)
-        </button>
-    </div>
-</div> 
+        <div id="p-wallet" class="page">
+            <h2 style="text-align:center;">💼 MY ASSETS</h2>
+            
+            <div class="card" style="background:var(--card); padding:20px; justify-content:center; flex-direction:column; text-align:center; border-bottom: 2px solid var(--gold);">
+                <small style="color:var(--text)">Genesis Balance</small>
+                <h1 id="wallet-genesis" style="margin:5px 0; color:var(--gold); font-size: 32px;">0.00</h1>
+            </div>
 
+            <div class="card" style="background:linear-gradient(45deg, #1a1a1c, #222); border:1px solid var(--gold); margin-top:15px; box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);">
+                <div style="flex:1;">
+                    <h4 style="margin:0; color:var(--gold);">WPT BOOST PACK</h4>
+                    <p style="font-size:11px; color:var(--text); margin:0;">Get 10,000 WPT instantly</p>
+                </div>
+                <button class="btn" style="background:var(--gold); color:#000; box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);" onclick="buyStarsPack()">⭐ 50 STARS</button>
+            </div>
 
+            <h3 style="margin: 20px 0 10px 10px;">Community Tokens</h3>
+            <div id="prof-assets"></div>
 
-</div>
+            <div style="margin-top:30px; padding:10px;">
+                <button class="btn" style="width:100%; background:#111; color:var(--text); border:1px dashed #444;" disabled>
+                    + STAKING (COMING SOON)
+                </button>
+            </div>
+        </div> 
 
-</div>
+    </div> <nav class="nav">
+        <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
+        <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
+        <div onclick="show('wallet')" id="n-wallet" class="n-i">💼</div> 
+        <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
+    </nav>
 
-
-    <nav class="nav">
-    <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
-    <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
-    <div onclick="show('wallet')" id="n-wallet" class="n-i">💼</div> 
-    <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
-</nav>
 
 
     <script>
