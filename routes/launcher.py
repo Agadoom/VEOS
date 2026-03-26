@@ -54,6 +54,12 @@ async def buy_token(req: TradeRequest):
         """, (req.user_id, req.token_id, qty, qty))
         
         c.execute("UPDATE community_tokens SET price = price * 1.01 WHERE id = %s", (req.token_id,))
+
+# AJOUTE CECI :
+c.execute("""
+    INSERT INTO token_price_history (token_id, price, timestamp) 
+    VALUES (%s, (SELECT price FROM community_tokens WHERE id = %s), %s)
+""", (req.token_id, req.token_id, int(time.time())))
         
         conn.commit()
         print(f"✅ Achat réussi : {qty} tokens pour l'user {req.user_id}")
