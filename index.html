@@ -173,30 +173,56 @@
 
 
 
-// Initialisation du connecteur
+// 1. Initialisation TonConnect (Une seule fois)
+const connector = new TonConnectSDK.TonConnect({
+    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
+});
+
+// 2. Gestion du Wallet (onStatusChange doit être bien fermé)
 connector.onStatusChange(async (wallet) => {
     if (wallet) {
         const addr = wallet.account.address;
         const shortAddr = addr.substring(0, 4) + "..." + addr.substring(addr.length - 4);
-        
         document.getElementById('btn-connect').innerText = "💎 " + shortAddr;
-        document.getElementById('btn-connect').style.background = "var(--purple)";
         
-        // --- NOUVEAU : Envoi au serveur ---
-        try {
-            await fetch(`${BASE_URL}/api/user/update-wallet`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, wallet_address: addr })
-            });
-        } catch(e) { console.error("Update wallet failed"); }
-        // ----------------------------------
-        
+        // On envoie au serveur sans bloquer le reste
+        fetch(`${BASE_URL}/api/user/update-wallet`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, wallet_address: addr })
+        }).catch(err => console.log("Wallet sync pending..."));
     } else {
         document.getElementById('btn-connect').innerText = "💎 CONNECT WALLET";
-        document.getElementById('btn-connect').style.background = "var(--blue)";
     }
-});
+}); // <--- VERIFIE BIEN CETTE PARENTHÈSE ET CE POINT-VIRGULE
+
+// 3. Ta fonction pour le bouton Connect
+async function connectWallet() {
+    const walletConnectionSource = {
+        universalLink: 'https://tonkeeper.com/ton-connect',
+        bridgeUrl: 'https://bridge.tonapi.io/bridge'
+    };
+    const url = connector.connect(walletConnectionSource);
+    if (url) tg.openTelegramLink(url);
+}
+
+// 4. TA FONCTION LOADMARKET (Celle qui rend les tokens cliquables)
+async function loadMarket() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await r.json();
+        document.getElementById('token-list').innerHTML = tokens.map(t => `
+            <div class="card" onclick='openToken(${JSON.stringify(t)})' style="cursor:pointer;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
+                    <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                </div>
+                <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+            </div>
+        `).join('');
+    } catch(e) { console.error("Market error", e); }
+}
+
 
 
 async function connectWallet() {
