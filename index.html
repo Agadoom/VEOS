@@ -246,11 +246,37 @@
     document.getElementById('det-logo').src = t.logo || "";
     document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
     
-    // On peut essayer de récupérer la balance si ton API le permet
-    document.getElementById('det-user-balance').innerText = "Holdings: checking..."; 
+    // On lance la mise à jour de la balance possédée
+    updateHoldings(t.id); 
     
     show('details');
 }
+
+
+
+
+
+
+
+async function updateHoldings(tokenId) {
+    const el = document.getElementById('det-user-balance');
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
+        const d = await r.json();
+        if (d.ok) {
+            el.innerText = `Holdings: ${d.balance.toFixed(2)} tokens`;
+        } else {
+            el.innerText = "Holdings: 0.00 tokens";
+        }
+    } catch (e) {
+        el.innerText = "Holdings: Error loading";
+    }
+}
+
+
+
+
+
 
 
 
