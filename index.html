@@ -209,37 +209,29 @@
 
 
 
-        <script>
+       <script>
     let tg = window.Telegram.WebApp; 
     const uid = tg.initDataUnsafe.user?.id || 0;
+    const BASE_URL = 'https://veos-production-a2de.up.railway.app'; // Défini ici pour tout le script
     let currentTokenId = null;
     let b64_logo = "", b64_banner = "";
     let connectedAddress = null;
 
     // --- 1. INITIALISATION TON CONNECT ---
-    // VERIFIE BIEN CETTE URL : Elle doit correspondre à ton backend Railway
     const connector = new TonConnectSDK.TonConnect({
-        manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json'
+        manifestUrl: `${BASE_URL}/tonconnect-manifest.json`
     });
 
     connector.onStatusChange(wallet => {
         const walletZone = document.getElementById('wallet-zone');
-        const withdrawBtn = document.getElementById('btn-withdraw-final');
         if (!walletZone) return;
-
         if (wallet) {
             connectedAddress = wallet.account.address;
             const shortAddr = connectedAddress.substring(0, 4) + "..." + connectedAddress.substring(connectedAddress.length - 4);
-            walletZone.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#0a1a2f; padding:10px; border-radius:12px; border:1px solid #007AFF33;">
-                    <span style="font-size:11px; color:var(--blue);">Linked: <b>${shortAddr}</b></span>
-                    <button onclick="connector.disconnect()" style="background:none; border:none; color:var(--red); font-size:10px; cursor:pointer;">Disconnect</button>
-                </div>`;
-            if(withdrawBtn) withdrawBtn.style.display = "block";
+            walletZone.innerHTML = `<div style="padding:10px; background:rgba(0,122,255,0.1); border-radius:10px; color:var(--blue); font-size:11px; text-align:center;">Linked: <b>${shortAddr}</b></div>`;
         } else {
             connectedAddress = null;
-            walletZone.innerHTML = `<button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET TO WITHDRAW</button>`;
-            if(withdrawBtn) withdrawBtn.style.display = "none";
+            walletZone.innerHTML = `<button class="btn" style="width:100%; background:var(--blue); color:#fff;" onclick="connectWallet()">💎 CONNECT WALLET</button>`;
         }
     });
 
@@ -251,66 +243,123 @@
                 bridgeUrl: 'https://bridge.tonapi.io/bridge'
             });
             if (url) tg.openTelegramLink(url);
-        } catch (e) {
-            tg.showAlert("Failed to open Wallet");
-        }
+        } catch (e) { tg.showAlert("Wallet Error: " + e.message); }
     }
 
-    // --- 2. LOGIQUE DE NAVIGATION (RÉTABLIE) ---
+    // --- 2. LOGIQUE DE NAVIGATION ---
     function show(p) {
         try {
-            // Masquer toutes les pages
             document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-            // Afficher la page cible
             const targetPage = document.getElementById('p-' + p);
             if (targetPage) targetPage.classList.add('active-page');
             
-            // Update menu de navigation
             document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
             const navId = (p === 'details') ? 'n-launcher' : 'n-' + p;
             const navElem = document.getElementById(navId);
             if(navElem) navElem.classList.add('active');
             
-            // Chargement auto des données
             if(p === 'launcher') loadMarket();
             if(p === 'profil') loadLeaderboard();
             refresh();
         } catch(e) { console.error("Nav error", e); }
     }
 
-    // --- 3. REFRESH DATA (RANK & ENERGY) ---
+    // --- 3. REFRESH DATA ---
     async function refresh() {
         try {
-            const r = await fetch(`/api/user/${uid}`);
+            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
             if (!r.ok) return;
             const d = await r.json();
 
             if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
-            if(document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toFixed(2);
-            if(document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toFixed(2);
-            if(document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toFixed(2);
-            if(document.getElementById('u-badge')) document.getElementById('u-badge').innerText = d.badge.toUpperCase();
-            
+            if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
             if(document.getElementById('e-f')) document.getElementById('e-f').style.width = (d.energy/d.max_energy*100) + "%";
             if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
-
             if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
-            if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = d.rank ? "#" + d.rank : "#---";
             if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
-            
-            let ah = ""; 
-            if(d.assets && d.assets.length > 0) {
-                d.assets.forEach(a => { 
-                    ah += `<div class="card"><div style="display:flex; align-items:center; gap:10px;"><div style="background:var(--blue); width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px;">$</div><span>${a.n} <small style="color:var(--text)">$${a.s}</small></span></div><b>${a.a.toFixed(2)}</b></div>`; 
-                });
-            }
-            if(document.getElementById('prof-assets')) document.getElementById('prof-assets').innerHTML = ah || "<center style='color:#444; padding:20px;'>Wallet empty</center>";
         } catch(e) { console.error("Refresh error", e); }
     }
 
-    // --- 4. TOKEN DETAILS & MARKET ---
+    // --- 4. GESTION DES FICHIERS (LOGO/BANNER) ---
+    function processFile(type) {
+        const file = document.getElementById('f-' + type).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (type === 'logo') b64_logo = reader.result;
+            else b64_banner = reader.result;
+            tg.showAlert(type.toUpperCase() + " loaded!");
+        };
+        if (file) reader.readAsDataURL(file);
+    }
+
+    // --- 5. LAUNCH TOKEN ---
+    async function deployToken() {
+        const name = document.getElementById('launch-name').value;
+        const symbol = document.getElementById('launch-symbol').value;
+        const description = document.getElementById('launch-desc').value;
+
+        if(!name || !symbol) return tg.showAlert("Please fill Name and Symbol");
+        if(!b64_logo) return tg.showAlert("Please upload a Logo");
+
+        tg.showConfirm(`Deploy ${name} for 5,000 WPT?`, async (ok) => {
+            if(!ok) return;
+            try {
+                const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: uid,
+                        name: name,
+                        symbol: symbol,
+                        description: description,
+                        logo_b64: b64_logo,
+                        banner_b64: b64_banner
+                    })
+                });
+                const data = await res.json();
+                if(data.ok) {
+                    tg.showAlert("🚀 Token Deployed!");
+                    show('launcher');
+                } else {
+                    tg.showAlert("Error: " + data.error);
+                }
+            } catch(e) { tg.showAlert("Server unreachable"); }
+        });
+    }
+
+    // --- 6. AUTRES ACTIONS (STARS, MINE, MARKET) ---
+    function buyStarsPack() {
+        fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`)
+            .then(res => res.json())
+            .then(data => {
+                if(data.invoice_link) {
+                    tg.openInvoice(data.invoice_link, (status) => {
+                        if(status === 'paid') { tg.showAlert("✅ Success!"); refresh(); }
+                    });
+                }
+            });
+    }
+
+    async function mine(type) {
+        await fetch(`${BASE_URL}/api/mine`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:type}) });
+        tg.HapticFeedback.impactOccurred('light'); refresh();
+    }
+
+    async function loadMarket() {
+        const r = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await r.json();
+        let h = "";
+        tokens.forEach(t => {
+            h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
+                    <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                </div><b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
+        });
+        document.getElementById('token-list').innerHTML = h || "<center>No tokens</center>";
+    }
+
     async function openToken(t) {
-        if(!t || !t.id) return;
         currentTokenId = t.id;
         document.getElementById('det-name').innerText = t.name;
         document.getElementById('det-sym').innerText = "$" + t.symbol;
@@ -318,160 +367,21 @@
         document.getElementById('det-logo').src = t.logo || "";
         document.getElementById('det-banner').style.backgroundImage = `url(${t.banner || ''})`;
         show('details');
-
-        try {
-            const sRes = await fetch(`/api/launcher/stats/${t.id}`);
-            const stats = await sRes.json();
-            document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
-            document.getElementById('det-holders').innerText = stats.holders;
-            
-            const hRes = await fetch(`/api/launcher/history/${t.id}`);
-            const history = await hRes.json(); 
-            if (history && history.length > 1) {
-                const max = Math.max(...history), min = Math.min(...history), range = (max - min) || 1;
-                const points = history.map((p, i) => `${(i / (history.length - 1)) * 300},${80 - ((p - min) / range * 60)}`).join(' ');
-                document.getElementById('chart-line').setAttribute('points', points);
-            }
-        } catch(e) {}
-    }
-
-
-function buyStarsPack() {
-    console.log("Stars pack clicked for user:", uid);
-    
-    // 1. On demande au backend de générer le lien de facture (Invoice)
-    fetch(`/api/stars/create-invoice/${uid}`)
-        .then(res => {
-            if (!res.ok) throw new Error("Erreur serveur");
-            return res.json();
-        })
-        .then(data => {
-            if (data.invoice_link) {
-                // 2. On ouvre l'interface de paiement native Telegram
-                tg.openInvoice(data.invoice_link, function(status) {
-                    if (status === 'paid') {
-                        tg.showAlert("✅ Payment Successful! 10,000 WPT added.");
-                        refresh(); // On met à jour le solde
-                    } else if (status === 'cancelled') {
-                        console.log("Payment cancelled by user");
-                    } else {
-                        tg.showAlert("Payment failed or pending.");
-                    }
-                });
-            } else {
-                tg.showAlert("Impossible de générer la facture. Vérifie tes logs backend.");
-            }
-        })
-        .catch(err => {
-            console.error("Invoice error:", err);
-            tg.showAlert("Erreur de connexion au serveur.");
-        });
-}
-
-
-
-
-
-
-
-
-
-
-    async function loadMarket() {
-        try {
-            const r = await fetch('/api/launcher/list');
-            const tokens = await r.json();
-            let h = "";
-            tokens.forEach(t => {
-                h += `<div class="card" onclick='openToken(${JSON.stringify(t)})'>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;object-fit:cover;">
-                        <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
-                    </div><b style="color:var(--green)">${t.price.toFixed(6)}</b></div>`;
-            });
-            document.getElementById('token-list').innerHTML = h || "<center>No tokens</center>";
-        } catch(e) {}
-    }
-
-    // --- 5. ACTIONS ---
-    async function mine(type) {
-        const res = await fetch('/api/mine', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:uid, token:type}) });
-        if(res.ok) { tg.HapticFeedback.impactOccurred('light'); refresh(); }
-    }
-
-    async function buyToken() {
-        const amount = prompt("Amount WPT:");
-        if(!amount) return;
-        const res = await fetch('/api/launcher/buy', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount_wpt: parseFloat(amount) }) });
-        if(res.ok) { tg.showAlert("Success!"); show('wallet'); }
-    }
-
-    async function sellToken() {
-        const qty = prompt("Quantity:");
-        if(!qty) return;
-        const res = await fetch('/api/launcher/sell', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount_wpt: parseFloat(qty) }) });
-        if(res.ok) { tg.showAlert("Sold!"); show('wallet'); }
     }
 
     async function loadLeaderboard() {
-        try {
-            const res = await fetch('/api/user/leaderboard');
-            const data = await res.json();
-            let html = "";
-            data.forEach(u => {
-                html += `<div class="card"><span>#${u.rank} ${u.name}</span><b>${u.score.toFixed(2)} WPT</b></div>`;
-            });
-            document.getElementById('leaderboard-list').innerHTML = html;
-        } catch(e) {}
-    }
-
-    function shareReferral() {
-        tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/OWPCsBot?start=${uid}&text=Join me!`);
+        const res = await fetch(`${BASE_URL}/api/user/leaderboard`);
+        const data = await res.json();
+        let html = "";
+        data.forEach(u => { html += `<div class="card"><span>#${u.rank} ${u.name}</span><b>${u.score.toFixed(2)}</b></div>`; });
+        document.getElementById('leaderboard-list').innerHTML = html;
     }
 
     tg.expand();
     refresh();
     setInterval(refresh, 10000);
-
-async function deployToken() {
-    const name = document.getElementById('launch-name').value;
-    const symbol = document.getElementById('launch-symbol').value;
-    const description = document.getElementById('launch-desc').value;
-
-    if(!name || !symbol) return tg.showAlert("Please fill Name and Symbol");
-    if(!b64_logo) return tg.showAlert("Please upload a Logo");
-
-    // Afficher un petit message de chargement
-    tg.showConfirm("Deploy this token for 5,000 WPT?", async (ok) => {
-        if(!ok) return;
-
-        try {
-            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid,
-                    name: name,
-                    symbol: symbol,
-                    description: description,
-                    logo_b64: b64_logo,
-                    banner_b64: b64_banner
-                })
-            });
-
-            const data = await res.json();
-            if(data.ok) {
-                tg.showAlert("🚀 Token Deployed Successfully!");
-                show('launcher'); // Retour au market
-            } else {
-                tg.showAlert("Error: " + (data.error || "Deployment failed"));
-            }
-        } catch(e) {
-            tg.showAlert("Server error during deployment");
-        }
-    });
-}
 </script>
+
 
 </body>
 </html> 
