@@ -113,3 +113,30 @@ async def get_user_data(uid: int):
     finally:
         c.close()
         conn.close()
+
+
+
+# Dans ton fichier routes/user.py ou launcher.py
+@router.post("/api/user/withdraw")
+async def request_withdraw(req: WithdrawRequest):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # Vérifier si l'utilisateur a assez de solde
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
+        balance = c.fetchone()[0]
+        
+        if balance < req.amount:
+            return {"ok": False, "error": "Insufficient balance"}
+
+        # Déduire le solde et enregistrer la demande
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount, req.user_id))
+        c.execute("INSERT INTO withdrawals (user_id, address, amount, status) VALUES (%s, %s, %s, 'pending')", 
+                  (req.user_id, req.address, req.amount))
+        
+        conn.commit()
+        return {"ok": True}
+    except Exception as e:
+        conn.rollback()
+        return {"ok": False, "error": str(e)}
+
