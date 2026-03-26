@@ -285,6 +285,17 @@
         });
     }
 
+function shareReferral() {
+    // On crée le lien de parrainage avec l'ID de l'utilisateur
+    const inviteLink = `https://t.me/OWPCsBot?start=${uid}`; 
+    const shareText = "🚀 Join me on One World Peace Coins! Mine WPT and trade community tokens. Start with a bonus!";
+    
+    // Utilise l'API native de Telegram pour ouvrir la fenêtre de partage
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(shareText)}`;
+    
+    // Ouvre le lien dans le navigateur externe ou Telegram
+    tg.openTelegramLink(shareUrl);
+}
 
 
 
@@ -373,6 +384,11 @@
     tg.expand();
     refresh();
     setInterval(refresh, 10000);
+
+
+
+
+
 </script>
 
 
