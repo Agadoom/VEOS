@@ -130,9 +130,28 @@ async def sell_token(req: TradeRequest):
 
 
 
-const sRes = await fetch(`/api/launcher/stats/${t.id}`);
-const stats = await sRes.json();
-
-document.getElementById('det-mcap').innerText = stats.mcap.toLocaleString() + " WPT";
-document.getElementById('det-holders').innerText = stats.holders;
+@router.get("/stats/{tid}")
+async def get_token_stats(tid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # On compte les holders et la somme des tokens
+        c.execute("SELECT SUM(amount), COUNT(DISTINCT user_id) FROM user_community_assets WHERE token_id = %s", (tid,))
+        res = c.fetchone()
+        supply = float(res[0]) if res and res[0] else 0
+        holders = res[1] if res and res[1] else 0
+        
+        # On récupère le prix actuel
+        c.execute("SELECT price FROM community_tokens WHERE id = %s", (tid,))
+        p_res = c.fetchone()
+        price = float(p_res[0]) if p_res else 0
+        
+        mcap = supply * price
+        
+        return {
+            "mcap": round(mcap, 2),
+            "holders": holders
+        }
+    finally:
+        c.close(); conn.close()
 
