@@ -219,9 +219,12 @@
             
             const count = d.ref_count || 0;
             if(document.getElementById('ref-count')) document.getElementById('ref-count').innerText = count;
-            if(document.getElementById('ref-bonus')) document.getElementById('ref-bonus').innerText = "+" + (count * 500) + " WPT";
+            if(document.getElementById('ref-bonus')) document.getElementById('ref-bonus').innerText = "+" + (count * 10) + " WPT";
 
-            // Stats page Wallet
+if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = "#" + d.rank;
+  
+
+          // Stats page Wallet
             if(document.getElementById('wallet-genesis')) document.getElementById('wallet-genesis').innerText = d.g.toFixed(2);
             
             let ah = ""; 
