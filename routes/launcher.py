@@ -1,105 +1,65 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from telegram import LabeledPrice
-import database, uuid, random
+import database
+from pydantic import BaseModel
 
+# On définit le prefixe ICI et nulle part ailleurs
 router = APIRouter(prefix="/api/launcher", tags=["Launcher"])
 
-# Storage for pending tokens (moved here to avoid circular import)
-pending_tokens = {}
+class TradeRequest(BaseModel):
+    user_id: int
+    token_id: int
+    amount_wpt: float
 
 @router.get("/list")
-async def get_tokens():
-    tokens = database.get_community_tokens()
-    # On s'assure que tout est compatible JSON (float, string, etc.)
-    clean_tokens = []
-    for t in tokens:
-        clean_tokens.append({
-            "id": t["id"],
-            "name": str(t["name"]),
-            "sym": str(t["sym"]),
-            "price": float(t["price"]),
-            "mcap": float(t["mcap"]),
-            "logo": t["logo"] or "",
-            "banner": t["banner"] or ""
-        })
-    return clean_tokens
-
-
-@router.post("/save-pending")
-async def save_pending(request: Request):
-    data = await request.json()
-    temp_id = str(uuid.uuid4())[:8]
-    pending_tokens[temp_id] = data
-    return {"ok": True, "temp_id": temp_id}
-
-@router.post("/create-invoice")
-async def api_create_invoice(request: Request):
-    data = await request.json()
-    temp_id = data.get("temp_id")
-    token = pending_tokens.get(temp_id)
-    
-    # Access bot via app state
-    bot = request.app.state.bot
-    link = await bot.create_invoice_link(
-        title=f"Launch {token['symbol']}", 
-        description="Token creation service fee", 
-        payload=temp_id, provider_token="", currency="XTR", 
-        prices=[LabeledPrice("Creation Fee", 500)]
-    )
-    return {"ok": True, "link": link}
-
-@router.post("/buy-request")
-async def buy_token_request(request: Request):
-    data = await request.json()
-    uid, tid = data.get("user_id"), data.get("token_id")
-    qty, cost_wpt = 100, 50 
-    
-    user_data = database.get_user_full(uid)
-    if (user_data[0] or 0) < cost_wpt:
-        return JSONResponse(status_code=400, content={"error": "Insufficient WPT balance"})
-
-    payload = f"buy|{uid}|{tid}|{qty}|{cost_wpt}"
-    
-    # Access bot via app state
-    bot = request.app.state.bot
-    link = await bot.create_invoice_link(
-        title="Transaction Fee",
-        description=f"Purchase of {qty} tokens",
-        payload=payload, provider_token="", currency="XTR",
-        prices=[LabeledPrice("Service Fee", 10)]
-    )
-    return {"ok": True, "link": link}
-
-# ... rest of your sell and chart code ...
-
-
-@router.post("/sell")
-async def sell_token(request: Request):
-    data = await request.json()
-    uid, tid, qty = data.get("user_id"), data.get("token_id"), float(data.get("amount", 0))
-    
+async def list_tokens():
     conn = database.get_db_conn()
     c = conn.cursor()
-    c.execute("SELECT amount FROM user_community_assets WHERE user_id=%s AND token_id=%s", (uid, tid))
-    res = c.fetchone()
-    
-    if not res or res[0] < qty:
-        return JSONResponse(status_code=400, content={"error": "Insufficient token balance"})
-    
-    c.execute("SELECT price FROM community_tokens WHERE id=%s", (tid,))
-    price = c.fetchone()[0]
-    gain = qty * price
-    
-    c.execute("UPDATE user_community_assets SET amount = amount - %s WHERE user_id=%s AND token_id=%s", (qty, uid, tid))
-    c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id=%s", (gain, uid))
-    conn.commit()
-    c.close()
-    conn.close()
-    return {"ok": True, "gain": gain}
+    try:
+        c.execute("SELECT id, name, symbol, logo, banner, price FROM community_tokens ORDER BY id DESC")
+        res = c.fetchall()
+        return [{"id": r[0], "name": r[1], "symbol": r[2], "logo": r[3], "banner": r[4], "price": float(r[5])} for r in res]
+    finally:
+        c.close(); conn.close()
 
-@router.get("/chart/{tid}")
-async def get_chart(tid: int):
-    points = [random.uniform(0.0001, 0.001) for _ in range(15)]
-    points.sort() 
-    return {"points": points}
+# ICI : La route doit être "/buy" TOUT COURT. 
+# FastAPI va automatiquement la transformer en "/api/launcher/buy"
+@router.post("/buy")
+async def buy_token(req: TradeRequest):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Check solde
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
+        u = c.fetchone()
+        if not u or float(u[0]) < req.amount_wpt:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Solde WPT insuffisant"})
+
+        # 2. Check token
+        c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
+        t = c.fetchone()
+        if not t:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Token introuvable"})
+            
+        qty = req.amount_wpt / float(t[0])
+
+        # 3. Transaction
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount_wpt, req.user_id))
+        
+        # Le ON CONFLICT nécessite la contrainte unique en base de données
+        c.execute("""
+            INSERT INTO user_community_assets (user_id, token_id, amount) 
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, token_id) 
+            DO UPDATE SET amount = user_community_assets.amount + %s
+        """, (req.user_id, req.token_id, qty, qty))
+        
+        c.execute("UPDATE community_tokens SET price = price * 1.01 WHERE id = %s", (req.token_id,))
+        
+        conn.commit()
+        return {"ok": True, "received": qty}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    finally:
+        c.close(); conn.close()
