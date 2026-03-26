@@ -129,14 +129,14 @@
 
         <div id="p-profil" class="page">
             <div class="prof-header">
-                <h2 id="prof-name">Username</h2>
-                <p id="prof-id" style="font-size:10px; color:var(--text);"></p>
-            </div>
-            <button class="btn" style="background:var(--blue); color:#fff; width:100%;" onclick="shareRef()">🔗 INVITE FRIENDS</button>
-            <h3 style="margin-top:25px;">🏆 LEADERBOARD</h3>
-            <div id="leaderboard"></div>
-        </div>
-    </div>
+                <h3 style="margin-top:25px; border-left: 3px solid var(--purple); padding-left:10px;">💎 MY ASSETS</h3>
+<div id="user-portfolio" style="margin-bottom:20px;">
+    <center style="color:var(--text); padding:10px;">Loading assets...</center>
+</div>
+
+<h3 style="margin-top:25px;">🏆 LEADERBOARD</h3>
+<div id="leaderboard"></div>
+
 
     <nav class="nav">
         <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
@@ -251,6 +251,57 @@
     
     show('details');
 }
+
+
+
+
+
+async function loadPortfolio() {
+    const portDiv = document.getElementById('user-portfolio');
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        const assets = await r.json();
+        
+        if (assets.length === 0) {
+            portDiv.innerHTML = "<center style='color:#444; padding:20px;'>No tokens yet. Go to Market! 🚀</center>";
+            return;
+        }
+
+        portDiv.innerHTML = assets.map(a => `
+            <div class="card" style="border-left: 2px solid var(--purple);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${a.logo}" style="width:30px; height:30px; border-radius:5px; object-fit:cover;">
+                    <div>
+                        <b>${a.name}</b><br>
+                        <small style="color:var(--text)">${a.amount.toFixed(2)} ${a.symbol}</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green)">${(a.amount * a.price).toFixed(2)} WPT</b><br>
+                    <small style="font-size:9px; color:var(--text)">@ ${a.price.toFixed(4)}</small>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        portDiv.innerHTML = "<center>Error loading portfolio</center>";
+    }
+}
+
+// Modifie la fonction show('profil') pour charger le portfolio
+function show(p) {
+    document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+    document.getElementById('p-' + p).classList.add('active-page');
+    document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+    document.getElementById('n-' + p).classList.add('active');
+    
+    if(p === 'launcher') loadMarket();
+    if(p === 'profil') {
+        loadLeaderboard();
+        loadPortfolio(); // <-- On ajoute ça !
+    }
+    refresh();
+}
+
 
 
 
