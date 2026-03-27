@@ -125,16 +125,37 @@
 
 
 
+<div id="p-details" class="page">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
+        <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
+    </div>
 
+    <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
+        <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
+    </div>
 
-      
+    <div style="margin-top:30px; padding:0 15px;">
+        <h2 id="det-name" style="margin:0;"></h2>
+<p id="det-user-balance" style="color:var(--text); font-size:12px; margin-top:5px;">Balance: 0.00</p>
+
+        <b id="det-sym" style="color:var(--gold)"></b>
+    </div>
+
+    <div class="chart-container" style="margin-top:20px;">
+        <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
+            <polyline fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 50,70 100,85 150,50 200,60 250,30 300,40" />
+        </svg>
+    </div>
+
     <div style="display:flex; gap:10px; padding:15px;">
         <div style="display:flex; gap:10px; padding:15px;">
     <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
     <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
 </div>
 
-</div>
+
+    </div>
 </div>
 
 
