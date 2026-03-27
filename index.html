@@ -103,6 +103,59 @@
             </div>
 
            
+<div style="text-align:center; margin-top:30px;">
+    <button class="genesis-coin" onclick="mine('genesis', event)">
+        WPT
+    </button>
+</div>
+
+
+
+
+.genesis-coin {
+    width: 150px;
+    height: 150px;
+    background: radial-gradient(circle, #FFD700 0%, #B8860B 100%);
+    border: 8px solid #DAA520;
+    border-radius: 50%;
+    color: #FFF;
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(218, 165, 32, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+    transition: transform 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.genesis-coin:active {
+    transform: scale(0.92); /* Effet d'enfoncement quand on clique */
+    background: radial-gradient(circle, #DAA520 0%, #B8860B 100%);
+}
+
+/* Petit reflet brillant qui passe sur la pièce */
+.genesis-coin::after {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
+    transform: rotate(45deg);
+    animation: shine 3s infinite;
+}
+
+@keyframes shine {
+    0% { left: -150%; }
+    100% { left: 150%; }
+}
+
 
 
 
