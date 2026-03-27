@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 
 # Import de tes configurations et modules
 import config, database
-from routes import mine, launcher, user
+from routes import mine, launcher, user, start
 
 # --- INITIALIZATION ---
 database.init_db_structure()
@@ -31,6 +31,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(user.router)
 app.include_router(mine.router)
 app.include_router(launcher.router)
+app.include_router(stars.router)
 
 # --- API STARS (Générer le lien de paiement) ---
 @app.get("/api/stars/create-invoice/{uid}")
