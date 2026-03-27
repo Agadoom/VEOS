@@ -208,26 +208,63 @@
     const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
     const BASE_URL = 'https://veos-production-a2de.up.railway.app';
+
+let currentTokenId = null;
+let userWptBalance = 0;
+let userTokenBalance = 0;
     
     let b64_logo = "", b64_banner = "", currentTokenId = null, tradeType = 'buy';
     let userWptBalance = 0, userTokenBalance = 0;
 
     // --- NAVIGATION ---
-    function show(p) {
-        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-        const targetPage = document.getElementById('p-' + p);
-        if(targetPage) targetPage.classList.add('active-page');
-
-        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-        const targetNav = document.getElementById('n-' + p);
-        if(targetNav) targetNav.classList.add('active');
-        
-        if(p === 'launcher') loadMarket();
-        if(p === 'profil') { loadLeaderboard(); loadPortfolio(); }
-        refresh();
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+   // --- NAVIGATION (FORCE LE CHARGEMENT) ---
+function show(p) {
+    document.querySelectorAll('.page').forEach(pg => pg.style.display = 'none');
+    const target = document.getElementById('p-' + p);
+    if (target) {
+        target.style.display = 'block';
+        target.classList.add('active-page');
     }
 
+    document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+    const navItem = document.getElementById('n-' + p);
+    if (navItem) navItem.classList.add('active');
+
+    // On déclenche les chargements spécifiques
+    if (p === 'profil') {
+        refresh();           // Pour le Rank et le Nom
+        loadLeaderboard();   // Pour le Top 10
+        loadPortfolio();     // Pour tes Assets
+    }
+    if (p === 'launcher') loadMarket();
+    
+    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+}
+
+// --- RÉCUPÉRER INFOS UTILISATEUR (RANK / BALANCE) ---
+async function refresh() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        const d = await r.json();
+        
+        userWptBalance = d.score || 0;
+
+        // Mise à jour des textes
+        if(document.getElementById('tot')) document.getElementById('tot').innerText = userWptBalance.toFixed(2);
+        if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name || "User";
+        
+        // CORRECTION RANK
+        const rankEl = document.getElementById('prof-rank');
+        if(rankEl) rankEl.innerText = "RANK: #" + (d.rank || "---");
+        
+        if(document.getElementById('usd-val')) document.getElementById('usd-val').innerText = `$${(d.usd_value || 0).toFixed(2)} USD`;
+        
+        // Initiale
+        const initEl = document.getElementById('prof-initials');
+        if(initEl && d.name) initEl.innerText = d.name[0].toUpperCase();
+
+    } catch(e) { console.error("Refresh Error:", e); }
+}
     // --- REFRESH DATA ---
     async function refresh() {
         try {
@@ -296,23 +333,55 @@
         } catch(e) { console.error("Mining error", e); }
     }
 
-    // --- LEADERBOARD & PORTFOLIO ---
-    async function loadLeaderboard() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/leaderboard`);
-            const users = await r.json();
-            const container = document.getElementById('leaderboard');
-            container.innerHTML = users.map((u, i) => `
-                <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#222'}; margin-bottom:8px;">
-                    <div style="display:flex; align-items:center; gap:12px; width:100%;">
-                        <b style="width:25px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
-                        <span style="flex:1;">${u.name}</span>
-                        <b style="color:var(--gold);">${u.score.toLocaleString()}</b>
-                    </div>
+    // --- CHARGER LE LEADERBOARD ---
+async function loadLeaderboard() {
+    const container = document.getElementById('leaderboard');
+    if(!container) return;
+    
+    try {
+        const r = await fetch(`${BASE_URL}/api/leaderboard`);
+        const users = await r.json();
+        
+        container.innerHTML = users.slice(0, 10).map((u, i) => `
+            <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px;">
+                <div style="display:flex; align-items:center; gap:12px; width:100%;">
+                    <b style="width:25px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
+                    <span style="flex:1;">${u.name}</span>
+                    <b style="color:var(--gold);">${Math.floor(u.score).toLocaleString()}</b>
                 </div>
-            `).join('');
-        } catch (e) {}
-    }
+            </div>
+        `).join('');
+    } catch(e) { container.innerHTML = "Error loading leaderboard"; }
+}
+
+// --- CHARGER LES ASSETS ---
+async function loadPortfolio() {
+    const container = document.getElementById('user-portfolio');
+    if(!container) return;
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        const assets = await r.json();
+        
+        if(!assets || assets.length === 0) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:15px;'>No assets found.</p>";
+            return;
+        }
+
+        container.innerHTML = assets.map(a => `
+            <div class="card" onclick="fetchAndOpenToken(${a.token_id})" style="cursor:pointer; margin-bottom:8px;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${a.logo}" style="width:35px; height:35px; border-radius:8px; object-fit:cover;">
+                    <div><b>${a.symbol}</b><br><small>${parseFloat(a.balance).toFixed(2)} tokens</small></div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green);">${(a.balance * a.price).toFixed(2)}</b><br><small>WPT</small>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) { container.innerHTML = "Error loading assets"; }
+}
+
 
     async function loadPortfolio() {
         try {
