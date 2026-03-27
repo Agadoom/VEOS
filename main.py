@@ -2,6 +2,7 @@ import asyncio, uvicorn, os, time
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
 from fastapi.responses import FileResponse
@@ -21,6 +22,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Cette ligne est OBLIGATOIRE pour lire le dossier static
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # --- INDEXATION DES ROUTES ---
 app.include_router(user.router)
