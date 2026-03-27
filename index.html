@@ -229,16 +229,14 @@
     <div class="star-card">
         <span class="star-icon">⭐️</span>
         <span class="star-amount">10,000 WPT</span>
-        <span class="star-price">50 Stars</span>
-        <button class="btn-buy-stars" onclick="buyStarsPack(50)">BUY</button>
+        <span class="star-price">50 Stars</span> <button class="btn-buy-stars" onclick="buyStarsPack(50)">BUY</button>
     </div>
 
     <div class="star-card popular">
         <div class="star-badge">+20% BONUS</div>
         <span class="star-icon">🌟</span>
         <span class="star-amount">60,000 WPT</span>
-        <span class="star-price">250 Stars</span>
-        <button class="btn-buy-stars" style="background:var(--gold); color:#000;" onclick="buyStarsPack(250)">BUY</button>
+        <span class="star-price">250 Stars</span> <button class="btn-buy-stars" style="background:var(--gold); color:#000;" onclick="buyStarsPack(250)">BUY</button>
     </div>
 
     <div class="star-card" style="grid-column: span 2; background: linear-gradient(90deg, #1c1c1e, #2a2200); border-color: var(--gold);">
@@ -247,14 +245,12 @@
             <span class="star-icon" style="font-size:40px; margin:0;">💎</span>
             <div style="text-align:left;">
                 <span class="star-amount" style="font-size:24px; color:var(--gold);">150,000 WPT</span>
-                <span class="star-price">500 Stars</span>
-            </div>
+                <span class="star-price">500 Stars</span> </div>
             <button class="btn-buy-stars" style="width:100px; height:45px; margin:0;" onclick="buyStarsPack(500)">GET</button>
         </div>
     </div>
 </div>
 
-</div>
 
 
 
@@ -627,26 +623,24 @@ if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
 
 
 async function buyStarsPack(starsAmount) {
-    console.log("Achat lancé pour :", starsAmount, "stars"); // Pour vérifier dans la console
     try {
-        // Envoi du montant spécifique à l'API
+        // Le `starsAmount` ici sera 50, 250 ou 500 selon le bouton cliqué
         const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${starsAmount}`);
         const d = await r.json();
         
         if(d.invoice_link) {
             tg.openInvoice(d.invoice_link, (status) => {
                 if(status === 'paid') {
-                    tg.showAlert(`✨ Success! Pack ${starsAmount} Stars added.`);
+                    tg.showAlert(`✨ Success! Pack added.`);
                     refresh();
                 }
             });
-        } else {
-            tg.showAlert("❌ Invoice error");
         }
     } catch(e) {
-        tg.showAlert("📡 Connection error");
+        tg.showAlert("📡 Error");
     }
 }
+
 
 
 
