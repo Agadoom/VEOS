@@ -533,7 +533,10 @@ starsPacks.forEach((p, i) => {
     p.innerText = `${starsPrices[i]} Stars`;
 });
 
-
+const refDisplay = document.getElementById('ref-link-display');
+if (refDisplay) {
+    refDisplay.innerText = myRefLink;
+}
 
     } catch(e) { console.error("Refresh error:", e); }
 }
