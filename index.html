@@ -269,26 +269,23 @@ polyline {
 
 
 
-.modal-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-    backdrop-filter: blur(5px); display: none; align-items: flex-end;
-    z-index: 2000; animation: fadeIn 0.2s;
-}
+<div id="trade-modal" class="modal-overlay" onclick="closeTrade()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-handle"></div>
+            <h3 id="modal-title" style="margin-top:0; color:var(--gold);">Buy Token</h3>
+            <p id="modal-info" style="color:var(--text); font-size:12px;">Enter WPT amount to spend</p>
+            
+            <div style="position:relative; margin:20px 0;">
+                <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px 80px 20px 20px;">
+                <button onclick="setMax()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--gold); border:none; border-radius:8px; color:#000; font-weight:bold; padding:5px 10px; cursor:pointer; z-index:100;">MAX</button>
+            </div>
 
-.modal-content {
-    background: #121214; width: 100%; padding: 25px;
-    border-radius: 30px 30px 0 0; border-top: 1px solid #333;
-    transform: translateY(100%); animation: slideUp 0.3s forwards;
-}
-
-.modal-handle {
-    width: 40px; height: 4px; background: #333;
-    border-radius: 10px; margin: 0 auto 20px;
-}
-
-@keyframes slideUp { to { transform: translateY(0); } }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
+            <div style="display:flex; gap:10px;">
+                <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
+                <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;">CONFIRM</button>
+            </div>
+        </div>
+    </div>
 
 
    <script>
