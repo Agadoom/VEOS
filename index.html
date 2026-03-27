@@ -287,21 +287,31 @@
     }
 
     // --- LEADERBOARD ---
-    // --- LEADERBOARD (FIX RANK ERROR) ---
-async function loadLeaderboard() {
+    async function loadLeaderboard() {
     const container = document.getElementById('leaderboard');
     if(!container) return;
+    
+    // Message de chargement temporaire
+    container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Loading rankings...</p>";
     
     try {
         const r = await fetch(`${BASE_URL}/api/leaderboard`);
         const data = await r.json();
         
-        // --- DETECTION AUTO DU TABLEAU ---
+        // --- LOG POUR DEBUG (A vérifier dans ta console F12) ---
+        console.log("Leaderboard Data Received:", data);
+
         let users = [];
+
+        // Stratégie de détection automatique du tableau
         if (Array.isArray(data)) {
             users = data;
+        } else if (data.leaderboard && Array.isArray(data.leaderboard)) {
+            users = data.leaderboard;
+        } else if (data.data && Array.isArray(data.data)) {
+            users = data.data;
         } else {
-            // On cherche la première propriété qui est un tableau
+            // Si on ne trouve toujours pas, on cherche la première propriété qui est un tableau
             for (let key in data) {
                 if (Array.isArray(data[key])) {
                     users = data[key];
@@ -310,14 +320,17 @@ async function loadLeaderboard() {
             }
         }
 
-        if (!users || users.length === 0) {
-            container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:20px;'>No rankings available yet</p>";
+        if (users.length === 0) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:20px;'>No rankings available yet (Empty List)</p>";
             return;
         }
 
+        // On trie par score au cas où la DB ne le fait pas
+        users.sort((a, b) => (parseFloat(b.score || 0) - parseFloat(a.score || 0)));
+
         container.innerHTML = users.slice(0, 10).map((u, i) => {
-            // Detection auto du nom et du score
-            const name = u.name || u.username || u.first_name || u.display_name || "User";
+            // Détection des noms (Telegram utilise souvent first_name)
+            const name = u.name || u.username || u.first_name || "Citizen #" + (i+1);
             const score = parseFloat(u.score || u.points || u.balance || 0);
 
             return `
@@ -330,11 +343,13 @@ async function loadLeaderboard() {
                 </div>
             `;
         }).join('');
+
     } catch(e) { 
-        console.error("LD Error:", e);
-        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Leaderboard Offline</p>"; 
+        console.error("Leaderboard Error:", e);
+        container.innerHTML = "<p style='text-align:center; color:rgba(255,255,255,0.3);'>Rankings Offline</p>"; 
     }
 }
+
 
 
 
