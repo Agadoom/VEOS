@@ -386,21 +386,34 @@ async function buyStarsPack() {
 
     // --- USER PROFILE & DATA ---
     async function refresh() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            const d = await r.json();
-            document.getElementById('tot').innerText = d.score.toFixed(2);
-            document.getElementById('gv').innerText = d.g.toFixed(2);
-            document.getElementById('uv').innerText = d.u.toFixed(2);
-            document.getElementById('vv').innerText = d.v.toFixed(2);
-            document.getElementById('wallet-balance').innerText = d.score.toFixed(2);
-            document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || "---");
-            document.getElementById('prof-name').innerText = d.name || "User";
-            document.getElementById('prof-id').innerText = "UID: " + uid;
-            document.getElementById('e-f').style.width = (d.energy/100*100) + "%";
-            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/100`;
-        } catch(e) {}
-    }
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) return;
+        const d = await r.json();
+
+        // 1. Mise à jour des scores
+        if(document.getElementById('tot')) document.getElementById('tot').innerText = d.score.toFixed(2);
+        if(document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toFixed(2);
+        if(document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toFixed(2);
+        if(document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toFixed(2);
+        
+        // 2. Mise à jour du Wallet & Profil
+        if(document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = d.score.toFixed(2);
+        if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
+        if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = "RANK: #" + d.rank;
+
+        // 3. NOUVEAU : Valeur en USD (si tu as ajouté les IDs dans le HTML)
+        if(document.getElementById('usd-val')) document.getElementById('usd-val').innerText = `$${d.usd_value.toFixed(2)} USD`;
+        if(document.getElementById('wpt-price')) document.getElementById('wpt-price').innerText = `1 WPT = $${d.wpt_price.toFixed(6)}`;
+
+        // 4. Énergie
+        const per = (d.energy / d.max_energy) * 100;
+        if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
+        if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
+
+    } catch(e) { console.error("Refresh error:", e); }
+}
+
 
     async function loadPortfolio() {
         const portDiv = document.getElementById('user-portfolio');
