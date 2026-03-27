@@ -689,6 +689,7 @@ if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
 
 
 async function buyStarsPack(starsAmount) {
+console.log("Achat de " + amount + " stars");
     // starsAmount recevra 50, 250 ou 500 selon le bouton cliqué
     try {
         const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${starsAmount}`);
