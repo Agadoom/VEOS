@@ -39,7 +39,34 @@
         .page { display: none; }
         .active-page { display: block; animation: fadeIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    </style>
+   
+
+.floating-text {
+    position: absolute;
+    color: #00ff00; /* Vert fluo */
+    font-weight: bold;
+    font-size: 20px;
+    pointer-events: none; /* Pour ne pas gêner les clics suivants */
+    animation: moveUpFade 0.8s ease-out forwards;
+    z-index: 1000;
+    text-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+@keyframes moveUpFade {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100px);
+        opacity: 0;
+    }
+}
+
+
+
+
+ </style>
 </head>
 <body>
     <div class="ticker"><div class="t-wrap"><span style="color:var(--gold)">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN ● </span></div></div>
@@ -378,6 +405,49 @@ async function buyStarsPack() {
     }
 }
 
+
+
+
+
+async function mine(tokenType, event) {
+    // 1. Récupérer les coordonnées du clic (ou du toucher)
+    const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+    const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/mine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: uid, token: tokenType })
+        });
+
+        const result = await response.json();
+
+        if (result.ok) {
+            // 2. Créer l'élément flottant
+            const floating = document.createElement('div');
+            floating.className = 'floating-text';
+            // On affiche la récompense envoyée par le serveur (0.05 ou 0.025)
+            floating.innerText = `+${result.reward}`;
+            
+            // 3. Positionner l'élément
+            floating.style.left = `${x}px`;
+            floating.style.top = `${y}px`;
+
+            document.body.appendChild(floating);
+
+            // 4. Supprimer l'élément après l'animation
+            setTimeout(() => {
+                floating.remove();
+            }, 800);
+
+            // 5. Rafraîchir les scores (ton code habituel)
+            refresh(); 
+        }
+    } catch (e) {
+        console.error("Mining error:", e);
+    }
+}
 
 
 
