@@ -36,7 +36,15 @@ async def get_leaderboard():
     finally:
         c.close(); conn.close()
 
-# --- 3. DONNÉES UTILISATEUR ---
+# --- FONCTION ÉCONOMIQUE ---
+def get_wpt_price(total_supply):
+    """Calcule le prix du WPT basé sur la masse monétaire totale."""
+    base_price = 0.0001  # Prix de départ
+    # On augmente le prix de 0.00001$ par million de tokens
+    growth = (total_supply / 1000000) * 0.00001
+    return round(base_price + growth, 6)
+
+# --- 3. DONNÉES UTILISATEUR MODIFIÉES ---
 @router.get("/{uid}")
 async def get_user_data(uid: int):
     r = database.get_user_full(uid)
@@ -44,40 +52,44 @@ async def get_user_data(uid: int):
         return JSONResponse(status_code=404, content={"error": "User not found"})
     
     p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, _ = r
-    
-    now = int(time.time())
-    current_e = min(getattr(config, 'MAX_ENERGY', 100), (energy or 0) + ((now - (last_upd or now))/60 * getattr(config, 'REGEN_RATE', 1.0)))
     score_total = (p_gen or 0) + (p_uni or 0) + (p_veo or 0)
     
-    try:
-        badge, _, _ = missions.get_badge_info(score_total)
-    except:
-        badge = "Citizen"
-
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # Rang
+        # 1. Calcul de la Supply Totale pour le prix
+        c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+        total_supply = c.fetchone()[0] or 0
+        current_price = get_wpt_price(total_supply)
+        usd_value = score_total * current_price
+
+        # 2. Reste des requêtes (Rang, Assets, Referrals)
         c.execute("SELECT pos FROM (SELECT user_id, RANK() OVER (ORDER BY (p_genesis+p_unity+p_veo) DESC) as pos FROM users) r WHERE user_id = %s", (uid,))
         res_rank = c.fetchone()
         
-        # Assets
         c.execute("SELECT t.name, t.symbol, a.amount FROM user_community_assets a JOIN community_tokens t ON a.token_id = t.id WHERE a.user_id = %s", (uid,))
         assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
 
-        # Referrals
         c.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (uid,))
         ref_count = c.fetchone()[0] or 0
 
+        # On calcule l'énergie régénérée
+        now = int(time.time())
+        current_e = min(getattr(config, 'MAX_ENERGY', 100), (energy or 0) + ((now - (last_upd or now))/60 * getattr(config, 'REGEN_RATE', 1.0)))
+
         return {
             "uid": uid, "name": name or "Citizen", 
-            "g": round(p_gen or 0, 2), "u": round(p_uni or 0, 2), "v": round(p_veo or 0, 2), 
-            "energy": int(current_e), "score": round(score_total, 2), 
-            "badge": badge, "rank": res_rank[0] if res_rank else "---",
-            "streak": streak or 0, "assets": assets, "ref_count": ref_count
+            "score": round(score_total, 2), 
+            "usd_value": round(usd_value, 2), # <-- Valeur en $
+            "wpt_price": current_price,       # <-- Prix actuel
+            "energy": int(current_e), 
+            "rank": res_rank[0] if res_rank else "---",
+            "assets": assets, 
+            "ref_count": ref_count
         }
     finally:
         c.close(); conn.close()
+
 
 # --- 4. RETRAIT (Withdraw) ---
 @router.post("/withdraw")
