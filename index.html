@@ -136,14 +136,9 @@
                 <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
                 <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
             </div>
-        </div> ```
+       
 
-### 💡 Ce qui a été corrigé :
-1.  **Le "Mur" entre les deux :** J'ai ajouté le `</div>` qui manquait après `id="token-list"`. Sans lui, la page détails "coulait" à l'intérieur de la page launcher.
-2.  **L'en-tête de Détails :** J'ai rajouté la balise `<div id="p-details" class="page">` au début de la section détails car elle avait disparu dans ton message précédent.
-3.  **Le bouton Retour :** J'ai vérifié que le bouton `← BACK` appelle bien `show('launcher')` pour que tu puisses sortir proprement des détails.
 
-**Normalement, quand tu ouvres le Launchpad maintenant, tu ne devrais plus voir le graphique et les boutons Buy/Sell en dessous.** Est-ce que l'affichage est redevenu propre ? Si oui, on peut s'attaquer au système d'achat ! 🚀📈
 
 
         <div id="p-wallet" class="page">
