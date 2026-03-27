@@ -296,20 +296,30 @@ async function loadLeaderboard() {
         const r = await fetch(`${BASE_URL}/api/leaderboard`);
         const data = await r.json();
         
-        // On cherche le tableau des users, peu importe où il est caché
+        // --- DETECTION AUTO DU TABLEAU ---
         let users = [];
-        if (Array.isArray(data)) users = data;
-        else if (data.leaderboard && Array.isArray(data.leaderboard)) users = data.leaderboard;
-        else if (data.data && Array.isArray(data.data)) users = data.data;
+        if (Array.isArray(data)) {
+            users = data;
+        } else {
+            // On cherche la première propriété qui est un tableau
+            for (let key in data) {
+                if (Array.isArray(data[key])) {
+                    users = data[key];
+                    break;
+                }
+            }
+        }
 
-        if (users.length === 0) {
-            container.innerHTML = "<p style='text-align:center; opacity:0.5;'>No data found</p>";
+        if (!users || users.length === 0) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:20px;'>No rankings available yet</p>";
             return;
         }
 
         container.innerHTML = users.slice(0, 10).map((u, i) => {
+            // Detection auto du nom et du score
+            const name = u.name || u.username || u.first_name || u.display_name || "User";
             const score = parseFloat(u.score || u.points || u.balance || 0);
-            const name = u.name || u.username || "User";
+
             return `
                 <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:12px;">
@@ -321,9 +331,11 @@ async function loadLeaderboard() {
             `;
         }).join('');
     } catch(e) { 
-        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Format Error or Offline</p>"; 
+        console.error("LD Error:", e);
+        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Leaderboard Offline</p>"; 
     }
 }
+
 
 
 // --- ASSETS (FIX VALUES) ---
@@ -374,36 +386,35 @@ async function refresh() {
         if (!r.ok) return;
         const d = await r.json();
         
-        // On stocke la balance globale
+        // 1. Balance
         userWptBalance = parseFloat(d.score || d.balance || 0);
-
-        // Mise à jour de TOUS les affichages de balance
-        const balanceElements = ['tot', 'wallet-balance'];
-        balanceElements.forEach(id => {
+        ['tot', 'wallet-balance'].forEach(id => {
             const el = document.getElementById(id);
-            if(el) el.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            if(el) el.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
         });
 
-        // Mise à jour du Rank sur les deux IDs possibles
-        const rankValue = d.rank || d.position || "---";
-        const rankEls = document.querySelectorAll('#prof-rank');
-        rankEls.forEach(el => el.innerText = "RANK: #" + rankValue);
-
-        // USD Value
-        const usdEl = document.getElementById('usd-val');
-        if(usdEl) usdEl.innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
-
-        // Énergie (Home page)
-        const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
-        const energyFill = document.getElementById('e-f');
-        if(energyFill) energyFill.style.width = per + "%";
+        // 2. USERNAME & INITIALS (Le correctif pour toi)
+        const userName = d.name || d.username || d.first_name || "Citizen";
+        const nameEl = document.getElementById('prof-name');
+        if(nameEl) nameEl.innerText = userName;
         
-        const energyText = document.getElementById('e-t');
-        if(energyText) energyText.innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
+        const initEl = document.getElementById('prof-initials');
+        if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
 
-    } catch(e) { 
-        console.error("Refresh error:", e); 
-    }
+        // 3. Rank
+        const rankValue = d.rank || d.position || "---";
+        document.querySelectorAll('#prof-rank').forEach(el => el.innerText = "RANK: #" + rankValue);
+
+        // 4. USD & Énergie
+        if(document.getElementById('usd-val')) 
+            document.getElementById('usd-val').innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
+
+        const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
+        if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
+        if(document.getElementById('e-t')) 
+            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
+
+    } catch(e) { console.error("Refresh error:", e); }
 }
 
 
