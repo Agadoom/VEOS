@@ -288,57 +288,38 @@
 
     // --- LEADERBOARD ---
     async function loadLeaderboard() {
-    const container = document.getElementById('leaderboard');
-    if(!container) return;
-    
+    const lb = document.getElementById('leaderboard');
+    if(!lb) return;
+
     try {
-        const r = await fetch(`${BASE_URL}/api/leaderboard`);
+        // Utilisation de la SEULE URL qui fonctionne : /api/user/leaderboard
+        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
         const data = await r.json();
         
-        console.log("Données reçues :", data); // Vérifie ça dans ta console Chrome/Telegram
-
-        let users = [];
-        // On essaie de trouver le tableau n'importe où
-        if (Array.isArray(data)) users = data;
-        else if (data.leaderboard) users = data.leaderboard;
-        else if (data.data) users = data.data;
-        else if (data.top10) users = data.top10;
-        else {
-            // Si c'est un objet, on prend toutes ses valeurs
-            users = Object.values(data).filter(v => typeof v === 'object' && v !== null);
-        }
-
-        // On filtre pour être sûr d'avoir des objets avec un score ou un nom
-        users = users.filter(u => u && (u.name || u.first_name || u.username || u.score !== undefined));
-
-        if (users.length === 0) {
-            container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:20px;'>No rankings available yet (Empty List)</p>";
-            return;
-        }
-
-        // Tri forcé par score (du plus haut au plus bas)
-        users.sort((a, b) => parseFloat(b.score || 0) - parseFloat(a.score || 0));
-
-        container.innerHTML = users.slice(0, 10).map((u, i) => {
-            const name = u.name || u.first_name || u.username || `Citizen #${u.user_id || i+1}`;
-            const score = parseFloat(u.score || u.balance || 0);
-
+        // On génère le HTML
+        lb.innerHTML = data.map(u => {
+            // On s'assure que le rang est un nombre
+            const rank = parseInt(u.rank);
+            const score = parseFloat(u.score || 0);
+            
             return `
-                <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <b style="width:25px; font-size:14px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
-                        <span style="font-weight:500;">${name}</span>
+                <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:12px; margin-bottom:8px; ${rank <= 3 ? 'border:1px solid var(--gold);' : ''}">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-weight:bold; width:25px;">
+                            ${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank}
+                        </span>
+                        <span>${u.name || 'User'}</span>
                     </div>
-                    <b style="color:var(--gold);">${Math.floor(score).toLocaleString()} <small style="font-size:10px; opacity:0.6;">WPT</small></b>
+                    <b style="color:var(--gold)">${score.toFixed(0)} <small style="font-size:10px; opacity:0.6;">WPT</small></b>
                 </div>
             `;
         }).join('');
-
-    } catch(e) { 
-        console.error("Erreur Leaderboard :", e);
-        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Server Error</p>"; 
+    } catch(e) {
+        console.error("Erreur LB:", e);
+        lb.innerHTML = "<p style='text-align:center; opacity:0.5;'>Rankings temporarily unavailable</p>";
     }
 }
+
 
 
 
