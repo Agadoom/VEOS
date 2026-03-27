@@ -321,37 +321,44 @@
     }
 
     // --- LEADERBOARD ---
-    async function loadLeaderboard() {
+    // --- LEADERBOARD (FIX RANK ERROR) ---
+async function loadLeaderboard() {
     const container = document.getElementById('leaderboard');
     if(!container) return;
     
     try {
         const r = await fetch(`${BASE_URL}/api/leaderboard`);
-        const users = await r.json();
+        let users = await r.json();
         
-        if(!users || users.length === 0) {
-            container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Empty rankings</p>";
+        // Si le serveur renvoie un objet avec une propriété (ex: users.data), on s'adapte
+        if (!Array.isArray(users) && users.leaderboard) users = users.leaderboard;
+        if (!Array.isArray(users)) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Data format error</p>";
             return;
         }
 
-        container.innerHTML = users.slice(0, 10).map((u, i) => `
-            <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <b style="width:25px; font-size:14px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
-                    <span style="font-weight:500;">${u.name || 'Anonymous'}</span>
+        container.innerHTML = users.slice(0, 10).map((u, i) => {
+            // On vérifie toutes les clés possibles pour le score
+            const score = u.score || u.points || u.balance || 0;
+            const name = u.name || u.username || u.first_name || 'Anonymous';
+            
+            return `
+                <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <b style="width:25px; font-size:14px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
+                        <span style="font-weight:500;">${name}</span>
+                    </div>
+                    <b style="color:var(--gold);">${Math.floor(parseFloat(score)).toLocaleString()} <small style="font-size:10px; opacity:0.6;">WPT</small></b>
                 </div>
-                <b style="color:var(--gold);">${Math.floor(parseFloat(u.score) || 0).toLocaleString()} <small style="font-size:10px; opacity:0.6;">WPT</small></b>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     } catch(e) { 
-        console.error("Leaderboard Error:", e);
-        container.innerHTML = "Error loading rank"; 
+        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Offline</p>"; 
     }
 }
 
-
-    // --- PORTFOLIO (Version Corrigée) ---
-    async function loadPortfolio() {
+// --- ASSETS (FIX VALUES) ---
+async function loadPortfolio() {
     const container = document.getElementById('user-portfolio');
     if(!container) return;
 
@@ -365,28 +372,61 @@
         }
 
         container.innerHTML = assets.map(a => {
-            // Sécurité anti-NaN : on force en nombre et on met 0 par défaut
-            const balance = parseFloat(a.balance) || 0;
-            const price = parseFloat(a.price) || 0;
-            const totalValue = (balance * price).toFixed(2);
+            // Correction des clés selon ton image (NaN venait de là)
+            const qty = parseFloat(a.balance || a.amount || 0);
+            const price = parseFloat(a.price || a.current_price || 0);
+            const total = (qty * price).toFixed(2);
 
             return `
-                <div class="card" onclick="fetchAndOpenToken(${a.token_id})" style="cursor:pointer; margin-bottom:8px;">
+                <div class="card" onclick="fetchAndOpenToken(${a.token_id})" style="cursor:pointer; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:10px;">
                         <img src="${a.logo || ''}" style="width:35px; height:35px; border-radius:8px; object-fit:cover; background:#222;">
-                        <div><b>${a.symbol || '???'}</b><br><small>${balance.toFixed(2)} tokens</small></div>
+                        <div style="text-align:left;">
+                            <b style="font-size:14px;">${a.symbol || '???'}</b><br>
+                            <small style="color:var(--text);">${qty.toFixed(2)} tokens</small>
+                        </div>
                     </div>
                     <div style="text-align:right;">
-                        <b style="color:var(--green);">${totalValue}</b><br><small>WPT</small>
+                        <b style="color:var(--green); font-size:14px;">${total}</b><br>
+                        <small style="font-size:9px; opacity:0.5;">WPT VALUE</small>
                     </div>
                 </div>
             `;
         }).join('');
     } catch(e) { 
-        console.error("Portfolio Error:", e);
-        container.innerHTML = "<p style='text-align:center; color:red;'>Error loading assets</p>";
+        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Portfolio hidden</p>";
     }
 }
+
+// --- REFRESH (FIX RANK #---) ---
+async function refresh() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        const d = await r.json();
+        
+        // On s'assure que userWptBalance est bien mis à jour globalement
+        userWptBalance = parseFloat(d.score || d.balance || 0);
+
+        // RANK
+        const rankValue = d.rank || d.position || "---";
+        const rankEls = document.querySelectorAll('#prof-rank'); // On cible tous les éléments de rank
+        rankEls.forEach(el => el.innerText = "RANK: #" + rankValue);
+
+        // SCORE PRINCIPAL
+        const tot = document.getElementById('tot');
+        if(tot) tot.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+        // USD VALUE
+        const usdVal = document.getElementById('usd-val');
+        if(usdVal) usdVal.innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
+
+        // INITIALS
+        const initEl = document.getElementById('prof-initials');
+        if(initEl && d.name) initEl.innerText = d.name.charAt(0).toUpperCase();
+
+    } catch(e) { console.error("Global refresh error"); }
+}
+
 
 
     // --- TRADE LOGIC ---
