@@ -144,13 +144,16 @@ polyline {
 
     </style>
 </head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    </head>
 <body>
     <div class="ticker">
         <div class="t-wrap"><span style="color:var(--gold)">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN ● </span></div>
     </div>
 
     <div class="container">
-        
         <div id="p-mine" class="page active-page">
             <div class="prof-header">
                 <small id="prof-rank" style="color:var(--gold); font-weight:bold;">RANK: #---</small>
@@ -180,85 +183,53 @@ polyline {
         </div>
 
         <div id="p-launcher" class="page">
-    <h2 style="text-align:center; letter-spacing:2px; color:var(--gold);">🚀 LAUNCHPAD</h2>
-    
-    <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #161618, #0a0a0b); padding:25px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-        <b style="color:var(--gold); text-align:center; font-size:18px; margin-bottom:10px;">CREATE ECOSYSTEM TOKEN</b>
-        
-        <input type="text" id="tk-name" class="l-input" placeholder="Token Name (ex: Bitcoin)">
-        <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL (ex: BTC)">
-        <textarea id="tk-desc" class="l-input" style="height:80px; resize:none;" placeholder="Describe your project vision..."></textarea>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin:10px 0;">
-            <label class="file-up">
-                <span>🖼️ Logo</span>
-                <input type="file" id="f-logo" hidden onchange="processFile('logo')">
-            </label>
-            <label class="file-up">
-                <span>🌅 Banner</span>
-                <input type="file" id="f-banner" hidden onchange="processFile('banner')">
-            </label>
+            <h2 style="text-align:center; letter-spacing:2px; color:var(--gold);">🚀 LAUNCHPAD</h2>
+            <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #161618, #0a0a0b); padding:25px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                <b style="color:var(--gold); text-align:center; font-size:18px; margin-bottom:10px;">CREATE ECOSYSTEM TOKEN</b>
+                <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
+                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL">
+                <textarea id="tk-desc" class="l-input" style="height:80px; resize:none;" placeholder="Describe your project vision..."></textarea>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin:10px 0;">
+                    <label class="file-up"><span>🖼️ Logo</span><input type="file" id="f-logo" hidden onchange="processFile('logo')"></label>
+                    <label class="file-up"><span>🌅 Banner</span><input type="file" id="f-banner" hidden onchange="processFile('banner')"></label>
+                </div>
+                <button class="btn-launch" onclick="deployToken()">LAUNCH TOKEN (5,000 WPT)</button>
+            </div>
+            <h3 style="margin: 25px 0 15px 10px; display:flex; align-items:center; gap:8px;"><span style="color:var(--red);">🔥</span> NEW LISTINGS</h3>
+            <div id="token-list"></div>
         </div>
 
-        <button class="btn-launch" onclick="deployToken()">
-            LAUNCH TOKEN (5,000 WPT)
-        </button>
-    </div>
-
-    <h3 style="margin: 25px 0 15px 10px; display:flex; align-items:center; gap:8px;">
-        <span style="color:var(--red);">🔥</span> NEW LISTINGS
-    </h3>
-    <div id="token-list"></div>
-</div>
-
-
-       <div id="p-details" class="page">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:0 5px;">
-        <button class="btn" onclick="show('launcher')" style="background:rgba(255,255,255,0.1); color:#fff; border-radius:10px; padding:8px 15px;">← BACK</button>
-        <div style="text-align:right;">
-            <small style="color:var(--text); font-size:10px; display:block;">CURRENT PRICE</small>
-            <b id="det-price-top" style="color:var(--green); font-family:'Courier New', monospace; font-size:20px;">0.000000</b>
+        <div id="p-details" class="page">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:0 5px;">
+                <button class="btn" onclick="show('launcher')" style="background:rgba(255,255,255,0.1); color:#fff; border-radius:10px; padding:8px 15px;">← BACK</button>
+                <div style="text-align:right;">
+                    <small style="color:var(--text); font-size:10px; display:block;">CURRENT PRICE</small>
+                    <b id="det-price-top" style="color:var(--green); font-family:'Courier New', monospace; font-size:20px;">0.000000</b>
+                </div>
+            </div>
+            <div id="det-banner" style="height:140px; border-radius:25px; background-size:cover; position:relative; background-color:#1a1a1c; border:1px solid #333; overflow:hidden;">
+                <div style="position:absolute; inset:0; background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.8));"></div>
+                <img id="det-logo" src="" style="width:70px; height:70px; border-radius:20px; border:4px solid var(--bg); position:absolute; bottom:-15px; left:20px; background:#222; object-fit:cover; z-index:2;">
+            </div>
+            <div style="margin-top:35px; padding:0 10px; display:flex; justify-content:space-between; align-items:flex-end;">
+                <div><h2 id="det-name" style="margin:0; font-size:26px;"></h2><b id="det-sym" style="color:var(--gold); font-size:14px; opacity:0.8;"></b></div>
+                <div id="det-user-balance" style="background:rgba(52, 199, 89, 0.1); color:var(--green); padding:5px 12px; border-radius:20px; font-size:12px; border:1px solid rgba(52, 199, 89, 0.2);">Balance: 0.00</div>
+            </div>
+            <div class="chart-box" style="margin-top:25px; background:rgba(255,255,255,0.03); border-radius:20px; padding:15px; border:1px solid #1c1c1e;">
+                <svg viewBox="0 0 300 100" style="width:100%; height:120px;"><polyline fill="none" stroke="#34C759" stroke-width="3" points="0,80 50,75 100,85 150,40 200,55 250,20 300,35" /></svg>
+            </div>
+            <div style="display:flex; gap:15px; margin-top:25px; padding:0 5px;">
+                <button class="trade-btn buy" onclick="openTrade('buy')">BUY</button>
+                <button class="trade-btn sell" onclick="openTrade('sell')">SELL</button>
+            </div>
         </div>
-    </div>
-
-    <div id="det-banner" style="height:140px; border-radius:25px; background-size:cover; position:relative; background-color:#1a1a1c; border:1px solid #333; overflow:hidden;">
-        <div style="position:absolute; inset:0; background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.8));"></div>
-        <img id="det-logo" src="" style="width:70px; height:70px; border-radius:20px; border:4px solid var(--bg); position:absolute; bottom:-15px; left:20px; background:#222; object-fit:cover; z-index:2;">
-    </div>
-
-    <div style="margin-top:35px; padding:0 10px; display:flex; justify-content:space-between; align-items:flex-end;">
-        <div>
-            <h2 id="det-name" style="margin:0; font-size:26px; letter-spacing:-0.5px;"></h2>
-            <b id="det-sym" style="color:var(--gold); font-size:14px; opacity:0.8;"></b>
-        </div>
-        <div id="det-user-balance" style="background:rgba(52, 199, 89, 0.1); color:var(--green); padding:5px 12px; border-radius:20px; font-size:12px; border:1px solid rgba(52, 199, 89, 0.2);">
-            Balance: 0.00
-        </div>
-    </div>
-
-    <div class="chart-box" style="margin-top:25px; background:rgba(255,255,255,0.03); border-radius:20px; padding:15px; border:1px solid #1c1c1e;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-            <small style="color:var(--text);">24h Performance</small>
-            <small style="color:var(--green);">+12.4% ↑</small>
-        </div>
-        <svg viewBox="0 0 300 100" style="width:100%; height:120px; filter: drop-shadow(0px 4px 10px rgba(52, 199, 89, 0.3));">
-            <polyline fill="none" stroke="#34C759" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="0,80 50,75 100,85 150,40 200,55 250,20 300,35" />
-        </svg>
-    </div>
-
-    <div style="display:flex; gap:15px; margin-top:25px; padding:0 5px;">
-        <button class="trade-btn buy" onclick="openTrade('buy')">BUY</button>
-        <button class="trade-btn sell" onclick="openTrade('sell')">SELL</button>
-    </div>
-</div>
-
 
         <div id="p-wallet" class="page">
             <h2 style="text-align:center;">💼 WALLET</h2>
             <div class="card" style="flex-direction:column; text-align:center; padding:30px;">
                 <small style="color:var(--text)">Total Balance</small>
                 <h1 id="wallet-balance" style="color:var(--gold); margin:10px 0;">0.00</h1>
-                <div id="ton-connect-button"></div>
+                <div id="ton-connect-button" style="display:flex; justify-content:center;"></div>
             </div>
         </div>
 
@@ -279,451 +250,201 @@ polyline {
         <div class="bottom-logo-container">
             <img src="static/logo.gif" alt="Logo" class="bottom-logo">
         </div>
+    </div>
 
-    </div> <nav class="nav">
+    <div id="trade-modal" class="modal-overlay" onclick="closeTrade()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-handle"></div>
+            <h3 id="modal-title" style="margin-top:0; color:var(--gold);">Buy Token</h3>
+            <p id="modal-info" style="color:var(--text); font-size:12px;">Enter WPT amount to spend</p>
+            <div style="position:relative; margin:20px 0;">
+                <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px 80px 20px 20px;">
+                <button onclick="setMax()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--gold); border:none; border-radius:8px; color:#000; font-weight:bold; padding:5px 10px; cursor:pointer; z-index:100;">MAX</button>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
+                <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;">CONFIRM</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="nav">
         <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
         <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
         <div onclick="show('wallet')" id="n-wallet" class="n-i">💼</div> 
         <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
-
-
-
-
-
-
-<div id="trade-modal" class="modal-overlay" onclick="closeTrade()">
-    <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-handle"></div>
-        <h3 id="modal-title" style="margin-top:0; color:var(--gold);">Buy Token</h3>
-        <p id="modal-info" style="color:var(--text); font-size:12px;">Enter WPT amount to spend</p>
-        
-        <div style="position:relative; margin:20px 0;">
-            <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px 80px 20px 20px;">
-            <button onclick="setMax()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--gold); border:none; border-radius:8px; color:#000; font-weight:bold; padding:5px 10px; cursor:pointer; z-index:100;">MAX</button>
-        </div>
-
-        <div style="display:flex; gap:10px;">
-            <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
-            <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;">CONFIRM</button>
-        </div>
-  
-
-
-
-
-
-
     </nav>
 
-    
+    <script>
+        const tg = window.Telegram.WebApp;
+        const uid = tg.initDataUnsafe.user?.id || 0;
+        const BASE_URL = 'https://veos-production-a2de.up.railway.app';
+        let b64_logo = "", b64_banner = "", currentTokenId = null, tradeType = 'buy';
+        let userWptBalance = 0, userTokenBalance = 0;
 
-
-  
-
-
-
-
-    
-   
-
-<script>
-    const tg = window.Telegram.WebApp;
-    const uid = tg.initDataUnsafe.user?.id || 0;
-    const BASE_URL = 'https://veos-production-a2de.up.railway.app';
-    let b64_logo = "", b64_banner = "", currentTokenId = null, tradeType = 'buy';
-
-    // --- NAVIGATION AMÉLIORÉE ---
-    function show(p) {
-        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-        const targetPage = document.getElementById('p-' + p);
-        if (targetPage) targetPage.classList.add('active-page');
-
-        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-        const targetNav = document.getElementById('n-' + p);
-        if (targetNav) targetNav.classList.add('active');
-        
-        // Actions spécifiques par page
-        if(p === 'launcher') loadMarket();
-        if(p === 'profil') {
-            loadLeaderboard();
-            loadPortfolio();
-        }
-        refresh();
-        // Feedback haptique à chaque changement de menu
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    }
-
-    // --- TONCONNECT (WALLET) ---
-    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-        manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
-        buttonRootId: 'ton-connect-button'
-    });
-
-    tonConnectUI.onStatusChange(async (wallet) => {
-        if (wallet) {
-            const addr = wallet.account.address;
-            try {
-                await fetch(`${BASE_URL}/api/user/update-wallet`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ user_id: uid, wallet_address: addr })
-                });
-            } catch(e) { console.log("Sync failed"); }
-        }
-    });
-
-    // --- MARKET & TOKEN DETAILS ---
-    async function loadMarket() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/launcher/list`);
-            const tokens = await r.json();
-            const listContainer = document.getElementById('token-list');
+        // --- NAVIGATION ---
+        function show(p) {
+            document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+            const targetPage = document.getElementById('p-' + p);
+            if(targetPage) targetPage.classList.add('active-page');
+            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+            const targetNav = document.getElementById('n-' + p);
+            if(targetNav) targetNav.classList.add('active');
             
-            if (tokens.length === 0) {
-                listContainer.innerHTML = "<center style='padding:20px; opacity:0.5;'>No tokens launched yet...</center>";
-                return;
-            }
-
-            listContainer.innerHTML = tokens.map(t => `
-                <div class="card" onclick='openToken(${JSON.stringify(t)})' style="cursor:pointer; animation: fadeIn 0.3s ease;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <div style="width:45px; height:45px; border-radius:12px; overflow:hidden; background:#222;">
-                            <img src="${t.logo || 'static/logo.gif'}" style="width:100%; height:100%; object-fit:cover;">
-                        </div>
-                        <div>
-                            <b style="font-size:16px;">${t.name}</b><br>
-                            <small style="color:var(--gold)">$${t.symbol}</small>
-                        </div>
-                    </div>
-                    <div style="text-align:right;">
-                        <b style="color:var(--green); font-family:monospace;">${t.price.toFixed(6)}</b>
-                        <div style="font-size:10px; opacity:0.5;">WPT</div>
-                    </div>
-                </div>
-            `).join('');
-        } catch(e) { console.error("Market error", e); }
-    }
-
-    function openToken(t) {
-        currentTokenId = t.id;
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = "$" + t.symbol;
-        document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
-        
-        const detLogo = document.getElementById('det-logo');
-        if(detLogo) detLogo.src = t.logo || "static/logo.gif";
-        
-        const banner = document.getElementById('det-banner');
-        if(banner) {
-            banner.style.backgroundImage = t.banner ? `url(${t.banner})` : "linear-gradient(45deg, #121214, #1c1c1e)";
-        }
-        
-        updateHoldings(t.id); 
-        show('details');
-    }
-
-    async function updateHoldings(tokenId) {
-        const el = document.getElementById('det-user-balance');
-        if(!el) return;
-        try {
-            const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
-            const d = await r.json();
-            el.innerHTML = d.ok ? `Holdings: <b style="color:white;">${d.balance.toFixed(2)}</b> tokens` : "Holdings: 0.00 tokens";
-        } catch (e) { el.innerText = "Holdings: 0.00"; }
-    }
-
-    
-
-
-
-    // --- LAUNCHPAD & IMAGE HANDLING ---
-    // Ajoute cet écouteur dans ton HTML sur tes inputs file : onchange="processFile('logo')"
-    function processFile(t) {
-        const input = document.getElementById('f-' + t);
-        if(!input || !input.files[0]) return;
-        
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            if(t === 'logo') b64_logo = reader.result;
-            else b64_banner = reader.result;
-            tg.showScanQrPopup({ text: t.toUpperCase() + " chargé avec succès !" }); 
-            setTimeout(() => tg.closeScanQrPopup(), 1000);
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-
-    async function deployToken() {
-        const n = document.getElementById('tk-name').value;
-        const s = document.getElementById('tk-sym').value;
-        const d = document.getElementById('tk-desc').value;
-        
-        if(!n || !s) return tg.showAlert("Please enter Name and Symbol");
-        
-        tg.MainButton.setText("CREATING TOKEN...");
-        tg.MainButton.show();
-        
-        try {
-            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-                method:'POST', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({
-                    user_id: uid, name: n, symbol: s, 
-                    description: d, logo_b64: b64_logo, banner_b64: b64_banner
-                })
-            });
-            const result = await res.json();
-            if(res.ok) { 
-                tg.showAlert("🚀 TOKEN LIVE!"); 
-                show('launcher'); 
-            } else { 
-                tg.showAlert("Error: " + (result.error || "Unknown")); 
-            }
-        } catch(e) { tg.showAlert("Failed to deploy"); }
-        finally { tg.MainButton.hide(); }
-    }
-
-    // --- MINING & HAPTICS ---
-    async function mine(tokenType, event) {
-        const x = event && (event.clientX || (event.touches && event.touches[0]?.clientX)) || window.innerWidth / 2;
-        const y = event && (event.clientY || (event.touches && event.touches[0]?.clientY)) || window.innerHeight / 2;
-
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-
-        try {
-            const response = await fetch(`${BASE_URL}/api/mine`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: uid, token: tokenType })
-            });
-            const result = await response.json();
-            
-            if (result.ok) {
-                createFloatingText(x, y, `+${result.reward}`);
-                refresh();
-            } else if (result.error === "No energy") {
-                tg.showAlert("🪫 No energy left! Wait for recharge.");
-            }
-        } catch (e) { console.error("Mining error", e); }
-    }
-
-    function createFloatingText(x, y, text) {
-        const floating = document.createElement('div');
-        floating.className = 'floating-text';
-        floating.innerText = text;
-        floating.style.left = `${x}px`;
-        floating.style.top = `${y}px`;
-        document.body.appendChild(floating);
-        setTimeout(() => floating.remove(), 800);
-    }
-
-    // --- REFRESH & PORTFOLIO ---
-// --- NAVIGATION (RÉPARÉE) ---
-function show(p) {
-    document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-    const targetPage = document.getElementById('p-' + p);
-    if (targetPage) targetPage.classList.add('active-page');
-
-    document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-    const targetNav = document.getElementById('n-' + p);
-    if (targetNav) targetNav.classList.add('active');
-    
-    if(p === 'launcher') loadMarket();
-    if(p === 'profil') {
-        loadLeaderboard();
-        loadPortfolio();
-    }
-    refresh();
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-}
-
-// --- VARIABLES DE SOLDE ---
-let userWptBalance = 0; 
-let userTokenBalance = 0; 
-
-// --- REFRESH GLOBAL ---
-async function refresh() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) return;
-        const d = await r.json();
-        
-        userWptBalance = d.score || 0; 
-
-        const updates = {
-            'tot': userWptBalance.toFixed(2),
-            'gv': (d.g || 0).toFixed(2),
-            'uv': (d.u || 0).toFixed(2),
-            'vv': (d.v || 0).toFixed(2),
-            'wallet-balance': userWptBalance.toFixed(2),
-            'prof-name': d.name || "User",
-            'prof-rank': "RANK: #" + (d.rank || "---"),
-            'usd-val': `$${(d.usd_value || 0).toFixed(2)} USD`,
-            'wpt-price': `1 WPT = $${(d.wpt_price || 0.0001).toFixed(6)}`
-        };
-
-        for (let id in updates) {
-            const el = document.getElementById(id);
-            if(el) el.innerText = updates[id];
-        }
-
-        const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
-        const bar = document.getElementById('e-f');
-        if(bar) bar.style.width = per + "%";
-        const txt = document.getElementById('e-t');
-        if(txt) txt.innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
-
-    } catch(e) { console.error("Refresh error:", e); }
-}
-
-// --- GESTION DU TRADE ---
-async function updateHoldings(tokenId) {
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
-        const d = await r.json();
-        userTokenBalance = d.ok ? d.balance : 0;
-        const el = document.getElementById('det-user-balance');
-        if(el) el.innerText = `Holdings: ${userTokenBalance.toFixed(2)} tokens`;
-    } catch (e) { userTokenBalance = 0; }
-}
-
-function setMax() {
-    const input = document.getElementById('trade-amount');
-    input.value = (tradeType === 'buy') ? userWptBalance.toFixed(2) : userTokenBalance.toFixed(2);
-    if(tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-}
-
-function openTrade(type) {
-    tradeType = type;
-    const modal = document.getElementById('trade-modal');
-    if(modal) modal.style.display = 'flex';
-    
-    document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
-    const btn = document.getElementById('modal-confirm-btn');
-    btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
-    btn.onclick = () => executeTrade(); 
-
-    document.getElementById('trade-amount').value = "";
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-}
-
-function closeTrade() {
-    const modal = document.getElementById('trade-modal');
-    if(modal) modal.style.display = 'none';
-}
-
-async function executeTrade() {
-    const val = document.getElementById('trade-amount').value;
-    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
-
-    tg.MainButton.showProgress();
-    try {
-        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-        const r = await fetch(`${BASE_URL}${path}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
-        });
-        const res = await r.json();
-        
-        if(res.ok) {
-            closeTrade();
-            tg.showAlert(`✅ Success!`);
+            if(p === 'launcher') loadMarket();
+            if(p === 'profil') { loadLeaderboard(); loadPortfolio(); }
             refresh();
-            if(currentTokenId) setTimeout(() => updateHoldings(currentTokenId), 500);
-        } else {
-            tg.showAlert("❌ " + res.error);
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
         }
-    } catch(e) {
-        tg.showAlert("Server error");
-    } finally {
-        tg.MainButton.hideProgress();
-    }
-}
 
+        // --- REFRESH ---
+        async function refresh() {
+            try {
+                const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+                if (!r.ok) return;
+                const d = await r.json();
+                userWptBalance = d.score || 0;
+                
+                if(document.getElementById('tot')) document.getElementById('tot').innerText = userWptBalance.toFixed(2);
+                if(document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = userWptBalance.toFixed(2);
+                if(document.getElementById('gv')) document.getElementById('gv').innerText = (d.g || 0).toFixed(2);
+                if(document.getElementById('uv')) document.getElementById('uv').innerText = (d.u || 0).toFixed(2);
+                if(document.getElementById('vv')) document.getElementById('vv').innerText = (d.v || 0).toFixed(2);
+                if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name || "Citizen";
+                if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || "---");
+                if(document.getElementById('usd-val')) document.getElementById('usd-val').innerText = `$${(d.usd_value || 0).toFixed(2)} USD`;
+                if(document.getElementById('wpt-price')) document.getElementById('wpt-price').innerText = `1 WPT = $${(d.wpt_price || 0.0001).toFixed(6)}`;
+                
+                const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
+                if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
+                if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
+            } catch(e) { console.error("Refresh error", e); }
+        }
 
+        // --- TRADE & MODAL ---
+        async function updateHoldings(tokenId) {
+            try {
+                const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
+                const d = await r.json();
+                userTokenBalance = d.ok ? d.balance : 0;
+                const el = document.getElementById('det-user-balance');
+                if(el) el.innerText = `Balance: ${userTokenBalance.toFixed(2)}`;
+            } catch (e) { userTokenBalance = 0; }
+        }
 
+        function openTrade(type) {
+            tradeType = type;
+            document.getElementById('trade-modal').style.display = 'flex';
+            document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
+            const btn = document.getElementById('modal-confirm-btn');
+            btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+            btn.onclick = executeTrade;
+            document.getElementById('trade-amount').value = "";
+            if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+        }
 
-
-
-
-            // Énergie avec transition fluide
-            const per = (d.energy / d.max_energy) * 100;
-            const bar = document.getElementById('e-f');
-            if(bar) bar.style.width = per + "%";
-            const txt = document.getElementById('e-t');
-            if(txt) txt.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
-
-        } catch(e) { console.error("Refresh error:", e); }
-    }
-
-    async function loadPortfolio() {
-        const portDiv = document.getElementById('user-portfolio');
-        if(!portDiv) return;
-        try {
-            const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-            const assets = await r.json();
-            if (!assets || assets.length === 0) {
-                portDiv.innerHTML = "<div style='text-align:center; opacity:0.5; padding:20px;'>Your portfolio is empty</div>";
-                return;
-            }
-            portDiv.innerHTML = assets.map(a => `
-                <div class="card" style="border-left: 3px solid var(--purple);">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${a.logo || 'static/logo.gif'}" style="width:35px; height:35px; border-radius:8px; object-fit:cover;">
-                        <div><b>${a.name}</b><br><small>${a.amount.toFixed(2)} ${a.symbol}</small></div>
-                    </div>
-                    <div style="text-align:right;">
-                        <b style="color:var(--green)">+${(a.amount * a.price).toFixed(2)}</b><br>
-                        <small style="font-size:9px;">WPT VALUE</small>
-                    </div>
-                </div>
-            `).join('');
-        } catch (e) { portDiv.innerHTML = "<center>Error loading assets</center>"; }
-    }
-
-    async function loadLeaderboard() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
-            const data = await r.json();
-            const lb = document.getElementById('leaderboard');
-            if(lb) lb.innerHTML = data.map(u => `
-                <div class="card" style="${u.rank <= 3 ? 'border:1px solid var(--gold);' : ''}">
-                    <span>${u.rank === 1 ? '🥇' : u.rank === 2 ? '🥈' : u.rank === 3 ? '🥉' : '#' + u.rank} ${u.name}</span>
-                    <b style="color:var(--gold)">${u.score.toFixed(0)}</b>
-                </div>
-            `).join('');
-        } catch(e) {}
-    }
-
-    function shareRef() {
-        tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/OWPCsBot?start=${uid}&text=🚀 Join WPT Hub and mine tokens with me!`);
-    }
-
-    // --- INIT ---
-    tg.expand();
-    refresh();
-    setInterval(refresh, 5000); // Rafraîchissement toutes les 5s pour plus de réactivité
-</script>
-
-
-
-<div id="trade-modal" class="modal-overlay" onclick="closeTrade()">
-    <div class="modal-content" onclick="event.stopPropagation()">
-        <div class="modal-handle"></div>
-        <h3 id="modal-title" style="margin-top:0; color:var(--gold);">Buy Token</h3>
-        <p id="modal-info" style="color:var(--text); font-size:12px;">Enter WPT amount to spend</p>
+        function closeTrade() { document.getElementById('trade-modal').style.display = 'none'; }
         
-        <div style="position:relative; margin:20px 0;">
-            <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px 80px 20px 20px;">
-            <button onclick="setMax()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--gold); border:none; border-radius:8px; color:#000; font-weight:bold; padding:5px 10px; cursor:pointer; z-index:100;">MAX</button>
-        </div>
+        function setMax() { 
+            document.getElementById('trade-amount').value = (tradeType === 'buy' ? userWptBalance : userTokenBalance).toFixed(2); 
+        }
 
-        <div style="display:flex; gap:10px;">
-            <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
-            <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;">CONFIRM</button>
-        </div>
-    </div>
-</div>
+        async function executeTrade() {
+            const val = document.getElementById('trade-amount').value;
+            if(!val || val <= 0) return tg.showAlert("Invalid amount");
+            tg.MainButton.showProgress();
+            try {
+                const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+                const r = await fetch(`${BASE_URL}${path}`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({user_id:uid, token_id:currentTokenId, amount:parseFloat(val)})
+                });
+                const res = await r.json();
+                if(res.ok) { closeTrade(); tg.showAlert("✅ Success!"); refresh(); updateHoldings(currentTokenId); }
+                else { tg.showAlert("❌ " + res.error); }
+            } catch(e) { tg.showAlert("Server Error"); }
+            finally { tg.MainButton.hideProgress(); }
+        }
 
+        // --- MARKET & TOKEN ---
+        async function loadMarket() {
+            try {
+                const r = await fetch(`${BASE_URL}/api/launcher/list`);
+                const tokens = await r.json();
+                document.getElementById('token-list').innerHTML = tokens.map(t => `
+                    <div class="card" onclick='openToken(${JSON.stringify(t)})' style="cursor:pointer;">
+                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;">
+                        <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                        <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+                    </div>
+                `).join('');
+            } catch(e) {}
+        }
 
+        function openToken(t) {
+            currentTokenId = t.id;
+            document.getElementById('det-name').innerText = t.name;
+            document.getElementById('det-sym').innerText = "$" + t.symbol;
+            document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
+            document.getElementById('det-logo').src = t.logo;
+            const banner = document.getElementById('det-banner');
+            if(banner) banner.style.backgroundImage = `url(${t.banner || ''})`;
+            updateHoldings(t.id);
+            show('details');
+        }
+
+        // --- MINING ---
+        async function mine(t, event) {
+            const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+            const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+            try {
+                const r = await fetch(`${BASE_URL}/api/mine`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({user_id:uid, token:t})
+                });
+                const res = await r.json();
+                if(res.ok) {
+                    const ft = document.createElement('div');
+                    ft.className = 'floating-text'; ft.innerText = "+"+res.reward;
+                    ft.style.left = x+"px"; ft.style.top = y+"px";
+                    document.body.appendChild(ft); setTimeout(()=>ft.remove(), 800);
+                    tg.HapticFeedback.impactOccurred('light'); refresh();
+                }
+            } catch(e) {}
+        }
+
+        // --- LAUNCHPAD FILE ---
+        function processFile(t) {
+            const f = document.getElementById('f-'+t).files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => { if(t==='logo') b64_logo=reader.result; else b64_banner=reader.result; };
+            if(f) reader.readAsDataURL(f);
+        }
+
+        async function deployToken() {
+            const n = document.getElementById('tk-name').value;
+            const s = document.getElementById('tk-sym').value;
+            if(!n || !s || !b64_logo) return tg.showAlert("Missing Data");
+            tg.MainButton.showProgress();
+            try {
+                const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({user_id:uid, name:n, symbol:s, description:document.getElementById('tk-desc').value, logo_b64:b64_logo, banner_b64:b64_banner})
+                });
+                if(res.ok) { tg.showAlert("🚀 Token Live!"); show('launcher'); }
+            } catch(e) {}
+            finally { tg.MainButton.hideProgress(); }
+        }
+
+        // --- INITIALIZATION ---
+        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+            manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
+            buttonRootId: 'ton-connect-button'
+        });
+
+        tg.expand();
+        refresh();
+        setInterval(refresh, 8000);
+    </script>
 </body>
 </html>
