@@ -107,40 +107,45 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
     payload = payment.invoice_payload
-    amount = payment.total_amount # En Stars
+    # total_amount est en "milli-stars" ou Stars selon la version, 
+    # mais on va se baser sur le payload pour être sûr du produit
+    
+    uid = int(payload.split("_")[-1])
+    user_name = update.effective_user.first_name
+    
+    # --- LOGIQUE DE CALCUL DU PACK ---
+    wpt_to_add = 0
+    pack_name = ""
 
-    if "buy_wpt_10k" in payload:
-        uid = int(payload.split("_")[-1])
-        user_name = update.effective_user.first_name
+    if "buy_stars_50" in payload:
+        wpt_to_add = 10000
+        pack_name = "Base Pack (10k)"
+    elif "buy_stars_250" in payload:
+        wpt_to_add = 60000  # 10k * 5 + 20% bonus
+        pack_name = "Medium Pack (60k)"
+    elif "buy_stars_500" in payload:
+        wpt_to_add = 150000 # 10k * 10 + 50% bonus
+        pack_name = "Mega Pack (150k)"
 
-        # --- LOG RAILWAY (Visuel) ---
-        print("\n" + "="*30)
-        print(f"💰 MONEY IN: {amount} STARS")
-        print(f"👤 USER: {user_name} (ID: {uid})")
-        print(f"📦 ITEM: 10,000 WPT Pack")
-        print("="*30 + "\n")
-
-        # 1. Créditer les 10,000 WPT en BDD
+    if wpt_to_add > 0:
+        # 1. Créditer le montant dynamique en BDD
         conn = database.get_db_conn()
         c = conn.cursor()
-        c.execute("UPDATE users SET p_genesis = p_genesis + 10000 WHERE user_id = %s", (uid,))
+        # On utilise wpt_to_add au lieu de 10000
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (wpt_to_add, uid))
         conn.commit()
-        c.close(); conn.close()
-        
-        # 2. Réponse au client
-        await update.message.reply_text("✅ <b>Payment Received!</b>\n10,000 WPT added to your balance. Go trade those tokens! 🚀", parse_mode="HTML")
+        c.close()
+        conn.close()
 
-        # 3. NOTIFICATION ADMIN (Optionnel mais recommandé)
-        # Remplace 12345678 par TON ID Telegram personnel
-        admin_id = 1414016840 
-        try:
-            await context.bot.send_message(
-                chat_id=admin_id, 
-                text=f"🔔 <b>NEW SALE!</b>\nUser: {user_name}\nAmount: {amount} ⭐\nItem: 10,000 WPT Pack",
-                parse_mode="HTML"
-            )
-        except:
-            pass
+        # --- LOG RAILWAY ---
+        print(f"💰 SUCCESS: {wpt_to_add} WPT added to {user_name}")
+
+        # 2. Réponse au client
+        await update.message.reply_text(
+            f"✅ <b>Payment Received!</b>\n{wpt_to_add:,} WPT added to your balance. 🚀", 
+            parse_mode="HTML"
+        )
+
 
 # --- MAIN RUNNER ---
 
