@@ -10,7 +10,7 @@ WEBAPP_URL = RAW_URL if RAW_URL.startswith("http") else f"https://{RAW_URL}"
 MAX_ENERGY = 100
 REGEN_RATE = 1  # 1% par minute
 STAKE_MIN = 100
-BOOST_PRICE = 50
+BOOST_PRICE = 250
 GIFT_COOLDOWN = 12 * 3600 # 12 heures en secondes
 # Dans ton fichier config.py
 ADMIN_WALLET = "UQAvZ1e88yhxpRcfNtJyUNEHD31cDfvF8q_J-PIAukHsNTYi"
