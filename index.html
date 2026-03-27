@@ -520,6 +520,15 @@ if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
         } catch(e) { console.error(e); }
     }
 
+
+
+
+
+function shareRef() {
+    tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/OWPCsBot?start=${uid}&text=🚀 Join WPT Hub and mine tokens with me!`);
+}
+
+
     // --- INITIALISATION ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
         manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
