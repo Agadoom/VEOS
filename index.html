@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WPT Hub - Ecosystem</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://unpkg.com/@tonconnect/sdk@latest/dist/tonconnect-sdk.min.js"></script>
-    <style>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+
         :root { 
             --bg: #050505; --card: #121214; --gold: #FFD700; 
             --blue: #007AFF; --green: #34C759; --purple: #A259FF; 
@@ -118,10 +118,21 @@
             <div class="card" style="flex-direction:column; text-align:center; padding:30px;">
                 <small style="color:var(--text)">Total Balance</small>
                 <h1 id="wallet-balance" style="color:var(--gold); margin:10px 0;">0.00</h1>
-                <button id="btn-connect" class="btn" onclick="connectWallet()">💎 CONNECT WALLET</button>
+                
 
 
                 <div id="wallet-addr" style="margin-top:10px; font-size:10px; color:var(--blue); word-break: break-all;"></div>
+
+
+
+<div id="ton-connect-button" style="display: flex; justify-content: center; margin-top: 15px;">
+<button id="btn-connect" class="btn" onclick="connectWallet()">💎 CONNECT WALLET</button>
+
+</div>
+
+
+
+
             </div>
             <div class="card" style="background:linear-gradient(45deg, #1a1a1c, #121214);">
                 <div><b>Boost Pack</b><br><small>10,000 WPT / 50 Stars</small></div>
@@ -178,27 +189,27 @@
     }
 
     // --- TONCONNECT (WALLET) ---
-    const connector = new TonConnectSDK.TonConnect({ manifestUrl: `${BASE_URL}/tonconnect-manifest.json` });
-    
-    connector.onStatusChange(async (wallet) => {
-        const btn = document.getElementById('btn-connect');
-        const addrEl = document.getElementById('wallet-addr');
-        if (wallet) {
-            const addr = wallet.account.address;
-            const shortAddr = addr.substring(0, 4) + "..." + addr.substring(addr.length - 4);
-            if(btn) btn.innerText = "💎 " + shortAddr;
-            if(addrEl) addrEl.innerText = "Connected to TON";
-            
-            fetch(`${BASE_URL}/api/user/update-wallet`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, wallet_address: addr })
-            }).catch(e => console.log("Sync pending..."));
-        } else {
-            if(btn) btn.innerText = "💎 CONNECT WALLET";
-            if(addrEl) addrEl.innerText = "";
-        }
-    });
+    // Initialisation de l'interface UI
+const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
+    buttonRootId: 'ton-connect-button'
+});
+
+// Écouteur de connexion pour synchroniser avec ton serveur
+tonConnectUI.onStatusChange(async (wallet) => {
+    if (wallet) {
+        const addr = wallet.account.address;
+        console.log("Wallet connecté via UI:", addr);
+
+        // On envoie l'adresse à ton serveur comme avant
+        fetch(`${BASE_URL}/api/user/update-wallet`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, wallet_address: addr })
+        }).catch(e => console.log("Sync failed"));
+    }
+});
+
 
     async function connectWallet() {
     try {
