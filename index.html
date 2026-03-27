@@ -284,297 +284,254 @@ polyline {
         <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
     </nav>
 
-    <script>
-        const tg = window.Telegram.WebApp;
-        const uid = tg.initDataUnsafe.user?.id || 0;
-        const BASE_URL = 'https://veos-production-a2de.up.railway.app';
-        let b64_logo = "", b64_banner = "", currentTokenId = null, tradeType = 'buy';
-        let userWptBalance = 0, userTokenBalance = 0;
+   <script>
+    const tg = window.Telegram.WebApp;
+    const uid = tg.initDataUnsafe.user?.id || 0;
+    const BASE_URL = 'https://veos-production-a2de.up.railway.app';
+    
+    let b64_logo = "", b64_banner = "", currentTokenId = null, tradeType = 'buy';
+    let userWptBalance = 0, userTokenBalance = 0;
 
-        // --- NAVIGATION ---
-        function show(p) {
-            document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
-            const targetPage = document.getElementById('p-' + p);
-            if(targetPage) targetPage.classList.add('active-page');
-            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-            const targetNav = document.getElementById('n-' + p);
-            if(targetNav) targetNav.classList.add('active');
-            
-            if(p === 'launcher') loadMarket();
-            if(p === 'profil') { loadLeaderboard(); loadPortfolio(); }
-            refresh();
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-        }
+    // --- NAVIGATION ---
+    function show(p) {
+        document.querySelectorAll('.page').forEach(pg => pg.classList.remove('active-page'));
+        const targetPage = document.getElementById('p-' + p);
+        if(targetPage) targetPage.classList.add('active-page');
 
-        // --- REFRESH ---
-        async function refresh() {
-            try {
-                const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-                if (!r.ok) return;
-                const d = await r.json();
-                userWptBalance = d.score || 0;
-                
-                if(document.getElementById('tot')) document.getElementById('tot').innerText = userWptBalance.toFixed(2);
-                if(document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = userWptBalance.toFixed(2);
-                if(document.getElementById('gv')) document.getElementById('gv').innerText = (d.g || 0).toFixed(2);
-                if(document.getElementById('uv')) document.getElementById('uv').innerText = (d.u || 0).toFixed(2);
-                if(document.getElementById('vv')) document.getElementById('vv').innerText = (d.v || 0).toFixed(2);
-                if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name || "Citizen";
-                if(document.getElementById('prof-rank')) document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || "---");
-                if(document.getElementById('usd-val')) document.getElementById('usd-val').innerText = `$${(d.usd_value || 0).toFixed(2)} USD`;
-                if(document.getElementById('wpt-price')) document.getElementById('wpt-price').innerText = `1 WPT = $${(d.wpt_price || 0.0001).toFixed(6)}`;
-                
-                const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
-                if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
-                if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
-            } catch(e) { console.error("Refresh error", e); }
-        }
-
-        // --- TRADE & MODAL ---
-        async function updateHoldings(tokenId) {
-            try {
-                const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
-                const d = await r.json();
-                userTokenBalance = d.ok ? d.balance : 0;
-                const el = document.getElementById('det-user-balance');
-                if(el) el.innerText = `Balance: ${userTokenBalance.toFixed(2)}`;
-            } catch (e) { userTokenBalance = 0; }
-        }
-
-        function openTrade(type) {
-            tradeType = type;
-            document.getElementById('trade-modal').style.display = 'flex';
-            document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
-            const btn = document.getElementById('modal-confirm-btn');
-            btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
-            btn.onclick = executeTrade;
-            document.getElementById('trade-amount').value = "";
-            if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-        }
-
-        function closeTrade() { document.getElementById('trade-modal').style.display = 'none'; }
+        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+        const targetNav = document.getElementById('n-' + p);
+        if(targetNav) targetNav.classList.add('active');
         
-        function setMax() { 
-            document.getElementById('trade-amount').value = (tradeType === 'buy' ? userWptBalance : userTokenBalance).toFixed(2); 
-        }
-
-        async function executeTrade() {
-            const val = document.getElementById('trade-amount').value;
-            if(!val || val <= 0) return tg.showAlert("Invalid amount");
-            tg.MainButton.showProgress();
-            try {
-                const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-                const r = await fetch(`${BASE_URL}${path}`, {
-                    method:'POST', headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({user_id:uid, token_id:currentTokenId, amount:parseFloat(val)})
-                });
-                const res = await r.json();
-                if(res.ok) { closeTrade(); tg.showAlert("✅ Success!"); refresh(); updateHoldings(currentTokenId); }
-                else { tg.showAlert("❌ " + res.error); }
-            } catch(e) { tg.showAlert("Server Error"); }
-            finally { tg.MainButton.hideProgress(); }
-        }
-
-        // --- MARKET & TOKEN ---
-        async function loadMarket() {
-            try {
-                const r = await fetch(`${BASE_URL}/api/launcher/list`);
-                const tokens = await r.json();
-                document.getElementById('token-list').innerHTML = tokens.map(t => `
-                    <div class="card" onclick='openToken(${JSON.stringify(t)})' style="cursor:pointer;">
-                        <img src="${t.logo}" style="width:35px;height:35px;border-radius:8px;">
-                        <div><b>${t.name}</b><br><small>$${t.symbol}</small></div>
-                        <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-                    </div>
-                `).join('');
-            } catch(e) {}
-        }
-
-        function openToken(t) {
-            currentTokenId = t.id;
-            document.getElementById('det-name').innerText = t.name;
-            document.getElementById('det-sym').innerText = "$" + t.symbol;
-            document.getElementById('det-price-top').innerText = t.price.toFixed(6) + " WPT";
-            document.getElementById('det-logo').src = t.logo;
-            const banner = document.getElementById('det-banner');
-            if(banner) banner.style.backgroundImage = `url(${t.banner || ''})`;
-            updateHoldings(t.id);
-            show('details');
-        }
-
-        // --- MINING ---
-        async function mine(t, event) {
-            const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
-            const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
-            try {
-                const r = await fetch(`${BASE_URL}/api/mine`, {
-                    method:'POST', headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({user_id:uid, token:t})
-                });
-                const res = await r.json();
-                if(res.ok) {
-                    const ft = document.createElement('div');
-                    ft.className = 'floating-text'; ft.innerText = "+"+res.reward;
-                    ft.style.left = x+"px"; ft.style.top = y+"px";
-                    document.body.appendChild(ft); setTimeout(()=>ft.remove(), 800);
-                    tg.HapticFeedback.impactOccurred('light'); refresh();
-                }
-            } catch(e) {}
-        }
-
-        // --- LAUNCHPAD FILE ---
-        function processFile(t) {
-            const f = document.getElementById('f-'+t).files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => { if(t==='logo') b64_logo=reader.result; else b64_banner=reader.result; };
-            if(f) reader.readAsDataURL(f);
-        }
-
-        async function deployToken() {
-            const n = document.getElementById('tk-name').value;
-            const s = document.getElementById('tk-sym').value;
-            if(!n || !s || !b64_logo) return tg.showAlert("Missing Data");
-            tg.MainButton.showProgress();
-            try {
-                const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-                    method:'POST', headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({user_id:uid, name:n, symbol:s, description:document.getElementById('tk-desc').value, logo_b64:b64_logo, banner_b64:b64_banner})
-                });
-                if(res.ok) { tg.showAlert("🚀 Token Live!"); show('launcher'); }
-            } catch(e) {}
-            finally { tg.MainButton.hideProgress(); }
-        }
-
-
-
-// --- LEADERBOARD ---
-// --- CHARGEMENT DU LEADERBOARD ---
-async function loadLeaderboard() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/leaderboard`);
-        const users = await r.json();
-        const container = document.getElementById('leaderboard');
-        if (!container) return;
-
-        container.innerHTML = users.map((u, i) => {
-            let medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
-            let borderColor = i < 3 ? 'var(--gold)' : '#222';
-            
-            return `
-                <div class="card" style="border-left: 4px solid ${borderColor}; margin-bottom:8px; padding:12px;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <b style="width:30px; font-size:14px;">${medal}</b>
-                        <b style="font-size:14px; flex:1;">${u.name}</b>
-                        <div style="text-align:right;">
-                            <b style="color:var(--gold); font-size:14px;">${u.score.toLocaleString()}</b>
-                            <small style="display:block; font-size:9px; opacity:0.5;">WPT</small>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (e) { console.error("Leaderboard error", e); }
-}
-
-// --- CHARGEMENT DU PORTFOLIO ---
-async function loadPortfolio() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-        const assets = await r.json();
-        const container = document.getElementById('user-portfolio');
-        if (!container) return;
-
-        if (!assets || assets.length === 0) {
-            container.innerHTML = `<div class="card" style="justify-content:center; opacity:0.5; font-size:12px;">No tokens yet.</div>`;
-            return;
-        }
-
-        container.innerHTML = assets.map(a => `
-            <div class="card" onclick='fetchAndOpenToken(${a.token_id})' style="cursor:pointer; margin-bottom:8px;">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <img src="${a.logo}" style="width:35px; height:35px; border-radius:8px; object-fit:cover;">
-                    <div>
-                        <b style="font-size:14px;">${a.symbol}</b><br>
-                        <small style="color:var(--text); font-size:11px;">${parseFloat(a.balance).toFixed(2)} tokens</small>
-                    </div>
-                </div>
-                <div style="text-align:right;">
-                    <b style="color:var(--green); font-size:14px;">${(a.balance * a.price).toFixed(2)}</b>
-                    <small style="display:block; font-size:9px; opacity:0.5;">WPT VAL.</small>
-                </div>
-            </div>
-        `).join('');
-    } catch (e) { console.error("Portfolio error", e); }
-}
-
-// Fonction pour ouvrir un token depuis le portfolio
-async function fetchAndOpenToken(id) {
-    const r = await fetch(`${BASE_URL}/api/launcher/list`);
-    const tokens = await r.json();
-    const t = tokens.find(tk => tk.id === id);
-    if(t) openToken(t);
-}
-
-// Mise à jour de la fonction show() pour appeler les nouveaux chargeurs
-const originalShow = show;
-show = function(p) {
-    if(p === 'profil') {
-        loadLeaderboard();
-        loadPortfolio();
-    }
-    originalShow(p);
-}
-
-
-// --- PORTFOLIO (TES TOKENS POSSÉDÉS) ---
-async function loadPortfolio() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-        const assets = await r.json();
-        const container = document.getElementById('user-portfolio');
-        if (!container) return;
-
-        if (assets.length === 0) {
-            container.innerHTML = `<p style="text-align:center; opacity:0.5; font-size:13px; padding:20px;">No assets yet. Start trading on the Launchpad! 🚀</p>`;
-            return;
-        }
-
-        container.innerHTML = assets.map(a => `
-            <div class="card" onclick='openTokenById(${a.token_id})' style="cursor:pointer; background:rgba(255,255,255,0.02);">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <img src="${a.logo}" style="width:35px; height:35px; border-radius:10px; object-fit:cover;">
-                    <div>
-                        <b style="font-size:14px;">${a.symbol}</b><br>
-                        <small style="color:var(--text); font-size:11px;">${a.balance.toFixed(2)} tokens</small>
-                    </div>
-                </div>
-                <div style="text-align:right;">
-                    <b style="color:var(--green); font-size:14px;">${(a.balance * a.price).toFixed(2)}</b><br>
-                    <small style="font-size:10px; opacity:0.5;">WPT VALUE</small>
-                </div>
-            </div>
-        `).join('');
-    } catch (e) { console.error("Portfolio error", e); }
-}
-
-// Petite fonction utilitaire pour ouvrir un token depuis le portfolio
-async function openTokenById(id) {
-    const r = await fetch(`${BASE_URL}/api/launcher/list`);
-    const tokens = await r.json();
-    const token = tokens.find(t => t.id === id);
-    if(token) openToken(token);
-}
-
-
-        // --- INITIALIZATION ---
-        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-            manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
-            buttonRootId: 'ton-connect-button'
-        });
-
-        tg.expand();
+        if(p === 'launcher') loadMarket();
+        if(p === 'profil') { loadLeaderboard(); loadPortfolio(); }
         refresh();
-        setInterval(refresh, 8000);
-    </script>
+        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    }
+
+    // --- REFRESH DATA ---
+    async function refresh() {
+        try {
+            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+            if (!r.ok) return;
+            const d = await r.json();
+            
+            userWptBalance = d.score || 0;
+            
+            // Mise à jour interface
+            const updates = {
+                'tot': userWptBalance.toFixed(2),
+                'wallet-balance': userWptBalance.toFixed(2),
+                'gv': (d.g || 0).toFixed(2),
+                'uv': (d.u || 0).toFixed(2),
+                'vv': (d.v || 0).toFixed(2),
+                'prof-name': d.name || "Citizen",
+                'prof-rank': "RANK: #" + (d.rank || "---"),
+                'usd-val': `$${(d.usd_value || 0).toFixed(2)} USD`,
+                'wpt-price': `1 WPT = $${(d.wpt_price || 0.0001).toFixed(6)}`
+            };
+
+            for (let id in updates) {
+                const el = document.getElementById(id);
+                if(el) el.innerText = updates[id];
+            }
+
+            // Initiale du profil
+            const initEl = document.getElementById('prof-initials');
+            if(initEl && d.name) initEl.innerText = d.name.charAt(0).toUpperCase();
+
+            // Énergie
+            const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
+            if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
+            if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
+        } catch(e) { console.error("Refresh fail", e); }
+    }
+
+    // --- MINING ---
+    async function mine(type, event) {
+        const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+        const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+        
+        try {
+            const r = await fetch(`${BASE_URL}/api/mine`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, token: type })
+            });
+            const res = await r.json();
+            
+            if(res.ok) {
+                const ft = document.createElement('div');
+                ft.className = 'floating-text';
+                ft.innerText = "+" + res.reward;
+                ft.style.left = x + "px";
+                ft.style.top = y + "px";
+                document.body.appendChild(ft);
+                setTimeout(() => ft.remove(), 800);
+                
+                if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+                refresh();
+            } else if(res.error) {
+                tg.showAlert(res.error);
+            }
+        } catch(e) { console.error("Mining error", e); }
+    }
+
+    // --- LEADERBOARD & PORTFOLIO ---
+    async function loadLeaderboard() {
+        try {
+            const r = await fetch(`${BASE_URL}/api/leaderboard`);
+            const users = await r.json();
+            const container = document.getElementById('leaderboard');
+            container.innerHTML = users.map((u, i) => `
+                <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#222'}; margin-bottom:8px;">
+                    <div style="display:flex; align-items:center; gap:12px; width:100%;">
+                        <b style="width:25px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
+                        <span style="flex:1;">${u.name}</span>
+                        <b style="color:var(--gold);">${u.score.toLocaleString()}</b>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {}
+    }
+
+    async function loadPortfolio() {
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+            const assets = await r.json();
+            const container = document.getElementById('user-portfolio');
+            if (assets.length === 0) {
+                container.innerHTML = `<p style="text-align:center; opacity:0.5; font-size:12px;">No assets found.</p>`;
+                return;
+            }
+            container.innerHTML = assets.map(a => `
+                <div class="card" onclick="fetchAndOpenToken(${a.token_id})" style="cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${a.logo}" style="width:35px; height:35px; border-radius:8px;">
+                        <div><b>${a.symbol}</b><br><small>${a.balance.toFixed(2)} tokens</small></div>
+                    </div>
+                    <div style="text-align:right;">
+                        <b style="color:var(--green);">${(a.balance * a.price).toFixed(2)}</b><br><small>WPT</small>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {}
+    }
+
+    // --- TRADE LOGIC ---
+    function openTrade(type) {
+        tradeType = type;
+        document.getElementById('trade-modal').style.display = 'flex';
+        document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
+        const btn = document.getElementById('modal-confirm-btn');
+        btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+        btn.onclick = executeTrade;
+        document.getElementById('trade-amount').value = "";
+    }
+
+    function closeTrade() { document.getElementById('trade-modal').style.display = 'none'; }
+
+    function setMax() {
+        const input = document.getElementById('trade-amount');
+        input.value = (tradeType === 'buy' ? userWptBalance : userTokenBalance).toFixed(2);
+    }
+
+    async function executeTrade() {
+        const val = document.getElementById('trade-amount').value;
+        if(!val || val <= 0) return;
+        tg.MainButton.showProgress();
+        try {
+            const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+            const r = await fetch(`${BASE_URL}${path}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
+            });
+            const res = await r.json();
+            if(res.ok) {
+                closeTrade();
+                tg.showAlert("✅ Success!");
+                refresh();
+                if(currentTokenId) updateHoldings(currentTokenId);
+            } else { tg.showAlert(res.error); }
+        } catch(e) { tg.showAlert("Server error"); }
+        finally { tg.MainButton.hideProgress(); }
+    }
+
+    // --- MARKET ---
+    async function loadMarket() {
+        const r = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await r.json();
+        document.getElementById('token-list').innerHTML = tokens.map(t => `
+            <div class="card" onclick='openToken(${JSON.stringify(t)})'>
+                <img src="${t.logo}" style="width:35px; height:35px; border-radius:8px;">
+                <div style="flex:1; margin-left:10px;"><b>${t.name}</b><br><small>$${t.symbol}</small></div>
+                <b style="color:var(--green)">${t.price.toFixed(6)}</b>
+            </div>
+        `).join('');
+    }
+
+    function openToken(t) {
+        currentTokenId = t.id;
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = t.price.toFixed(6);
+        document.getElementById('det-logo').src = t.logo;
+        document.getElementById('det-banner').style.backgroundImage = `url(${t.banner})`;
+        updateHoldings(t.id);
+        show('details');
+    }
+
+    async function updateHoldings(tokenId) {
+        const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
+        const d = await r.json();
+        userTokenBalance = d.ok ? d.balance : 0;
+        document.getElementById('det-user-balance').innerText = "Balance: " + userTokenBalance.toFixed(2);
+    }
+
+    async function fetchAndOpenToken(id) {
+        const r = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await r.json();
+        const t = tokens.find(tk => tk.id === id);
+        if(t) openToken(t);
+    }
+
+    // --- LAUNCHPAD ---
+    function processFile(t) {
+        const f = document.getElementById('f-'+t).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => { if(t==='logo') b64_logo=reader.result; else b64_banner=reader.result; };
+        if(f) reader.readAsDataURL(f);
+    }
+
+    async function deployToken() {
+        const n = document.getElementById('tk-name').value;
+        const s = document.getElementById('tk-sym').value;
+        if(!n || !s || !b64_logo) return tg.showAlert("Missing Data");
+        try {
+            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: uid, name: n, symbol: s, 
+                    description: document.getElementById('tk-desc').value,
+                    logo_b64: b64_logo, banner_b64: b64_banner
+                })
+            });
+            if(res.ok) { tg.showAlert("🚀 Token Deployed!"); show('launcher'); }
+            else { const d = await res.json(); tg.showAlert(d.error); }
+        } catch(e) {}
+    }
+
+    // Init
+    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+        manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
+        buttonRootId: 'ton-connect-button'
+    });
+    
+    tg.expand();
+    refresh();
+    setInterval(refresh, 10000);
+</script>
+
 </body>
 </html>
