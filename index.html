@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -20,15 +20,28 @@
         @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
         
         /* Layout */
-        .container { padding: 15px; padding-bottom: 120px; height: 100vh; overflow-y: auto; box-sizing: border-box; }
+        .container { padding: 15px; padding-bottom: 150px; height: 100vh; overflow-y: auto; box-sizing: border-box; position: relative; }
 
-        /* Logo en bas */
-        .bottom-logo-container { width: 100%; display: flex; justify-content: center; padding: 30px 0; margin-bottom: 50px; }
-        .bottom-logo { max-width: 100px; height: auto; opacity: 0.8; }
+        /* Logo en bas - CORRIGÉ pour ne pas bloquer les clics */
+        .bottom-logo-container { 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            padding: 20px 0; 
+            margin-top: 30px;
+            pointer-events: none; /* Laisse passer les clics vers les boutons en dessous */
+        }
+        .bottom-logo { 
+            max-width: 80px; 
+            height: auto; 
+            opacity: 0.8; 
+            pointer-events: auto; /* Le logo lui-même reste cliquable si besoin */
+            background: transparent !important;
+        }
 
         .prof-header { background: linear-gradient(135deg, #1c1c1e 0%, #050505 100%); border-radius: 30px; padding: 25px 20px; border: 1px solid #222; margin-bottom: 20px; text-align: center; }
-        .card { background: var(--card); border-radius: 20px; padding: 15px; margin-bottom: 12px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; }
-        .btn { background: #FFF; color: #000; border: none; padding: 12px 20px; border-radius: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+        .card { background: var(--card); border-radius: 20px; padding: 15px; margin-bottom: 12px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 10; }
+        .btn { background: #FFF; color: #000; border: none; padding: 12px 20px; border-radius: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; position: relative; z-index: 20; }
         .btn:active { transform: scale(0.95); opacity: 0.8; }
 
         /* Navigation */
@@ -126,6 +139,8 @@
         <div onclick="show('wallet')" id="n-wallet" class="n-i">💼</div> 
         <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
     </nav>
+    
+   
 
 <script>
     const tg = window.Telegram.WebApp;
