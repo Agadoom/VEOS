@@ -436,6 +436,77 @@ polyline {
             finally { tg.MainButton.hideProgress(); }
         }
 
+
+
+// --- LEADERBOARD ---
+async function loadLeaderboard() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/leaderboard`);
+        const users = await r.json();
+        const container = document.getElementById('leaderboard');
+        if (!container) return;
+
+        container.innerHTML = users.map((u, i) => {
+            // Petit style spécial pour le Top 3
+            let medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+            let color = i === 0 ? 'var(--gold)' : '#fff';
+            
+            return `
+                <div class="card" style="border-left: 3px solid ${i < 3 ? 'var(--gold)' : '#222'}; padding: 12px 15px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <b style="color:${color}; width:25px;">${medal}</b>
+                        <div style="width:32px; height:32px; background:#222; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px;">
+                            ${u.name.substring(0,2).toUpperCase()}
+                        </div>
+                        <b style="font-size:14px;">${u.name}</b>
+                    </div>
+                    <b style="color:var(--gold);">${u.score.toLocaleString()} <small style="font-size:9px; opacity:0.6;">WPT</small></b>
+                </div>
+            `;
+        }).join('');
+    } catch (e) { console.error("Leaderboard error", e); }
+}
+
+// --- PORTFOLIO (TES TOKENS POSSÉDÉS) ---
+async function loadPortfolio() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        const assets = await r.json();
+        const container = document.getElementById('user-portfolio');
+        if (!container) return;
+
+        if (assets.length === 0) {
+            container.innerHTML = `<p style="text-align:center; opacity:0.5; font-size:13px; padding:20px;">No assets yet. Start trading on the Launchpad! 🚀</p>`;
+            return;
+        }
+
+        container.innerHTML = assets.map(a => `
+            <div class="card" onclick='openTokenById(${a.token_id})' style="cursor:pointer; background:rgba(255,255,255,0.02);">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${a.logo}" style="width:35px; height:35px; border-radius:10px; object-fit:cover;">
+                    <div>
+                        <b style="font-size:14px;">${a.symbol}</b><br>
+                        <small style="color:var(--text); font-size:11px;">${a.balance.toFixed(2)} tokens</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green); font-size:14px;">${(a.balance * a.price).toFixed(2)}</b><br>
+                    <small style="font-size:10px; opacity:0.5;">WPT VALUE</small>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) { console.error("Portfolio error", e); }
+}
+
+// Petite fonction utilitaire pour ouvrir un token depuis le portfolio
+async function openTokenById(id) {
+    const r = await fetch(`${BASE_URL}/api/launcher/list`);
+    const tokens = await r.json();
+    const token = tokens.find(t => t.id === id);
+    if(token) openToken(token);
+}
+
+
         // --- INITIALIZATION ---
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
             manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
