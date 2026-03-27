@@ -22,86 +22,30 @@
         /* Layout */
         .container { padding: 15px; padding-bottom: 150px; height: 100vh; overflow-y: auto; box-sizing: border-box; position: relative; }
 
+        /* Style du bouton Coin CSS */
+        .genesis-coin {
+            width: 150px; height: 150px;
+            background: radial-gradient(circle, #FFD700 0%, #B8860B 100%);
+            border: 8px solid #DAA520; border-radius: 50%;
+            color: #FFF; font-size: 28px; font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            cursor: pointer; position: relative; overflow: hidden;
+            box-shadow: 0 0 20px rgba(218, 165, 32, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.5);
+            display: flex; justify-content: center; align-items: center;
+            margin: 0 auto; transition: transform 0.1s;
+            user-select: none; -webkit-tap-highlight-color: transparent;
+        }
+        .genesis-coin:active { transform: scale(0.92); background: radial-gradient(circle, #DAA520 0%, #B8860B 100%); }
+        .genesis-coin::after {
+            content: ""; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
+            transform: rotate(45deg); animation: shine 3s infinite;
+        }
+        @keyframes shine { 0% { left: -150%; } 100% { left: 150%; } }
+
         /* Logo en bas */
-        .bottom-logo-container { 
-            width: 100%; 
-            display: flex; 
-            justify-content: center; 
-            padding: 20px 0; 
-            margin-top: 30px;
-            pointer-events: none; 
-        }
-        .bottom-logo { 
-            max-width: 80px; 
-            height: auto; 
-            opacity: 0.8; 
-            pointer-events: auto; 
-            background: transparent !important;
-        }
-
-
-.bottom-logo { 
-    width: 80px !important;  /* Force la largeur */
-    height: 80px !important; /* Force la hauteur */
-    display: block !important;
-    margin: 0 auto;
-    object-fit: contain; /* Garde les proportions du GIF */
-}
-
-
-
-
-.genesis-coin {
-    width: 150px;
-    height: 150px;
-    background: radial-gradient(circle, #FFD700 0%, #B8860B 100%);
-    border: 8px solid #DAA520;
-    border-radius: 50%;
-    color: #FFF;
-    font-size: 28px;
-    font-weight: bold;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-    cursor: pointer;
-    box-shadow: 0 0 20px rgba(218, 165, 32, 0.4), inset 0 0 15px rgba(255, 255, 255, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 0 auto;
-    transition: transform 0.1s;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-}
-
-.genesis-coin:active {
-    transform: scale(0.92); /* Effet d'enfoncement quand on clique */
-    background: radial-gradient(circle, #DAA520 0%, #B8860B 100%);
-}
-
-/* Petit reflet brillant qui passe sur la pièce */
-.genesis-coin::after {
-    content: "";
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.3), transparent);
-    transform: rotate(45deg);
-    animation: shine 3s infinite;
-}
-
-@keyframes shine {
-    0% { left: -150%; }
-    100% { left: 150%; }
-}
-
-
-
-
-
-
-
-
+        .bottom-logo-container { width: 100%; display: flex; justify-content: center; padding: 20px 0; margin-top: 30px; pointer-events: none; }
+        .bottom-logo { width: 80px !important; height: 80px !important; display: block !important; margin: 0 auto; object-fit: contain; opacity: 0.8; pointer-events: auto; }
 
         .prof-header { background: linear-gradient(135deg, #1c1c1e 0%, #050505 100%); border-radius: 30px; padding: 25px 20px; border: 1px solid #222; margin-bottom: 20px; text-align: center; }
         .card { background: var(--card); border-radius: 20px; padding: 15px; margin-bottom: 12px; border: 1px solid #1c1c1e; display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 10; }
@@ -154,68 +98,47 @@
                 <button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
             </div>
 
-           
-<div style="text-align:center; margin-top:30px;">
-    <button class="genesis-coin" onclick="mine('genesis', event)">
-        WPT
-    </button>
-</div>
+            <div style="text-align:center; margin-top:30px;">
+                <button class="genesis-coin" onclick="mine('genesis', event)">WPT</button>
+            </div>
+        </div>
 
-
-
-
-
-
-
-
-
-
-
-                       <div id="p-launcher" class="page">
+        <div id="p-launcher" class="page">
             <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
-            
             <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000; padding:20px;">
                 <b style="color:var(--gold); text-align:center; margin-bottom:5px;">CREATE YOUR TOKEN</b>
                 <input type="text" id="tk-name" class="l-input" placeholder="Token Name (ex: Bitcoin)">
                 <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL (ex: BTC)">
                 <textarea id="tk-desc" class="l-input" style="height:60px;" placeholder="Description of your project..."></textarea>
-                <button class="btn" style="background:var(--gold); width:100%; margin-top:5px;" onclick="deployToken()">
-                    LAUNCH (5,000 WPT)
-                </button>
+                <button class="btn" style="background:var(--gold); width:100%; margin-top:5px;" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
             </div>
-
             <h3 style="margin-left:10px; margin-top:20px;">🔥 NEW LISTINGS</h3>
             <div id="token-list"></div>
-        </div> <div id="p-details" class="page">
+        </div>
+
+        <div id="p-details" class="page">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding: 10px;">
                 <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
                 <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
             </div>
-
             <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
                 <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
             </div>
-
             <div style="margin-top:30px; padding:0 15px;">
                 <h2 id="det-name" style="margin:0;"></h2>
                 <p id="det-user-balance" style="color:var(--text); font-size:12px; margin-top:5px;">Balance: 0.00</p>
                 <b id="det-sym" style="color:var(--gold)"></b>
             </div>
-
             <div class="chart-container" style="margin-top:20px;">
                 <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
                     <polyline fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 50,70 100,85 150,50 200,60 250,30 300,40" />
                 </svg>
             </div>
-
             <div style="display:flex; gap:10px; padding:15px;">
                 <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
                 <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
             </div>
-         </div> 
-
-
-
+        </div>
 
         <div id="p-wallet" class="page">
             <h2 style="text-align:center;">💼 WALLET</h2>
