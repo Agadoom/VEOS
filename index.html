@@ -298,16 +298,17 @@ polyline {
         <p id="modal-info" style="color:var(--text); font-size:12px;">Enter WPT amount to spend</p>
         
         <div style="position:relative; margin:20px 0;">
-            <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px;">
-            <span id="trade-unit" style="position:absolute; right:15px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:bold;">WPT</span>
+            <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px 80px 20px 20px;">
+            <button onclick="setMax()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--gold); border:none; border-radius:8px; color:#000; font-weight:bold; padding:5px 10px; cursor:pointer; z-index:100;">MAX</button>
         </div>
 
         <div style="display:flex; gap:10px;">
             <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
-            <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;" onclick="executeTrade()">CONFIRM</button>
+            <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;">CONFIRM</button>
         </div>
     </div>
 </div>
+
 
 
 
@@ -433,79 +434,9 @@ polyline {
         } catch (e) { el.innerText = "Holdings: 0.00"; }
     }
 
-    // --- TRADE (BUY/SELL) MODAL (Si tu as le HTML pour ça) ---
-    function openTrade(type) {
-    tradeType = type;
-    const modal = document.getElementById('trade-modal');
-    const title = document.getElementById('modal-title');
-    const info = document.getElementById('modal-info');
-    const btn = document.getElementById('modal-confirm-btn');
-    const unit = document.getElementById('trade-unit');
-
-    modal.style.display = 'flex';
-    title.innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
-    info.innerText = (type === 'buy') ? 'How much WPT do you want to spend?' : 'How many tokens do you want to sell?';
-    unit.innerText = (type === 'buy') ? 'WPT' : 'TKN';
-    btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
     
-    document.getElementById('trade-amount').value = "";
-    document.getElementById('trade-amount').focus();
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-}
-
-function closeTrade() {
-    document.getElementById('trade-modal').style.display = 'none';
-}
-
-async function executeTrade() {
-    const val = document.getElementById('trade-amount').value;
-    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
-
-    tg.MainButton.showProgress();
-    closeTrade();
-
-    try {
-        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-        const r = await fetch(`${BASE_URL}${path}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
-        });
-        const res = await r.json();
-        if(res.ok) {
-            tg.showAlert(`✅ Success !`);
-            refresh();
-            if(currentTokenId) updateHoldings(currentTokenId);
-        } else {
-            tg.showAlert("❌ " + res.error);
-        }
-    } catch(e) {
-        tg.showAlert("Server error");
-    } finally {
-        tg.MainButton.hideProgress();
-    }
-}
 
 
-    async function executeTrade(val) {
-        if (!val || val <= 0) return;
-        tg.MainButton.showProgress();
-        try {
-            const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-            const r = await fetch(`${BASE_URL}${path}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
-            });
-            const res = await r.json();
-            if(res.ok) {
-                tg.showAlert(`✅ Trade successful!`);
-                refresh();
-                if(currentTokenId) updateHoldings(currentTokenId);
-            } else { tg.showAlert("❌ " + res.error); }
-        } catch(e) { tg.showAlert("Server error"); }
-        finally { tg.MainButton.hideProgress(); }
-    }
 
     // --- LAUNCHPAD & IMAGE HANDLING ---
     // Ajoute cet écouteur dans ton HTML sur tes inputs file : onchange="processFile('logo')"
@@ -587,11 +518,16 @@ async function executeTrade() {
     }
 
     // --- REFRESH & PORTFOLIO ---
-    async function refresh() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            if (!r.ok) return;
-            const d = await r.json();
+   let userWptBalance = 0; // Pour stocker ton solde WPT global
+let userTokenBalance = 0; // Pour stocker ton solde du token actuel
+
+// Modifie ta fonction refresh pour capturer le solde WPT
+async function refresh() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        userWptBalance = d.score; // ON SAUVEGARDE LE SOLDE WPT ICI
 
             const updates = {
                 'tot': d.score.toFixed(2),
@@ -609,6 +545,69 @@ async function executeTrade() {
                 const el = document.getElementById(id);
                 if(el) el.innerText = updates[id];
             }
+
+
+const el = document.getElementById('det-user-balance');
+        if(el) el.innerText = `Holdings: ${userTokenBalance.toFixed(2)}`;
+    } catch (e) { userTokenBalance = 0; }
+}
+
+
+
+
+// FONCTION OPEN TRADE CORRIGÉE
+function openTrade(type) {
+    tradeType = type;
+    document.getElementById('trade-modal').style.display = 'flex';
+    document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
+    
+    const btn = document.getElementById('modal-confirm-btn');
+    btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+    
+    // TRÈS IMPORTANT : On lie le clic au bouton ici
+    btn.onclick = () => executeTrade(); 
+
+    document.getElementById('trade-amount').value = "";
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+}
+
+async function executeTrade() {
+    const val = document.getElementById('trade-amount').value;
+    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
+
+    tg.MainButton.showProgress();
+    // On ne ferme la modal qu'après pour éviter les clics multiples
+    try {
+        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+        const r = await fetch(`${BASE_URL}${path}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                user_id: uid, 
+                token_id: currentTokenId, 
+                amount: parseFloat(val) 
+            })
+        });
+        const res = await r.json();
+        
+        if(res.ok) {
+            closeTrade();
+            tg.showAlert(`✅ Trade Successful !`);
+            refresh();
+            if(currentTokenId) setTimeout(() => updateHoldings(currentTokenId), 500);
+        } else {
+            tg.showAlert("❌ " + res.error);
+        }
+    } catch(e) {
+        tg.showAlert("Server error");
+    } finally {
+        tg.MainButton.hideProgress();
+    }
+}
+
+
+
+
 
             // Énergie avec transition fluide
             const per = (d.energy / d.max_energy) * 100;
