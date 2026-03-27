@@ -1,3 +1,8 @@
+from fastapi import APIRouter
+from telegram import LabeledPrice
+
+router = APIRouter() # <--- Cette ligne est obligatoire
+
 # À placer là où sont tes autres routes API
 @app.get("/api/stars/create-invoice/{uid}")
 async def create_invoice(uid: int, amount: int = 50): # <--- BIEN VÉRIFIER LE 'amount' ICI
