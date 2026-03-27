@@ -202,29 +202,23 @@
     });
 
     async function connectWallet() {
+    const walletConnectionSource = {
+        universalLink: 'https://tonkeeper.com/ton-connect',
+        bridgeUrl: 'https://bridge.tonapi.io/bridge'
+    };
+
     try {
-        const walletConnectionSource = {
-            universalLink: 'https://tonkeeper.com/ton-connect',
-            bridgeUrl: 'https://bridge.tonapi.io/bridge'
-        };
-
-        // On génère l'URL via le SDK
         const url = connector.connect(walletConnectionSource);
-
+        
         if (url) {
-            console.log("Lien de connexion généré :", url);
-            
-            // CORRECTIF : Utiliser openLink au lieu de openTelegramLink
-            // car Tonkeeper est un lien externe
+            // C'est ici que la magie opère pour Telegram :
             tg.openLink(url); 
-        } else {
-            tg.showAlert("Impossible de générer le lien de connexion.");
         }
     } catch (e) {
-        console.error("Erreur Wallet:", e);
         tg.showAlert("Erreur : " + e.message);
     }
 }
+
 
 
 
