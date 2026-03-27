@@ -332,14 +332,6 @@
     const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
 
-
-    const shareUrl = `https://t.me/share/url?url=${myReferralLink}&text=${text}`;
-    tg.openTelegramLink(shareUrl);
-}
-
-
-
-
     const BASE_URL = 'https://veos-production-a2de.up.railway.app';
 
     // Variables d'état (déclatées une seule fois)
