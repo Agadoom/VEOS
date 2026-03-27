@@ -332,18 +332,7 @@
     const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
 
-// 1. Récupérer l'ID de l'utilisateur
-const userId = tg.initDataUnsafe?.user?.id || "0";
 
-// 2. Construire le lien
-const myReferralLink = `https://t.me/OWPCsBot?start=${userId}`;
-
-// 3. L'afficher dans la petite case
-document.getElementById('ref-link-display').innerText = myReferralLink;
-
-// 4. Mettre à jour le bouton de partage
-function shareRef() {
-    const text = encodeURIComponent("🚀 Join WPT Hub and start mining! Get 500 WPT bonus!");
     const shareUrl = `https://t.me/share/url?url=${myReferralLink}&text=${text}`;
     tg.openTelegramLink(shareUrl);
 }
@@ -561,6 +550,15 @@ if (refDisplay) {
 }
 
 
+// 2. Construire le lien
+const myReferralLink = `https://t.me/OWPCsBot?start=${userId}`;
+
+// 3. L'afficher dans la petite case
+document.getElementById('ref-link-display').innerText = myReferralLink;
+
+
+
+
 
 
     // --- TRADE LOGIC ---
@@ -712,7 +710,9 @@ function copyRef() {
 
 
 function shareRef() {
-    tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/OWPCsBot?start=${uid}&text=🚀 Join WPT Hub and mine tokens with me!`);
+    const text = encodeURIComponent("🚀 Join WPT Hub and start mining! Get 500 WPT bonus!");
+    const shareUrl = `https://t.me/share/url?url=${myReferralLink}&text=${text}`;
+    tg.openTelegramLink(shareUrl);
 }
 
 
