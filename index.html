@@ -66,6 +66,53 @@
         @keyframes moveUpFade { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
         
         .l-input { background: #000; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 12px; width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+
+
+
+/* Style des inputs du Launchpad */
+.l-input {
+    background: #000; border: 1px solid #222; color: #fff; padding: 15px;
+    border-radius: 15px; font-size: 14px; transition: 0.3s;
+}
+.l-input:focus { border-color: var(--gold); outline: none; background: #050505; }
+
+/* Boutons de téléchargement de fichiers */
+.file-up {
+    background: #1a1a1c; border: 1px dashed #444; padding: 12px;
+    border-radius: 12px; text-align: center; cursor: pointer;
+    font-size: 13px; color: var(--text); transition: 0.2s;
+}
+.file-up:active { transform: scale(0.95); border-color: var(--gold); }
+
+/* Bouton Launch spécial */
+.btn-launch {
+    background: var(--gold); color: #000; border: none; padding: 16px;
+    border-radius: 15px; font-weight: 900; font-size: 16px; margin-top: 10px;
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
+}
+
+/* Boutons de Trade */
+.trade-btn {
+    flex: 1; padding: 18px; border: none; border-radius: 18px;
+    font-weight: 800; font-size: 18px; transition: 0.2s;
+}
+.trade-btn.buy { background: var(--green); color: #fff; box-shadow: 0 4px 15px rgba(52, 199, 89, 0.3); }
+.trade-btn.sell { background: var(--red); color: #fff; box-shadow: 0 4px 15px rgba(235, 64, 52, 0.3); }
+.trade-btn:active { transform: scale(0.95); }
+
+/* Animation du graphique */
+polyline {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    animation: draw 2s forwards ease-in-out;
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+
+
+
+
+
     </style>
 </head>
 <body>
@@ -104,41 +151,78 @@
         </div>
 
         <div id="p-launcher" class="page">
-            <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
-            <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000; padding:20px;">
-                <b style="color:var(--gold); text-align:center; margin-bottom:5px;">CREATE YOUR TOKEN</b>
-                <input type="text" id="tk-name" class="l-input" placeholder="Token Name (ex: Bitcoin)">
-                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL (ex: BTC)">
-                <textarea id="tk-desc" class="l-input" style="height:60px;" placeholder="Description of your project..."></textarea>
-                <button class="btn" style="background:var(--gold); width:100%; margin-top:5px;" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
-            </div>
-            <h3 style="margin-left:10px; margin-top:20px;">🔥 NEW LISTINGS</h3>
-            <div id="token-list"></div>
+    <h2 style="text-align:center; letter-spacing:2px; color:var(--gold);">🚀 LAUNCHPAD</h2>
+    
+    <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #161618, #0a0a0b); padding:25px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        <b style="color:var(--gold); text-align:center; font-size:18px; margin-bottom:10px;">CREATE ECOSYSTEM TOKEN</b>
+        
+        <input type="text" id="tk-name" class="l-input" placeholder="Token Name (ex: Bitcoin)">
+        <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL (ex: BTC)">
+        <textarea id="tk-desc" class="l-input" style="height:80px; resize:none;" placeholder="Describe your project vision..."></textarea>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin:10px 0;">
+            <label class="file-up">
+                <span>🖼️ Logo</span>
+                <input type="file" id="f-logo" hidden onchange="processFile('logo')">
+            </label>
+            <label class="file-up">
+                <span>🌅 Banner</span>
+                <input type="file" id="f-banner" hidden onchange="processFile('banner')">
+            </label>
         </div>
 
-        <div id="p-details" class="page">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding: 10px;">
-                <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
-                <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
-            </div>
-            <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
-                <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
-            </div>
-            <div style="margin-top:30px; padding:0 15px;">
-                <h2 id="det-name" style="margin:0;"></h2>
-                <p id="det-user-balance" style="color:var(--text); font-size:12px; margin-top:5px;">Balance: 0.00</p>
-                <b id="det-sym" style="color:var(--gold)"></b>
-            </div>
-            <div class="chart-container" style="margin-top:20px;">
-                <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
-                    <polyline fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 50,70 100,85 150,50 200,60 250,30 300,40" />
-                </svg>
-            </div>
-            <div style="display:flex; gap:10px; padding:15px;">
-                <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
-                <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
-            </div>
+        <button class="btn-launch" onclick="deployToken()">
+            LAUNCH TOKEN (5,000 WPT)
+        </button>
+    </div>
+
+    <h3 style="margin: 25px 0 15px 10px; display:flex; align-items:center; gap:8px;">
+        <span style="color:var(--red);">🔥</span> NEW LISTINGS
+    </h3>
+    <div id="token-list"></div>
+</div>
+
+
+       <div id="p-details" class="page">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:0 5px;">
+        <button class="btn" onclick="show('launcher')" style="background:rgba(255,255,255,0.1); color:#fff; border-radius:10px; padding:8px 15px;">← BACK</button>
+        <div style="text-align:right;">
+            <small style="color:var(--text); font-size:10px; display:block;">CURRENT PRICE</small>
+            <b id="det-price-top" style="color:var(--green); font-family:'Courier New', monospace; font-size:20px;">0.000000</b>
         </div>
+    </div>
+
+    <div id="det-banner" style="height:140px; border-radius:25px; background-size:cover; position:relative; background-color:#1a1a1c; border:1px solid #333; overflow:hidden;">
+        <div style="position:absolute; inset:0; background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.8));"></div>
+        <img id="det-logo" src="" style="width:70px; height:70px; border-radius:20px; border:4px solid var(--bg); position:absolute; bottom:-15px; left:20px; background:#222; object-fit:cover; z-index:2;">
+    </div>
+
+    <div style="margin-top:35px; padding:0 10px; display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+            <h2 id="det-name" style="margin:0; font-size:26px; letter-spacing:-0.5px;"></h2>
+            <b id="det-sym" style="color:var(--gold); font-size:14px; opacity:0.8;"></b>
+        </div>
+        <div id="det-user-balance" style="background:rgba(52, 199, 89, 0.1); color:var(--green); padding:5px 12px; border-radius:20px; font-size:12px; border:1px solid rgba(52, 199, 89, 0.2);">
+            Balance: 0.00
+        </div>
+    </div>
+
+    <div class="chart-box" style="margin-top:25px; background:rgba(255,255,255,0.03); border-radius:20px; padding:15px; border:1px solid #1c1c1e;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <small style="color:var(--text);">24h Performance</small>
+            <small style="color:var(--green);">+12.4% ↑</small>
+        </div>
+        <svg viewBox="0 0 300 100" style="width:100%; height:120px; filter: drop-shadow(0px 4px 10px rgba(52, 199, 89, 0.3));">
+            <polyline fill="none" stroke="#34C759" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="0,80 50,75 100,85 150,40 200,55 250,20 300,35" />
+        </svg>
+    </div>
+
+    <div style="display:flex; gap:15px; margin-top:25px; padding:0 5px;">
+        <button class="trade-btn buy" onclick="openTrade('buy')">BUY</button>
+        <button class="trade-btn sell" onclick="openTrade('sell')">SELL</button>
+    </div>
+</div>
+
 
         <div id="p-wallet" class="page">
             <h2 style="text-align:center;">💼 WALLET</h2>
