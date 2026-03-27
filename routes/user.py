@@ -77,16 +77,24 @@ async def get_user_data(uid: int):
         now = int(time.time())
         current_e = min(getattr(config, 'MAX_ENERGY', 100), (energy or 0) + ((now - (last_upd or now))/60 * getattr(config, 'REGEN_RATE', 1.0)))
 
-        return {
-            "uid": uid, "name": name or "Citizen", 
+                return {
+            "uid": uid, 
+            "name": name or "Citizen", 
+            "g": round(p_gen or 0, 2),  # On remet 'g'
+            "u": round(p_uni or 0, 2),  # On remet 'u'
+            "v": round(p_veo or 0, 2),  # On remet 'v'
             "score": round(score_total, 2), 
-            "usd_value": round(usd_value, 2), # <-- Valeur en $
-            "wpt_price": current_price,       # <-- Prix actuel
+            "usd_value": round(usd_value, 2), 
+            "wpt_price": current_price,
             "energy": int(current_e), 
+            "max_energy": getattr(config, 'MAX_ENERGY', 100), # Important pour la barre
+            "badge": badge,
             "rank": res_rank[0] if res_rank else "---",
+            "streak": streak or 0,
             "assets": assets, 
             "ref_count": ref_count
         }
+
     finally:
         c.close(); conn.close()
 
