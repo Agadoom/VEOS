@@ -233,40 +233,49 @@ polyline {
             </div>
         </div>
 
-        <div id="p-profil" class="page">
-            <div class="prof-header">
-                <h2 id="prof-name">Username</h2>
-                <div style="text-align:center; margin-top:10px;">
-                    <h1 id="usd-val" style="color:var(--green); margin:0;">$0.00 USD</h1>
-                    <small id="wpt-price" style="color:var(--text); opacity:0.7;">1 WPT = $0.0001</small>
-                </div>
-            </div>
-            <h3>💎 MY ASSETS</h3>
-            <div id="user-portfolio"></div>
-            <h3>🏆 LEADERBOARD</h3>
-            <div id="leaderboard"></div>
-        </div>
+        
 
-        <div class="bottom-logo-container">
-            <img src="static/logo.gif" alt="Logo" class="bottom-logo">
+
+
+<div id="p-profil" class="page">
+    <div class="prof-header">
+        <div style="display:flex; align-items:center; gap:15px; margin-bottom:15px;">
+            <div style="width:50px; height:50px; background:var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:20px;" id="prof-initials">
+                U
+            </div>
+            <div style="text-align:left;">
+                <h2 id="prof-name" style="margin:0; font-size:22px;">Username</h2>
+                <small id="prof-rank" style="color:var(--gold); font-weight:bold; letter-spacing:1px;">RANK: #---</small>
+            </div>
+        </div>
+        
+        <div style="background: rgba(255,255,255,0.05); padding:15px; border-radius:20px; border:1px solid #333;">
+            <small style="color:var(--text); display:block; margin-bottom:5px;">ESTIMATED VALUE</small>
+            <h1 id="usd-val" style="color:var(--green); margin:0; font-size:28px;">$0.00 USD</h1>
+            <small id="wpt-price" style="color:var(--text); opacity:0.7;">1 WPT = $0.0001</small>
         </div>
     </div>
 
-    <div id="trade-modal" class="modal-overlay" onclick="closeTrade()">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-handle"></div>
-            <h3 id="modal-title" style="margin-top:0; color:var(--gold);">Buy Token</h3>
-            <p id="modal-info" style="color:var(--text); font-size:12px;">Enter WPT amount to spend</p>
-            <div style="position:relative; margin:20px 0;">
-                <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px 80px 20px 20px;">
-                <button onclick="setMax()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:var(--gold); border:none; border-radius:8px; color:#000; font-weight:bold; padding:5px 10px; cursor:pointer; z-index:100;">MAX</button>
-            </div>
-            <div style="display:flex; gap:10px;">
-                <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
-                <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;">CONFIRM</button>
-            </div>
+    <h3 style="margin: 20px 10px 10px; display:flex; align-items:center; gap:8px;">
+        <span>💎</span> MY ASSETS
+    </h3>
+    <div id="user-portfolio" style="min-height: 50px;">
         </div>
-    </div>
+
+    <h3 style="margin: 25px 10px 10px; display:flex; align-items:center; gap:8px;">
+        <span>🏆</span> LEADERBOARD (TOP 10)
+    </h3>
+    <div id="leaderboard" style="margin-bottom: 100px;">
+        </div>
+</div>
+
+
+
+
+
+
+
+
 
     <nav class="nav">
         <div onclick="show('mine')" id="n-mine" class="n-i active">🏠</div>
