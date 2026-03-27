@@ -697,7 +697,7 @@ starsPacks.forEach((p, i) => {
 
 
 async function buyStarsPack(starsAmount) {
-console.log("Achat de " + amount + " stars");
+console.log("Montant cliqué:", amount);
     // starsAmount recevra 50, 250 ou 500 selon le bouton cliqué
     try {
         const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${starsAmount}`);
