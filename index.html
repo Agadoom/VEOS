@@ -247,48 +247,14 @@
         if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     }
 
-    // --- RÉCUPÉRER INFOS UTILISATEUR (Version Complète) ---
-    async function refresh() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            if (!r.ok) return;
-            const d = await r.json();
-            
-            userWptBalance = d.score || 0;
-            
-            // Mise à jour de tous les éléments d'interface possibles
-            const updates = {
-                'tot': userWptBalance.toFixed(2),
-                'wallet-balance': userWptBalance.toFixed(2),
-                'gv': (d.g || 0).toFixed(2),
-                'uv': (d.u || 0).toFixed(2),
-                'vv': (d.v || 0).toFixed(2),
-                'prof-name': d.name || "User",
-                'prof-rank': "RANK: #" + (d.rank || "---"),
-                'usd-val': `$${(d.usd_value || 0).toFixed(2)} USD`,
-                'wpt-price': `1 WPT = $${(d.wpt_price || 0.0001).toFixed(6)}`
-            };
+ 
 
-            for (let id in updates) {
-                const el = document.getElementById(id);
-                if(el) el.innerText = updates[id];
-            }
 
-            // Initiale du profil (Cercle doré)
-            const initEl = document.getElementById('prof-initials');
-            if(initEl && d.name) initEl.innerText = d.name.charAt(0).toUpperCase();
 
-            // Barre d'énergie
-            const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
-            const energyFill = document.getElementById('e-f');
-            const energyText = document.getElementById('e-t');
-            if(energyFill) energyFill.style.width = per + "%";
-            if(energyText) energyText.innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
 
-        } catch(e) { 
-            console.error("Refresh fail", e); 
-        }
-    }
+
+
+
 
     // --- MINING ---
     async function mine(type, event) {
