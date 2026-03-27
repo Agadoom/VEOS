@@ -624,23 +624,21 @@ if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
 
 
 async function buyStarsPack(starsAmount) {
+    // starsAmount recevra 50, 250 ou 500 selon le bouton cliqué
     try {
-        // Le `starsAmount` ici sera 50, 250 ou 500 selon le bouton cliqué
         const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${starsAmount}`);
         const d = await r.json();
-        
         if(d.invoice_link) {
             tg.openInvoice(d.invoice_link, (status) => {
                 if(status === 'paid') {
-                    tg.showAlert(`✨ Success! Pack added.`);
+                    tg.showAlert("✨ Pack added!");
                     refresh();
                 }
             });
         }
-    } catch(e) {
-        tg.showAlert("📡 Error");
-    }
+    } catch(e) { tg.showAlert("Error"); }
 }
+
 
 
 
