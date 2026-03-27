@@ -91,6 +91,35 @@
     box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
 }
 
+
+
+
+
+.modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(5px); display: none; align-items: flex-end;
+    z-index: 2000; animation: fadeIn 0.2s;
+}
+
+.modal-content {
+    background: #121214; width: 100%; padding: 25px;
+    border-radius: 30px 30px 0 0; border-top: 1px solid #333;
+    transform: translateY(100%); animation: slideUp 0.3s forwards;
+}
+
+.modal-handle {
+    width: 40px; height: 4px; background: #333;
+    border-radius: 10px; margin: 0 auto 20px;
+}
+
+@keyframes slideUp { to { transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+
+
+
+
+
 /* Boutons de Trade */
 .trade-btn {
     flex: 1; padding: 18px; border: none; border-radius: 18px;
@@ -256,6 +285,35 @@ polyline {
         <div onclick="show('launcher')" id="n-launcher" class="n-i">🚀</div>
         <div onclick="show('wallet')" id="n-wallet" class="n-i">💼</div> 
         <div onclick="show('profil')" id="n-profil" class="n-i">👤</div>
+
+
+
+
+
+
+<div id="trade-modal" class="modal-overlay" onclick="closeTrade()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <h3 id="modal-title" style="margin-top:0; color:var(--gold);">Buy Token</h3>
+        <p id="modal-info" style="color:var(--text); font-size:12px;">Enter WPT amount to spend</p>
+        
+        <div style="position:relative; margin:20px 0;">
+            <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:24px; text-align:center; padding:20px;">
+            <span id="trade-unit" style="position:absolute; right:15px; top:50%; transform:translateY(-50%); color:var(--gold); font-weight:bold;">WPT</span>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
+            <button id="modal-confirm-btn" class="btn" style="flex:2; background:var(--green); color:#000;" onclick="executeTrade()">CONFIRM</button>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+
     </nav>
 
     
@@ -377,12 +435,57 @@ polyline {
 
     // --- TRADE (BUY/SELL) MODAL (Si tu as le HTML pour ça) ---
     function openTrade(type) {
-        tradeType = type;
-        if(tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-        // Optionnel : Ajoute ici un prompt natif Telegram si tu n'as pas de modal HTML
-        const amount = prompt(type === 'buy' ? "Amount of WPT to spend:" : "Amount of tokens to sell:");
-        if(amount) executeTrade(amount);
+    tradeType = type;
+    const modal = document.getElementById('trade-modal');
+    const title = document.getElementById('modal-title');
+    const info = document.getElementById('modal-info');
+    const btn = document.getElementById('modal-confirm-btn');
+    const unit = document.getElementById('trade-unit');
+
+    modal.style.display = 'flex';
+    title.innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
+    info.innerText = (type === 'buy') ? 'How much WPT do you want to spend?' : 'How many tokens do you want to sell?';
+    unit.innerText = (type === 'buy') ? 'WPT' : 'TKN';
+    btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+    
+    document.getElementById('trade-amount').value = "";
+    document.getElementById('trade-amount').focus();
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+}
+
+function closeTrade() {
+    document.getElementById('trade-modal').style.display = 'none';
+}
+
+async function executeTrade() {
+    const val = document.getElementById('trade-amount').value;
+    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
+
+    tg.MainButton.showProgress();
+    closeTrade();
+
+    try {
+        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+        const r = await fetch(`${BASE_URL}${path}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
+        });
+        const res = await r.json();
+        if(res.ok) {
+            tg.showAlert(`✅ Success !`);
+            refresh();
+            if(currentTokenId) updateHoldings(currentTokenId);
+        } else {
+            tg.showAlert("❌ " + res.error);
+        }
+    } catch(e) {
+        tg.showAlert("Server error");
+    } finally {
+        tg.MainButton.hideProgress();
     }
+}
+
 
     async function executeTrade(val) {
         if (!val || val <= 0) return;
