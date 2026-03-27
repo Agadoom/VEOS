@@ -381,12 +381,12 @@ async function refresh() {
         });
 
         // 2. USERNAME & INITIALS (Le correctif pour toi)
-        const userName = d.name || d.username || d.first_name || "Citizen";
-        const nameEl = document.getElementById('prof-name');
-        if(nameEl) nameEl.innerText = userName;
-        
-        const initEl = document.getElementById('prof-initials');
-        if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
+        const userName = d.name || d.first_name || "Citizen";
+const nameEl = document.getElementById('prof-name');
+if(nameEl) nameEl.innerText = userName;
+
+const initEl = document.getElementById('prof-initials');
+if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
 
         // 3. Rank
         const rankValue = d.rank || d.position || "---";
