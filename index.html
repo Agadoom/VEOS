@@ -565,7 +565,12 @@ if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
             document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
 
 
-      
+      const starsPrices = [50, 250, 500];  // <--- C'est ICI que tout se joue
+const starsPacks = document.querySelectorAll('.star-price');
+starsPacks.forEach((p, i) => {
+    p.innerText = `${starsPrices[i]} Stars`;
+});
+
 
 
     } catch(e) { console.error("Refresh error:", e); }
