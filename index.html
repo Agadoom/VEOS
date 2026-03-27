@@ -27,12 +27,18 @@
 
 
 
-                </div> <div class="bottom-logo-container">
-        <img src="static/logo.gif" alt="OWPC Logo" class="bottom-logo">
-    </div>
-
-    <div class="nav">
-        </div>
+                 /* Style du logo en bas */
+    .bottom-logo-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        padding: 20px 0;
+        margin-bottom: 80px; /* Espace pour ne pas toucher la nav */
+    }
+    .bottom-logo {
+        max-width: 100px; /* Taille du GIF */
+        height: auto;
+    }
 
 
 
@@ -89,21 +95,6 @@
 
 
 
-.bottom-logo-container {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px 0; /* Espace au-dessus et en dessous */
-    margin-bottom: 70px; /* Important pour ne pas qu'il soit caché par la nav */
-    opacity: 0.8; /* Légèrement transparent pour le style */
-}
-
-.bottom-logo {
-    max-width: 80px; /* Ajuste la taille selon ton GIF */
-    height: auto;
-    filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.3)); /* Petit effet de lueur dorée */
-}
 
 
 
@@ -115,6 +106,24 @@
 </head>
 <body>
     <div class="ticker"><div class="t-wrap"><span style="color:var(--gold)">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN ● </span></div></div>
+
+
+
+<div class="container">
+        <div id="p-mine" class="page active-page"> ... </div>
+        <div id="p-wallet" class="page"> ... </div>
+        
+        <div class="bottom-logo-container">
+            <img src="static/logo.gif" alt="OWPC Logo" class="bottom-logo">
+        </div>
+    </div>
+
+    <div class="nav">
+        </div>
+
+
+
+
 
     <div class="container">
     <div id="p-mine" class="page active-page">
