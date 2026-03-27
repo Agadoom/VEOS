@@ -294,34 +294,37 @@ async function loadLeaderboard() {
     
     try {
         const r = await fetch(`${BASE_URL}/api/leaderboard`);
-        let users = await r.json();
+        const data = await r.json();
         
-        // Si le serveur renvoie un objet avec une propriété (ex: users.data), on s'adapte
-        if (!Array.isArray(users) && users.leaderboard) users = users.leaderboard;
-        if (!Array.isArray(users)) {
-            container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Data format error</p>";
+        // On cherche le tableau des users, peu importe où il est caché
+        let users = [];
+        if (Array.isArray(data)) users = data;
+        else if (data.leaderboard && Array.isArray(data.leaderboard)) users = data.leaderboard;
+        else if (data.data && Array.isArray(data.data)) users = data.data;
+
+        if (users.length === 0) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5;'>No data found</p>";
             return;
         }
 
         container.innerHTML = users.slice(0, 10).map((u, i) => {
-            // On vérifie toutes les clés possibles pour le score
-            const score = u.score || u.points || u.balance || 0;
-            const name = u.name || u.username || u.first_name || 'Anonymous';
-            
+            const score = parseFloat(u.score || u.points || u.balance || 0);
+            const name = u.name || u.username || "User";
             return `
                 <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:12px;">
                         <b style="width:25px; font-size:14px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
                         <span style="font-weight:500;">${name}</span>
                     </div>
-                    <b style="color:var(--gold);">${Math.floor(parseFloat(score)).toLocaleString()} <small style="font-size:10px; opacity:0.6;">WPT</small></b>
+                    <b style="color:var(--gold);">${Math.floor(score).toLocaleString()} <small style="font-size:10px; opacity:0.6;">WPT</small></b>
                 </div>
             `;
         }).join('');
     } catch(e) { 
-        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Offline</p>"; 
+        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Format Error or Offline</p>"; 
     }
 }
+
 
 // --- ASSETS (FIX VALUES) ---
 async function loadPortfolio() {
@@ -368,30 +371,41 @@ async function loadPortfolio() {
 async function refresh() {
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) return;
         const d = await r.json();
         
-        // On s'assure que userWptBalance est bien mis à jour globalement
+        // On stocke la balance globale
         userWptBalance = parseFloat(d.score || d.balance || 0);
 
-        // RANK
+        // Mise à jour de TOUS les affichages de balance
+        const balanceElements = ['tot', 'wallet-balance'];
+        balanceElements.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        });
+
+        // Mise à jour du Rank sur les deux IDs possibles
         const rankValue = d.rank || d.position || "---";
-        const rankEls = document.querySelectorAll('#prof-rank'); // On cible tous les éléments de rank
+        const rankEls = document.querySelectorAll('#prof-rank');
         rankEls.forEach(el => el.innerText = "RANK: #" + rankValue);
 
-        // SCORE PRINCIPAL
-        const tot = document.getElementById('tot');
-        if(tot) tot.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
+        // USD Value
+        const usdEl = document.getElementById('usd-val');
+        if(usdEl) usdEl.innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
 
-        // USD VALUE
-        const usdVal = document.getElementById('usd-val');
-        if(usdVal) usdVal.innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
+        // Énergie (Home page)
+        const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
+        const energyFill = document.getElementById('e-f');
+        if(energyFill) energyFill.style.width = per + "%";
+        
+        const energyText = document.getElementById('e-t');
+        if(energyText) energyText.innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
 
-        // INITIALS
-        const initEl = document.getElementById('prof-initials');
-        if(initEl && d.name) initEl.innerText = d.name.charAt(0).toUpperCase();
-
-    } catch(e) { console.error("Global refresh error"); }
+    } catch(e) { 
+        console.error("Refresh error:", e); 
+    }
 }
+
 
 
 
