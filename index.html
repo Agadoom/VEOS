@@ -202,22 +202,29 @@
     });
 
     async function connectWallet() {
-    console.log("Tentative de connexion...");
     try {
         const walletConnectionSource = {
             universalLink: 'https://tonkeeper.com/ton-connect',
             bridgeUrl: 'https://bridge.tonapi.io/bridge'
         };
+
+        // On génère l'URL de connexion
         const url = connector.connect(walletConnectionSource);
+
         if (url) {
-            tg.openTelegramLink(url);
-        } else {
-            tg.showAlert("Erreur : Impossible de générer le lien de connexion.");
+            // PETITE ASTUCE : Telegram préfère openLink pour les URLs externes 
+            // si openTelegramLink échoue avec cette erreur
+            if (window.Telegram && window.Telegram.WebApp) {
+                window.Telegram.WebApp.openLink(url);
+            } else {
+                window.location.href = url;
+            }
         }
     } catch (e) {
-        tg.showAlert("Erreur TonConnect : " + e.message);
+        tg.showAlert("Erreur de connexion : " + e.message);
     }
 }
+
 
 
     // --- MARKET & TOKEN DETAILS ---
