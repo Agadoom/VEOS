@@ -28,6 +28,19 @@
         .btn { background: #FFF; color: #000; border: none; padding: 12px 20px; border-radius: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; }
         .btn:active { transform: scale(0.95); opacity: 0.8; }
         
+
+
+
+                </div> <div class="bottom-logo-container">
+        <img src="static/logo.gif" alt="OWPC Logo" class="bottom-logo">
+    </div>
+
+    <div class="nav">
+        </div>
+
+
+
+ 
         /* Navigation */
         .nav { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(15,15,15,0.95); backdrop-filter: blur(15px); padding: 12px 35px; border-radius: 50px; display: flex; gap: 40px; border: 1px solid #333; z-index: 999; }
         .n-i { font-size: 24px; opacity: 0.3; transition: 0.3s; cursor:pointer; }
@@ -62,6 +75,28 @@
         opacity: 0;
     }
 }
+
+
+
+
+.bottom-logo-container {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0; /* Espace au-dessus et en dessous */
+    margin-bottom: 70px; /* Important pour ne pas qu'il soit caché par la nav */
+    opacity: 0.8; /* Légèrement transparent pour le style */
+}
+
+.bottom-logo {
+    max-width: 80px; /* Ajuste la taille selon ton GIF */
+    height: auto;
+    filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.3)); /* Petit effet de lueur dorée */
+}
+
+
+
 
 
 
