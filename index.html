@@ -291,47 +291,37 @@
     const container = document.getElementById('leaderboard');
     if(!container) return;
     
-    // Message de chargement temporaire
-    container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Loading rankings...</p>";
-    
     try {
         const r = await fetch(`${BASE_URL}/api/leaderboard`);
         const data = await r.json();
         
-        // --- LOG POUR DEBUG (A vérifier dans ta console F12) ---
-        console.log("Leaderboard Data Received:", data);
+        console.log("Données reçues :", data); // Vérifie ça dans ta console Chrome/Telegram
 
         let users = [];
-
-        // Stratégie de détection automatique du tableau
-        if (Array.isArray(data)) {
-            users = data;
-        } else if (data.leaderboard && Array.isArray(data.leaderboard)) {
-            users = data.leaderboard;
-        } else if (data.data && Array.isArray(data.data)) {
-            users = data.data;
-        } else {
-            // Si on ne trouve toujours pas, on cherche la première propriété qui est un tableau
-            for (let key in data) {
-                if (Array.isArray(data[key])) {
-                    users = data[key];
-                    break;
-                }
-            }
+        // On essaie de trouver le tableau n'importe où
+        if (Array.isArray(data)) users = data;
+        else if (data.leaderboard) users = data.leaderboard;
+        else if (data.data) users = data.data;
+        else if (data.top10) users = data.top10;
+        else {
+            // Si c'est un objet, on prend toutes ses valeurs
+            users = Object.values(data).filter(v => typeof v === 'object' && v !== null);
         }
+
+        // On filtre pour être sûr d'avoir des objets avec un score ou un nom
+        users = users.filter(u => u && (u.name || u.first_name || u.username || u.score !== undefined));
 
         if (users.length === 0) {
             container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:20px;'>No rankings available yet (Empty List)</p>";
             return;
         }
 
-        // On trie par score au cas où la DB ne le fait pas
-        users.sort((a, b) => (parseFloat(b.score || 0) - parseFloat(a.score || 0)));
+        // Tri forcé par score (du plus haut au plus bas)
+        users.sort((a, b) => parseFloat(b.score || 0) - parseFloat(a.score || 0));
 
         container.innerHTML = users.slice(0, 10).map((u, i) => {
-            // Détection des noms (Telegram utilise souvent first_name)
-            const name = u.name || u.username || u.first_name || "Citizen #" + (i+1);
-            const score = parseFloat(u.score || u.points || u.balance || 0);
+            const name = u.name || u.first_name || u.username || `Citizen #${u.user_id || i+1}`;
+            const score = parseFloat(u.score || u.balance || 0);
 
             return `
                 <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
@@ -345,10 +335,11 @@
         }).join('');
 
     } catch(e) { 
-        console.error("Leaderboard Error:", e);
-        container.innerHTML = "<p style='text-align:center; color:rgba(255,255,255,0.3);'>Rankings Offline</p>"; 
+        console.error("Erreur Leaderboard :", e);
+        container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Server Error</p>"; 
     }
 }
+
 
 
 
