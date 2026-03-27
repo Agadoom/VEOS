@@ -95,7 +95,7 @@
             </div>
         </div>
 
-                <div id="p-launcher" class="page">
+                       <div id="p-launcher" class="page">
             <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
             
             <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000; padding:20px;">
@@ -110,8 +110,11 @@
 
             <h3 style="margin-left:10px; margin-top:20px;">🔥 NEW LISTINGS</h3>
             <div id="token-list"></div>
-        </div>
-
+        </div> <div id="p-details" class="page">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; padding: 10px;">
+                <button class="btn" onclick="show('launcher')" style="background:#222; color:#fff;">← BACK</button>
+                <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
+            </div>
 
             <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center;">
                 <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
@@ -133,7 +136,15 @@
                 <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
                 <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
             </div>
-        </div>
+        </div> ```
+
+### 💡 Ce qui a été corrigé :
+1.  **Le "Mur" entre les deux :** J'ai ajouté le `</div>` qui manquait après `id="token-list"`. Sans lui, la page détails "coulait" à l'intérieur de la page launcher.
+2.  **L'en-tête de Détails :** J'ai rajouté la balise `<div id="p-details" class="page">` au début de la section détails car elle avait disparu dans ton message précédent.
+3.  **Le bouton Retour :** J'ai vérifié que le bouton `← BACK` appelle bien `show('launcher')` pour que tu puisses sortir proprement des détails.
+
+**Normalement, quand tu ouvres le Launchpad maintenant, tu ne devrais plus voir le graphique et les boutons Buy/Sell en dessous.** Est-ce que l'affichage est redevenu propre ? Si oui, on peut s'attaquer au système d'achat ! 🚀📈
+
 
         <div id="p-wallet" class="page">
             <h2 style="text-align:center;">💼 WALLET</h2>
