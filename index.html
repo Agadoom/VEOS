@@ -518,65 +518,94 @@ polyline {
     }
 
     // --- REFRESH & PORTFOLIO ---
-   let userWptBalance = 0; // Pour stocker ton solde WPT global
-let userTokenBalance = 0; // Pour stocker ton solde du token actuel
+ // --- VARIABLES DE SOLDE GLOBALES ---
+let userWptBalance = 0; 
+let userTokenBalance = 0; 
 
-// Modifie ta fonction refresh pour capturer le solde WPT
+// 1. REFRESH GLOBAL (WPT, Énergie, Profil)
 async function refresh() {
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) return;
         const d = await r.json();
-        userWptBalance = d.score; // ON SAUVEGARDE LE SOLDE WPT ICI
+        
+        userWptBalance = d.score; // Sauvegarde du WPT pour le bouton MAX
 
-            const updates = {
-                'tot': d.score.toFixed(2),
-                'gv': d.g.toFixed(2),
-                'uv': d.u.toFixed(2),
-                'vv': d.v.toFixed(2),
-                'wallet-balance': d.score.toFixed(2),
-                'prof-name': d.name,
-                'prof-rank': "RANK: #" + d.rank,
-                'usd-val': `$${d.usd_value.toFixed(2)} USD`,
-                'wpt-price': `1 WPT = $${d.wpt_price.toFixed(6)}`
-            };
+        const updates = {
+            'tot': d.score.toFixed(2),
+            'gv': d.g.toFixed(2),
+            'uv': d.u.toFixed(2),
+            'vv': d.v.toFixed(2),
+            'wallet-balance': d.score.toFixed(2),
+            'prof-name': d.name,
+            'prof-rank': "RANK: #" + d.rank,
+            'usd-val': `$${d.usd_value.toFixed(2)} USD`,
+            'wpt-price': `1 WPT = $${d.wpt_price.toFixed(6)}`
+        };
 
-            for (let id in updates) {
-                const el = document.getElementById(id);
-                if(el) el.innerText = updates[id];
-            }
+        for (let id in updates) {
+            const el = document.getElementById(id);
+            if(el) el.innerText = updates[id];
+        }
 
+        // Énergie
+        const per = (d.energy / d.max_energy) * 100;
+        const bar = document.getElementById('e-f');
+        if(bar) bar.style.width = per + "%";
+        const txt = document.getElementById('e-t');
+        if(txt) txt.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
 
-const el = document.getElementById('det-user-balance');
-        if(el) el.innerText = `Holdings: ${userTokenBalance.toFixed(2)}`;
-    } catch (e) { userTokenBalance = 0; }
+    } catch(e) { console.error("Refresh error:", e); }
 }
 
+// 2. MISE À JOUR DU SOLDE SPÉCIFIQUE AU TOKEN (Holdings)
+async function updateHoldings(tokenId) {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
+        const d = await r.json();
+        userTokenBalance = d.ok ? d.balance : 0; // Sauvegarde du solde token pour le bouton MAX
+        
+        const el = document.getElementById('det-user-balance');
+        if(el) el.innerText = `Holdings: ${userTokenBalance.toFixed(2)} tokens`;
+    } catch (e) { 
+        userTokenBalance = 0; 
+        if(document.getElementById('det-user-balance')) document.getElementById('det-user-balance').innerText = "Holdings: 0.00";
+    }
+}
 
+// 3. FONCTION POUR LE BOUTON MAX
+function setMax() {
+    const input = document.getElementById('trade-amount');
+    // Si ACHAT -> utilise le WPT | Si VENTE -> utilise le solde du Token
+    input.value = (tradeType === 'buy') ? userWptBalance.toFixed(2) : userTokenBalance.toFixed(2);
+    if(tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+}
 
-
-// FONCTION OPEN TRADE CORRIGÉE
+// 4. OUVERTURE DE LA MODAL DE TRADE
 function openTrade(type) {
     tradeType = type;
     document.getElementById('trade-modal').style.display = 'flex';
     document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
     
+    // On change le bouton de confirmation
     const btn = document.getElementById('modal-confirm-btn');
     btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+    btn.innerText = (type === 'buy') ? 'CONFIRM BUY' : 'CONFIRM SELL';
     
-    // TRÈS IMPORTANT : On lie le clic au bouton ici
+    // On lie l'exécution au clic
     btn.onclick = () => executeTrade(); 
 
     document.getElementById('trade-amount').value = "";
     if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 }
 
+// 5. EXÉCUTION DU TRADE SUR LE SERVEUR
 async function executeTrade() {
     const val = document.getElementById('trade-amount').value;
     if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
 
     tg.MainButton.showProgress();
-    // On ne ferme la modal qu'après pour éviter les clics multiples
+    
     try {
         const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
         const r = await fetch(`${BASE_URL}${path}`, {
@@ -591,10 +620,10 @@ async function executeTrade() {
         const res = await r.json();
         
         if(res.ok) {
-            closeTrade();
-            tg.showAlert(`✅ Trade Successful !`);
-            refresh();
-            if(currentTokenId) setTimeout(() => updateHoldings(currentTokenId), 500);
+            closeTrade(); // On ferme la modal
+            tg.showAlert(`✅ Success!`);
+            refresh(); // Update WPT
+            if(currentTokenId) setTimeout(() => updateHoldings(currentTokenId), 500); // Update Token Balance
         } else {
             tg.showAlert("❌ " + res.error);
         }
@@ -604,6 +633,7 @@ async function executeTrade() {
         tg.MainButton.hideProgress();
     }
 }
+
 
 
 
