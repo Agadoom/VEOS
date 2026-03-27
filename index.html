@@ -524,6 +524,30 @@ if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
 
 
 
+async function buyStarsPack() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}`);
+        const d = await r.json();
+        if(d.invoice_link) {
+            tg.openInvoice(d.invoice_link, (status) => {
+                if(status === 'paid') {
+                    tg.showAlert("✨ Payment Successful! Your WPT Pack is added.");
+                    refresh();
+                }
+            });
+        } else {
+            tg.showAlert("❌ Could not create invoice");
+        }
+    } catch(e) {
+        tg.showAlert("📡 Connection error");
+    }
+}
+
+
+
+
+
+
 function shareRef() {
     tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/OWPCsBot?start=${uid}&text=🚀 Join WPT Hub and mine tokens with me!`);
 }
