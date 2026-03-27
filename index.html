@@ -287,7 +287,24 @@
             <h3>🏆 TOP 10 LEADERBOARD</h3>
             <div id="leaderboard" style="margin-bottom: 100px;"></div>
         </div>
+
+
+
+<div class="card" style="margin-top:20px;">
+    <h3>🎁 Invite Friends</h3>
+    <p style="font-size:12px; color:var(--text);">Share your link and get +500 WPT per friend!</p>
+    
+    <div id="ref-link-display" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin:10px 0; border:1px dashed var(--gold); word-break: break-all;">
+        Loading link...
     </div>
+
+    <button class="btn-buy-stars" onclick="shareRef()" style="background:var(--gold); color:#000;">
+        SHARE LINK
+    </button>
+</div>
+
+    </div>
+
 
     <div id="trade-modal" class="modal-overlay" onclick="closeTrade()">
         <div class="modal-content" onclick="event.stopPropagation()">
