@@ -322,52 +322,72 @@
 
     // --- LEADERBOARD ---
     async function loadLeaderboard() {
-        const container = document.getElementById('leaderboard');
-        if(!container) return;
+    const container = document.getElementById('leaderboard');
+    if(!container) return;
+    
+    try {
+        const r = await fetch(`${BASE_URL}/api/leaderboard`);
+        const users = await r.json();
         
-        try {
-            const r = await fetch(`${BASE_URL}/api/leaderboard`);
-            const users = await r.json();
-            
-            container.innerHTML = users.slice(0, 10).map((u, i) => `
-                <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px;">
-                    <div style="display:flex; align-items:center; gap:12px; width:100%;">
-                        <b style="width:25px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
-                        <span style="flex:1;">${u.name}</span>
-                        <b style="color:var(--gold);">${Math.floor(u.score).toLocaleString()}</b>
-                    </div>
+        if(!users || users.length === 0) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5;'>Empty rankings</p>";
+            return;
+        }
+
+        container.innerHTML = users.slice(0, 10).map((u, i) => `
+            <div class="card" style="border-left: 4px solid ${i < 3 ? 'var(--gold)' : '#333'}; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <b style="width:25px; font-size:14px;">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1)}</b>
+                    <span style="font-weight:500;">${u.name || 'Anonymous'}</span>
                 </div>
-            `).join('');
-        } catch(e) { container.innerHTML = "Error loading leaderboard"; }
+                <b style="color:var(--gold);">${Math.floor(parseFloat(u.score) || 0).toLocaleString()} <small style="font-size:10px; opacity:0.6;">WPT</small></b>
+            </div>
+        `).join('');
+    } catch(e) { 
+        console.error("Leaderboard Error:", e);
+        container.innerHTML = "Error loading rank"; 
     }
+}
+
 
     // --- PORTFOLIO (Version Corrigée) ---
     async function loadPortfolio() {
-        const container = document.getElementById('user-portfolio');
-        if(!container) return;
+    const container = document.getElementById('user-portfolio');
+    if(!container) return;
 
-        try {
-            const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-            const assets = await r.json();
-            
-            if(!assets || assets.length === 0) {
-                container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:15px;'>No assets found.</p>";
-                return;
-            }
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        const assets = await r.json();
+        
+        if(!assets || assets.length === 0) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:15px;'>No assets found.</p>";
+            return;
+        }
 
-            container.innerHTML = assets.map(a => `
+        container.innerHTML = assets.map(a => {
+            // Sécurité anti-NaN : on force en nombre et on met 0 par défaut
+            const balance = parseFloat(a.balance) || 0;
+            const price = parseFloat(a.price) || 0;
+            const totalValue = (balance * price).toFixed(2);
+
+            return `
                 <div class="card" onclick="fetchAndOpenToken(${a.token_id})" style="cursor:pointer; margin-bottom:8px;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${a.logo}" style="width:35px; height:35px; border-radius:8px; object-fit:cover;">
-                        <div><b>${a.symbol}</b><br><small>${parseFloat(a.balance).toFixed(2)} tokens</small></div>
+                        <img src="${a.logo || ''}" style="width:35px; height:35px; border-radius:8px; object-fit:cover; background:#222;">
+                        <div><b>${a.symbol || '???'}</b><br><small>${balance.toFixed(2)} tokens</small></div>
                     </div>
                     <div style="text-align:right;">
-                        <b style="color:var(--green);">${(parseFloat(a.balance) * a.price).toFixed(2)}</b><br><small>WPT</small>
+                        <b style="color:var(--green);">${totalValue}</b><br><small>WPT</small>
                     </div>
                 </div>
-            `).join('');
-        } catch(e) { container.innerHTML = "Error loading assets"; }
+            `;
+        }).join('');
+    } catch(e) { 
+        console.error("Portfolio Error:", e);
+        container.innerHTML = "<p style='text-align:center; color:red;'>Error loading assets</p>";
     }
+}
+
 
     // --- TRADE LOGIC ---
     function openTrade(type) {
