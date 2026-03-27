@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 
 # Import de tes configurations et modules
 import config, database
-from routes import mine, launcher, user, start
+from routes import mine, launcher, user, stars
 
 # --- INITIALIZATION ---
 database.init_db_structure()
