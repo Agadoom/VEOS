@@ -368,42 +368,49 @@
 
    <div id="p-details" class="page">
     <div style="padding: 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
             <button class="btn" onclick="closeDetails()" style="background:#222; color:#fff;">← BACK</button>
-            <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
+            <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000100</b>
         </div>
 
-        <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; background-position:center; background-color:#1a1a1c; border: 1px solid #333; position:relative;">
-            <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
-        </div>
-
-        <div style="margin-top:40px; padding:0 15px;">
-            <h2 id="det-name" style="margin:0;"></h2>
-            <b id="det-sym" style="color:var(--gold)"></b>
-            <p id="det-user-balance" style="color:var(--text); font-size:12px; margin-top:5px;">Balance: 0.00</p>
-        </div>
-
-        <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px; margin-top:15px; background:rgba(255,255,255,0.03);">
-            <p id="det-desc" style="font-size:13px; color:var(--text); margin:0; line-height:1.4;">
-                No description provided.
-            </p>
-            
-            <div id="det-socials" style="display:flex; gap:15px; margin-top:10px; border-top:1px solid #222; width:100%; padding-top:10px;">
+        <div style="margin-top:20px; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h1 id="det-name" style="margin:0; font-size: 32px; font-weight: 800; color: #fff;">Token Name</h1>
+                    <small style="color:var(--gold); font-size: 11px; text-transform: uppercase;">WPT ECOSYSTEM TOKEN</small>
                 </div>
+                
+                <div id="det-socials" style="display:flex; gap:15px; margin-top: 10px;">
+                    </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                <b id="det-sym" style="color:var(--gold); font-size: 16px;">$SYM</b>
+                <p id="det-user-balance" style="color:var(--text); font-size:11px; margin: 0;">Balance: 0.00</p>
+            </div>
         </div>
 
-        <div class="chart-container" style="margin-top:15px; background: rgba(255,255,255,0.02); border-radius: 15px; padding: 10px;">
-            <svg viewBox="0 0 300 100" style="width:100%; height:80px;">
+        <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px; margin-top:20px; background:#0a0a0b; padding: 20px; border: 1px solid #222;">
+            <p id="det-desc" style="font-size:13px; color:var(--text); margin:0; line-height:1.4;">
+                This project has no description yet.
+            </p>
+        </div>
+
+        <div class="chart-container" style="margin-top:20px; background: rgba(255,255,255,0.02); border-radius: 15px; padding: 10px; position: relative;">
+            <img src="static/genesis.png" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; opacity: 0.05; pointer-events: none;">
+            
+            <svg viewBox="0 0 300 100" style="width:100%; height:80px; position: relative; z-index: 1;">
                 <polyline fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 50,70 100,85 150,50 200,60 250,30 300,40" />
             </svg>
         </div>
 
-        <div id="det-actions-trade" style="display:flex; gap:10px; padding:15px 0;">
-            <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
-            <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
+        <div id="det-actions-trade" style="display:flex; gap:12px; padding:20px 0;">
+            <button class="btn btn-action" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
+            <button class="btn btn-action" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
         </div>
     </div>
 </div>
+
 
 
     <div id="trade-modal">
@@ -552,95 +559,52 @@ async function loadMarket() {
 }
 
 // 2. AFFICHAGE DES DÉTAILS
-function openTokenDetails(t) {
-    // 1. Vibration immédiate pour confirmer le clic
-    if (window.Telegram && tg.HapticFeedback) {
-        tg.HapticFeedback.impactOccurred('medium');
-    }
+// DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
 
-    console.log("Données reçues pour le token:", t); // Pour debug dans la console
-    
+function openTokenDetails(t) {
     sourcePage = 'p-launcher';
     currentTokenId = t.id;
     
-    // 2. Mise à jour des textes avec sécurité (vérifie si l'ID existe)
-    const setText = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.innerText = val;
-    };
+    // Vibration d'impact au clic
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-    setText('det-name', t.name);
-    setText('det-sym', '$' + t.symbol);
-    setText('det-price-top', parseFloat(t.price || 0).toFixed(6));
-    setText('det-desc', t.description || "No description provided.");
-
-    // 3. Gestion du Logo
-    const logoImg = document.getElementById('det-logo');
-    if (logoImg) {
-        logoImg.src = t.logo || '';
-        logoImg.style.display = t.logo ? 'block' : 'none';
-    }
-
-    // 4. Gestion de la Bannière
-    const bannerBox = document.getElementById('det-banner');
-    if (bannerBox) {
-        if (t.banner) {
-            bannerBox.style.backgroundImage = `url(${t.banner})`;
-            bannerBox.style.backgroundSize = 'cover';
-            bannerBox.style.backgroundPosition = 'center';
-        } else {
-            bannerBox.style.backgroundImage = 'none';
-        }
-    }
-
-    // 5. Gestion des Liens Sociaux (URLs cliquables)
-    const socialDiv = document.getElementById('det-socials') || document.getElementById('det-links');
-    if (socialDiv) {
-        socialDiv.innerHTML = ""; 
-        let hasLinks = false;
-
-        // Lien Website
-        if (t.website && t.website.length > 3) {
-            const webLink = document.createElement('a');
-            webLink.href = t.website.startsWith('http') ? t.website : 'https://' + t.website;
-            webLink.target = "_blank";
-            webLink.innerHTML = "🌐 Website";
-            webLink.style = "text-decoration:none; color:var(--blue); font-weight:bold; font-size:13px; margin-right:15px;";
-            socialDiv.appendChild(webLink);
-            hasLinks = true;
-        }
-        
-        // Lien Twitter
-        if (t.twitter && t.twitter.length > 1) {
-            const xLink = document.createElement('a');
-            let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
-            xLink.href = xUrl;
-            xLink.target = "_blank";
-            xLink.innerHTML = "𝕏 Twitter";
-            xLink.style = "text-decoration:none; color:#fff; font-weight:bold; font-size:13px;";
-            socialDiv.appendChild(xLink);
-            hasLinks = true;
-        }
-        socialDiv.style.display = hasLinks ? "flex" : "none";
-    }
-
-    // 6. Affichage des boutons d'action
-    const tradeActions = document.getElementById('det-actions-trade');
-    if (tradeActions) tradeActions.style.display = 'flex';
+    // Remplissage texte de base
+    document.getElementById('det-name').innerText = t.name;
+    document.getElementById('det-sym').innerText = '$' + t.symbol;
+    document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
     
-    const walletActions = document.getElementById('det-actions-wallet');
-    if (walletActions) walletActions.style.display = 'none';
-
-    // 7. Chargement du solde et affichage de la page
-    if (typeof updateHoldings === "function") updateHoldings(t.id);
+    // Remplissage Description
+    document.getElementById('det-desc').innerText = t.description; // Récupéré depuis le Python
     
-    const detailsPage = document.getElementById('p-details');
-    if (detailsPage) {
-        detailsPage.style.display = 'block';
-        // Si tu utilises un système de classes pour les pages :
-        // showPage('p-details'); 
+    // Gestion des Liens Sociaux (URLs cliquables en haut à droite)
+    const socialDiv = document.getElementById('det-socials');
+    socialDiv.innerHTML = ""; // On vide avant de remplir
+    
+    let hasLinks = false;
+
+    if (t.website && t.website.length > 3) {
+        socialDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
+        hasLinks = true;
     }
+    
+    if (t.twitter && t.twitter.length > 1) {
+        // On nettoie l'URL X si besoin (si l'user a juste mis le @)
+        let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
+        socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px;">𝕏</a>`;
+        hasLinks = true;
+    }
+
+    // Si aucun lien n'existe, on cache la barre sociale
+    socialDiv.style.display = hasLinks ? "flex" : "none";
+
+    // AfficherBUY/SELL, cacher Walletactions
+    document.getElementById('det-actions-trade').style.display = 'flex';
+    document.getElementById('det-actions-wallet').style.display = 'none';
+
+    updateHoldings(t.id);
+    showPage('p-details');
 }
+
 
 
 
