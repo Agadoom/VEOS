@@ -57,7 +57,13 @@ async def create_invoice(uid: int):
         print(f"Invoice Error: {e}")
         return {"error": str(e)}
 
-from owpcsbot import bot
+import telebot
+import os
+
+# Initialisation directe
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(BOT_TOKEN)
+
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     args = message.text.split()
