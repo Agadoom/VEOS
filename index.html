@@ -504,77 +504,61 @@ async function refresh() {
         if (!r.ok) return;
         const d = await r.json();
         
-        // 1. Balance
-        userWptBalance = parseFloat(d.score || d.balance || 0);
+        // 1. BALANCE TOTALE
+        userWptBalance = parseFloat(d.score || 0);
         ['tot', 'wallet-balance'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
         });
 
         // 2. USERNAME & INITIALS
-        const userName = d.name || d.first_name || "Citizen";
-        const nameEl = document.getElementById('prof-name');
-        if(nameEl) nameEl.innerText = userName;
+        const userName = d.name || "Citizen";
+        if(document.getElementById('prof-name')) 
+            document.getElementById('prof-name').innerText = userName;
+        if(document.getElementById('prof-initials')) 
+            document.getElementById('prof-initials').innerText = userName.charAt(0).toUpperCase();
 
-        const initEl = document.getElementById('prof-initials');
-        if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
-
-        // 3. Rank
-        const rankValue = d.rank || d.position || "---";
+        // 3. RANK
+        const rankValue = d.rank || "---";
         document.querySelectorAll('#prof-rank').forEach(el => el.innerText = "RANK: #" + rankValue);
 
-        // 4. USD & Énergie
+        // 4. USD & ÉNERGIE
         if(document.getElementById('usd-val')) 
             document.getElementById('usd-val').innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
+        if(document.getElementById('wpt-price')) 
+            document.getElementById('wpt-price').innerText = `1 WPT = $${d.wpt_price}`;
 
         const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
         if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
         if(document.getElementById('e-t')) 
             document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
 
-        // 5. Mise à jour des prix Stars
+        // 5. ASSETS (LES FAMEUX 0.00 CORRIGÉS)
+        // On utilise d.g, d.u, d.v car c'est ce que ton Python envoie
+        if(document.getElementById('gv')) 
+            document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+        if(document.getElementById('uv')) 
+            document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+        if(document.getElementById('vv')) 
+            document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+
+        // 6. LIEN DE PARRAINAGE
+        const refDisplay = document.getElementById('ref-link-display');
+        if (refDisplay) {
+            refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
+        }
+
+        // 7. STARS SHOP PRICES
         const starsPrices = [50, 250, 500];
-        const starsPacks = document.querySelectorAll('.star-price');
-        starsPacks.forEach((p, i) => {
+        document.querySelectorAll('.star-price').forEach((p, i) => {
             if(starsPrices[i]) p.innerText = `${starsPrices[i]} Stars`;
         });
 
-        // 6. LIEN DE PARRAINAGE (CORRIGÉ ICI)
-        const refDisplay = document.getElementById('ref-link-display');
-        if (refDisplay) {
-            // On utilise 'uid' car c'est ta variable globale
-            refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
-
-
-const genesisEl = document.querySelector('.card:nth-child(2) small'); // Ou l'ID si tu en as mis un
-if(genesisEl) {
-    // Si 'd.score' est ton total, affiche-le ici aussi ou utilise une autre variable de ta BDD
-    genesisEl.innerText = parseFloat(d.score || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-
-
-
-// --- MISE À JOUR DES PETITS COMPTEURS (Genesis, Unity, Veo) ---
-const gv = document.getElementById('gv');
-if(gv) gv.innerText = parseFloat(d.p_genesis || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-
-const uv = document.getElementById('uv');
-if(uv) uv.innerText = parseFloat(d.p_unity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-
-const vv = document.getElementById('vv');
-if(vv) vv.innerText = parseFloat(d.p_veo || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-
-
-
-
+    } catch(e) { 
+        console.error("Refresh error:", e); 
+    }
 }
 
-
-
-
-        }
-
-    } catch(e) { console.error("Refresh error:", e); }
-}
 
 
 
