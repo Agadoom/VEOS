@@ -146,23 +146,20 @@ async def get_token_stats(tid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On compte les holders réels (ceux qui ont plus de 0 tokens)
-        c.execute("SELECT COUNT(DISTINCT user_id) FROM user_community_assets WHERE token_id = %s AND amount > 0", (tid,))
-        holders = c.fetchone()[0] or 0
+        # On compte les holders + on ajoute 1 (le créateur)
+        c.execute("SELECT COUNT(DISTINCT user_id) FROM user_community_assets WHERE token_id = %s", (tid,))
+        holders = (c.fetchone()[0] or 0) + 1 
         
         c.execute("SELECT price FROM community_tokens WHERE id = %s", (tid,))
-        p_res = c.fetchone()
-        price = float(p_res[0]) if p_res else 0.0001
+        price = float(c.fetchone()[0] or 0.0001)
         
-        # Calcul du Market Cap : On part sur une base de 1 milliard de supply pour le réseau WPT
+        # Market Cap basé sur 1 milliard de supply
         mcap = price * 1000000000
         
-        return {
-            "mcap": round(mcap, 2),
-            "holders": holders
-        }
+        return {"holders": holders, "mcap": round(mcap, 2)}
     finally:
         c.close(); conn.close()
+
 
 
 
