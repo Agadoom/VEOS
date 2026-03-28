@@ -533,24 +533,49 @@
         } catch(e) {}
     }
 
-    function handleTokenClick(t) {
-        sourcePage = 'p-launcher'; currentTokenId = t.id;
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = '$' + t.symbol;
-        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-        document.getElementById('det-logo').src = t.logo || '';
-        document.getElementById('det-banner').style.backgroundImage = t.banner ? `url(${t.banner})` : 'none';
-        
-        // Description & Socials
-        document.getElementById('det-desc').innerText = t.description || "This project has no description yet.";
-        const socialDiv = document.getElementById('det-socials');
-        socialDiv.innerHTML = "";
-        if(t.website_url) socialDiv.innerHTML += `<a href="${t.website_url}" target="_blank" style="text-decoration:none; color:var(--blue); font-weight:bold;">🌐 Website</a>`;
-        if(t.twitter_url) socialDiv.innerHTML += `<a href="${t.twitter_url}" target="_blank" style="text-decoration:none; color:#fff; font-weight:bold;">𝕏 Twitter</a>`;
-        
-        updateHoldings(t.id);
-        document.getElementById('p-details').style.display = 'block';
+    // DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
+
+function openTokenDetails(t) {
+    sourcePage = 'p-launcher';
+    currentTokenId = t.id;
+    
+    // Remplissage texte de base
+    document.getElementById('det-name').innerText = t.name;
+    document.getElementById('det-sym').innerText = '$' + t.symbol;
+    document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+    
+    // Remplissage Description (Mise à jour Cool)
+    document.getElementById('det-desc').innerText = t.description; // Récupéré depuis le Python
+    
+    // Remplissage des Liens URLs cliquables
+    const linksDiv = document.getElementById('det-links');
+    linksDiv.innerHTML = ""; // On vide avant de remplir
+    
+    let hasLinks = false;
+
+    if (t.website) {
+        linksDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; color:var(--blue); font-size:13px; font-weight:bold;">🌐 Website</a>`;
+        hasLinks = true;
     }
+    
+    if (t.twitter) {
+        // On nettoie l'URL X si besoin (si l'user a juste mis le @)
+        let xUrl = t.twitter.includes('t.co') || t.twitter.includes('x.com') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
+        linksDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; color:#fff; font-size:13px; font-weight:bold;">𝕏 Twitter</a>`;
+        hasLinks = true;
+    }
+
+    // Si aucun lien n'existe, on cache la barre sociale
+    linksDiv.style.display = hasLinks ? "flex" : "none";
+
+    // AfficherBUY/SELL, cacher Walletactions
+    document.getElementById('det-actions-trade').style.display = 'flex';
+    document.getElementById('det-actions-wallet').style.display = 'none';
+
+    updateHoldings(t.id);
+    showPage('p-details');
+}
+
 
     // --- TRADE ---
     function openTrade(type) {
