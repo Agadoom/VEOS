@@ -657,42 +657,33 @@ if (window.Telegram && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medi
     function closeDetails() { document.getElementById('p-details').style.display = 'none'; }
 
     async function executeTrade() {
-    const amountInput = document.getElementById('trade-amount');
-    const val = parseFloat(amountInput.value);
+    const val = parseFloat(document.getElementById('trade-amount').value);
+    
+    // On récupère l'ID depuis window pour être SÛR qu'il est là
+    const tid = window.currentTokenId;
 
-    // Sécurité de base
-    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
-    if (!currentTokenId) return tg.showAlert("Error: Token ID missing");
+    if (!val || val <= 0) return tg.showAlert("Please enter an amount");
+    if (!tid) return tg.showAlert("Error: ID still missing. Please close and reopen the token.");
 
     try {
         const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
         
-        const response = await fetch(`${BASE_URL}${path}`, {
+        const r = await fetch(`${BASE_URL}${path}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                user_id: parseInt(uid),           // Force INTEGER
-                token_id: parseInt(currentTokenId), // Force INTEGER
-                amount: parseFloat(val)            // Force FLOAT
+                user_id: parseInt(uid),
+                token_id: parseInt(tid), // On utilise tid ici
+                amount: parseFloat(val)
             })
         });
-
-        const res = await response.json();
-
-        if (response.ok) {
-            tg.showAlert("✅ Transaction Successful!");
-            closeTrade();
-            refresh(); 
-            updateHoldings(currentTokenId);
-        } else {
-            // Affiche l'erreur détaillée de FastAPI si elle existe
-            console.error("Détails erreur 422:", res.detail);
-            tg.showAlert(res.error || "Check your balance or input");
-        }
-    } catch (e) {
-        tg.showAlert("Network Error: Trade failed");
+        
+        // ... suite de ton fetch (res.ok, etc.)
+    } catch(e) {
+        tg.showAlert("Trade failed");
     }
 }
+
 
 
     async function updateHoldings(tid) {
