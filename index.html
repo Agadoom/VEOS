@@ -468,56 +468,61 @@
 
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) throw new Error("Erreur réseau");
+        if (!r.ok) throw new Error("Erreur Serveur : " + r.status);
         
         const d = await r.json(); // Reçoit l'objet { "g": ..., "score": ..., "name": ... }
 
-        console.log("Données reçues du Python:", d);
+        // --- FONCTION DE MISE À JOUR SÉCURISÉE ---
+        const update = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
+        };
 
-        // --- MISE À JOUR DES SOLDES (CLÉS PYTHON) ---
-        // Ton Python envoie 'score' pour le total et 'g' pour Genesis (WPT)
-        const totalWPT = parseFloat(d.score || 0);
+        // 1. Mise à jour des Soldes (Clés Python: score, g, u, v)
+        // 'score' est ton score total calculé en Python
+        const totalScore = parseFloat(d.score || 0);
+        update('tot', totalScore.toLocaleString());
+        update('wallet-balance', totalScore.toLocaleString());
         
-        if(document.getElementById('tot')) 
-            document.getElementById('tot').innerText = totalWPT.toLocaleString();
+        // Sous-balances (Genesis, Unity, Veo)
+        // 'g' est ton p_genesis, 'u' ton p_unity, 'v' ton p_veo
+        update('gv', parseFloat(d.g || 0).toLocaleString());
+        update('uv', parseFloat(d.u || 0).toLocaleString());
+        update('vv', parseFloat(d.v || 0).toLocaleString());
+
+        // 2. Infos Profil (Clés Python: name, rank, usd_value)
+        update('prof-name', d.name || 'Citizen');
+        update('prof-rank', "RANK: #" + (d.rank || '---'));
+        update('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
         
-        if(document.getElementById('wallet-balance')) 
-            document.getElementById('wallet-balance').innerText = totalWPT.toLocaleString();
+        // Initiale du cercle
+        const initEl = document.getElementById('prof-initials');
+        if (initEl) initEl.innerText = (d.name || "C")[0].toUpperCase();
 
-        // Sous-soldes
-        if(document.getElementById('gv')) document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString();
-        if(document.getElementById('uv')) document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString();
-        if(document.getElementById('vv')) document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString();
-
-        // --- INFOS PROFIL ---
-        if(document.getElementById('prof-name')) 
-            document.getElementById('prof-name').innerText = d.name || 'Citizen';
-        
-        if(document.getElementById('prof-rank')) 
-            document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || '---');
-            
-        if(document.getElementById('usd-val')) 
-            document.getElementById('usd-val').innerText = "$" + parseFloat(d.usd_value || 0).toFixed(2);
-
-        // --- ENERGIE ---
-        if(document.getElementById('e-f')) {
-            const percent = (d.energy / (d.max_energy || 100)) * 100;
-            document.getElementById('e-f').style.width = percent + "%";
+        // 3. Énergie (Clés Python: energy, max_energy)
+        const eBar = document.getElementById('e-f');
+        if (eBar && d.max_energy > 0) {
+            const percent = (d.energy / d.max_energy) * 100;
+            eBar.style.width = percent + "%";
         }
-        if(document.getElementById('e-t')) 
-            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
+        update('e-t', `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`);
 
-        // Initiale
-        if(document.getElementById('prof-initials')) 
-            document.getElementById('prof-initials').innerText = (d.name || "U")[0].toUpperCase();
+        // 4. Lien de parrainage
+        const refEl = document.getElementById('ref-link-display');
+        if (refEl) refEl.innerText = `https://t.me/OWPCsBot?start=${uid}`;
 
-        // On stocke le solde WPT pour les futurs achats
-        window.userWptBalance = parseFloat(d.g || 0);
+        // Variable globale pour le minage/achat
+        // Ton Python renvoie 'g' pour Genesis (WPT)
+        window.userWptBalance = d.g || 0;
+
+        console.log("✅ Profil synchronisé :", d.name);
 
     } catch(e) { 
-        console.error("Erreur de synchro profil:", e); 
+        console.error("Erreur de rafraîchissement :", e); 
+        // tg.showAlert("Erreur : " + e.message); // Temporaire pour debugger
     }
 }
+
 
 
 
@@ -783,9 +788,7 @@ async function openTokenDetails(t) {
 
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
-    tg.expand(); 
-const uid = tg.initDataUnsafe?.user?.id || 12345;
-refresh(); setInterval(refresh, 15000);
+    tg.expand(); refresh(); setInterval(refresh, 15000);
 </script>
 
 </body>
