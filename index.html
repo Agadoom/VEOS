@@ -658,31 +658,55 @@ if (window.Telegram && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medi
 
     async function executeTrade() {
     const val = parseFloat(document.getElementById('trade-amount').value);
-    
-    // On récupère l'ID depuis window pour être SÛR qu'il est là
     const tid = window.currentTokenId;
 
-    if (!val || val <= 0) return tg.showAlert("Please enter an amount");
-    if (!tid) return tg.showAlert("Error: ID still missing. Please close and reopen the token.");
+    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
+    if (!tid) return tg.showAlert("Error: Token ID is null");
+
+    // Diagnostic : On vérifie l'URL de destination
+    const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+    const finalUrl = BASE_URL + path;
+    
+    console.log("Envoi du trade vers :", finalUrl);
 
     try {
-        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-        
-        const r = await fetch(`${BASE_URL}${path}`, {
+        const response = await fetch(finalUrl, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             body: JSON.stringify({
                 user_id: parseInt(uid),
-                token_id: parseInt(tid), // On utilise tid ici
+                token_id: parseInt(tid),
                 amount: parseFloat(val)
             })
         });
-        
-        // ... suite de ton fetch (res.ok, etc.)
-    } catch(e) {
-        tg.showAlert("Trade failed");
+
+        console.log("Statut de la réponse :", response.status);
+        const res = await response.json();
+
+        if (response.ok) {
+            // SUCCESS
+            if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            tg.showAlert("✅ Transaction Successful!");
+            
+            closeTrade(); 
+            // On force un rafraîchissement global
+            refresh(); 
+            if (typeof updateHoldings === "function") updateHoldings(tid);
+        } else {
+            // ERREUR SERVEUR (ex: 400, 500)
+            tg.showAlert("❌ Server Error: " + (res.detail || res.error || "Unknown"));
+        }
+
+    } catch (error) {
+        // ERREUR RÉSEAU (URL injoignable, SSL, etc.)
+        console.error("Erreur Fetch:", error);
+        tg.showAlert("❌ Network Error: Could not connect to Railway. Check your Internet or BASE_URL.");
     }
 }
+
 
 
 
