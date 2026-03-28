@@ -219,7 +219,7 @@
             </div>
         </div>
 
-      <div id="p-wallet" class="page">
+     <div id="p-wallet" class="page">
     <h2 style="text-align:center;">💼 WALLET</h2>
     
     <div class="card" style="display:flex; flex-direction:column; text-align:center; padding:30px; margin-bottom:20px; background:#1c1c1e; border-radius:20px;">
@@ -230,37 +230,38 @@
 
     <h3 style="margin-top:25px; margin-left:15px; color: var(--gold);">✨ WPT STORE</h3>
     
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 15px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 15px; position: relative; z-index: 1;">
         
         <div style="background:#121214; border:1px solid #222; border-radius:20px; padding:20px 15px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:space-between; position:relative;">
             <span style="font-size:32px; margin-bottom:8px;">⭐️</span>
             <span style="font-weight:800; font-size:16px; display:block; color:#fff;">10,000 WPT</span>
             <span style="color:#FFF; font-weight:bold; font-size:12px; margin:5px 0; display:block;">50 Stars</span> 
-            <button class="btn-buy-stars" style="width:100%; border:none; border-radius:12px; padding:10px; font-weight:800; background:#FFF; color:#000;" onclick="buyStarsPack(50)">BUY</button>
+            <button class="btn-buy-stars" style="width:100%; border:none; border-radius:12px; padding:10px; font-weight:800; background:#FFF; color:#000; position:relative; z-index:10; pointer-events:auto;" onclick="buyStarsPack(50)">BUY</button>
         </div>
 
         <div style="background:#1c1c1e; border:1px solid var(--gold); border-radius:20px; padding:20px 15px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:space-between; position:relative;">
-            <div style="position:absolute; top:-10px; background:var(--blue); color:white; font-size:10px; font-weight:900; padding:3px 10px; border-radius:8px;">+20% BONUS</div>
+            <div style="position:absolute; top:-10px; background:var(--blue); color:white; font-size:10px; font-weight:900; padding:3px 10px; border-radius:8px; z-index:5;">+20% BONUS</div>
             <span style="font-size:32px; margin-bottom:8px;">🌟</span>
             <span style="font-weight:800; font-size:16px; display:block; color:#fff;">60,000 WPT</span>
             <span style="color:var(--gold); font-weight:bold; font-size:12px; margin:5px 0; display:block;">250 Stars</span> 
-            <button class="btn-buy-stars" style="width:100%; border:none; border-radius:12px; padding:10px; font-weight:800; background:var(--gold); color:#000;" onclick="buyStarsPack(250)">BUY</button>
+            <button class="btn-buy-stars" style="width:100%; border:none; border-radius:12px; padding:10px; font-weight:800; background:var(--gold); color:#000; position:relative; z-index:10; pointer-events:auto;" onclick="buyStarsPack(250)">BUY</button>
         </div>
 
         <div style="grid-column: span 2; background: linear-gradient(90deg, #1c1c1e, #2a2200); border:1px solid var(--gold); border-radius:20px; padding:20px 15px; margin-top:10px; position:relative;">
-            <div style="position:absolute; top:-10px; left:20px; background:#FFF; color:#000; font-size:10px; font-weight:900; padding:3px 10px; border-radius:8px;">BEST VALUE (+50%)</div>
+            <div style="position:absolute; top:-10px; left:20px; background:#FFF; color:#000; font-size:10px; font-weight:900; padding:3px 10px; border-radius:8px; z-index:5;">BEST VALUE (+50%)</div>
             <div style="display:flex; justify-content:space-around; align-items:center; width:100%;">
                 <span style="font-size:40px;">💎</span>
                 <div style="text-align:left;">
                     <span style="font-weight:800; font-size:24px; color:var(--gold); display:block;">150,000 WPT</span>
                     <span style="color:#FFF; font-weight:bold; font-size:18px; display:block;">500 Stars</span> 
                 </div>
-                <button class="btn-buy-stars" style="width:100px; height:45px; border:none; border-radius:12px; font-weight:800; background:#FFF; color:#000;" onclick="buyStarsPack(500)">GET</button>
+                <button class="btn-buy-stars" style="width:100px; height:45px; border:none; border-radius:12px; font-weight:800; background:#FFF; color:#000; position:relative; z-index:10; pointer-events:auto;" onclick="buyStarsPack(500)">GET</button>
             </div>
         </div>
 
     </div>
 </div>
+
 
 
 
