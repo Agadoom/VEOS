@@ -550,114 +550,119 @@ async function refresh() {
         if (!r.ok) return;
         const d = await r.json();
         
-        // 1. BALANCE TOTALE
+        // 1. BALANCE & RANK
         userWptBalance = parseFloat(d.score || 0);
         ['tot', 'wallet-balance'].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
         });
+        document.querySelectorAll('#prof-rank').forEach(el => el.innerText = "RANK: #" + (d.rank || "---"));
 
         // 2. USERNAME & INITIALS
         const userName = d.name || "Citizen";
-        if(document.getElementById('prof-name')) 
-            document.getElementById('prof-name').innerText = userName;
-        if(document.getElementById('prof-initials')) 
-            document.getElementById('prof-initials').innerText = userName.charAt(0).toUpperCase();
+        if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = userName;
+        if(document.getElementById('prof-initials')) document.getElementById('prof-initials').innerText = userName.charAt(0).toUpperCase();
 
-        // 3. RANK
-        const rankValue = d.rank || "---";
-        document.querySelectorAll('#prof-rank').forEach(el => el.innerText = "RANK: #" + rankValue);
-
-        // 4. USD & ÉNERGIE
-        if(document.getElementById('usd-val')) 
-            document.getElementById('usd-val').innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
-        if(document.getElementById('wpt-price')) 
-            document.getElementById('wpt-price').innerText = `1 WPT = $${d.wpt_price}`;
+        // 3. USD, PRIX & ÉNERGIE
+        if(document.getElementById('usd-val')) document.getElementById('usd-val').innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
+        if(document.getElementById('wpt-price')) document.getElementById('wpt-price').innerText = `1 WPT = $${d.wpt_price}`;
 
         const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
         if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
-        if(document.getElementById('e-t')) 
-            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
+        if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
 
-        // 5. ASSETS (LES FAMEUX 0.00 CORRIGÉS)
-        // On utilise d.g, d.u, d.v car c'est ce que ton Python envoie
-        if(document.getElementById('gv')) 
-            document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-        if(document.getElementById('uv')) 
-            document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
-        if(document.getElementById('vv')) 
-            document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+        // 4. MINI-COMPTEURS (g, u, v)
+        if(document.getElementById('gv')) document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString();
+        if(document.getElementById('uv')) document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString();
+        if(document.getElementById('vv')) document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString();
 
-        // 6. LIEN DE PARRAINAGE
-        const refDisplay = document.getElementById('ref-link-display');
-        if (refDisplay) {
-            refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
-        }
+        // 5. ASSETS (L'affichage dans le Profil et Wallet)
+        const assetHTML = (d.assets && d.assets.length > 0) 
+            ? d.assets.map(asset => `
+                <div class="card" onclick="openTokenDetails('${asset.n}', '${asset.s}', ${asset.a})" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px; border:1px solid #333;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div style="width:35px; height:35px; background:var(--gold); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">${asset.s[0].toUpperCase()}</div>
+                        <div><b>${asset.n}</b><br><small style="opacity:0.6;">${asset.s}</small></div>
+                    </div>
+                    <b>${parseFloat(asset.a).toLocaleString()}</b>
+                </div>`).join('')
+            : "<p style='text-align:center; opacity:0.5; font-size:12px;'>No tokens yet.</p>";
 
+        if(document.getElementById('user-portfolio')) document.getElementById('user-portfolio').innerHTML = assetHTML;
+        if(document.getElementById('wallet-assets-list')) document.getElementById('wallet-assets-list').innerHTML = assetHTML;
 
-// À mettre juste avant la fin du bloc "try" de ta fonction refresh()
-if (d.assets && d.assets.length > 0) {
-    const portfolio = document.getElementById('user-portfolio');
-    portfolio.innerHTML = d.assets.map(asset => `
-        <div class="card" onclick="openTokenDetails('${asset.n}', '${asset.s}', ${asset.a})" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px; border:1px solid #333;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <div style="width:35px; height:35px; background:var(--gold); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">
-                    ${asset.s[0].toUpperCase()}
-                </div>
-                <div>
-                    <b style="display:block;">${asset.n}</b>
-                    <small style="opacity:0.6;">${asset.s}</small>
-                </div>
-            </div>
-            <b>${parseFloat(asset.a).toLocaleString()}</b>
-        </div>
-    `).join('');
-} else {
-    document.getElementById('user-portfolio').innerHTML = "<p style='text-align:center; opacity:0.5; font-size:12px;'>You don't own any ecosystem tokens yet.</p>";
+        // 6. LIEN DE PARRAINAGE & BOUTIQUE
+        if(document.getElementById('ref-link-display')) document.getElementById('ref-link-display').innerText = `https://t.me/OWPCsBot?start=${uid}`;
+        
+        const starsPrices = [50, 250, 500];
+        document.querySelectorAll('.star-price').forEach((p, i) => { if(starsPrices[i]) p.innerText = `${starsPrices[i]} Stars`; });
+
+    } catch(e) { console.error("Refresh error:", e); }
 }
 
 
-// On remplit la liste du profil ET celle du wallet si elle existe
-const walletPortfolio = document.getElementById('wallet-assets-list'); // Ajoute cet ID dans ton HTML Wallet
-if(walletPortfolio && d.assets) {
-    walletPortfolio.innerHTML = d.assets.map(a => `...ton code de carte...`).join('');
-}
 
 let currentTokenId = null;
-let sourcePage = 'p-mine'; // Pour savoir si on revient vers Profil ou Launcher
+let sourcePage = 'p-mine';
+let tradeType = 'buy';
 
-// Quand on clique dans le LAUNCHPAD
+// Pour le Launchpad
 function openListingDetails(t) {
     sourcePage = 'p-launcher';
     currentTokenId = t.id;
-    
     document.getElementById('det-name').innerText = t.name;
     document.getElementById('det-sym').innerText = '$' + t.symbol;
     document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-    document.getElementById('det-logo').src = t.logo_url || '';
-    document.getElementById('det-banner').style.backgroundImage = `url(${t.banner_url || ''})`;
-    
-    // On montre BUY/SELL
-    document.getElementById('det-trade-actions').style.display = 'flex';
-    document.getElementById('det-wallet-actions').style.display = 'none';
-    
+    document.getElementById('det-logo').src = t.logo || '';
+    document.getElementById('det-actions-trade').style.display = 'flex';
+    document.getElementById('det-actions-wallet').style.display = 'none';
     showPage('p-details');
 }
 
+// Pour les Assets du Profil
+function openTokenDetails(name, symbol, amount) {
+    sourcePage = 'p-profil';
+    document.getElementById('det-name').innerText = name;
+    document.getElementById('det-sym').innerText = '$' + symbol;
+    document.getElementById('det-user-balance').innerText = `Balance: ${amount.toLocaleString()}`;
+    document.getElementById('det-actions-trade').style.display = 'none';
+    document.getElementById('det-actions-wallet').style.display = 'flex';
+    showPage('p-details');
+}
 
+function closeDetails() { showPage(sourcePage); }
 
-        // 7. STARS SHOP PRICES
-        const starsPrices = [50, 250, 500];
-        document.querySelectorAll('.star-price').forEach((p, i) => {
-            if(starsPrices[i]) p.innerText = `${starsPrices[i]} Stars`;
-        });
-
-    } catch(e) { 
-        console.error("Refresh error:", e); 
+// --- LOGIQUE DE TRADE ---
+function openTrade(type) {
+    tradeType = type;
+    const modal = document.getElementById('trade-modal');
+    if(modal) {
+        modal.style.display = 'flex';
+        document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
+        const btn = document.getElementById('modal-confirm-btn');
+        btn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+        document.getElementById('trade-amount').value = "";
     }
 }
 
-
+async function executeTrade() {
+    const val = document.getElementById('trade-amount').value;
+    if(!val || val <= 0) return;
+    try {
+        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+        const r = await fetch(`${BASE_URL}${path}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
+        });
+        const res = await r.json();
+        if(res.ok) {
+            document.getElementById('trade-modal').style.display = 'none';
+            tg.showAlert("✅ Success!");
+            refresh();
+        } else { tg.showAlert(res.error); }
+    } catch(e) { tg.showAlert("Server error"); }
+}
 
 
 
