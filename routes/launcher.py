@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 import database
 from pydantic import BaseModel
@@ -42,28 +42,29 @@ async def list_tokens():
 
 
 
+
 @router.post("/buy")
-async def buy_token(req: TradeRequest):
-    print(f"📥 Buy Attempt: User {req.user_id} -> Token {req.token_id} with {req.amount} WPT")
+async def buy_token(req: TradeRequest, request: Request): # On ajoute 'request: Request'
+    print(f"📥 Buy Attempt: User {req.user_id} -> Token {req.token_id}")
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Vérification du solde Genesis (WPT) de l'utilisateur
+        # 1. Vérification du solde et infos du Token / Créateur
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
         u = c.fetchone()
         if not u or float(u[0]) < req.amount:
             return JSONResponse(status_code=400, content={"ok": False, "error": "Insufficient WPT Balance"})
 
-        # 2. Vérification du prix du Token
-        c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
+        # On récupère le prix MAIS AUSSI le nom et le créateur
+        c.execute("SELECT price, name, symbol, creator_id FROM community_tokens WHERE id = %s", (req.token_id,))
         t = c.fetchone()
         if not t:
             return JSONResponse(status_code=404, content={"ok": False, "error": "Token not found"})
             
-        current_price = float(t[0])
+        current_price, t_name, t_symbol, creator_id = float(t[0]), t[1], t[2], t[3]
         qty_to_receive = req.amount / current_price
 
-        # 3. Exécution : Retirer WPT -> Ajouter Asset -> Augmenter prix (Pump)
+        # 2. Exécution financière
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount, req.user_id))
         
         c.execute("""
@@ -73,21 +74,42 @@ async def buy_token(req: TradeRequest):
             DO UPDATE SET amount = user_community_assets.amount + %s
         """, (req.user_id, req.token_id, qty_to_receive, qty_to_receive))
         
-        # Le prix monte de 1% par achat
+        # Pump de 1%
         new_price = current_price * 1.01
         c.execute("UPDATE community_tokens SET price = %s WHERE id = %s", (new_price, req.token_id))
 
-        # Historique pour le graphique
+        # Historique
         c.execute("INSERT INTO token_price_history (token_id, price, timestamp) VALUES (%s, %s, %s)", 
                   (req.token_id, new_price, int(time.time())))
         
         conn.commit()
+
+        # --- 🚀 NOTIFICATION PUMP ALERT ---
+        # On récupère le bot stocké dans l'application FastAPI
+        bot = request.app.state.bot 
+        if creator_id and bot:
+            try:
+                # On prépare un message stylé
+                msg = (
+                    f"🚀 <b>PUMP ALERT!</b>\n\n"
+                    f"Someone just bought <b>{t_name}</b> (${t_symbol})!\n"
+                    f"New Price: <code>{new_price:.6f}</code> WPT\n\n"
+                    f"Keep mining and sharing! 🔥"
+                )
+                # On utilise asyncio pour ne pas bloquer la réponse de l'API
+                import asyncio
+                asyncio.create_task(bot.send_message(chat_id=creator_id, text=msg, parse_mode="HTML"))
+            except Exception as e:
+                print(f"🔔 Notification Error: {e}")
+
         return {"ok": True, "received": qty_to_receive}
+
     except Exception as e:
         conn.rollback()
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
     finally:
         c.close(); conn.close()
+
 
 @router.post("/sell")
 async def sell_token(req: TradeRequest):
