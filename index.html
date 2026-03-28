@@ -464,82 +464,61 @@
 
     // --- REFRESH DATA ---
     async function refresh() {
+    if (!uid) return;
+
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        const data = await r.json();
-
-        // Sécurité : Si le serveur renvoie une erreur ou un format inconnu
-        if (!data || !Array.isArray(data)) {
-            console.error("Format de données utilisateur incorrect reçu.");
-            return;
-        }
-
-        // --- SÉCURITÉ ET MAPPING DES DONNÉES ---
-        // L'ordre doit correspondre EXACTEMENT à SELECT dans database.py:
-        // 0:p_genesis, 1:p_unity, 2:p_veo, 3:name, 4:energy, 5:last_upd, 6:streak, 7:referrer_id, 8:last_login_date
+        if (!r.ok) throw new Error("Server response not OK");
         
-        const user = {
-            wptBalance: parseFloat(data[0] || 0), // p_genesis
-            pUnity: parseFloat(data[1] || 0),
-            pVeo: parseFloat(data[2] || 0),
-            name: data[3], // name
-            energy: parseInt(data[4] || 0), // energy
-            maxEnergy: 100, // Valeur par défaut si non fournie par l'API
-            streakRank: data[6] || 0, // streak utilisé comme rank
-            usdValue: parseFloat(data[0] || 0) * 0.0001 // Calcul simple de valeur USD
-        };
+        const d = await r.json(); // Ici, 'd' est maintenant l'objet que tu as posté
 
-        // Mise à jour de la variable globale si tu l'utilises
-        userWptBalance = user.wptBalance;
+        console.log("Données Profil reçues :", d);
 
-        // --- MISE À JOUR DU DOM (L'INTERFACE) ---
-        // Fonction d'aide pour mettre à jour un texte s'il existe
-        const updateText = (id, text) => {
+        // Fonction utilitaire pour mettre à jour le texte
+        const update = (id, val) => {
             const el = document.getElementById(id);
-            if(el) el.innerText = text;
+            if (el) el.innerText = val;
         };
 
-        // 1. Solde WPT Principal (en haut et dans le wallet)
-        updateText('tot', user.wptBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-        updateText('wallet-balance', user.wptBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-
-        // 2. Profil : Nom, Initiale et Rank
-        updateText('prof-name', user.name || 'Citizen'); // ICI LE FIX POUR USERNAME
-        updateText('prof-rank', "RANK: #" + (user.streakRank || '---'));
+        // 1. Mise à jour des soldes principaux
+        update('tot', parseFloat(d.score || 0).toLocaleString());
+        update('wallet-balance', parseFloat(d.score || 0).toLocaleString());
         
-        const profInitialsEl = document.getElementById('prof-initials');
-        if(profInitialsEl) {
-            profInitialsEl.innerText = (user.name || "C")[0].toUpperCase();
+        // 2. Mise à jour des sous-balances (WPT, Unity, Veo)
+        update('gv', parseFloat(d.g || 0).toLocaleString());
+        update('uv', parseFloat(d.u || 0).toLocaleString());
+        update('vv', parseFloat(d.v || 0).toLocaleString());
+
+        // 3. Infos Profil
+        update('prof-name', d.name || 'Citizen');
+        update('prof-rank', "RANK: #" + (d.rank || '---'));
+        update('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
+        
+        // Initiale du cercle
+        const initEl = document.getElementById('prof-initials');
+        if (initEl) initEl.innerText = (d.name || "C")[0].toUpperCase();
+
+        // 4. Énergie
+        const eBar = document.getElementById('e-f');
+        if (eBar) {
+            const percent = (d.energy / d.max_energy) * 100;
+            eBar.style.width = percent + "%";
         }
+        update('e-t', `Energy: ${Math.floor(d.energy)}/${d.max_energy}`);
 
-        // 3. Valeur USD (Profil)
-        updateText('usd-val', `$${user.usdValue.toFixed(2)}`);
+        // 5. Lien de parrainage
+        const refEl = document.getElementById('ref-link-display');
+        if (refEl) refEl.innerText = `https://t.me/OWPCsBot?start=${uid}`;
 
-        // 4. Sous-Balances (Genesis, Unity, Veo)
-        updateText('gv', user.wptBalance.toLocaleString());
-        updateText('uv', user.pUnity.toLocaleString());
-        updateText('vv', user.pVeo.toLocaleString());
-
-        // 5. Énergie (Barre et Texte)
-        const energyBarEl = document.getElementById('e-f');
-        if(energyBarEl) {
-            energyBarEl.style.width = ((user.energy / user.maxEnergy) * 100) + "%";
-        }
-        updateText('e-t', `Energy: ${Math.floor(user.energy)}/${user.maxEnergy}`);
-
-        // 6. Lien de parrainage
-        const refLinkEl = document.getElementById('ref-link-display');
-        if(refLinkEl) {
-            refLinkEl.innerText = `https://t.me/OWPCsBot?start=${uid}`;
-        }
-
-        console.log("✅ Interface rafraîchie avec succès pour :", user.name);
+        // Sauvegarde locale pour d'autres fonctions si besoin
+        window.userWptBalance = d.g || 0;
 
     } catch(e) { 
-        console.error("❌ Erreur lors du rafraîchissement de l'interface:", e); 
-        tg.showAlert("Failed to sync profile data.");
+        console.error("Erreur de synchronisation profil :", e);
+        // On ne met pas d'alerte ici pour ne pas bloquer l'utilisateur
     }
 }
+
 
 
     // --- MINING ---
