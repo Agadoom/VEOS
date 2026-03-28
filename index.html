@@ -608,19 +608,7 @@ async function fetchAndOpenToken(tokenId) {
 
 
 
-    async function loadMarket() {
-        const r = await fetch(`${BASE_URL}/api/launcher/list`);
-        const tokens = await r.json();
-        const list = document.getElementById('token-list');
-        if(list) {
-            list.innerHTML = tokens.map(t => `
-                <div class="card" onclick='openListingDetails(${JSON.stringify(t)})'>
-                    <img src="${t.logo}" style="width:35px; height:35px; border-radius:8px;">
-                    <div style="flex:1; margin-left:10px;"><b>${t.name}</b><br><small>$${t.symbol}</small></div>
-                    <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-                </div>`).join('');
-        }
-    }
+   
 
 
 
