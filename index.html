@@ -285,7 +285,38 @@
     </div>
 
     <h3>💎 MY ASSETS</h3>
-    <div id="user-portfolio"></div>
+    <div id="user-portfolio" style="margin-top: 20px;">
+    </div>
+
+<div id="p-details" class="page" style="display:none;">
+    <div style="padding: 20px;">
+        <button onclick="showPage('p-wallet')" style="background:none; border:none; color:var(--gold); font-size:18px; cursor:pointer;">← Back</button>
+        
+        <div style="text-align:center; margin-top:20px;">
+            <span id="det-icon" style="font-size:60px;">🪙</span>
+            <h1 id="det-name" style="margin:10px 0;">Token Name</h1>
+            <h2 id="det-amount" style="color:var(--gold);">0.00</h2>
+            <p id="det-symbol" style="opacity:0.6;">SYMBOL</p>
+        </div>
+
+        <div class="card" style="margin-top:30px; background:rgba(255,255,255,0.05); border-radius:15px; padding:20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                <span>Market Price:</span>
+                <span style="color:var(--green);">$0.0001</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+                <span>Network:</span>
+                <span>WPT Mainnet</span>
+            </div>
+        </div>
+
+        <button class="btn-buy-stars" style="width:100%; margin-top:30px; background:var(--gold); color:#000;">TRADE / SWAP</button>
+    </div>
+</div>
+
+
+
+
 
      <div class="card" style="margin-top:20px; background: #1c1c1e; padding: 15px; border-radius: 20px; border: 1px solid #333;">
         <h3>🎁 Invite Friends</h3>
@@ -548,6 +579,10 @@ async function refresh() {
             refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
         }
 
+if(d.assets) {
+    renderAssets(d.assets);
+}
+
         // 7. STARS SHOP PRICES
         const starsPrices = [50, 250, 500];
         document.querySelectorAll('.star-price').forEach((p, i) => {
@@ -723,6 +758,58 @@ function shareRef() {
     const text = encodeURIComponent("🚀 Join WPT Hub and start mining!");
     tg.openTelegramLink(`https://t.me/share/url?url=${myLink}&text=${text}`);
 }
+
+
+
+
+// Fonction pour afficher la liste des tokens
+function renderAssets(assets) {
+    const container = document.getElementById('user-portfolio');
+    if(!container) return;
+
+    if(!assets || assets.length === 0) {
+        container.innerHTML = "<p style='opacity:0.5; text-align:center;'>No assets yet</p>";
+        return;
+    }
+
+    container.innerHTML = assets.map(token => `
+        <div class="card" onclick="openTokenDetails('${token.n}', '${token.s}', ${token.a})" 
+             style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px; border:1px solid #333;">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <div style="width:40px; height:40px; background:var(--gold); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">
+                    ${token.s.charAt(0)}
+                </div>
+                <div>
+                    <b style="display:block;">${token.n}</b>
+                    <small style="opacity:0.6;">${token.s}</small>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <b>${token.a.toLocaleString()}</b>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Fonction pour ouvrir la page détails
+function openTokenDetails(name, symbol, amount) {
+    // 1. On remplit les infos
+    document.getElementById('det-name').innerText = name;
+    document.getElementById('det-symbol').innerText = symbol;
+    document.getElementById('det-amount').innerText = amount.toLocaleString();
+    
+    // On peut changer l'icône selon le symbole
+    const icon = document.getElementById('det-icon');
+    if(symbol === 'WPT') icon.innerText = '💎';
+    else if(symbol === 'GEN') icon.innerText = '🚀';
+    else icon.innerText = '🪙';
+
+    // 2. On change de page
+    showPage('p-details');
+}
+
+
+
 
 
 
