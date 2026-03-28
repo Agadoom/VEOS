@@ -583,45 +583,62 @@ if (d.streak > 0) {
 
     // --- MINING ---
     async function mine(type, event) {
-        try {
-            const r = await fetch(`${BASE_URL}/api/mine`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, token: type })
-            });
-            const res = await r.json();
-            if(res.ok) {
-                const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
-                const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
-                const ft = document.createElement('div');
-                ft.className = 'floating-text'; ft.innerText = "+" + res.reward;
-                ft.style.left = x + "px"; ft.style.top = y + "px";
-                document.body.appendChild(ft);
-                setTimeout(() => ft.remove(), 800);
+    if (!uid) return;
 
+    try {
+        // 1. On récupère le boost du streak (stocké lors du dernier refresh)
+        // Si d.mining_boost était 1.10, le gain sera de 11 au lieu de 10
+        const boost = window.userMiningBoost || 1.0; 
+        const baseGain = 10; 
+        const finalAmount = baseGain * boost;
 
- // On récupère le boost depuis les données chargées au refresh
-    const boost = window.userMiningBoost || 1.0; 
-    const baseGain = 10; // Ton gain de base
-    const finalGain = baseGain * boost;
+        // 2. Un SEUL envoi au serveur avec les clés attendues par ton Python
+        // Vérifie si ton Python attend "user_id" ou "uid"
+        const r = await fetch(`${BASE_URL}/api/mine`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                user_id: uid,       // Utilise user_id pour être standard
+                token_type: type,   // "genesis", "unity" ou "veo"
+                amount: finalAmount 
+            })
+        });
 
-    // Envoi au serveur
-    const r = await fetch(`${BASE_URL}/api/mine`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ uid: uid, amount: finalGain })
-    });
-    
-    if(r.ok) {
-        tg.HapticFeedback.notificationOccurred('success');
-        // Animation + Update UI
-    }
+        const res = await r.json();
 
-               
-                refresh();
+        if (res.ok) {
+            // --- ANIMATION DU TEXTE FLOTTANT ---
+            const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+            const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+            
+            const ft = document.createElement('div');
+            ft.className = 'floating-text';
+            ft.innerText = "+" + parseFloat(res.reward).toFixed(2);
+            ft.style.left = x + "px";
+            ft.style.top = (y - 20) + "px"; // Un peu plus haut que le clic
+            document.body.appendChild(ft);
+            
+            setTimeout(() => ft.remove(), 800);
+
+            // Retour haptique Telegram
+            if (window.Telegram && window.Telegram.WebApp) {
+                tg.HapticFeedback.impactOccurred('light');
             }
 
-        } catch(e) {}
+            // Rafraîchir les scores affichés
+            refresh();
+        } else {
+            console.error("Erreur minage:", res.error);
+            if(res.error === "Insufficient energy") {
+                tg.showAlert("🪫 Out of energy! Wait for recharge.");
+            }
+        }
+
+    } catch (e) {
+        console.error("Erreur réseau minage:", e);
     }
+}
+
 
     // --- LAUNCHPAD & DETAILS ---
     function processFile(t) {
