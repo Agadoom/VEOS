@@ -108,6 +108,40 @@
 }
 
 
+
+.l-input:focus {
+    border-color: var(--gold) !important;
+    outline: none;
+    background: #080808;
+}
+
+.upload-box:active {
+    background: #222 !important;
+    transform: scale(0.98);
+}
+
+.btn-launch {
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.btn-launch:active {
+    transform: scale(0.96);
+    box-shadow: none;
+    background: #e6c200;
+}
+
+/* Style pour les cartes dans la liste des tokens */
+#token-list .card {
+    transition: transform 0.2s ease;
+}
+
+#token-list .card:active {
+    transform: scale(0.98);
+    background: #161618;
+}
+
+
     </style>
 </head>
 <body>
@@ -180,25 +214,57 @@
 
 
         <div id="p-launcher" class="page">
-            <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
-            <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000; padding:20px;">
-                <b style="color:var(--gold); text-align:center;">CREATE YOUR TOKEN</b>
-                <input type="text" id="tk-name" class="l-input" placeholder="Token Name (Required)">
-                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL (Required)">
-                <input type="url" id="tk-url" class="l-input" placeholder="Website URL (Optional)">
-                <input type="text" id="tk-x" class="l-input" placeholder="X (Twitter) URL (Optional)">
-                <textarea id="tk-desc" class="l-input" style="height:60px;" placeholder="Description..."></textarea>
-                
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <label style="background:#222; padding:10px; border-radius:10px; text-align:center; font-size:12px; cursor:pointer;">🖼️ Logo<input type="file" id="f-logo" hidden onchange="processFile('logo')"></label>
-                    <label style="background:#222; padding:10px; border-radius:10px; text-align:center; font-size:12px; cursor:pointer;">🌅 Banner<input type="file" id="f-banner" hidden onchange="processFile('banner')"></label>
-                </div>
-                <button class="btn" style="background:var(--gold); width:100%; color:#000; margin-top:5px;" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
-            </div>
-
-            <h3 style="margin-left:10px; margin-top:20px;">🔥 NEW LISTINGS</h3>
-            <div id="token-list"></div>
+    <h2 style="text-align:center; letter-spacing: 2px; font-weight: 800; color: #fff;">🚀 LAUNCHPAD</h2>
+    
+    <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #0a0a0b, #121214); padding:25px; border: 1px solid #222; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+        
+        <div style="text-align:center; margin-bottom: 5px;">
+            <b style="color:var(--gold); font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Create Ecosystem Token</b>
+            <p style="color:var(--text); font-size: 11px; margin: 5px 0 0 0;">Deploy your project on WPT Network</p>
         </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <input type="text" id="tk-name" class="l-input" placeholder="Token Name" style="margin-bottom:0; border-color: #333;">
+            <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL" style="margin-bottom:0; border-color: #333; text-transform: uppercase;">
+        </div>
+
+        <div style="position: relative;">
+            <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; opacity: 0.5;">🌐</span>
+            <input type="url" id="tk-url" class="l-input" placeholder="Website URL" style="padding-left: 35px; border-color: #222;">
+        </div>
+        
+        <div style="position: relative;">
+            <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; opacity: 0.5;">𝕏</span>
+            <input type="text" id="tk-x" class="l-input" placeholder="Twitter username or link" style="padding-left: 35px; border-color: #222;">
+        </div>
+
+        <textarea id="tk-desc" class="l-input" style="height:70px; resize: none; border-color: #222;" placeholder="Describe your project vision..."></textarea>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <label class="upload-box" style="background:#1a1a1c; border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:12px; cursor:pointer; transition: 0.3s;">
+                <span id="label-logo">🖼️ Add Logo</span>
+                <input type="file" id="f-logo" hidden onchange="processFile('logo'); document.getElementById('label-logo').innerText='✅ Logo Ready';">
+            </label>
+            <label class="upload-box" style="background:#1a1a1c; border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:12px; cursor:pointer; transition: 0.3s;">
+                <span id="label-banner">🌅 Add Banner</span>
+                <input type="file" id="f-banner" hidden onchange="processFile('banner'); document.getElementById('label-banner').innerText='✅ Banner Ready';">
+            </label>
+        </div>
+
+        <button class="btn btn-launch" style="background:var(--gold); width:100%; color:#000; margin-top:10px; height: 55px; font-size: 16px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);" onclick="deployToken()">
+            <span style="font-weight: 900;">LAUNCH TOKEN</span>
+            <br><span style="font-size: 10px; opacity: 0.7;">COST: 5,000 WPT</span>
+        </button>
+    </div>
+
+    <div style="display: flex; align-items: center; margin: 30px 0 15px 10px;">
+        <span style="font-size: 20px; margin-right: 8px;">🔥</span>
+        <h3 style="margin: 0; letter-spacing: 1px;">NEW LISTINGS</h3>
+    </div>
+    
+    <div id="token-list" style="padding-bottom: 20px;"></div>
+</div>
+
 
         <div id="p-wallet" class="page">
             <h2 style="text-align:center;">💼 WALLET</h2>
