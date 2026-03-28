@@ -246,5 +246,15 @@ async def get_user_portfolio(uid: int):
     finally:
         c.close(); conn.close()
 
+@router.get("/listings")
+async def get_listings():
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    c.execute("SELECT id, name, symbol, logo_url, current_price FROM community_tokens ORDER BY id DESC LIMIT 20")
+    rows = c.fetchall()
+    # On retourne une liste de dictionnaires
+    return [{"id": r[0], "name": r[1], "symbol": r[2], "logo_url": r[3], "price": r[4]} for r in rows]
+
+
 
 
