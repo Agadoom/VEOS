@@ -250,10 +250,28 @@ async def get_user_portfolio(uid: int):
 async def get_listings():
     conn = database.get_db_conn()
     c = conn.cursor()
-    c.execute("SELECT id, name, symbol, logo_url, current_price FROM community_tokens ORDER BY id DESC LIMIT 20")
-    rows = c.fetchall()
-    # On retourne une liste de dictionnaires
-    return [{"id": r[0], "name": r[1], "symbol": r[2], "logo_url": r[3], "price": r[4]} for r in rows]
+    try:
+        # On utilise les colonnes : id, name, symbol, logo, price
+        c.execute("SELECT id, name, symbol, logo, price FROM community_tokens ORDER BY id DESC LIMIT 20")
+        rows = c.fetchall()
+        
+        # On renvoie un format propre que le JS peut lire sans erreur
+        return [
+            {
+                "id": r[0], 
+                "name": r[1], 
+                "symbol": r[2], 
+                "logo": r[3],  # On garde le nom 'logo' pour être cohérent
+                "price": float(r[4])
+            } 
+            for r in rows
+        ]
+    except Exception as e:
+        print(f"❌ Erreur Listings: {e}")
+        return []
+    finally:
+        c.close(); conn.close()
+
 
 
 
