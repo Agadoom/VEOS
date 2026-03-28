@@ -108,7 +108,6 @@
 
 </head>
 <body>
-
     <div class="ticker">
         <div class="t-wrap"><span style="color:var(--gold)">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN ● </span></div>
     </div>
@@ -145,17 +144,23 @@
 
         <div id="p-launcher" class="page">
             <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
-            <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000;">
+            <div class="card" style="flex-direction:column; align-items:stretch; gap:10px; background:#000; padding:20px;">
                 <b style="color:var(--gold); text-align:center;">CREATE YOUR TOKEN</b>
-                <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
-                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL">
+                <input type="text" id="tk-name" class="l-input" placeholder="Token Name (Required)">
+                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL (Required)">
+                
+                <input type="url" id="tk-url" class="l-input" placeholder="Website URL (Optional)">
+                <input type="text" id="tk-x" class="l-input" placeholder="X (Twitter) URL (Optional)">
+                
+                <textarea id="tk-desc" class="l-input" style="height:60px;" placeholder="Description..."></textarea>
+                
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <label style="background:#222; padding:10px; border-radius:10px; text-align:center; font-size:12px;">🖼️ Logo<input type="file" id="f-logo" hidden onchange="processFile('logo')"></label>
-                    <label style="background:#222; padding:10px; border-radius:10px; text-align:center; font-size:12px;">🌅 Banner<input type="file" id="f-banner" hidden onchange="processFile('banner')"></label>
+                    <label style="background:#222; padding:10px; border-radius:10px; text-align:center; font-size:12px; cursor:pointer;">🖼️ Logo<input type="file" id="f-logo" hidden onchange="processFile('logo')"></label>
+                    <label style="background:#222; padding:10px; border-radius:10px; text-align:center; font-size:12px; cursor:pointer;">🌅 Banner<input type="file" id="f-banner" hidden onchange="processFile('banner')"></label>
                 </div>
-                <button class="btn" style="background:var(--gold); width:100%; color:#000;" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
+                <button class="btn" style="background:var(--gold); width:100%; color:#000; margin-top:5px;" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
             </div>
-            <h3 style="margin-left:10px;">🔥 NEW LISTINGS</h3>
+            <h3 style="margin-left:10px; margin-top:20px;">🔥 NEW LISTINGS</h3>
             <div id="token-list"></div>
         </div>
 
@@ -166,15 +171,16 @@
                 <h1 id="wallet-balance" style="color:var(--gold); margin:10px 0;">0.00</h1>
                 <div id="ton-connect-button"></div>
             </div>
+            
             <h3>✨ WPT STORE</h3>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-                <div class="card" style="flex-direction:column; text-align:center;">
+                <div class="card" style="flex-direction:column; text-align:center; gap:10px;">
                     <span>⭐️ 50 Stars</span>
-                    <button class="btn" style="width:100%; margin-top:10px;" onclick="buyStarsPack(50)">10k WPT</button>
+                    <button class="btn btn-buy-stars" style="width:100%;" onclick="buyStarsPack(50)">10k WPT</button>
                 </div>
-                <div class="card" style="flex-direction:column; text-align:center; border: 1px solid var(--gold);">
+                <div class="card" style="flex-direction:column; text-align:center; border: 1px solid var(--gold); gap:10px;">
                     <span style="color:var(--gold)">🌟 250 Stars</span>
-                    <button class="btn" style="width:100%; margin-top:10px; background:var(--gold);" onclick="buyStarsPack(250)">60k WPT</button>
+                    <button class="btn btn-buy-stars" style="width:100%; background:var(--gold); color:#000;" onclick="buyStarsPack(250)">60k WPT</button>
                 </div>
             </div>
         </div>
@@ -183,7 +189,8 @@
             <div class="prof-header">
                 <div id="prof-initials" style="width:60px; height:60px; background:var(--gold); border-radius:50%; margin:0 auto 10px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold; font-size:24px;">U</div>
                 <h2 id="prof-name">Username</h2>
-                <h1 id="usd-val" style="color:var(--green)">$0.00 USD</h1>
+                <h1 id="usd-val" style="color:var(--green); margin:0;">$0.00 USD</h1>
+                <small id="wpt-price" style="color:var(--text); opacity:0.7;">1 WPT = $0.0001</small>
             </div>
             <h3>💎 MY ASSETS</h3>
             <div id="user-portfolio"></div>
@@ -197,7 +204,9 @@
             <div id="leaderboard"></div>
         </div>
 
-        <img src="static/logo.gif" class="bottom-logo">
+        <div class="bottom-logo-container">
+            <img src="static/logo.gif" alt="Logo" class="bottom-logo">
+        </div>
     </div>
 
     <nav class="nav">
@@ -207,45 +216,56 @@
         <div onclick="showPage('p-profil')" id="n-profil" class="n-i">👤</div>
     </nav>
 
-    <div id="p-details">
+    <div id="p-details" class="page" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 1000; overflow-y: auto; display: none;">
         <div style="padding: 20px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <button class="btn" onclick="closeDetails()" style="background:#222; color:#fff;">← BACK</button>
                 <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000000</b>
             </div>
-            <div id="det-banner" style="height:140px; border-radius:25px; background-size:cover; background-position:center; background-color:#1a1a1c; position:relative;">
-                <img id="det-logo" src="" style="width:70px; height:70px; border-radius:20px; border:4px solid #000; position:absolute; bottom:-20px; left:20px; object-fit:cover;">
+
+            <div id="det-banner" style="height:120px; border-radius:20px; background-size:cover; position:relative; background-color:#1a1a1c; background-position:center; border: 1px solid #333;">
+                <img id="det-logo" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-20px; left:20px; background:#222; object-fit:cover;">
             </div>
-            <div style="margin-top:40px; padding:0 10px;">
-                <h2 id="det-name" style="margin:0;">Token Name</h2>
-                <b id="det-sym" style="color:var(--gold)">$SYM</b>
-                <p id="det-user-balance" style="margin-top:10px; opacity:0.7;">Balance: 0.00</p>
+
+            <div style="margin-top:40px; padding:0 15px;">
+                <h2 id="det-name" style="margin:0;"></h2>
+                <b id="det-sym" style="color:var(--gold)"></b>
+                <p id="det-user-balance" style="color:var(--text); font-size:12px; margin-top:5px;">Balance: 0.00</p>
             </div>
-            <div id="det-actions-trade" style="display:flex; gap:10px; padding:10px;">
+
+            <div id="det-socials" style="display:flex; gap:20px; justify-content:center; margin: 20px 0;">
+                </div>
+
+            <div class="chart-container" style="margin-top:10px; background: rgba(255,255,255,0.02); border-radius: 15px; padding: 10px;">
+                <svg viewBox="0 0 300 100" style="width:100%; height:100px;">
+                    <polyline fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 50,70 100,85 150,50 200,60 250,30 300,40" />
+                </svg>
+            </div>
+
+            <div id="det-actions-trade" style="display:flex; gap:10px; padding:15px;">
                 <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
-
                 <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
-<div id="det-socials" style="display:flex; gap:15px; justify-content:center; margin-top:15px;">
-    </div>
-
             </div>
-            <div id="det-actions-wallet" style="display:none; gap:10px; padding:10px;">
+            
+            <div id="det-actions-wallet" style="display:none; gap:10px; padding:15px;">
                 <button class="btn" style="flex:1; background:#fff; color:#000;">SEND</button>
                 <button class="btn" style="flex:1; background:var(--gold); color:#000;">RECEIVE</button>
             </div>
         </div>
     </div>
 
-    <div id="trade-modal">
-        <div class="card" style="flex-direction:column; width:90%; max-width:350px; padding:25px; gap:15px; border:1px solid var(--gold);">
+    <div id="trade-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; align-items:center; justify-content:center;">
+        <div class="card" style="width:85%; flex-direction:column; padding:25px; gap:15px; border:1px solid var(--gold);">
             <h3 id="modal-title" style="margin:0;">Trade</h3>
-            <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="text-align:center; font-size:22px;">
+            <p id="modal-info" style="font-size:12px; color:var(--text); margin:0;">Enter amount</p>
+            <input type="number" id="trade-amount" class="l-input" placeholder="0.00" style="font-size:18px; text-align:center;">
             <div style="display:flex; gap:10px; width:100%;">
                 <button class="btn" style="flex:1; background:#222; color:#fff;" onclick="closeTrade()">CANCEL</button>
-                <button id="modal-confirm-btn" class="btn" style="flex:1; background:var(--gold); color:#000;" onclick="executeTrade()">CONFIRM</button>
+                <button id="modal-confirm-btn" class="btn" style="flex:1; background:var(--gold); color:#000;">CONFIRM</button>
             </div>
         </div>
     </div>
+
 
     <script>
         const tg = window.Telegram.WebApp;
