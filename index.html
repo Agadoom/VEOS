@@ -92,6 +92,22 @@
     transform: scale(0.92); /* Effet d'enfoncement quand on clique */
 }
 
+.main-coin {
+    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+    animation: coinFloat 3s ease-in-out infinite;
+}
+
+@keyframes coinFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.btn:active {
+    box-shadow: none !important;
+    transform: translateY(3px) !important;
+}
+
+
     </style>
 </head>
 <body>
@@ -102,21 +118,64 @@
     <div class="container">
         
         <div id="p-mine" class="page active-page">
-    <div class="prof-header">
-        <small id="prof-rank" style="color:var(--gold); font-weight:bold;">RANK: #---</small>
-        <h1 id="tot" style="font-size:45px; margin:10px 0;">0.00</h1>
-        <div style="background:#222; height:6px; border-radius:10px; margin:10px 0;">
-            <div id="e-f" style="background:var(--gold); height:100%; width:0%; transition:0.3s;"></div>
+    <div class="prof-header" style="background: linear-gradient(180deg, rgba(255,204,0,0.05) 0%, transparent 100%);">
+        <small id="prof-rank" style="color:var(--gold); font-weight:900; letter-spacing: 1px;">RANK: #---</small>
+        <h1 id="tot" style="font-size:48px; margin:5px 0; font-family: 'monospace'; font-weight: 800; text-shadow: 0 0 15px rgba(255,255,255,0.1);">0.00</h1>
+        
+        <div style="padding: 0 20px;">
+            <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden; position: relative;">
+                <div id="e-f" style="background: linear-gradient(90deg, var(--gold), #ffaa00); height:100%; width:0%; transition:0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); position: relative;">
+                    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 100%);"></div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <small id="e-t" style="color:var(--text); font-weight: bold; font-size: 11px; opacity: 0.8;">Energy: 0/100</small>
+                <small style="color:var(--gold); font-size: 10px; font-weight: 900;">⚡ AUTO-RECHARGE</small>
+            </div>
         </div>
-        <small id="e-t" style="color:var(--text)">Energy: 0/100</small>
     </div>
 
-    <div style="text-align:center; margin-top:30px; margin-bottom: 20px;">
+    <div style="display: grid; gap: 10px; margin-top: 10px;">
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
+            <div>
+                <b style="font-size: 14px;">Genesis <span style="color:var(--gold)">(WPT)</span></b><br>
+                <small id="gv" style="font-family: monospace; font-size: 13px; opacity: 0.7;">0.00</small>
+            </div>
+            <button class="btn" style="box-shadow: 0 4px 0 #bbb;" onclick="mine('genesis', event)">MINE</button>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
+            <div>
+                <b style="font-size: 14px;">Unity Pool</b><br>
+                <small id="uv" style="font-family: monospace; font-size: 13px; opacity: 0.7;">0.00</small>
+            </div>
+            <button class="btn" style="background: #eee; box-shadow: 0 4px 0 #999;" onclick="mine('unity', event)">SYNC</button>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px; border-color: rgba(162, 89, 255, 0.3);">
+            <div>
+                <b style="color:var(--purple); font-size: 14px;">Veo AI</b><br>
+                <small id="vv" style="font-family: monospace; font-size: 13px; opacity: 0.7;">0.00</small>
+            </div>
+            <button class="btn" style="background:var(--purple); color:#fff; box-shadow: 0 4px 0 #6a35a0;" onclick="mine('veo', event)">COMPUTE</button>
+        </div>
+    </div>
+
+    <div class="coin-container" style="text-align:center; margin-top:35px; position: relative;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 140px; background: var(--gold); filter: blur(40px); opacity: 0.15; border-radius: 50%; pointer-events: none;"></div>
+        
         <img src="static/genesis.png" 
-             style="width:180px; cursor:pointer; filter: drop-shadow(0 0 15px rgba(255,215,0,0.3));" 
-             onclick="mine('genesis', event)">
+             class="main-coin"
+             style="width:170px; height: 170px; cursor:pointer; transition: transform 0.05s ease; user-select: none; -webkit-user-drag: none;" 
+             onclick="mine('genesis', event)"
+             onmousedown="this.style.transform='scale(0.92)'" 
+             onmouseup="this.style.transform='scale(1)'"
+             onmouseleave="this.style.transform='scale(1)'"
+             ontouchstart="this.style.transform='scale(0.92)'"
+             ontouchend="this.style.transform='scale(1)'">
     </div>
 </div>
+
 
 
 
