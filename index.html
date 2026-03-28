@@ -822,25 +822,51 @@ if(refEl) {
 
     // --- LEADERBOARD & PORTFOLIO ---
     async function loadLeaderboard() {
-    const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
-    const data = await r.json();
-    const container = document.getElementById('leaderboard-list');
-    container.innerHTML = "";
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
+        const data = await r.json();
+        const container = document.getElementById('leaderboard');
+        
+        container.innerHTML = data.map((u, i) => {
+            const rank = i + 1;
+            let badge = "";
+            let style = "";
 
-    data.forEach((user, index) => {
-        const rank = index + 1;
-        container.innerHTML += `
-            <div class="leader-item rank-${rank}">
-                <div style="width: 30px; font-weight: bold; color: var(--gold);">#${rank}</div>
-                <div style="flex: 1; font-weight: 500;">${user.name}</div>
-                <div style="text-align: right;">
-                    <div style="font-size: 14px; color: white;">${user.score.toLocaleString()}</div>
-                    <div style="font-size: 10px; color: var(--gold);">WPT</div>
+            // Style spécial pour le Podium
+            if (rank === 1) { 
+                badge = "👑"; 
+                style = "border-left: 4px solid #FFD700; background: rgba(255, 215, 0, 0.05);"; 
+            }
+            else if (rank === 2) { 
+                badge = "🥈"; 
+                style = "border-left: 4px solid #C0C0C0;"; 
+            }
+            else if (rank === 3) { 
+                badge = "🥉"; 
+                style = "border-left: 4px solid #CD7F32;"; 
+            }
+
+            return `
+                <div class="card" style="padding:12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; ${style}">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <span style="font-weight:bold; color:var(--gold); width:25px;">${rank}</span>
+                        <div style="display:flex; flex-direction:column;">
+                            <span style="font-weight:600; font-size:14px;">${badge} ${u.name}</span>
+                            <small style="font-size:10px; opacity:0.5;">Active Miner</small>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <b style="color:white; font-size:15px;">${u.score.toLocaleString()}</b>
+                        <div style="font-size:9px; color:var(--gold); font-weight:bold;">WPT</div>
+                    </div>
                 </div>
-            </div>
-        `;
-    });
+            `;
+        }).join('');
+    } catch (e) {
+        console.error("Leaderboard Error:", e);
+    }
 }
+
 
 
     async function loadPortfolio() {
