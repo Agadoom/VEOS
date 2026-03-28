@@ -552,12 +552,15 @@
         }
         update('e-t', `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`);
 
-        // 4. Daily Streak & Boost (Clés Python : streak, mining_boost)
-        if (d.streak > 0) {
-            const sBadge = document.getElementById('streak-badge');
-            if(sBadge) sBadge.style.display = 'inline-flex';
-            update('streak-val', d.streak);
-        }
+      // Affichage du Streak reçu depuis Python
+if (d.streak > 0) {
+    const sBadge = document.getElementById('streak-badge');
+    if(sBadge) {
+        sBadge.style.display = 'inline-flex';
+        document.getElementById('streak-val').innerText = d.streak;
+    }
+}
+
 
         // ATTENTION : Ta route Python renvoie 'mining_boost', pas 'mining_multiplier'
         if(document.getElementById('mining-boost')) {
