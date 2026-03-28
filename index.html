@@ -166,6 +166,18 @@
 }
 
 
+.leader-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    border-left: 4px solid transparent;
+}
+.rank-1 { border-left-color: #FFD700; background: rgba(255, 215, 0, 0.1); }
+.rank-2 { border-left-color: #C0C0C0; }
+.rank-3 { border-left-color: #CD7F32; }
 
 
 
@@ -810,12 +822,26 @@ if(refEl) {
 
     // --- LEADERBOARD & PORTFOLIO ---
     async function loadLeaderboard() {
-        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
-        const data = await r.json();
-        document.getElementById('leaderboard').innerHTML = data.map(u => `
-            <div class="card" style="padding:10px;"><span>#${u.rank} ${u.name}</span><b>${u.score.toLocaleString()}</b></div>
-        `).join('');
-    }
+    const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
+    const data = await r.json();
+    const container = document.getElementById('leaderboard-list');
+    container.innerHTML = "";
+
+    data.forEach((user, index) => {
+        const rank = index + 1;
+        container.innerHTML += `
+            <div class="leader-item rank-${rank}">
+                <div style="width: 30px; font-weight: bold; color: var(--gold);">#${rank}</div>
+                <div style="flex: 1; font-weight: 500;">${user.name}</div>
+                <div style="text-align: right;">
+                    <div style="font-size: 14px; color: white;">${user.score.toLocaleString()}</div>
+                    <div style="font-size: 10px; color: var(--gold);">WPT</div>
+                </div>
+            </div>
+        `;
+    });
+}
+
 
     async function loadPortfolio() {
         const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
