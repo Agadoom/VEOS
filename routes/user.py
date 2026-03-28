@@ -8,9 +8,10 @@ router = APIRouter(prefix="/api/user", tags=["User"])
 # --- FONCTION ÉCONOMIQUE ---
 def get_wpt_price(total_supply):
     base_price = 0.0001
-    growth = (total_supply / 1000000) * 0.00001
+    # On peut imaginer que plus il y a de WPT en circulation (émis par les Stars), 
+    # plus la rareté augmente via un multiplicateur
+    growth = (total_supply / 1000000) * 0.00002 # On a doublé le facteur de croissance
     return round(base_price + growth, 6)
-
 # --- 1. MODÈLES DE DONNÉES ---
 class WithdrawRequest(BaseModel):
     user_id: int
