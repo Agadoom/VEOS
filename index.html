@@ -584,6 +584,34 @@ async function refresh() {
             refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
         }
 
+
+// À mettre juste avant la fin du bloc "try" de ta fonction refresh()
+if (d.assets && d.assets.length > 0) {
+    const portfolio = document.getElementById('user-portfolio');
+    portfolio.innerHTML = d.assets.map(asset => `
+        <div class="card" onclick="openTokenDetails('${asset.n}', '${asset.s}', ${asset.a})" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px; border:1px solid #333;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:35px; height:35px; background:var(--gold); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">
+                    ${asset.s[0].toUpperCase()}
+                </div>
+                <div>
+                    <b style="display:block;">${asset.n}</b>
+                    <small style="opacity:0.6;">${asset.s}</small>
+                </div>
+            </div>
+            <b>${parseFloat(asset.a).toLocaleString()}</b>
+        </div>
+    `).join('');
+} else {
+    document.getElementById('user-portfolio').innerHTML = "<p style='text-align:center; opacity:0.5; font-size:12px;'>You don't own any ecosystem tokens yet.</p>";
+}
+
+
+
+
+
+
+
         // 7. STARS SHOP PRICES
         const starsPrices = [50, 250, 500];
         document.querySelectorAll('.star-price').forEach((p, i) => {
@@ -834,6 +862,41 @@ function showPage(pageId) {
 }
 
 
+
+
+
+
+
+async function loadNewListings() {
+    const list = document.getElementById('token-list');
+    if(!list) return;
+
+    try {
+        // On appelle l'API (Assure-toi que cette route existe dans ton launcher.py)
+        const r = await fetch(`${BASE_URL}/api/launcher/listings`);
+        const tokens = await r.json();
+
+        if(tokens.length === 0) {
+            list.innerHTML = "<p style='text-align:center; opacity:0.5;'>No tokens yet. Be the first!</p>";
+            return;
+        }
+
+        list.innerHTML = tokens.map(t => `
+            <div class="card" onclick='openListingDetails(${JSON.stringify(t)})' style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <img src="${t.logo_url || 'https://via.placeholder.com/40'}" style="width:40px; height:40px; border-radius:10px; object-fit:cover;">
+                    <div>
+                        <b style="display:block;">${t.name}</b>
+                        <small style="color:var(--gold);">${t.symbol}</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green);">$${parseFloat(t.price).toFixed(6)}</b>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) { console.error("Listing error:", e); }
+}
 
 
 
