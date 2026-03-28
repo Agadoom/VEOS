@@ -385,7 +385,7 @@
     const uid = tg.initDataUnsafe.user?.id || 0;
     const BASE_URL = 'https://veos-production-a2de.up.railway.app';
 
-    // Variables d'état
+    // Variables d'état globales
     let currentTokenId = null;
     let userWptBalance = 0;
     let userTokenBalance = 0;
@@ -394,27 +394,86 @@
     let tradeType = 'buy';
     let sourcePage = 'p-mine';
 
-    // --- NAVIGATION UNIQUE ---
+    // --- NAVIGATION ---
     function showPage(pageId) {
         // Masquer toutes les pages
-        document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+        document.querySelectorAll('.page').forEach(pg => pg.style.display = 'none');
         
         // Afficher la page cible
         const target = document.getElementById(pageId);
-        if(target) target.style.display = 'block';
+        if (target) {
+            target.style.display = 'block';
+        }
 
-        // Gérer l'état actif de la nav-bar
+        // Gérer le menu de navigation (n-mine, n-launcher, etc.)
         document.querySelectorAll('.nav-bar button').forEach(btn => btn.classList.remove('active'));
-        
-        const navMap = { 'p-mine': 1, 'p-launcher': 2, 'p-wallet': 3, 'p-profil': 4 };
-        const index = navMap[pageId];
-        if(index) document.querySelector(`.nav-bar button:nth-child(${index})`).classList.add('active');
+        const navId = pageId.replace('p-', 'n-');
+        const navItem = document.getElementById(navId);
+        if (navItem) navItem.classList.add('active');
 
-        // Chargements automatiques
-        if(pageId === 'p-profil') { refresh(); loadLeaderboard(); loadPortfolio(); }
-        if(pageId === 'p-launcher') { loadMarket(); loadNewListings(); }
+        // Déclencher les chargements selon la page
+        if (pageId === 'p-profil') {
+            refresh();
+            loadLeaderboard();
+            loadPortfolio();
+        }
+        if (pageId === 'p-launcher') {
+            loadMarket();
+            loadNewListings();
+        }
         
-        if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    }
+
+    // --- REFRESH DONNÉES UTILISATEUR ---
+    async function refresh() {
+        try {
+            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+            if (!r.ok) return;
+            const d = await r.json();
+            
+            // 1. Balance & Rank
+            userWptBalance = parseFloat(d.score || 0);
+            if(document.getElementById('tot')) document.getElementById('tot').innerText = userWptBalance.toLocaleString();
+            if(document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = userWptBalance.toLocaleString();
+            document.querySelectorAll('#prof-rank').forEach(el => el.innerText = "RANK: #" + (d.rank || "---"));
+
+            // 2. User Info
+            const userName = d.name || "Citizen";
+            if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = userName;
+            if(document.getElementById('prof-initials')) document.getElementById('prof-initials').innerText = userName.charAt(0).toUpperCase();
+
+            // 3. USD & Energie
+            if(document.getElementById('usd-val')) document.getElementById('usd-val').innerText = `$${(parseFloat(d.usd_value || 0)).toFixed(2)} USD`;
+            if(document.getElementById('wpt-price')) document.getElementById('wpt-price').innerText = `1 WPT = $${d.wpt_price}`;
+            
+            const per = ((d.energy || 0) / (d.max_energy || 100)) * 100;
+            if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
+            if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
+
+            // 4. Compteurs minage (gv, uv, vv)
+            if(document.getElementById('gv')) document.getElementById('gv').innerText = parseFloat(d.g || 0).toFixed(2);
+            if(document.getElementById('uv')) document.getElementById('uv').innerText = parseFloat(d.u || 0).toFixed(2);
+            if(document.getElementById('vv')) document.getElementById('vv').innerText = parseFloat(d.v || 0).toFixed(2);
+
+            // 5. Assets List (Simple view)
+            const assetHTML = (d.assets && d.assets.length > 0) 
+                ? d.assets.map(asset => `
+                    <div class="card" onclick="openTokenDetails('${asset.n}', '${asset.s}', ${asset.a})" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="width:35px; height:35px; background:var(--gold); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">${asset.s[0]}</div>
+                            <b>${asset.n}</b>
+                        </div>
+                        <b>${parseFloat(asset.a).toLocaleString()}</b>
+                    </div>`).join('')
+                : "<p style='text-align:center; opacity:0.5;'>No tokens yet.</p>";
+            
+            if(document.getElementById('user-portfolio')) document.getElementById('user-portfolio').innerHTML = assetHTML;
+
+            // 6. Referral link
+            if(document.getElementById('ref-link-display')) document.getElementById('ref-link-display').innerText = `https://t.me/OWPCsBot?start=${uid}`;
+
+        } catch(e) { console.error("Refresh error:", e); }
     }
 
     // --- MINING ---
@@ -430,78 +489,49 @@
             const res = await r.json();
             if(res.ok) {
                 const ft = document.createElement('div');
-                ft.className = 'floating-text';
-                ft.innerText = "+" + res.reward;
+                ft.className = 'floating-text'; ft.innerText = "+" + res.reward;
                 ft.style.left = x + "px"; ft.style.top = y + "px";
                 document.body.appendChild(ft);
                 setTimeout(() => ft.remove(), 800);
                 refresh();
-            } else { tg.showAlert(res.error); }
+            }
         } catch(e) { console.error(e); }
     }
 
-    // --- REFRESH & DATA ---
-    async function refresh() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            const d = await r.json();
-            
-            userWptBalance = parseFloat(d.score || 0);
-            document.getElementById('tot').innerText = userWptBalance.toLocaleString();
-            if(document.getElementById('wallet-balance')) document.getElementById('wallet-balance').innerText = userWptBalance.toLocaleString();
-            
-            document.querySelectorAll('#prof-rank').forEach(el => el.innerText = "RANK: #" + (d.rank || "---"));
-            if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name || "Citizen";
-            
-            // Energie
-            const per = (d.energy / d.max_energy) * 100;
-            if(document.getElementById('e-f')) document.getElementById('e-f').style.width = per + "%";
-            if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
-
-            // Mini-compteurs g, u, v
-            ['gv','uv','vv'].forEach((id, i) => {
-                const val = [d.g, d.u, d.v][i];
-                if(document.getElementById(id)) document.getElementById(id).innerText = parseFloat(val || 0).toFixed(2);
-            });
-        } catch(e) { console.error(e); }
-    }
-
-    // --- TOKEN DETAILS ---
-    function openTokenDetails(name, symbol, amount, isListing = false, tData = null) {
-        sourcePage = isListing ? 'p-launcher' : 'p-profil';
-        
+    // --- DETAILS & TRADING ---
+    function openTokenDetails(name, symbol, amount) {
+        sourcePage = 'p-profil';
         document.getElementById('det-name').innerText = name;
         document.getElementById('det-symbol').innerText = '$' + symbol;
         document.getElementById('det-amount-display').innerText = amount.toLocaleString();
-        
-        if(isListing) {
-            currentTokenId = tData.id;
-            document.getElementById('det-price').innerText = `$${tData.price}`;
-            document.getElementById('det-logo-img').src = tData.logo_url || '';
-            document.getElementById('det-logo-img').style.display = 'block';
-            document.getElementById('det-actions-trade').style.display = 'grid';
-            document.getElementById('det-actions-wallet').style.display = 'none';
-            updateHoldings(tData.id);
-        } else {
-            document.getElementById('det-actions-trade').style.display = 'none';
-            document.getElementById('det-actions-wallet').style.display = 'grid';
-            document.getElementById('det-logo-img').style.display = 'none';
-        }
+        document.getElementById('det-price-top').innerText = "ASSET";
+        document.getElementById('det-logo-img').style.display = 'none';
+        document.getElementById('det-actions-trade').style.display = 'none';
+        document.getElementById('det-actions-wallet').style.display = 'grid';
         showPage('p-details');
     }
 
-    async function updateHoldings(tokenId) {
-        const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tokenId}`);
-        const d = await r.json();
-        userTokenBalance = d.ok ? d.balance : 0;
-        document.getElementById('det-user-balance').innerText = "Balance: " + userTokenBalance.toFixed(2);
+    function openListingDetails(t) {
+        sourcePage = 'p-launcher';
+        currentTokenId = t.id;
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-symbol').innerText = '$' + t.symbol;
+        document.getElementById('det-price').innerText = `$${t.price}`;
+        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+        const logo = document.getElementById('det-logo-img');
+        logo.src = t.logo_url || ''; logo.style.display = 'block';
+        document.getElementById('det-actions-trade').style.display = 'grid';
+        document.getElementById('det-actions-wallet').style.display = 'none';
+        updateHoldings(t.id);
+        showPage('p-details');
     }
 
-    // --- TRADE ---
+    function closeDetails() { showPage(sourcePage); }
+
     function openTrade(type) {
         tradeType = type;
         document.getElementById('trade-modal').style.display = 'flex';
-        document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy' : '📉 Sell');
+        document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy Token' : '📉 Sell Token');
         document.getElementById('trade-amount').value = "";
     }
 
@@ -510,52 +540,88 @@
         if(!val || val <= 0) return;
         try {
             const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-            const res = await fetch(`${BASE_URL}${path}`, {
+            const r = await fetch(`${BASE_URL}${path}`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
             });
+            const res = await r.json();
             if(res.ok) {
                 document.getElementById('trade-modal').style.display = 'none';
                 tg.showAlert("✅ Success!");
                 refresh();
-                updateHoldings(currentTokenId);
-            }
+            } else { tg.showAlert(res.error); }
         } catch(e) { tg.showAlert("Error"); }
     }
 
-    // --- MARKET & LISTINGS ---
+    // --- LAUNCHPAD LOGIC ---
     async function loadMarket() {
         const r = await fetch(`${BASE_URL}/api/launcher/list`);
         const tokens = await r.json();
         const list = document.getElementById('token-list');
         if(list) {
             list.innerHTML = tokens.map(t => `
-                <div class="card" onclick='openTokenDetails("${t.name}", "${t.symbol}", 0, true, ${JSON.stringify(t)})'>
-                    <img src="${t.logo}" style="width:35px; height:45px; border-radius:8px;">
+                <div class="card" onclick='openListingDetails(${JSON.stringify(t)})'>
+                    <img src="${t.logo}" style="width:35px; height:35px; border-radius:8px;">
                     <div style="flex:1; margin-left:10px;"><b>${t.name}</b><br><small>$${t.symbol}</small></div>
                     <b style="color:var(--green)">${t.price.toFixed(6)}</b>
-                </div>
-            `).join('');
+                </div>`).join('');
         }
     }
 
-    // --- UTILS ---
-    function copyRef() {
-        navigator.clipboard.writeText(`https://t.me/OWPCsBot?start=${uid}`);
-        tg.showAlert("Link copied! ✅");
+    async function loadNewListings() {
+        const list = document.getElementById('token-list');
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/listings`);
+            const tokens = await r.json();
+            if(tokens.length > 0) {
+                list.innerHTML = tokens.map(t => `<div class="card" onclick='openListingDetails(${JSON.stringify(t)})'>...</div>`).join('');
+            }
+        } catch(e) {}
     }
 
-    function shareRef() {
-        const url = encodeURIComponent(`https://t.me/OWPCsBot?start=${uid}`);
-        tg.openTelegramLink(`https://t.me/share/url?url=${url}&text=Join%20WPT%20Hub!`);
+    function processFile(t) {
+        const f = document.getElementById('f-'+t).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => { if(t==='logo') b64_logo=reader.result; else b64_banner=reader.result; };
+        if(f) reader.readAsDataURL(f);
     }
+
+    async function deployToken() {
+        const n = document.getElementById('tk-name').value;
+        const s = document.getElementById('tk-sym').value;
+        if(!n || !s || !b64_logo) return tg.showAlert("Missing Data");
+        const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, name: n, symbol: s, description: document.getElementById('tk-desc').value, logo_b64: b64_logo, banner_b64: b64_banner })
+        });
+        if(res.ok) { tg.showAlert("🚀 Token Deployed!"); showPage('p-launcher'); }
+    }
+
+    // --- UTILS ---
+    async function loadLeaderboard() {
+        const lb = document.getElementById('leaderboard');
+        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
+        const data = await r.json();
+        lb.innerHTML = data.map(u => `<div class="card" style="display:flex; justify-content:space-between; padding:10px;"><span>#${u.rank} ${u.name}</span><b>${u.score}</b></div>`).join('');
+    }
+
+    async function buyStarsPack(amt) {
+        const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${amt}`);
+        const d = await r.json();
+        if(d.invoice_link) tg.openInvoice(d.invoice_link, (s) => { if(s==='paid') refresh(); });
+    }
+
+    function copyRef() { navigator.clipboard.writeText(`https://t.me/OWPCsBot?start=${uid}`); alert("Copied! ✅"); }
+    function shareRef() { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent('https://t.me/OWPCsBot?start='+uid)}&text=Join%20Us!`); }
 
     // --- INIT ---
     tg.expand();
     refresh();
-    setInterval(refresh, 15000);
+    setInterval(refresh, 20000);
 </script>
+
 
 
 </body>
