@@ -464,25 +464,59 @@
 
     // --- REFRESH DATA ---
     async function refresh() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            const d = await r.json();
-            userWptBalance = d.score || 0;
-            document.getElementById('tot').innerText = userWptBalance.toLocaleString();
-            document.getElementById('wallet-balance').innerText = userWptBalance.toLocaleString();
-            document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || '---');
-            document.getElementById('prof-name').innerText = d.name || 'Citizen';
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        const data = await r.json();
+
+        // Sécurité : si le serveur renvoie une erreur ou un format inconnu
+        if (!data || !Array.isArray(data)) return;
+
+        // On mappe le Tuple Python vers des variables claires
+        // Ordre dans database.py : genesis(0), unity(1), veo(2), name(3), energy(4), last_upd(5), streak(6), ref(7), date(8)
+        const d = {
+            p_genesis: data[0],
+            p_unity: data[1],
+            p_veo: data[2],
+            name: data[3],
+            energy: data[4],
+            max_energy: 100, // Valeur par défaut
+            rank: data[6] || 0, // On utilise le streak comme rank temporaire ou autre
+            usd_value: data[0] * 0.0001 // Calcul simple du prix WPT
+        };
+
+        userWptBalance = d.p_genesis || 0;
+
+        // Mise à jour du DOM avec sécurité
+        const update = (id, val) => { if(document.getElementById(id)) document.getElementById(id).innerText = val; };
+
+        update('tot', userWptBalance.toLocaleString());
+        update('wallet-balance', userWptBalance.toLocaleString());
+        update('prof-name', d.name || 'Citizen');
+        update('prof-rank', "RANK: #" + (d.rank || '---'));
+        update('usd-val', `$${d.usd_value.toFixed(2)}`);
+        update('gv', parseFloat(d.p_genesis).toLocaleString());
+        update('uv', parseFloat(d.p_unity).toLocaleString());
+        update('vv', parseFloat(d.p_veo).toLocaleString());
+
+        // Initiale du nom
+        if(document.getElementById('prof-initials')) {
             document.getElementById('prof-initials').innerText = (d.name || "C")[0].toUpperCase();
-            document.getElementById('usd-val').innerText = `$${(d.usd_value || 0).toFixed(2)}`;
-            document.getElementById('e-f').style.width = (d.energy / d.max_energy * 100) + "%";
-            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
-            ['gv','uv','vv'].forEach((id, i) => {
-                const val = [d.g, d.u, d.v][i];
-                document.getElementById(id).innerText = parseFloat(val || 0).toLocaleString();
-            });
+        }
+
+        // Énergie
+        const ePercent = (d.energy / d.max_energy * 100);
+        if(document.getElementById('e-f')) document.getElementById('e-f').style.width = ePercent + "%";
+        if(document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
+
+        if(document.getElementById('ref-link-display')) {
             document.getElementById('ref-link-display').innerText = `https://t.me/OWPCsBot?start=${uid}`;
-        } catch(e) { console.error(e); }
+        }
+
+    } catch(e) { 
+        console.error("Erreur Refresh détaillé:", e); 
     }
+}
+
 
     // --- MINING ---
     async function mine(type, event) {
