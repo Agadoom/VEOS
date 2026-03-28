@@ -92,7 +92,20 @@
         @keyframes moveUpFade { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
         
         .bottom-logo { max-width: 80px; opacity: 0.5; margin: 30px auto; display: block; }
+
+
+
+
+/* Ajoute ça dans ton bloc <style> */
+.btn-buy-stars {
+    position: relative;
+    z-index: 100 !important; /* Force le bouton au premier plan */
+    pointer-events: auto !important; /* Force la détection du clic */
+}
+
     </style>
+
+
 </head>
 <body>
 
@@ -210,7 +223,13 @@
             </div>
             <div id="det-actions-trade" style="display:flex; gap:10px; padding:10px;">
                 <button class="btn" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
+<div id="det-socials" style="display:flex; gap:15px; justify-content:center; margin-top:15px;">
+    </div>
+
                 <button class="btn" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
+<div id="det-socials" style="display:flex; gap:15px; justify-content:center; margin-top:15px;">
+    </div>
+
             </div>
             <div id="det-actions-wallet" style="display:none; gap:10px; padding:10px;">
                 <button class="btn" style="flex:1; background:#fff; color:#000;">SEND</button>
@@ -332,6 +351,18 @@
             document.getElementById('det-actions-trade').style.display = 'none';
             document.getElementById('det-actions-wallet').style.display = 'flex';
             document.getElementById('p-details').style.display = 'block';
+
+
+existent (tu peux les rajouter dans ton deployToken)
+    const socialDiv = document.getElementById('det-socials');
+    socialDiv.innerHTML = ""; // Clear
+    
+    if(t.twitter_url) {
+        socialDiv.innerHTML += `<a href="${t.twitter_url}" target="_blank" style="text-decoration:none; font-size:20px;">𝕏</a>`;
+    }
+    if(t.website_url) {
+        socialDiv.innerHTML += `<a href="${t.website_url}" target="_blank" style="text-decoration:none; font-size:20px;">🌐</a>`;
+    }
         }
 
         async function updateHoldings(tid) {
@@ -387,15 +418,52 @@
             if(f) reader.readAsDataURL(f);
         }
         async function deployToken() {
-            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid, name: document.getElementById('tk-name').value, 
-                    symbol: document.getElementById('tk-sym').value, logo_b64: b64_logo, banner_b64: b64_banner
-                })
-            });
-            if(res.ok) { tg.showAlert("🚀 Token Deployed!"); showPage('p-launcher'); }
+    const name = document.getElementById('tk-name').value.trim();
+    const symbol = document.getElementById('tk-sym').value.trim();
+    const desc = document.getElementById('tk-desc').value.trim();
+
+    // ⛔ SÉCURITÉ : Vérification des champs
+    if (!name || !symbol) {
+        return tg.showAlert("❌ Please enter a Name and Symbol!");
+    }
+    if (!b64_logo) {
+        return tg.showAlert("❌ A Logo is required to launch!");
+    }
+    if (userWptBalance < 5000) {
+        return tg.showAlert("❌ Insufficient WPT Balance (5,000 required)");
+    }
+
+    try {
+        const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid, 
+                name: name, 
+                symbol: symbol, 
+                description: desc,
+                logo_b64: b64_logo, 
+                banner_b64: b64_banner
+            })
+        });
+        
+        if(res.ok) { 
+            tg.showAlert("🚀 Token Deployed Successfully!"); 
+            showPage('p-launcher'); 
+            // Reset des champs
+            document.getElementById('tk-name').value = "";
+            document.getElementById('tk-sym').value = "";
+            document.getElementById('tk-desc').value = "";
+            b64_logo = ""; b64_banner = "";
+        } else {
+            const err = await res.json();
+            tg.showAlert("Error: " + err.error);
         }
+    } catch(e) { 
+        tg.showAlert("Failed to reach server");
+    }
+}
+
 
         async function loadLeaderboard() {
             const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
@@ -408,5 +476,8 @@
         const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
         tg.expand(); refresh(); setInterval(refresh, 15000);
     </script>
+
+
+
 </body>
 </html>
