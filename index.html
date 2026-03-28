@@ -514,17 +514,28 @@
     function openListingDetails(t) {
         sourcePage = 'p-launcher';
         currentTokenId = t.id;
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-symbol').innerText = '$' + t.symbol;
-        document.getElementById('det-price').innerText = `$${t.price}`;
-        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-        const logo = document.getElementById('det-logo-img');
-        logo.src = t.logo_url || ''; logo.style.display = 'block';
-        document.getElementById('det-actions-trade').style.display = 'grid';
-        document.getElementById('det-actions-wallet').style.display = 'none';
-        updateHoldings(t.id);
-        showPage('p-details');
+         // On remplit les champs de la page de détails
+    if(document.getElementById('det-name')) document.getElementById('det-name').innerText = t.name;
+    if(document.getElementById('det-sym')) document.getElementById('det-sym').innerText = '$' + t.symbol;
+    if(document.getElementById('det-price-top')) document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+    
+    const logoImg = document.getElementById('det-logo') || document.getElementById('det-logo-img');
+    if(logoImg) {
+        logoImg.src = t.logo_url || t.logo || '';
+        logoImg.style.display = 'block';
     }
+
+    // Gestion de la bannière
+    const banner = document.getElementById('det-banner');
+    if(banner) banner.style.backgroundImage = t.banner_url ? `url(${t.banner_url})` : 'none';
+
+    // On force l'affichage des boutons Trade
+    if(document.getElementById('det-actions-trade')) document.getElementById('det-actions-trade').style.display = 'flex';
+    if(document.getElementById('det-actions-wallet')) document.getElementById('det-actions-wallet').style.display = 'none';
+
+    // --- LA LIGNE CRUCIALE ---
+    showPage('p-details'); 
+}
 
     function closeDetails() { showPage(sourcePage); }
 
