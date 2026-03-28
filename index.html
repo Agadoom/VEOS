@@ -505,13 +505,13 @@ async function refresh() {
             if(el) el.innerText = userWptBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
         });
 
-        // 2. USERNAME & INITIALS (Le correctif pour toi)
+        // 2. USERNAME & INITIALS
         const userName = d.name || d.first_name || "Citizen";
-const nameEl = document.getElementById('prof-name');
-if(nameEl) nameEl.innerText = userName;
+        const nameEl = document.getElementById('prof-name');
+        if(nameEl) nameEl.innerText = userName;
 
-const initEl = document.getElementById('prof-initials');
-if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
+        const initEl = document.getElementById('prof-initials');
+        if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
 
         // 3. Rank
         const rankValue = d.rank || d.position || "---";
@@ -526,28 +526,23 @@ if(initEl) initEl.innerText = userName.charAt(0).toUpperCase();
         if(document.getElementById('e-t')) 
             document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`;
 
+        // 5. Mise à jour des prix Stars
+        const starsPrices = [50, 250, 500];
+        const starsPacks = document.querySelectorAll('.star-price');
+        starsPacks.forEach((p, i) => {
+            if(starsPrices[i]) p.innerText = `${starsPrices[i]} Stars`;
+        });
 
-      const starsPrices = [50, 250, 500];  // <--- C'est ICI que tout se joue
-const starsPacks = document.querySelectorAll('.star-price');
-starsPacks.forEach((p, i) => {
-    p.innerText = `${starsPrices[i]} Stars`;
-});
-
-const refDisplay = document.getElementById('ref-link-display');
-if (refDisplay) {
-    refDisplay.innerText = myRefLink;
-}
+        // 6. LIEN DE PARRAINAGE (CORRIGÉ ICI)
+        const refDisplay = document.getElementById('ref-link-display');
+        if (refDisplay) {
+            // On utilise 'uid' car c'est ta variable globale
+            refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
+        }
 
     } catch(e) { console.error("Refresh error:", e); }
 }
 
-
-const myReferralLink = `https://t.me/OWPCsBot?start=${userId}`;
-
-// 3. L'afficher dans la petite case
-document.getElementById('ref-link-display').innerText = myReferralLink;
-
-}
 
 
 
