@@ -20,7 +20,6 @@ async def list_tokens():
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On sélectionne id, name, symbol, logo, banner, price, description, website, twitter
         c.execute("""
             SELECT id, name, symbol, logo, banner, price, 
                    description, website_url, twitter_url 
@@ -28,31 +27,19 @@ async def list_tokens():
             ORDER BY id DESC
         """)
         res = c.fetchall()
-        
-        # On renvoie un dictionnaire complet et propre
         return [{
-            "id": r[0], 
-            "name": r[1], 
-            "symbol": r[2], 
-            "logo": r[3], # Si c'est en b64, c'est bon
-            "banner": r[4], # Si c'est en b64, c'est bon
-            "price": float(r[5]),
-            # On gère les valeurs vides s'il n'y a pas encore de description/urls
+            "id": r[0], "name": r[1], "symbol": r[2], 
+            "logo": r[3], "banner": r[4], "price": float(r[5]),
             "description": r[6] or "No description provided.",
             "website": r[7] or "",
             "twitter": r[8] or ""
         } for r in res]
     except Exception as e:
-        # En cas d'erreur SQL, on renvoie une liste vide pour ne pas faire planter l'app
-        print(f"Erreur SQL List: {e}")
-        return [{
-    "id": r[0], "name": r[1], "symbol": r[2], 
-    "logo": r[3], "banner": r[4], "price": float(r[5]),
-    "description": r[6], "website": r[7], "twitter": r[8]
-} for r in res]
-
+        print(f"❌ Erreur SQL List: {e}")
+        return [] # Retourne une liste vide au lieu de faire planter le script
     finally:
         c.close(); conn.close()
+
 
 
 @router.post("/buy")
@@ -181,52 +168,39 @@ class DeployRequest(BaseModel):
     name: str
     symbol: str
     description: str = ""
+    website_url: str = "" # AJOUTÉ
+    twitter_url: str = "" # AJOUTÉ
     logo_b64: str
     banner_b64: str = ""
 
 @router.post("/deploy")
 async def deploy_token(req: DeployRequest):
-    print(f"🚀 Deploy Attempt: {req.name} (${req.symbol}) by UID {req.user_id}")
-    
     conn = database.get_db_conn()
     c = conn.cursor()
-    
     try:
-        # 1. Vérifier si l'utilisateur a assez de WPT (ex: 5000 WPT de frais)
         fee = 5000.0
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
         u = c.fetchone()
-        
         if not u or float(u[0]) < fee:
-            return JSONResponse(status_code=400, content={"ok": False, "error": f"Frais de 5000 WPT requis. Solde insuffisant."})
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Frais de 5000 WPT requis."})
 
-        # 2. Insérer le nouveau token
-        # Note: Dans un vrai projet, on sauvegarderait l'image b64 dans un fichier ou un Cloud (S3/Cloudinary)
-        # Ici, on stocke l'URL ou le b64 directement pour faire simple (attention à la taille en BDD)
+        # Ajout des colonnes website_url et twitter_url dans l'INSERT
         c.execute("""
-            INSERT INTO community_tokens (name, symbol, description, logo, banner, price, creator_id) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (req.name, req.symbol, req.description, req.logo_b64, req.banner_b64, 0.0001, req.user_id))
+            INSERT INTO community_tokens (name, symbol, description, website_url, twitter_url, logo, banner, price, creator_id) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (req.name, req.symbol, req.description, req.website_url, req.twitter_url, req.logo_b64, req.banner_b64, 0.0001, req.user_id))
         
         new_token_id = c.fetchone()[0]
-
-        # 3. Prélever les frais
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (fee, req.user_id))
-
-        # 4. Initialiser l'historique de prix
         c.execute("INSERT INTO token_price_history (token_id, price, timestamp) VALUES (%s, %s, %s)", 
                   (new_token_id, 0.0001, int(time.time())))
-
         conn.commit()
         return {"ok": True, "token_id": new_token_id}
-
     except Exception as e:
         conn.rollback()
-        print(f"❌ Deploy Error: {e}")
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
     finally:
         c.close(); conn.close()
-
 
 @router.get("/balance/{uid}/{tid}")
 async def get_user_token_balance(uid: int, tid: int):
