@@ -553,56 +553,95 @@ async function loadMarket() {
 
 // 2. AFFICHAGE DES DÉTAILS
 function openTokenDetails(t) {
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    // 1. Vibration immédiate pour confirmer le clic
+    if (window.Telegram && tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('medium');
+    }
+
+    console.log("Données reçues pour le token:", t); // Pour debug dans la console
     
     sourcePage = 'p-launcher';
     currentTokenId = t.id;
     
-    // Textes de base
-    document.getElementById('det-name').innerText = t.name;
-    document.getElementById('det-sym').innerText = '$' + t.symbol;
-    document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-    
-    // Description
-    const descEl = document.getElementById('det-desc');
-    if(descEl) descEl.innerText = t.description || "No description provided.";
+    // 2. Mise à jour des textes avec sécurité (vérifie si l'ID existe)
+    const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = val;
+    };
 
-    // Logo & Bannière
+    setText('det-name', t.name);
+    setText('det-sym', '$' + t.symbol);
+    setText('det-price-top', parseFloat(t.price || 0).toFixed(6));
+    setText('det-desc', t.description || "No description provided.");
+
+    // 3. Gestion du Logo
     const logoImg = document.getElementById('det-logo');
-    if(logoImg) logoImg.src = t.logo || '';
-
-    const bannerBox = document.getElementById('det-banner');
-    if(bannerBox) {
-        bannerBox.style.backgroundImage = t.banner ? `url(${t.banner})` : 'none';
-        bannerBox.style.backgroundSize = 'cover';
+    if (logoImg) {
+        logoImg.src = t.logo || '';
+        logoImg.style.display = t.logo ? 'block' : 'none';
     }
 
-    // Liens Sociaux (URLs cliquables)
-    const socialDiv = document.getElementById('det-socials');
-    if(socialDiv) {
+    // 4. Gestion de la Bannière
+    const bannerBox = document.getElementById('det-banner');
+    if (bannerBox) {
+        if (t.banner) {
+            bannerBox.style.backgroundImage = `url(${t.banner})`;
+            bannerBox.style.backgroundSize = 'cover';
+            bannerBox.style.backgroundPosition = 'center';
+        } else {
+            bannerBox.style.backgroundImage = 'none';
+        }
+    }
+
+    // 5. Gestion des Liens Sociaux (URLs cliquables)
+    const socialDiv = document.getElementById('det-socials') || document.getElementById('det-links');
+    if (socialDiv) {
         socialDiv.innerHTML = ""; 
         let hasLinks = false;
 
-        if (t.website) {
-            socialDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
+        // Lien Website
+        if (t.website && t.website.length > 3) {
+            const webLink = document.createElement('a');
+            webLink.href = t.website.startsWith('http') ? t.website : 'https://' + t.website;
+            webLink.target = "_blank";
+            webLink.innerHTML = "🌐 Website";
+            webLink.style = "text-decoration:none; color:var(--blue); font-weight:bold; font-size:13px; margin-right:15px;";
+            socialDiv.appendChild(webLink);
             hasLinks = true;
         }
         
-        if (t.twitter) {
+        // Lien Twitter
+        if (t.twitter && t.twitter.length > 1) {
+            const xLink = document.createElement('a');
             let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
-            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px;">𝕏</a>`;
+            xLink.href = xUrl;
+            xLink.target = "_blank";
+            xLink.innerHTML = "𝕏 Twitter";
+            xLink.style = "text-decoration:none; color:#fff; font-weight:bold; font-size:13px;";
+            socialDiv.appendChild(xLink);
             hasLinks = true;
         }
         socialDiv.style.display = hasLinks ? "flex" : "none";
     }
 
-    // Actions & Page
-    document.getElementById('det-actions-trade').style.display = 'flex';
-    document.getElementById('det-actions-wallet').style.display = 'none';
+    // 6. Affichage des boutons d'action
+    const tradeActions = document.getElementById('det-actions-trade');
+    if (tradeActions) tradeActions.style.display = 'flex';
+    
+    const walletActions = document.getElementById('det-actions-wallet');
+    if (walletActions) walletActions.style.display = 'none';
 
-    updateHoldings(t.id);
-    document.getElementById('p-details').style.display = 'block';
+    // 7. Chargement du solde et affichage de la page
+    if (typeof updateHoldings === "function") updateHoldings(t.id);
+    
+    const detailsPage = document.getElementById('p-details');
+    if (detailsPage) {
+        detailsPage.style.display = 'block';
+        // Si tu utilises un système de classes pour les pages :
+        // showPage('p-details'); 
+    }
 }
+
 
 
 
