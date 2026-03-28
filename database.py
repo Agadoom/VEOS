@@ -2,7 +2,6 @@ import psycopg2, os, time
 from psycopg2.extras import RealDictCursor
 
 def get_db_conn():
-    # Assure-toi que DATABASE_URL est bien configurée dans tes variables d'environnement Railway
     return psycopg2.connect(os.getenv("DATABASE_URL"))
 
 def init_db_structure():
@@ -23,7 +22,7 @@ def init_db_structure():
             last_login_date TEXT
         )""")
 
-        # 2. Table Tokens (Mise à jour avec les nouveaux champs)
+        # 2. Table Tokens
         c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
             id SERIAL PRIMARY KEY, 
             creator_id BIGINT, 
@@ -48,28 +47,39 @@ def init_db_structure():
             PRIMARY KEY (user_id, token_id)
         )""")
 
-        # --- SÉCURITÉ CRITIQUE : AJOUT DES COLONNES MANQUANTES ---
-        # Si la table existait déjà, ces colonnes n'y sont pas. On les force ici.
-        columns = [
-            ("community_tokens", "description", "TEXT"),
-            ("community_tokens", "website_url", "TEXT"),
-            ("community_tokens", "twitter_url", "TEXT"),
-            ("community_tokens", "logo", "TEXT"),
-            ("community_tokens", "banner", "TEXT"),
-            ("community_tokens", "creator_id", "BIGINT"),
-            ("community_tokens", "supply", "DOUBLE PRECISION DEFAULT 0")
-        ]
-        
-        for table, col, col_type in columns:
-            try:
-                c.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type}")
-            except Exception as e:
-                print(f"Info: Colonne {col} déjà présente ou erreur mineure.")
-
         conn.commit()
-        print("🚀 Database structure verified and updated with social links!")
+        print("🚀 Database structure verified!")
     except Exception as e:
         print(f"❌ DB Error Init: {e}")
+    finally:
+        c.close(); conn.close()
+
+# --- LA FONCTION QUI MANQUAIT POUR FIXER LE PROFIL ---
+def get_user_full(uid):
+    conn = get_db_conn()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT p_genesis, p_unity, p_veo, name, energy, 
+                   last_energy_update, streak, referrer_id, last_login_date 
+            FROM users WHERE user_id=%s
+        """, (uid,))
+        res = c.fetchone()
+        
+        if not res: 
+            # Si l'user n'existe pas, on le crée
+            now = int(time.time())
+            c.execute("""
+                INSERT INTO users (user_id, name, energy, last_energy_update, streak, p_genesis) 
+                VALUES (%s, 'New Citizen', 100, %s, 0, 0)
+            """, (uid, now))
+            conn.commit()
+            return (0.0, 0.0, 0.0, 'New Citizen', 100, now, 0, None, None)
+        
+        return res
+    except Exception as e:
+        print(f"❌ Error get_user_full: {e}")
+        return None
     finally:
         c.close(); conn.close()
 
@@ -77,7 +87,6 @@ def get_community_tokens():
     conn = get_db_conn()
     c = conn.cursor()
     try:
-        # On sélectionne EXACTEMENT ce que list_tokens attend
         c.execute("""
             SELECT id, name, symbol, price, mcap, logo, banner, description, website_url, twitter_url 
             FROM community_tokens 
@@ -86,16 +95,11 @@ def get_community_tokens():
         res = c.fetchall()
         return [
             {
-                "id": r[0], 
-                "name": r[1], 
-                "symbol": r[2], 
-                "price": float(r[3] or 0.0001), 
-                "mcap": float(r[4] or 0), 
-                "logo": r[5] or "", 
-                "banner": r[6] or "",
+                "id": r[0], "name": r[1], "symbol": r[2], 
+                "price": float(r[3] or 0.0001), "mcap": float(r[4] or 0), 
+                "logo": r[5] or "", "banner": r[6] or "",
                 "description": r[7] or "No description provided.",
-                "website": r[8] or "",
-                "twitter": r[9] or ""
+                "website": r[8] or "", "twitter": r[9] or ""
             } for r in res
         ]
     except Exception as e:
