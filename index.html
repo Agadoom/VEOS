@@ -551,44 +551,68 @@ async function loadMarket() {
     }
 }
 
-// 2. AFFICHAGE DES DÉTAILS (C'est elle que le onclick appelle)
-function openTokenDetails(t) {
-    // Vibration Telegram
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+// 2. AFFICHAGE DES DÉTAILS (C'est elle que le // --- DANS LE SCRIPT DE INDEX.HTML ---
 
+function openTokenDetails(t) {
+    sourcePage = 'p-launcher';
     currentTokenId = t.id;
     
-    // Remplissage des textes
+    // Remplissage texte de base
     document.getElementById('det-name').innerText = t.name;
     document.getElementById('det-sym').innerText = '$' + t.symbol;
     document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-    document.getElementById('det-desc').innerText = t.description || "No description provided.";
-
-    // Gestion des liens cliquables
-    const linksDiv = document.getElementById('det-links');
-    if(linksDiv) {
-        linksDiv.innerHTML = "";
-        let hasLinks = false;
-
-        if (t.website && t.website !== "") {
-            linksDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; color:var(--blue); font-weight:bold; font-size:13px;">🌐 Website</a>`;
-            hasLinks = true;
-        }
-        
-        if (t.twitter && t.twitter !== "") {
-            let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
-            linksDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; color:#fff; font-weight:bold; font-size:13px;">𝕏 Twitter</a>`;
-            hasLinks = true;
-        }
-        linksDiv.style.display = hasLinks ? "flex" : "none";
+    
+    // Remplissage de la Description (Nouveau)
+    const descEl = document.getElementById('det-desc');
+    if(descEl) {
+        descEl.innerText = t.description; // Récupéré depuis le Python
     }
 
-    // Mise à jour du solde possédé par l'user
-    updateHoldings(t.id);
+    // Gestion du Logo (Optimisé)
+    const logoImg = document.getElementById('det-logo');
+    if(logoImg) {
+        // J'utilise le format attendu par ton HTML de création de token
+        logoImg.src = t.logo || t.logo_url || '';
+        logoImg.style.display = 'block'; // On force l'affichage
+    }
+
+    // Gestion de la Bannière
+    const banner = document.getElementById('det-banner');
+    if(banner) {
+        banner.style.backgroundImage = (t.banner || t.banner_url) ? `url(${t.banner || t.banner_url})` : 'none';
+        banner.style.backgroundSize = 'cover';
+        banner.style.backgroundPosition = 'center';
+    }
+
+    // Gestion des Liens URLs cliquables (Cool Design)
+    const socialDiv = document.getElementById('det-socials');
+    socialDiv.innerHTML = ""; // On vide avant de remplir
     
-    // Affichage de la page
-    document.getElementById('p-details').style.display = 'block';
+    let hasLinks = false;
+
+    if (t.website && t.website !== "") {
+        socialDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
+        hasLinks = true;
+    }
+    
+    if (t.twitter && t.twitter !== "") {
+        // On nettoie l'URL X si besoin (si l'user a juste mis le @)
+        let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
+        socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px;">𝕏</a>`;
+        hasLinks = true;
+    }
+
+    // Si aucun lien n'existe, on cache la barre sociale
+    socialDiv.style.display = hasLinks ? "flex" : "none";
+
+    // Afficher boutons BUY/SELL, cacher boutons WalletSEND/RECEIVE
+    document.getElementById('det-actions-trade').style.display = 'flex';
+    document.getElementById('det-actions-wallet').style.display = 'none';
+
+    updateHoldings(t.id);
+    showPage('p-details');
 }
+
 
 
 
