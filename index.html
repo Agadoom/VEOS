@@ -568,6 +568,20 @@
 
         console.log("✅ Profil synchronisé :", d.name);
 
+
+
+if (d.streak > 0) {
+    const sBadge = document.getElementById('streak-badge');
+    const sVal = document.getElementById('streak-val');
+    if(sBadge) sBadge.style.display = 'inline-flex';
+    if(sVal) sVal.innerText = d.streak;
+}
+
+// Optionnel : Afficher le multiplicateur de minage
+if(document.getElementById('mining-boost')) {
+    document.getElementById('mining-boost').innerText = `Boost: x${d.mining_multiplier}`;
+}
+
     } catch(e) { 
         console.error("Erreur de rafraîchissement :", e); 
         // tg.showAlert("Erreur : " + e.message); // Temporaire pour debugger
