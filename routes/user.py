@@ -48,13 +48,18 @@ async def get_leaderboard():
 # --- 3. DONNÉES UTILISATEUR ---
 @router.get("/{uid}")
 async def get_user_data(uid: int):
+    # 1. Récupération des données de base depuis database.py
     r = database.get_user_full(uid)
     if not r: 
         return JSONResponse(status_code=404, content={"error": "User not found"})
     
+    # Mapping des colonnes (Vérifie bien l'ordre dans database.get_user_full)
     p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, _ = r
+    
+    # Calcul du score total
     score_total = (p_gen or 0) + (p_uni or 0) + (p_veo or 0)
     
+    # Gestion du Badge (Missions)
     try:
         badge, _, _ = missions.get_badge_info(score_total)
     except:
@@ -63,47 +68,52 @@ async def get_user_data(uid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # Supply Totale pour le prix
+        # 2. Calcul du Prix WPT et Valeur USD
         c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
         total_supply = c.fetchone()[0] or 0
         current_price = get_wpt_price(total_supply)
         usd_value = score_total * current_price
 
-        # Rang
-        c.execute("SELECT pos FROM (SELECT user_id, RANK() OVER (ORDER BY (p_genesis+p_unity+p_veo) DESC) as pos FROM users) r WHERE user_id = %s", (uid,))
+        # 3. Récupération du Rang (Position dans le classement)
+        c.execute("""
+            SELECT pos FROM (
+                SELECT user_id, RANK() OVER (ORDER BY (p_genesis + p_unity + p_veo) DESC) as pos 
+                FROM users
+            ) r WHERE user_id = %s
+        """, (uid,))
         res_rank = c.fetchone()
-        
-        # Assets
-        c.execute("SELECT t.name, t.symbol, a.amount FROM user_community_assets a JOIN community_tokens t ON a.token_id = t.id WHERE a.user_id = %s", (uid,))
-        assets = [{"n": x[0], "s": x[1], "a": float(x[2])} for x in c.fetchall()]
+        rank_display = res_rank[0] if res_rank else "---"
 
-        # Referrals
-        c.execute("SELECT COUNT(*) FROM users WHERE referrer_id = %s", (uid,))
-        ref_count = c.fetchone()[0] or 0
-
-        # Énergie
+        # 4. Calcul de l'énergie régénérée
         now = int(time.time())
-        current_e = min(getattr(config, 'MAX_ENERGY', 100), (energy or 0) + ((now - (last_upd or now))/60 * getattr(config, 'REGEN_RATE', 1.0)))
+        max_e = getattr(config, 'MAX_ENERGY', 100)
+        regen_rate = getattr(config, 'REGEN_RATE', 1.0)
+        
+        # Temps écoulé en minutes depuis la dernière mise à jour
+        minutes_passed = (now - (last_upd or now)) / 60
+        current_e = min(max_e, (energy or 0) + (minutes_passed * regen_rate))
 
+        # --- RÉPONSE JSON POUR LE JAVASCRIPT ---
         return {
             "uid": uid, 
             "name": name or "Citizen", 
-            "g": round(p_gen or 0, 2),
-            "u": round(p_uni or 0, 2),
-            "v": round(p_veo or 0, 2),
-            "score": round(score_total, 2), 
+            "g": round(p_gen or 0, 2),    # Genesis (WPT) -> gv dans le JS
+            "u": round(p_uni or 0, 2),    # Unity -> uv dans le JS
+            "v": round(p_veo or 0, 2),    # Veo -> vv dans le JS
+            "score": round(score_total, 2), # Total -> tot dans le JS
             "usd_value": round(usd_value, 2),
-            "wpt_price": current_price,
             "energy": int(current_e),
-            "max_energy": getattr(config, 'MAX_ENERGY', 100),
+            "max_energy": max_e,
+            "rank": rank_display,
             "badge": badge,
-            "rank": res_rank[0] if res_rank else "---",
-            "streak": streak or 0,
-            "assets": assets, 
-            "ref_count": ref_count
+            "streak": streak or 0
         }
+    except Exception as e:
+        print(f"Erreur API User: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
     finally:
         c.close(); conn.close()
+
 
 # --- 4. RETRAIT & WALLET ---
 @router.post("/withdraw")
