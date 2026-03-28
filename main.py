@@ -58,6 +58,17 @@ async def create_invoice(uid: int):
         return {"error": str(e)}
 
 
+@bot.message_handler(commands=['start'])
+def start(message):
+    args = message.text.split()
+    if len(args) > 1:
+        param = args[1] # ex: "12345_67"
+        if "_" in param:
+            referrer_id, token_id = param.split("_")
+            # 1. Tu enregistres le parrainage classique
+            # 2. Tu peux envoyer un message spécial : "Bienvenue ! Tu as été invité à découvrir le token #67"
+
+
 from fastapi.responses import JSONResponse
 
 @app.get("/tonconnect-manifest.json")
