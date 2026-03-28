@@ -57,23 +57,6 @@ async def create_invoice(uid: int):
         print(f"Invoice Error: {e}")
         return {"error": str(e)}
 
-import telebot
-import os
-
-# Initialisation directe
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-bot = telebot.TeleBot(BOT_TOKEN)
-
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    args = message.text.split()
-    if len(args) > 1:
-        param = args[1]
-        print(f"Deep Link détecté : {param}")
-        # Logique de parrainage ici...
-    
-    # Réponse du bot
-    bot.reply_to(message, "Welcome to One World Peace Coins!")
 
 
 
@@ -107,18 +90,42 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     name = update.effective_user.first_name
     
-    # Referral logic
-    if context.args and context.args[0].isdigit():
-        referrer_id = int(context.args[0])
-        if referrer_id != uid:
-            user_data = database.get_user_full(uid)
-            if not user_data or sum(user_data[0:3]) == 0:
-                database.add_referral_reward(uid, referrer_id)
-                await context.bot.send_message(chat_id=referrer_id, text=f"🎁 Your friend {name} joined! You earned +500 WPT.")
+    # --- LOGIQUE DE DEEP LINKING (Parrainage & Tokens) ---
+    if context.args:
+        param = context.args[0]
+        print(f"🚀 Deep Link détecté : {param}")
+        
+        # Cas 1 : Parrainage classique (chiffres uniquement)
+        if param.isdigit():
+            referrer_id = int(param)
+            if referrer_id != uid:
+                user_data = database.get_user_full(uid)
+                # Si l'utilisateur est nouveau (solde à 0)
+                if not user_data or sum(user_data[0:3]) == 0:
+                    database.add_referral_reward(uid, referrer_id)
+                    try:
+                        await context.bot.send_message(
+                            chat_id=referrer_id, 
+                            text=f"🎁 Your friend {name} joined! You earned +500 WPT."
+                        )
+                    except: pass
 
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
-    await update.message.reply_text(f"<b>Welcome {name}!</b>\n\nStart mining and trade tokens.", parse_mode="HTML", reply_markup=keyboard)
+        # Cas 2 : Lien spécifique vers un Token (ex: 12345_67)
+        elif "_" in param:
+            referrer_id, token_id = param.split("_")
+            print(f"Invitation pour le Token ID: {token_id} par l'user {referrer_id}")
+            # Ici tu peux ajouter une logique pour enregistrer que l'user vient pour ce token
 
+    # --- RÉPONSE CLASSIQUE ---
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))
+    ]])
+    
+    await update.message.reply_text(
+        f"<b>Welcome {name}!</b>\n\nOne World Peace Coins ecosystem is active.\nStart mining and trade community tokens.", 
+        parse_mode="HTML", 
+        reply_markup=keyboard
+    )
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Répondre OUI à Telegram pour autoriser le paiement"""
     query = update.pre_checkout_query
