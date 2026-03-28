@@ -141,6 +141,33 @@
     background: #161618;
 }
 
+/* Style pour les lignes du Leaderboard */
+#leaderboard .card {
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 15px;
+}
+
+#leaderboard b {
+    font-family: monospace;
+    color: var(--gold);
+}
+
+/* Effet sur les boutons Buy Stars */
+.btn-buy-stars {
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    padding: 8px !important;
+}
+
+/* Scrollbar invisible pour un look plus "App native" */
+.container::-webkit-scrollbar {
+    display: none;
+}
+
+
+
+
 
     </style>
 </head>
@@ -267,47 +294,70 @@
 
 
         <div id="p-wallet" class="page">
-            <h2 style="text-align:center;">💼 WALLET</h2>
-            <div class="card" style="flex-direction:column; text-align:center; padding:30px;">
-                <small style="color:var(--text)">Total Balance</small>
-                <h1 id="wallet-balance" style="color:var(--gold); margin:10px 0;">0.00</h1>
-                <div id="ton-connect-button"></div>
-            </div>
-            
-            <h3>✨ WPT STORE</h3>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-                <div class="card" style="flex-direction:column; text-align:center;">
-                    <span>⭐️ 50 Stars</span>
-                    <button class="btn btn-buy-stars" style="width:100%; margin-top:10px;" onclick="buyStarsPack(50)">10k WPT</button>
-                </div>
-                <div class="card" style="flex-direction:column; text-align:center; border: 1px solid var(--gold);">
-                    <span style="color:var(--gold)">🌟 250 Stars</span>
-                    <button class="btn btn-buy-stars" style="width:100%; margin-top:10px; background:var(--gold); color:#000;" onclick="buyStarsPack(250)">60k WPT</button>
-                </div>
-            </div>
+    <h2 style="text-align:center; letter-spacing: 2px; font-weight: 800;">💼 MY WALLET</h2>
+    
+    <div class="card" style="flex-direction:column; text-align:center; padding:35px; background: linear-gradient(145deg, #1a1a1c, #0a0a0b); border: 1px solid #333; box-shadow: 0 15px 35px rgba(0,0,0,0.4);">
+        <small style="color:var(--text); text-transform: uppercase; letter-spacing: 1px; font-weight: bold;">Available Balance</small>
+        <h1 id="wallet-balance" style="color:var(--gold); font-size: 50px; margin:10px 0; font-family: monospace;">0.00</h1>
+        <div id="ton-connect-button" style="margin-top: 10px;"></div>
+    </div>
+    
+    <div style="display: flex; align-items: center; margin: 30px 0 15px 10px;">
+        <span style="font-size: 20px; margin-right: 8px;">✨</span>
+        <h3 style="margin: 0; letter-spacing: 1px;">WPT PREMIUM STORE</h3>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+        <div class="card" style="flex-direction:column; text-align:center; padding: 20px; gap: 10px; border-color: #222;">
+            <div style="font-size: 30px;">⭐️</div>
+            <b style="font-size: 16px;">50 Stars</b>
+            <small style="color:var(--text);">Receive 10k WPT</small>
+            <button class="btn btn-buy-stars" style="width:100%; background: #fff; color: #000;" onclick="buyStarsPack(50)">BUY</button>
         </div>
+
+        <div class="card" style="flex-direction:column; text-align:center; padding: 20px; gap: 10px; border: 1px solid var(--gold); position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 8px; right: -25px; background: var(--blue); color: #fff; font-size: 9px; padding: 2px 30px; transform: rotate(45deg); font-weight: 900;">BEST</div>
+            <div style="font-size: 30px;">🌟</div>
+            <b style="font-size: 16px; color: var(--gold);">250 Stars</b>
+            <small style="color:var(--text);">Receive 60k WPT</small>
+            <button class="btn btn-buy-stars" style="width:100%; background: var(--gold); color: #000;" onclick="buyStarsPack(250)">BUY</button>
+        </div>
+    </div>
+</div>
+
 
         <div id="p-profil" class="page">
-            <div class="prof-header">
-                <div id="prof-initials" style="width:60px; height:60px; background:var(--gold); border-radius:50%; margin:0 auto 10px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold; font-size:24px;">U</div>
-                <h2 id="prof-name">Username</h2>
-                <h1 id="usd-val" style="color:var(--green); margin:0;">$0.00 USD</h1>
-                <small id="wpt-price" style="color:var(--text); opacity:0.7;">1 WPT = $0.0001</small>
-            </div>
-            <h3>💎 MY ASSETS</h3>
-            <div id="user-portfolio"></div>
-            
-            <div class="card" style="flex-direction:column; align-items:stretch;">
-                <h3>🎁 Invite Friends</h3>
-                <div id="ref-link-display" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin-bottom:10px; color:var(--gold); word-break:break-all; text-align:center;">Loading...</div>
-                <button class="btn" onclick="copyRef()">📋 COPY LINK</button>
-            </div>
-            <h3>🏆 LEADERBOARD</h3>
-            <div id="leaderboard"></div>
+    <div class="prof-header" style="position: relative; overflow: hidden; padding-bottom: 30px;">
+        <div id="prof-initials" style="width:80px; height:80px; background: linear-gradient(135deg, var(--gold), #b8860b); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:32px; border: 4px solid #1a1a1c; box-shadow: 0 0 20px rgba(255, 204, 0, 0.2);">U</div>
+        
+        <h2 id="prof-name" style="margin: 0; font-weight: 800; letter-spacing: 1px;">Username</h2>
+        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 10px;">
+             <h1 id="usd-val" style="color:var(--green); margin:0; font-size: 32px;">$0.00</h1>
+             <span style="align-self: flex-end; margin-bottom: 5px; font-size: 12px; opacity: 0.5;">USD</span>
         </div>
-
-        <img src="static/logo.gif" alt="Logo" class="bottom-logo">
+        <small id="wpt-price" style="color:var(--text); opacity:0.6; font-weight: bold;">1 WPT = $0.0001</small>
     </div>
+
+    <div style="display: flex; align-items: center; margin: 20px 0 10px 10px;">
+        <span style="font-size: 18px; margin-right: 8px;">💎</span>
+        <h3 style="margin: 0; letter-spacing: 1px; font-size: 14px; text-transform: uppercase;">My Assets</h3>
+    </div>
+    <div id="user-portfolio" style="margin-bottom: 25px;"></div>
+    
+    <div class="card" style="flex-direction:column; align-items:stretch; background: #000; border: 1px dashed #444; padding: 20px;">
+        <h3 style="margin: 0 0 10px 0; font-size: 16px;">🎁 Refer & Earn</h3>
+        <p style="font-size: 12px; color: var(--text); margin-bottom: 15px;">Get <span style="color:var(--gold)">+500 WPT</span> for every friend you invite!</p>
+        <div id="ref-link-display" style="background:#161618; padding:12px; border-radius:12px; font-size:11px; margin-bottom:12px; color:var(--gold); word-break:break-all; text-align:center; border: 1px solid #222;">Loading link...</div>
+        <button class="btn" style="width:100%;" onclick="copyRef()">📋 COPY INVITE LINK</button>
+    </div>
+
+    <div style="display: flex; align-items: center; margin: 30px 0 10px 10px;">
+        <span style="font-size: 18px; margin-right: 8px;">🏆</span>
+        <h3 style="margin: 0; letter-spacing: 1px; font-size: 14px; text-transform: uppercase;">Top 10 Global</h3>
+    </div>
+    <div id="leaderboard" style="padding-bottom: 50px;"></div>
+</div>
+
 
     <nav class="nav">
         <div onclick="showPage('p-mine')" id="n-mine" class="n-i active">🏠</div>
