@@ -518,90 +518,78 @@
         } catch(e) { tg.showAlert("Deploy failed"); }
     }
 
-    async function loadMarket() {
+    // 1. CHARGEMENT DU MARCHÉ
+async function loadMarket() {
     const list = document.getElementById('token-list');
-    if(!list) return;
-
     try {
         const r = await fetch(`${BASE_URL}/api/launcher/list`);
         const tokens = await r.json();
         
-        // Si la liste est vide ou erreur serveur
         if(!tokens || tokens.length === 0) {
-            list.innerHTML = "<p style='text-align:center; opacity:0.5;'>No tokens found.</p>";
+            list.innerHTML = "<p style='text-align:center; opacity:0.5; margin-top:20px;'>No tokens found.</p>";
             return;
         }
 
         list.innerHTML = tokens.map(t => {
-            // Sécurisation de l'objet JSON pour le HTML
+            // Sécurisation des données pour le onclick
             const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
             
             return `
-                <div class="card" onclick='handleTokenClick(${safeData})' style="cursor:pointer; animation: fadeIn 0.3s ease;">
+                <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer;">
                     <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
                         <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
                         <div style="text-align:left;">
-                            <b style="display:block;">${t.name}</b>
+                            <b>${t.name}</b><br>
                             <small style="color:var(--gold)">$${t.symbol}</small>
                         </div>
                     </div>
-                    <div style="text-align:right; pointer-events:none;">
-                        <b style="color:var(--green)">${parseFloat(t.price).toFixed(6)}</b>
-                    </div>
-                </div>
-            `;
+                    <b style="color:var(--green); pointer-events:none;">${parseFloat(t.price).toFixed(6)}</b>
+                </div>`;
         }).join('');
-    } catch(e) { 
-        console.error("Erreur de chargement du marché:", e);
+    } catch(e) {
+        console.error("Erreur market:", e);
     }
 }
 
-// LA FONCTION QUI FAIT LE LIEN
-function handleTokenClick(t) {
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-    
-    // On appelle la fonction d'affichage en lui passant l'objet complet
-    openTokenDetails(t);
-}
-
-
-    // DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
-
+// 2. AFFICHAGE DES DÉTAILS (C'est elle que le onclick appelle)
 function openTokenDetails(t) {
-    sourcePage = 'p-launcher';
+    // Vibration Telegram
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
     currentTokenId = t.id;
     
-    // Infos de base
+    // Remplissage des textes
     document.getElementById('det-name').innerText = t.name;
     document.getElementById('det-sym').innerText = '$' + t.symbol;
     document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-    
-    // Logo (Optionnel si tu l'as gardé)
-    const logoImg = document.getElementById('det-logo');
-    if(logoImg) logoImg.src = t.logo || '';
+    document.getElementById('det-desc').innerText = t.description || "No description provided.";
 
-    // Description
-    const descEl = document.getElementById('det-desc');
-    if(descEl) {
-        descEl.innerText = t.description || "This project has no description yet.";
-    }
-
-    // Liens URLs cliquables
-    const linksDiv = document.getElementById('det-links') || document.getElementById('det-socials');
+    // Gestion des liens cliquables
+    const linksDiv = document.getElementById('det-links');
     if(linksDiv) {
         linksDiv.innerHTML = "";
-        if(t.website) {
+        let hasLinks = false;
+
+        if (t.website && t.website !== "") {
             linksDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; color:var(--blue); font-weight:bold; font-size:13px;">🌐 Website</a>`;
+            hasLinks = true;
         }
-        if(t.twitter) {
-            let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@','')}`;
+        
+        if (t.twitter && t.twitter !== "") {
+            let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
             linksDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; color:#fff; font-weight:bold; font-size:13px;">𝕏 Twitter</a>`;
+            hasLinks = true;
         }
+        linksDiv.style.display = hasLinks ? "flex" : "none";
     }
 
+    // Mise à jour du solde possédé par l'user
     updateHoldings(t.id);
+    
+    // Affichage de la page
     document.getElementById('p-details').style.display = 'block';
 }
+
 
 
 
