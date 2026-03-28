@@ -597,9 +597,29 @@ if (d.streak > 0) {
                 ft.style.left = x + "px"; ft.style.top = y + "px";
                 document.body.appendChild(ft);
                 setTimeout(() => ft.remove(), 800);
-                tg.HapticFeedback.impactOccurred('light');
+
+
+ // On récupère le boost depuis les données chargées au refresh
+    const boost = window.userMiningBoost || 1.0; 
+    const baseGain = 10; // Ton gain de base
+    const finalGain = baseGain * boost;
+
+    // Envoi au serveur
+    const r = await fetch(`${BASE_URL}/api/mine`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ uid: uid, amount: finalGain })
+    });
+    
+    if(r.ok) {
+        tg.HapticFeedback.notificationOccurred('success');
+        // Animation + Update UI
+    }
+
+               
                 refresh();
             }
+
         } catch(e) {}
     }
 
