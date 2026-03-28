@@ -562,47 +562,65 @@ async function loadMarket() {
 // DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
 
 function openTokenDetails(t) {
-    sourcePage = 'p-launcher';
-    currentTokenId = t.id;
-    
-    // Vibration d'impact au clic
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-
-    // Remplissage texte de base
-    document.getElementById('det-name').innerText = t.name;
-    document.getElementById('det-sym').innerText = '$' + t.symbol;
-    document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-    
-    // Remplissage Description
-    document.getElementById('det-desc').innerText = t.description; // Récupéré depuis le Python
-    
-    // Gestion des Liens Sociaux (URLs cliquables en haut à droite)
-    const socialDiv = document.getElementById('det-socials');
-    socialDiv.innerHTML = ""; // On vide avant de remplir
-    
-    let hasLinks = false;
-
-    if (t.website && t.website.length > 3) {
-        socialDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
-        hasLinks = true;
-    }
-    
-    if (t.twitter && t.twitter.length > 1) {
-        // On nettoie l'URL X si besoin (si l'user a juste mis le @)
-        let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
-        socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px;">𝕏</a>`;
-        hasLinks = true;
+    // 1. Vibration (Si ça vibre, la fonction est bien lancée)
+    if (window.Telegram && tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('medium');
     }
 
-    // Si aucun lien n'existe, on cache la barre sociale
-    socialDiv.style.display = hasLinks ? "flex" : "none";
+    try {
+        console.log("Data reçue:", t); // Debug dans la console du navigateur
+        
+        currentTokenId = t.id;
+        sourcePage = 'p-launcher';
 
-    // AfficherBUY/SELL, cacher Walletactions
-    document.getElementById('det-actions-trade').style.display = 'flex';
-    document.getElementById('det-actions-wallet').style.display = 'none';
+        // 2. Mise à jour des textes (avec vérification d'existence)
+        const updateText = (id, text) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = text;
+        };
 
-    updateHoldings(t.id);
-    showPage('p-details');
+        updateText('det-name', t.name);
+        updateText('det-sym', '$' + t.symbol);
+        updateText('det-price-top', parseFloat(t.price || 0).toFixed(6));
+        updateText('det-desc', t.description || "No description provided.");
+
+        // 3. Gestion des Liens Sociaux (🌐 et 𝕏)
+        const socialDiv = document.getElementById('det-socials');
+        if (socialDiv) {
+            socialDiv.innerHTML = ""; // On nettoie
+            let hasLinks = false;
+
+            if (t.website && t.website.length > 3) {
+                socialDiv.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
+                hasLinks = true;
+            }
+            if (t.twitter && t.twitter.length > 1) {
+                let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@', '')}`;
+                socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px;">𝕏</a>`;
+                hasLinks = true;
+            }
+            socialDiv.style.display = hasLinks ? "flex" : "none";
+        }
+
+        // 4. Affichage de la page
+        const detailPage = document.getElementById('p-details');
+        if (detailPage) {
+            detailPage.style.display = 'block';
+            // Si tu as une fonction showPage globale, utilise-la :
+            // showPage('p-details'); 
+        } else {
+            console.error("L'élément p-details est introuvable dans le HTML !");
+        }
+
+        // 5. Mise à jour du solde
+        if (typeof updateHoldings === "function") {
+            updateHoldings(t.id);
+        }
+
+    } catch (err) {
+        console.error("Erreur dans openTokenDetails:", err);
+        tg.showAlert("Error opening details: " + err.message);
+    }
 }
 
 
