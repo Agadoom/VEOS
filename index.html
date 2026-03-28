@@ -356,12 +356,17 @@
                 </div>
             </div>
         </div>
-    </div> <nav class="nav-bar">
-        <button onclick="showPage('p-mine')" id="n-mine" class="active">🏠</button>
-        <button onclick="showPage('p-launcher')" id="n-launcher">🚀</button>
-        <button onclick="showPage('p-wallet')" id="n-wallet">💼</button>
-        <button onclick="showPage('p-profil')" id="n-profil">👤</button>
-    </nav>
+    </div> <div class="container">
+       <div id="p-mine" class="page">...</div>
+       <div id="p-launcher" class="page" style="display:none;">...</div>
+       </div>
+
+   <nav class="nav-bar">
+        <button onclick="showPage('p-mine')" class="active">🏠</button>
+        <button onclick="showPage('p-launcher')">🚀</button>
+        <button onclick="showPage('p-wallet')">💼</button>
+        <button onclick="showPage('p-profil')">👤</button>
+   </nav>
 
 
 
@@ -799,6 +804,34 @@ function closeDetails() {
 }
 
 
+
+
+
+
+function showPage(pageId) {
+    // 1. Cacher toutes les pages
+    const pages = document.querySelectorAll('.page');
+    pages.forEach(p => p.style.display = 'none');
+
+    // 2. Afficher la page demandée
+    const target = document.getElementById(pageId);
+    if(target) {
+        target.style.display = 'block';
+    }
+
+    // 3. Gérer l'état "actif" des boutons de la nav-bar
+    const navButtons = document.querySelectorAll('.nav-bar button');
+    navButtons.forEach(btn => btn.classList.remove('active'));
+    
+    // On cherche quel bouton correspond à quelle page
+    if(pageId === 'p-mine') document.querySelector('.nav-bar button:nth-child(1)').classList.add('active');
+    if(pageId === 'p-launcher') document.querySelector('.nav-bar button:nth-child(2)').classList.add('active');
+    if(pageId === 'p-wallet') document.querySelector('.nav-bar button:nth-child(3)').classList.add('active');
+    if(pageId === 'p-profil') document.querySelector('.nav-bar button:nth-child(4)').classList.add('active');
+
+    // 4. Charger des données spécifiques si besoin
+    if(pageId === 'p-profil') loadLeaderboard();
+}
 
 
 
