@@ -783,7 +783,9 @@ async function openTokenDetails(t) {
 
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
-    tg.expand(); refresh(); setInterval(refresh, 15000);
+    tg.expand(); 
+const uid = tg.initDataUnsafe?.user?.id || 12345;
+refresh(); setInterval(refresh, 15000);
 </script>
 
 </body>
