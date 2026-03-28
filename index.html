@@ -514,6 +514,96 @@
     }
 
     // --- REFRESH DATA ---
+    async function refresh() {
+    if (!uid) {
+        console.warn("Refresh annulé : UID non défini.");
+        return;
+    }
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) throw new Error("Réponse serveur non OK : " + r.status);
+        
+        const d = await r.json(); 
+        console.log("📥 Données Profil reçues :", d);
+
+        // --- FONCTION DE MISE À JOUR SÉCURISÉE ---
+        const update = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
+        };
+
+        // 1. SOLDES PRINCIPAUX (Clés Python: score, g, u, v)
+        const total = parseFloat(d.score || 0);
+        update('tot', total.toLocaleString()); // Score haut de page
+        update('wallet-balance', total.toLocaleString()); // Score onglet Wallet
+        
+        // Sous-balances (Genesis/WPT, Unity, Veo)
+        update('gv', parseFloat(d.g || 0).toLocaleString());
+        update('uv', parseFloat(d.u || 0).toLocaleString());
+        update('vv', parseFloat(d.v || 0).toLocaleString());
+
+        // 2. INFOS PROFIL (Clés Python: name, rank, usd_value)
+        const userName = d.name || 'Citizen';
+        update('prof-name', userName);
+        update('prof-rank', "RANK: #" + (d.rank || '---'));
+        
+        const usdValue = parseFloat(d.usd_value || 0);
+        update('usd-val', `$${usdValue.toFixed(2)}`);
+        
+        // Initiale dans le cercle (ex: 'B' pour Bello)
+        const initEl = document.getElementById('prof-initials');
+        if (initEl) initEl.innerText = userName[0].toUpperCase();
+
+        // 3. ÉNERGIE (Clés Python: energy, max_energy)
+        const eBar = document.getElementById('e-f');
+        if (eBar && d.max_energy > 0) {
+            const percent = (d.energy / d.max_energy) * 100;
+            eBar.style.width = percent + "%";
+        }
+        update('e-t', `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`);
+
+        // 4. DAILY STREAK & BOOST (Clés Python: streak, mining_boost)
+        const sBadge = document.getElementById('streak-badge');
+        const sContainer = document.getElementById('streak-container'); // Si tu as un conteneur global
+        
+        if (d.streak > 0) {
+            if (sBadge) sBadge.style.display = 'inline-flex';
+            if (sContainer) sContainer.style.display = 'block';
+            update('streak-val', d.streak);
+        }
+
+        // Sauvegarde du boost pour la fonction mine()
+        window.userMiningBoost = d.mining_boost || 1.0;
+        
+        // Affichage du boost dans l'UI si l'élément existe
+        const boostEl = document.getElementById('mining-boost');
+        if (boostEl) {
+            boostEl.innerText = `Boost: x${parseFloat(d.mining_boost || 1.0).toFixed(2)}`;
+        }
+
+        // 5. LIENS ET DIVERS
+        const refDisplay = document.getElementById('ref-link-display');
+        if (refDisplay) refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
+        
+        // Stockage du solde global pour d'autres calculs JS
+        window.userWptBalance = d.g || 0;
+
+        console.log("✅ UI synchronisée avec succès.");
+
+    } catch (e) { 
+        console.error("❌ Erreur critique Refresh :", e);
+    }
+}
+
+
+
+
+
+
+
+
+    // --- MINING ---
     async function mine(type, event) {
     if (!uid) return;
 
@@ -570,70 +660,6 @@
     }
 }
 
-
-
-
-
-
-
-
-    // --- MINING ---
-    async function mine(type, event) {
-    if (!uid) return;
-
-    try {
-        // 1. On récupère le boost du streak (stocké lors du dernier refresh)
-        // Si d.mining_boost était 1.10, le gain sera de 11 au lieu de 10
-        const boost = window.userMiningBoost || 1.0; 
-        const baseGain = 10; 
-        const finalAmount = baseGain * boost;
-
-        // 2. Un SEUL envoi au serveur avec les clés attendues par ton Python
-        // Vérifie si ton Python attend "user_id" ou "uid"
-        const r = await fetch(`${BASE_URL}/api/mine`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                user_id: uid,       // Utilise user_id pour être standard
-                token_type: type,   // "genesis", "unity" ou "veo"
-                amount: finalAmount 
-            })
-        });
-
-        const res = await r.json();
-
-        if (res.ok) {
-            // --- ANIMATION DU TEXTE FLOTTANT ---
-            const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
-            const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
-            
-            const ft = document.createElement('div');
-            ft.className = 'floating-text';
-            ft.innerText = "+" + parseFloat(res.reward).toFixed(2);
-            ft.style.left = x + "px";
-            ft.style.top = (y - 20) + "px"; // Un peu plus haut que le clic
-            document.body.appendChild(ft);
-            
-            setTimeout(() => ft.remove(), 800);
-
-            // Retour haptique Telegram
-            if (window.Telegram && window.Telegram.WebApp) {
-                tg.HapticFeedback.impactOccurred('light');
-            }
-
-            // Rafraîchir les scores affichés
-            refresh();
-        } else {
-            console.error("Erreur minage:", res.error);
-            if(res.error === "Insufficient energy") {
-                tg.showAlert("🪫 Out of energy! Wait for recharge.");
-            }
-        }
-
-    } catch (e) {
-        console.error("Erreur réseau minage:", e);
-    }
-}
 
 
     // --- LAUNCHPAD & DETAILS ---
