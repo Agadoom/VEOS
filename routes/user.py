@@ -50,12 +50,12 @@ async def get_leaderboard():
 # --- 3. DONNÉES UTILISATEUR ---
 @router.get("/{uid}")
 async def get_user_data(uid: int):
-    # 1. Récupération des données (inclut streak et last_login_date)
+    # 1. Récupération des données de base
     r = database.get_user_full(uid)
     if not r: 
         return JSONResponse(status_code=404, content={"error": "User not found"})
     
-    # Ordre: genesis(0), unity(1), veo(2), name(3), energy(4), last_upd(5), streak(6), ref(7), last_login(8)
+    # Ordre strict de database.get_user_full
     p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, last_login_str = r
     
     # --- 🚀 LOGIQUE DU DAILY STREAK ---
@@ -63,44 +63,44 @@ async def get_user_data(uid: int):
     today_str = now_dt.strftime("%Y-%m-%d")
     current_streak = streak or 0
     
+    # On ne fait l'update que si c'est une nouvelle journée
     if last_login_str != today_str:
-        conn = database.get_db_conn()
-        c = conn.cursor()
         try:
+            conn = database.get_db_conn()
+            c = conn.cursor()
             if last_login_str:
                 last_login_dt = datetime.strptime(last_login_str, "%Y-%m-%d").date()
                 yesterday = now_dt.date() - timedelta(days=1)
                 
                 if last_login_dt == yesterday:
-                    current_streak += 1 # Continue le streak
+                    current_streak += 1
                 elif last_login_dt < yesterday:
-                    current_streak = 1 # A raté un jour, reset à 1
+                    current_streak = 1
             else:
-                current_streak = 1 # Première connexion
+                current_streak = 1
             
-            # Update BDD
             c.execute("UPDATE users SET streak = %s, last_login_date = %s WHERE user_id = %s", 
                       (current_streak, today_str, uid))
             conn.commit()
+            c.close(); conn.close()
         except Exception as e:
             print(f"Streak Update Error: {e}")
-        finally:
-            c.close(); conn.close()
 
-    # Calcul du boost de minage (ex: +5% par jour de streak, max +50%)
     mining_boost = 1 + (min(current_streak, 10) * 0.05)
+    score_total = (float(p_gen or 0) + float(p_uni or 0) + float(p_veo or 0))
 
-    # --- RESTE DES CALCULS (Score, Prix, Rang) ---
-    score_total = (p_gen or 0) + (p_uni or 0) + (p_veo or 0)
-    
-    conn = database.get_db_conn()
-    c = conn.cursor()
+    # --- CALCULS ADDITIONNELS (SÉCURISÉS) ---
     try:
+        conn = database.get_db_conn()
+        c = conn.cursor()
+        
+        # Total Supply
         c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
         total_supply = c.fetchone()[0] or 0
         current_price = get_wpt_price(total_supply)
         usd_value = score_total * current_price
 
+        # Rank
         c.execute("""
             SELECT pos FROM (
                 SELECT user_id, RANK() OVER (ORDER BY (p_genesis + p_unity + p_veo) DESC) as pos 
@@ -109,33 +109,38 @@ async def get_user_data(uid: int):
         """, (uid,))
         res_rank = c.fetchone()
         rank_display = res_rank[0] if res_rank else "---"
-
-        # Énergie régénérée
-        now_ts = int(time.time())
-        max_e = getattr(config, 'MAX_ENERGY', 100)
-        regen_rate = getattr(config, 'REGEN_RATE', 1.0)
-        minutes_passed = (now_ts - (last_upd or now_ts)) / 60
-        current_e = min(max_e, (energy or 0) + (minutes_passed * regen_rate))
-
-        return {
-            "uid": uid, 
-            "name": name or "Citizen", 
-            "g": round(p_gen or 0, 2),
-            "u": round(p_uni or 0, 2),
-            "v": round(p_veo or 0, 2),
-            "score": round(score_total, 2), 
-            "usd_value": round(usd_value, 2),
-            "energy": int(current_e),
-            "max_energy": max_e,
-            "rank": rank_display,
-            "streak": current_streak,
-            "mining_boost": round(mining_boost, 2) # On envoie le boost au JS
-        }
-    except Exception as e:
-        print(f"Erreur API User: {e}")
-        return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
-    finally:
+        
         c.close(); conn.close()
+    except:
+        current_price = 0.0001
+        usd_value = score_total * 0.0001
+        rank_display = "---"
+
+    # --- ÉNERGIE (SÉCURITÉ ANTI-CRASH) ---
+    try:
+        now_ts = int(time.time())
+        max_e = 100
+        # On s'assure que last_upd est un nombre
+        l_upd = int(last_upd) if last_upd else now_ts
+        minutes_passed = (now_ts - l_upd) / 60
+        current_e = min(max_e, (float(energy or 0)) + (minutes_passed * 1.0))
+    except:
+        current_e = 100
+
+    return {
+        "uid": uid, 
+        "name": name or "Citizen", 
+        "g": round(float(p_gen or 0), 2),
+        "u": round(float(p_uni or 0), 2),
+        "v": round(float(p_veo or 0), 2),
+        "score": round(score_total, 2), 
+        "usd_value": round(usd_value, 2),
+        "energy": int(current_e),
+        "max_energy": 100,
+        "rank": rank_display,
+        "streak": current_streak,
+        "mining_boost": round(mining_boost, 2)
+    }
 
 
 # --- 4. RETRAIT & WALLET ---
