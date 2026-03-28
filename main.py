@@ -57,7 +57,7 @@ async def create_invoice(uid: int):
         print(f"Invoice Error: {e}")
         return {"error": str(e)}
 
-
+from owpcsbot import bot
 @bot.message_handler(commands=['start'])
 def start(message):
     args = message.text.split()
