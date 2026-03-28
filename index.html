@@ -631,6 +631,77 @@ async function fetchAndOpenToken(tokenId) {
 
 
 
+let tradeType = 'buy'; // 'buy' ou 'sell'
+
+function openTrade(type) {
+    tradeType = type;
+    const modal = document.getElementById('trade-modal');
+    if (!modal) return;
+
+    modal.style.display = 'flex';
+    document.getElementById('modal-title').innerText = (type === 'buy') ? '🚀 Buy Token' : '📉 Sell Token';
+    
+    const confirmBtn = document.getElementById('modal-confirm-btn');
+    confirmBtn.innerText = (type === 'buy') ? 'BUY NOW' : 'SELL NOW';
+    confirmBtn.style.background = (type === 'buy') ? 'var(--green)' : 'var(--red)';
+    
+    document.getElementById('trade-amount').value = "";
+    document.getElementById('trade-estimate').innerText = "Enter an amount...";
+}
+
+function closeTrade() {
+    document.getElementById('trade-modal').style.display = 'none';
+}
+
+function setMax() {
+    // userWptBalance est ta variable globale mise à jour dans refresh()
+    // userTokenBalance doit être mis à jour dans updateHoldings()
+    const input = document.getElementById('trade-amount');
+    if (tradeType === 'buy') {
+        input.value = Math.floor(userWptBalance);
+    } else {
+        input.value = userTokenBalance;
+    }
+}
+
+async function executeTrade() {
+    const val = document.getElementById('trade-amount').value;
+    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
+
+    tg.MainButton.showProgress(); // Petit chargement Telegram
+
+    try {
+        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+        const response = await fetch(`${BASE_URL}${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: uid,
+                token_id: currentTokenId,
+                amount: parseFloat(val)
+            })
+        });
+
+        const res = await response.json();
+
+        if (res.ok) {
+            tg.showAlert(`✅ Success! Received ${res.received.toFixed(2)}`);
+            closeTrade();
+            refresh(); // Pour mettre à jour ton solde WPT
+            updateHoldings(currentTokenId); // Pour mettre à jour ton solde de ce token
+        } else {
+            tg.showAlert("❌ Error: " + res.error);
+        }
+    } catch (e) {
+        tg.showAlert("Server connection failed");
+    } finally {
+        tg.MainButton.hideProgress();
+    }
+}
+
+
+
+
 
 
 
