@@ -327,23 +327,45 @@
         }
 
         function openTokenDetails(t) {
-            sourcePage = 'p-launcher';
-            currentTokenId = t.id;
-            document.getElementById('det-name').innerText = t.name;
-            document.getElementById('det-sym').innerText = '$' + t.symbol;
-            document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-            document.getElementById('det-logo').src = t.logo || '';
-            document.getElementById('det-banner').style.backgroundImage = t.banner ? `url(${t.banner})` : 'none';
-            
-            // Socials
-            const socialDiv = document.getElementById('det-socials');
-            socialDiv.innerHTML = "";
-            if(t.website_url) socialDiv.innerHTML += `<a href="${t.website_url}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
-            if(t.twitter_url) socialDiv.innerHTML += `<a href="${t.twitter_url}" target="_blank" style="text-decoration:none; font-size:24px;">𝕏</a>`;
-            
-            updateHoldings(t.id);
-            document.getElementById('p-details').style.display = 'block';
-        }
+    sourcePage = 'p-launcher';
+    currentTokenId = t.id;
+    
+    // Remplissage texte de base
+    document.getElementById('det-name').innerText = t.name;
+    document.getElementById('det-sym').innerText = '$' + t.symbol;
+    document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+    document.getElementById('det-logo').src = t.logo || '';
+    document.getElementById('det-banner').style.backgroundImage = t.banner ? `url(${t.banner})` : 'none';
+    
+    // Gestion de la Description
+    const descEl = document.getElementById('det-desc');
+    descEl.innerText = t.description && t.description.trim() !== "" ? t.description : "This project has no description yet.";
+
+    // Gestion des Liens Sociaux
+    const socialDiv = document.getElementById('det-socials');
+    socialDiv.innerHTML = ""; // On vide avant de remplir
+    
+    let hasLinks = false;
+
+    if (t.website_url) {
+        socialDiv.innerHTML += `<a href="${t.website_url}" target="_blank" style="text-decoration:none; display:flex; align-items:center; gap:5px; color:var(--blue); font-size:13px; font-weight:bold;">🌐 Website</a>`;
+        hasLinks = true;
+    }
+    
+    if (t.twitter_url) {
+        // On nettoie l'URL X si besoin (si l'user a juste mis le @)
+        let xUrl = t.twitter_url.includes('t.co') || t.twitter_url.includes('x.com') ? t.twitter_url : `https://x.com/${t.twitter_url.replace('@', '')}`;
+        socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; display:flex; align-items:center; gap:5px; color:#fff; font-size:13px; font-weight:bold;">𝕏 Twitter</a>`;
+        hasLinks = true;
+    }
+
+    // Si aucun lien, on cache la barre de séparation
+    socialDiv.style.display = hasLinks ? "flex" : "none";
+
+    updateHoldings(t.id);
+    document.getElementById('p-details').style.display = 'block';
+}
+
 
         async function updateHoldings(tid) {
             try {
