@@ -653,19 +653,38 @@ async function openTokenDetails(t) {
     function closeDetails() { document.getElementById('p-details').style.display = 'none'; }
 
     async function executeTrade() {
-        const val = document.getElementById('trade-amount').value;
-        if(!val || val <= 0) return;
-        try {
-            const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-            const r = await fetch(`${BASE_URL}${path}`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
-            });
-            const res = await r.json();
-            if(res.ok) { tg.showAlert("✅ Success!"); closeTrade(); refresh(); updateHoldings(currentTokenId); }
-            else tg.showAlert(res.error);
-        } catch(e) { tg.showAlert("Trade failed"); }
+    const val = document.getElementById('trade-amount').value;
+    if (!val || val <= 0) return tg.showAlert("Please enter an amount");
+
+    try {
+        // Le chemin dépend de si c'est 'buy' ou 'sell'
+        const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+        
+        const r = await fetch(`${BASE_URL}${path}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid,
+                token_id: currentTokenId, // Vérifie que ce n'est pas undefined
+                amount: parseFloat(val)
+            })
+        });
+
+        const res = await r.json();
+
+        if (res.ok) {
+            tg.showAlert("✅ Transaction Successful!");
+            closeTrade();
+            refresh(); // Met à jour ton solde WPT
+            updateHoldings(currentTokenId); // Met à jour ton solde de ce token
+        } else {
+            // Affiche l'erreur précise venant de Python (ex: "Insufficient balance")
+            tg.showAlert("Trade Error: " + (res.error || "Unknown error"));
+        }
+    } catch (e) {
+        tg.showAlert("Trade failed: Server unreachable");
     }
+}
 
     async function updateHoldings(tid) {
         try {
