@@ -544,6 +544,17 @@ async function refresh() {
         if (refDisplay) {
             // On utilise 'uid' car c'est ta variable globale
             refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
+
+
+const genesisEl = document.querySelector('.card:nth-child(2) small'); // Ou l'ID si tu en as mis un
+if(genesisEl) {
+    // Si 'd.score' est ton total, affiche-le ici aussi ou utilise une autre variable de ta BDD
+    genesisEl.innerText = parseFloat(d.score || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+}
+
+
+
+
         }
 
     } catch(e) { console.error("Refresh error:", e); }
