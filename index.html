@@ -613,7 +613,12 @@ function openTokenDetails(t) {
     showPage('p-details');
 }
 
-
+// Mise à jour du solde possédé par l'user
+    updateHoldings(t.id);
+    
+    // Affichage de la page
+    document.getElementById('p-details').style.display = 'block';
+}
 
 
 
