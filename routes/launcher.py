@@ -45,7 +45,12 @@ async def list_tokens():
     except Exception as e:
         # En cas d'erreur SQL, on renvoie une liste vide pour ne pas faire planter l'app
         print(f"Erreur SQL List: {e}")
-        return []
+        return [{
+    "id": r[0], "name": r[1], "symbol": r[2], 
+    "logo": r[3], "banner": r[4], "price": float(r[5]),
+    "description": r[6], "website": r[7], "twitter": r[8]
+} for r in res]
+
     finally:
         c.close(); conn.close()
 
