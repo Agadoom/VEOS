@@ -419,242 +419,203 @@
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        const uid = tg.initDataUnsafe.user?.id || 0;
-        const BASE_URL = window.location.origin; // Adapte si besoin
+    const tg = window.Telegram.WebApp;
+    const uid = tg.initDataUnsafe.user?.id || 0;
+    const BASE_URL = 'https://veos-production-a2de.up.railway.app';
 
-        let userWptBalance = 0, userTokenBalance = 0, currentTokenId = null, tradeType = 'buy';
-        let b64_logo = "", b64_banner = "", sourcePage = 'p-mine';
+    let currentTokenId = null, userWptBalance = 0, userTokenBalance = 0;
+    let b64_logo = "", b64_banner = "", tradeType = 'buy', sourcePage = 'p-mine';
 
-        // Navigation
-        function showPage(pageId) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-            const target = document.getElementById(pageId);
-            if(target) target.classList.add('active-page');
+    // --- NAVIGATION ---
+    function showPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+        const target = document.getElementById(pageId);
+        if(target) target.classList.add('active-page');
 
-            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-            const navId = pageId.replace('p-', 'n-');
-            const navItem = document.getElementById(navId);
-            if(navItem) navItem.classList.add('active');
+        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+        const navId = pageId.replace('p-', 'n-');
+        if(document.getElementById(navId)) document.getElementById(navId).classList.add('active');
 
-            if(pageId === 'p-profil') { refresh(); loadLeaderboard(); loadPortfolio(); }
-            if(pageId === 'p-launcher') loadMarket();
-            
-            if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-        }
-
-        // Refresh User Data
-        async function refresh() {
-            try {
-                const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-                const d = await r.json();
-                userWptBalance = d.score || 0;
-                document.getElementById('tot').innerText = userWptBalance.toLocaleString();
-                document.getElementById('wallet-balance').innerText = userWptBalance.toLocaleString();
-                document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || '---');
-                document.getElementById('prof-name').innerText = d.name || 'Citizen';
-                document.getElementById('usd-val').innerText = `$${(d.usd_value || 0).toFixed(2)} USD`;
-                document.getElementById('e-f').style.width = (d.energy / d.max_energy * 100) + "%";
-                document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
-                document.getElementById('gv').innerText = d.g.toFixed(2);
-                document.getElementById('uv').innerText = d.u.toFixed(2);
-                document.getElementById('vv').innerText = d.v.toFixed(2);
-            } catch(e) { console.error(e); }
-        }
-
-        // Mining
-        async function mine(type, event) {
-            try {
-                const r = await fetch(`${BASE_URL}/api/mine`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ user_id: uid, token: type })
-                });
-                const res = await r.json();
-                if(res.ok) {
-                    const x = event.clientX || event.touches[0].clientX;
-                    const y = event.clientY || event.touches[0].clientY;
-                    const ft = document.createElement('div');
-                    ft.className = 'floating-text'; ft.innerText = "+" + res.reward;
-                    ft.style.left = x + "px"; ft.style.top = y + "px";
-                    document.body.appendChild(ft);
-                    setTimeout(() => ft.remove(), 800);
-                    tg.HapticFeedback.impactOccurred('light');
-                    refresh();
-                } else { tg.showAlert(res.error); }
-            } catch(e) { console.error(e); }
-        }
-
-        // Market & Details
-        async function loadMarket() {
-            try {
-                const r = await fetch(`${BASE_URL}/api/launcher/list`);
-                const tokens = await r.json();
-                document.getElementById('token-list').innerHTML = tokens.map(t => `
-                    <div class="card" onclick='openTokenDetails(${JSON.stringify(t)})' style="cursor:pointer;">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <img src="${t.logo || ''}" style="width:40px; height:40px; border-radius:10px; object-fit:cover;">
-                            <div style="text-align:left;"><b>${t.name}</b><br><small style="color:var(--gold)">$${t.symbol}</small></div>
-                        </div>
-                        <b style="color:var(--green)">$${parseFloat(t.price).toFixed(6)}</b>
-                    </div>
-                `).join('');
-            } catch(e) { console.error(e); }
-        }
-
-        function openTokenDetails(t) {
-    sourcePage = 'p-launcher';
-    currentTokenId = t.id;
-    
-    // Remplissage texte de base
-    document.getElementById('det-name').innerText = t.name;
-    document.getElementById('det-sym').innerText = '$' + t.symbol;
-    document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-    document.getElementById('det-logo').src = t.logo || '';
-    document.getElementById('det-banner').style.backgroundImage = t.banner ? `url(${t.banner})` : 'none';
-    
-    // Gestion de la Description
-    const descEl = document.getElementById('det-desc');
-    descEl.innerText = t.description && t.description.trim() !== "" ? t.description : "This project has no description yet.";
-
-    // Gestion des Liens Sociaux
-    const socialDiv = document.getElementById('det-socials');
-    socialDiv.innerHTML = ""; // On vide avant de remplir
-    
-    let hasLinks = false;
-
-    if (t.website_url) {
-        socialDiv.innerHTML += `<a href="${t.website_url}" target="_blank" style="text-decoration:none; display:flex; align-items:center; gap:5px; color:var(--blue); font-size:13px; font-weight:bold;">🌐 Website</a>`;
-        hasLinks = true;
-    }
-    
-    if (t.twitter_url) {
-        // On nettoie l'URL X si besoin (si l'user a juste mis le @)
-        let xUrl = t.twitter_url.includes('t.co') || t.twitter_url.includes('x.com') ? t.twitter_url : `https://x.com/${t.twitter_url.replace('@', '')}`;
-        socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; display:flex; align-items:center; gap:5px; color:#fff; font-size:13px; font-weight:bold;">𝕏 Twitter</a>`;
-        hasLinks = true;
+        if(pageId === 'p-profil') { refresh(); loadLeaderboard(); loadPortfolio(); }
+        if(pageId === 'p-launcher') loadMarket();
+        
+        if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     }
 
-    // Si aucun lien, on cache la barre de séparation
-    socialDiv.style.display = hasLinks ? "flex" : "none";
+    // --- REFRESH DATA ---
+    async function refresh() {
+        try {
+            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+            const d = await r.json();
+            userWptBalance = d.score || 0;
+            document.getElementById('tot').innerText = userWptBalance.toLocaleString();
+            document.getElementById('wallet-balance').innerText = userWptBalance.toLocaleString();
+            document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || '---');
+            document.getElementById('prof-name').innerText = d.name || 'Citizen';
+            document.getElementById('prof-initials').innerText = (d.name || "C")[0].toUpperCase();
+            document.getElementById('usd-val').innerText = `$${(d.usd_value || 0).toFixed(2)}`;
+            document.getElementById('e-f').style.width = (d.energy / d.max_energy * 100) + "%";
+            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
+            ['gv','uv','vv'].forEach((id, i) => {
+                const val = [d.g, d.u, d.v][i];
+                document.getElementById(id).innerText = parseFloat(val || 0).toLocaleString();
+            });
+            document.getElementById('ref-link-display').innerText = `https://t.me/OWPCsBot?start=${uid}`;
+        } catch(e) { console.error(e); }
+    }
 
-    updateHoldings(t.id);
-    document.getElementById('p-details').style.display = 'block';
-}
+    // --- MINING ---
+    async function mine(type, event) {
+        try {
+            const r = await fetch(`${BASE_URL}/api/mine`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, token: type })
+            });
+            const res = await r.json();
+            if(res.ok) {
+                const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+                const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+                const ft = document.createElement('div');
+                ft.className = 'floating-text'; ft.innerText = "+" + res.reward;
+                ft.style.left = x + "px"; ft.style.top = y + "px";
+                document.body.appendChild(ft);
+                setTimeout(() => ft.remove(), 800);
+                tg.HapticFeedback.impactOccurred('light');
+                refresh();
+            }
+        } catch(e) {}
+    }
 
+    // --- LAUNCHPAD & DETAILS ---
+    function processFile(t) {
+        const f = document.getElementById('f-'+t).files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => { 
+            if(t==='logo') { b64_logo=reader.result; document.getElementById('label-logo').innerText='✅ Logo Ready'; }
+            else { b64_banner=reader.result; document.getElementById('label-banner').innerText='✅ Banner Ready'; }
+        };
+        if(f) reader.readAsDataURL(f);
+    }
 
-        async function updateHoldings(tid) {
-            try {
-                const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tid}`);
-                const d = await r.json();
-                userTokenBalance = d.ok ? d.balance : 0;
-                document.getElementById('det-user-balance').innerText = "Balance: " + userTokenBalance.toFixed(2);
-            } catch(e) {}
-        }
+    async function deployToken() {
+        const n = document.getElementById('tk-name').value.trim();
+        const s = document.getElementById('tk-sym').value.trim();
+        if(!n || !s || !b64_logo) return tg.showAlert("❌ Name, Symbol and Logo required!");
+        
+        try {
+            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user_id: uid, name: n, symbol: s, 
+                    website_url: document.getElementById('tk-url').value,
+                    twitter_url: document.getElementById('tk-x').value,
+                    description: document.getElementById('tk-desc').value,
+                    logo_b64: b64_logo, banner_b64: b64_banner
+                })
+            });
+            if(res.ok) { tg.showAlert("🚀 Token Live!"); showPage('p-launcher'); }
+            else { const d = await res.json(); tg.showAlert(d.error); }
+        } catch(e) { tg.showAlert("Deploy failed"); }
+    }
 
-        function closeDetails() { document.getElementById('p-details').style.display = 'none'; }
-
-        // Trading
-        function openTrade(type) {
-            tradeType = type;
-            document.getElementById('trade-modal').style.display = 'flex';
-            document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy' : '📉 Sell');
-            document.getElementById('trade-amount').value = "";
-        }
-        function closeTrade() { document.getElementById('trade-modal').style.display = 'none'; }
-
-        async function executeTrade() {
-            const val = document.getElementById('trade-amount').value;
-            if(!val || val <= 0) return;
-            try {
-                const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-                const r = await fetch(`${BASE_URL}${path}`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
-                });
-                const res = await r.json();
-                if(res.ok) {
-                    tg.showAlert("✅ Success!");
-                    closeTrade();
-                    refresh();
-                    updateHoldings(currentTokenId);
-                } else { tg.showAlert(res.error); }
-            } catch(e) { tg.showAlert("Trade failed"); }
-        }
-
-        // Deploy Token
-        function processFile(t) {
-            const f = document.getElementById('f-'+t).files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => { if(t==='logo') b64_logo=reader.result; else b64_banner=reader.result; };
-            if(f) reader.readAsDataURL(f);
-        }
-
-        async function deployToken() {
-            const n = document.getElementById('tk-name').value.trim();
-            const s = document.getElementById('tk-sym').value.trim();
-            if(!n || !s || !b64_logo) return tg.showAlert("❌ Name, Symbol and Logo required!");
-            if(userWptBalance < 5000) return tg.showAlert("❌ 5,000 WPT required!");
-
-            try {
-                const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        user_id: uid, name: n, symbol: s, 
-                        website_url: document.getElementById('tk-url').value,
-                        twitter_url: document.getElementById('tk-x').value,
-                        description: document.getElementById('tk-desc').value,
-                        logo_b64: b64_logo, banner_b64: b64_banner
-                    })
-                });
-                if(res.ok) { tg.showAlert("🚀 Token Live!"); showPage('p-launcher'); }
-                else { const d = await res.json(); tg.showAlert(d.error); }
-            } catch(e) { tg.showAlert("Deploy failed"); }
-        }
-
-        // Boutique Stars
-        async function buyStarsPack(amt) {
-            try {
-                const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${amt}`);
-                const d = await r.json();
-                if(d.invoice_link) tg.openInvoice(d.invoice_link, (status) => { if(status === 'paid') refresh(); });
-            } catch(e) { tg.showAlert("Invoice failed"); }
-        }
-
-        // Divers
-        function copyRef() { navigator.clipboard.writeText(`https://t.me/OWPCsBot?start=${uid}`); tg.showAlert("Link copied!"); }
-        async function loadLeaderboard() {
-            try {
-                const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
-                const data = await r.json();
-                document.getElementById('leaderboard').innerHTML = data.map(u => `
-                    <div class="card" style="padding:10px;"><span>#${u.rank} ${u.name}</span><b>${u.score.toLocaleString()}</b></div>
-                `).join('');
-            } catch(e) {}
-        }
-        async function loadPortfolio() {
-            try {
-                const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-                const assets = await r.json();
-                document.getElementById('user-portfolio').innerHTML = assets.map(a => `
-                    <div class="card">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <img src="${a.logo}" style="width:35px; height:35px; border-radius:8px;">
-                            <b>${a.symbol}</b>
-                        </div>
-                        <b>${a.amount.toLocaleString()}</b>
+    async function loadMarket() {
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/list`);
+            const tokens = await r.json();
+            document.getElementById('token-list').innerHTML = tokens.map(t => `
+                <div class="card" onclick='handleTokenClick(${JSON.stringify(t).replace(/'/g, "&apos;")})' style="cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
+                        <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
+                        <div style="text-align:left;"><b>${t.name}</b><br><small style="color:var(--gold)">$${t.symbol}</small></div>
                     </div>
-                `).join('');
-            } catch(e) {}
-        }
+                    <b style="color:var(--green)">${parseFloat(t.price).toFixed(6)}</b>
+                </div>`).join('');
+        } catch(e) {}
+    }
 
-        // Init
-        const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ 
-            manifestUrl: BASE_URL + '/tonconnect-manifest.json', 
-            buttonRootId: 'ton-connect-button' 
-        });
-        tg.expand();
-        refresh();
-        setInterval(refresh, 15000);
-    </script>
+    function handleTokenClick(t) {
+        sourcePage = 'p-launcher'; currentTokenId = t.id;
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = '$' + t.symbol;
+        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+        document.getElementById('det-logo').src = t.logo || '';
+        document.getElementById('det-banner').style.backgroundImage = t.banner ? `url(${t.banner})` : 'none';
+        
+        // Description & Socials
+        document.getElementById('det-desc').innerText = t.description || "This project has no description yet.";
+        const socialDiv = document.getElementById('det-socials');
+        socialDiv.innerHTML = "";
+        if(t.website_url) socialDiv.innerHTML += `<a href="${t.website_url}" target="_blank" style="text-decoration:none; color:var(--blue); font-weight:bold;">🌐 Website</a>`;
+        if(t.twitter_url) socialDiv.innerHTML += `<a href="${t.twitter_url}" target="_blank" style="text-decoration:none; color:#fff; font-weight:bold;">𝕏 Twitter</a>`;
+        
+        updateHoldings(t.id);
+        document.getElementById('p-details').style.display = 'block';
+    }
+
+    // --- TRADE ---
+    function openTrade(type) {
+        tradeType = type;
+        document.getElementById('trade-modal').style.display = 'flex';
+        document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy' : '📉 Sell');
+        document.getElementById('trade-amount').value = "";
+    }
+    function closeTrade() { document.getElementById('trade-modal').style.display = 'none'; }
+    function closeDetails() { document.getElementById('p-details').style.display = 'none'; }
+
+    async function executeTrade() {
+        const val = document.getElementById('trade-amount').value;
+        if(!val || val <= 0) return;
+        try {
+            const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+            const r = await fetch(`${BASE_URL}${path}`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, token_id: currentTokenId, amount: parseFloat(val) })
+            });
+            const res = await r.json();
+            if(res.ok) { tg.showAlert("✅ Success!"); closeTrade(); refresh(); updateHoldings(currentTokenId); }
+            else tg.showAlert(res.error);
+        } catch(e) { tg.showAlert("Trade failed"); }
+    }
+
+    async function updateHoldings(tid) {
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/balance/${uid}/${tid}`);
+            const d = await r.json();
+            userTokenBalance = d.ok ? d.balance : 0;
+            document.getElementById('det-user-balance').innerText = "Balance: " + userTokenBalance.toFixed(2);
+        } catch(e) {}
+    }
+
+    // --- LEADERBOARD & PORTFOLIO ---
+    async function loadLeaderboard() {
+        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
+        const data = await r.json();
+        document.getElementById('leaderboard').innerHTML = data.map(u => `
+            <div class="card" style="padding:10px;"><span>#${u.rank} ${u.name}</span><b>${u.score.toLocaleString()}</b></div>
+        `).join('');
+    }
+
+    async function loadPortfolio() {
+        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        const assets = await r.json();
+        document.getElementById('user-portfolio').innerHTML = assets.map(a => `
+            <div class="card">
+                <div style="display:flex; align-items:center; gap:10px;"><img src="${a.logo}" style="width:35px; height:35px; border-radius:8px;"><b>${a.symbol}</b></div>
+                <b>${a.amount.toLocaleString()}</b>
+            </div>`).join('');
+    }
+
+    function copyRef() { navigator.clipboard.writeText(`https://t.me/OWPCsBot?start=${uid}`); tg.showAlert("Link copied! ✅"); }
+    async function buyStarsPack(amt) {
+        const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${amt}`);
+        const d = await r.json();
+        if(d.invoice_link) tg.openInvoice(d.invoice_link, (status) => { if(status === 'paid') refresh(); });
+    }
+
+    // --- INIT ---
+    const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
+    tg.expand(); refresh(); setInterval(refresh, 15000);
+</script>
+
 </body>
 </html>
