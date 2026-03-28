@@ -59,14 +59,16 @@ async def create_invoice(uid: int):
 
 from owpcsbot import bot
 @bot.message_handler(commands=['start'])
-def start(message):
+def handle_start(message):
     args = message.text.split()
     if len(args) > 1:
-        param = args[1] # ex: "12345_67"
-        if "_" in param:
-            referrer_id, token_id = param.split("_")
-            # 1. Tu enregistres le parrainage classique
-            # 2. Tu peux envoyer un message spécial : "Bienvenue ! Tu as été invité à découvrir le token #67"
+        param = args[1]
+        print(f"Deep Link détecté : {param}")
+        # Logique de parrainage ici...
+    
+    # Réponse du bot
+    bot.reply_to(message, "Welcome to One World Peace Coins!")
+
 
 
 from fastapi.responses import JSONResponse
