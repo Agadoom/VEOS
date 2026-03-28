@@ -880,16 +880,45 @@ function openTokenDetails(name, symbol, amount) {
 
 
 
+let lastPage = 'p-home';
+
+// Fonction pour ouvrir les détails depuis le PROFIL
 function openTokenDetails(name, symbol, amount) {
+    lastPage = 'p-profil';
     document.getElementById('det-name').innerText = name;
     document.getElementById('det-symbol').innerText = symbol;
-    document.getElementById('det-amount').innerText = amount.toLocaleString();
+    document.getElementById('det-amount-display').innerText = amount.toLocaleString();
     
-    // Met la première lettre du symbole dans le carré si pas d'icône
-    document.getElementById('det-icon').innerText = symbol.charAt(0).toUpperCase();
+    // On cache les boutons de Trade et on montre Send/Receive
+    document.getElementById('det-actions-trade').style.display = 'none';
+    document.getElementById('det-actions-wallet').style.display = 'grid';
+    document.getElementById('det-logo-img').style.display = 'none'; // Pas de logo pour les tokens de base
     
     showPage('p-details');
 }
+
+// Fonction pour ouvrir les détails depuis le LAUNCHPAD (Listings)
+function openListingDetails(tokenData) {
+    lastPage = 'p-launcher';
+    document.getElementById('det-name').innerText = tokenData.name;
+    document.getElementById('det-symbol').innerText = tokenData.symbol;
+    document.getElementById('det-price').innerText = `$${tokenData.price}`;
+    
+    // On montre le logo et les boutons de Trade
+    const logo = document.getElementById('det-logo-img');
+    logo.src = tokenData.logo_url;
+    logo.style.display = 'block';
+    
+    document.getElementById('det-actions-trade').style.display = 'grid';
+    document.getElementById('det-actions-wallet').style.display = 'none';
+    
+    showPage('p-details');
+}
+
+function closeDetails() {
+    showPage(lastPage);
+}
+
 
 
 
