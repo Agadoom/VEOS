@@ -671,6 +671,24 @@ async function openTokenDetails(t) {
         fill('det-mcap', "$---");
     }
 
+
+// Génère un lien qui contient : Ton ID (parrain) + l'ID du Token
+const refLinkToken = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
+
+// On l'affiche dans un élément (ajoute cet ID dans ton HTML de détail)
+const refEl = document.getElementById('det-ref-link');
+if(refEl) {
+    refEl.innerText = refLinkToken;
+    // Optionnel : un bouton pour copier le lien
+    refEl.onclick = () => {
+        navigator.clipboard.writeText(refLinkToken);
+        tg.showAlert("Token Referral Link copied!");
+    };
+}
+
+
+
+
     // 5. Affichage de la page et mise à jour solde
     document.getElementById('p-details').style.display = 'block';
     if (typeof updateHoldings === "function") updateHoldings(t.id);
