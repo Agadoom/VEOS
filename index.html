@@ -538,8 +538,8 @@ async function loadMarket() {
         }
 
         list.innerHTML = tokens.map(t => {
-            // Sécurisation des données pour le onclick
-            const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
+    const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
+    return `<div class="card" onclick='openTokenDetails(${safeData})'>
             
             return `
                 <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer;">
@@ -622,6 +622,7 @@ function openTokenDetails(t) {
         tg.showAlert("Error opening details: " + err.message);
     }
 }
+
 
 
 
