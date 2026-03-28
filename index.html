@@ -569,6 +569,54 @@
         }
     }
 
+
+
+
+
+
+
+// 1. Pour la liste principale du Marché
+async function loadMarket() {
+    const list = document.getElementById('token-list');
+    if(!list) return;
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await r.json();
+        
+        list.innerHTML = tokens.map(t => `
+            <div class="card" onclick="fetchAndOpenToken(${t.id})" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <img src="${t.logo || ''}" style="width:40px; height:40px; border-radius:10px; object-fit:cover; background:#222;">
+                    <div>
+                        <b style="display:block;">${t.name}</b>
+                        <small style="color:var(--gold);">${t.symbol}</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green); font-family:monospace;">$${parseFloat(t.price).toFixed(6)}</b>
+                </div>
+            </div>
+        `).join('');
+    } catch(e) { console.error("Market load error:", e); }
+}
+
+// 2. La fonction magique qui fait le lien
+async function fetchAndOpenToken(tokenId) {
+    try {
+        // On récupère la liste pour trouver le bon token par son ID
+        const r = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await r.json();
+        const token = tokens.find(t => t.id === tokenId);
+        
+        if(token) {
+            // On appelle ta fonction qui ouvre la page détails
+            openListingDetails(token);
+        }
+    } catch(e) { console.error("Error opening token:", e); }
+}
+
+
     async function loadNewListings() {
         const list = document.getElementById('token-list');
         try {
