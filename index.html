@@ -201,44 +201,8 @@
             <div id="token-list"></div>
         </div>
 
-        <div id="p-details" class="page" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:1000; overflow-y:auto;">
-    <div style="padding: 20px; padding-bottom: 50px;">
         
-        <button onclick="closeDetails()" style="background:rgba(255,255,255,0.1); border:none; color:#fff; border-radius:10px; padding:8px 15px; cursor:pointer;">← BACK</button>
-        
-        <div id="det-banner" style="height:120px; border-radius:20px; background: #1a1a1c; margin-top:15px; border:1px solid #333; background-size:cover; position:relative;">
-             <img id="det-logo-img" src="" style="width:60px; height:60px; border-radius:15px; border:3px solid #000; position:absolute; bottom:-15px; left:20px; display:none; object-fit:cover;">
         </div>
-
-        <div style="text-align:center; margin-top:30px;">
-            <h1 id="det-name" style="margin:5px 0; font-size:28px;">Token Name</h1>
-            <p id="det-symbol" style="color:var(--gold); font-weight:bold; margin:0;">SYMBOL</p>
-            <h2 id="det-amount-display" style="font-size:32px; margin:15px 0;">0.00</h2>
-        </div>
-
-        <div class="card" style="background:rgba(255,255,255,0.05); border-radius:20px; padding:20px; border:1px solid #222;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                <span style="opacity:0.6;">Price</span>
-                <span id="det-price" style="color:var(--green); font-weight:bold;">$0.0001</span>
-            </div>
-            <div style="display:flex; justify-content:space-between;">
-                <span style="opacity:0.6;">Network</span>
-                <span>WPT Mainnet</span>
-            </div>
-        </div>
-
-        <div id="det-actions-trade" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:20px;">
-            <button class="trade-btn buy" style="width:100%;" onclick="openTrade('buy')">BUY</button>
-            <button class="trade-btn sell" style="width:100%;" onclick="openTrade('sell')">SELL</button>
-        </div>
-
-        <div id="det-actions-wallet" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:20px; display:none;">
-            <button class="btn-buy-stars" style="background:#fff; color:#000;">SEND</button>
-            <button class="btn-buy-stars" style="background:var(--gold); color:#000;">RECEIVE</button>
-        </div>
-    </div>
-</div>
-
 
      <div id="p-wallet" class="page">
     <h2 style="text-align:center;">💼 WALLET</h2>
@@ -288,7 +252,8 @@
 
 
 
-<div id="p-profil" class="page">
+
+       <div id="p-profil" class="page">
     <div class="prof-header">
         <div style="display:flex; align-items:center; gap:15px; margin-bottom:15px;">
             <div id="prof-initials" style="width:50px; height:50px; background:var(--gold); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold; font-size:20px;">U</div>
@@ -297,7 +262,6 @@
                 <small id="prof-rank" style="color:var(--gold);">RANK: #---</small>
             </div>
         </div>
-        
         <div style="background: rgba(255,255,255,0.05); padding:15px; border-radius:20px;">
             <small style="color:var(--text);">ESTIMATED VALUE</small>
             <h1 id="usd-val" style="color:var(--green); margin:0;">$0.00 USD</h1>
@@ -305,72 +269,8 @@
         </div>
     </div>
 
-    <h3 style="margin-top:25px; margin-left:5px;">💎 MY ASSETS</h3>
-    <div id="user-portfolio" style="margin-top: 10px;">
-        </div>
-
-    <div class="card" style="margin-top:20px; background: #1c1c1e; padding: 15px; border-radius: 20px; border: 1px solid #333;">
-        <h3>🎁 Invite Friends</h3>
-        <p style="font-size:12px; color:var(--text);">Share your link and get +500 WPT per friend!</p>
-        
-        <div id="ref-link-display" style="background:#000; padding:10px; border-radius:10px; font-size:11px; margin:10px 0; border:1px dashed var(--gold); word-break: break-all; color: var(--gold); text-align:center;">
-            Loading link...
-        </div>
-
-        <button class="btn-buy-stars" onclick="shareRef()" style="width: 100%; background:var(--gold); color:#000; border:none; border-radius:12px; padding:12px; font-weight:bold; cursor:pointer; margin-bottom:10px;">
-            🚀 SHARE LINK
-        </button>
-
-        <button onclick="copyRef()" style="width: 100%; background: rgba(255,255,255,0.05); color: #fff; border: 1px solid #444; border-radius: 12px; padding: 10px; font-size: 13px; cursor: pointer; font-weight: bold;">
-            📋 COPY LINK
-        </button>
-    </div>
-
-    <h3 style="margin-top:25px; margin-left:5px;">🏆 TOP 10 LEADERBOARD</h3>
-    <div id="leaderboard" style="margin-bottom: 100px; background: rgba(255,255,255,0.02); border-radius: 20px; padding: 10px;">
-        </div>
-</div>
-
-<div id="p-details" class="page" style="display:none; position: fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:1000; overflow-y:auto;">
-    <div style="padding: 20px; padding-bottom: 50px;">
-        <button onclick="showPage('p-profil')" style="background:none; border:none; color:var(--gold); font-size:18px; cursor:pointer; padding:10px 0;">← Back to Profile</button>
-        
-        <div style="text-align:center; margin-top:30px;">
-            <div id="det-icon-bg" style="width:80px; height:80px; background:var(--gold); border-radius:20px; margin:0 auto; display:flex; align-items:center; justify-content:center; font-size:40px; color:#000; font-weight:bold;">
-                <span id="det-icon">🪙</span>
-            </div>
-            <h1 id="det-name" style="margin:15px 0 5px 0; font-size:28px;">Token Name</h1>
-            <p id="det-symbol" style="opacity:0.6; margin:0; font-weight:bold; color:var(--gold);">SYMBOL</p>
-            <h2 id="det-amount" style="font-size:32px; margin:20px 0;">0.00</h2>
-        </div>
-
-        <div class="card" style="margin-top:30px; background:rgba(255,255,255,0.05); border-radius:20px; padding:20px; border:1px solid #222;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
-                <span style="opacity:0.7;">Market Price</span>
-                <span style="color:var(--green); font-weight:bold;">$0.0001</span>
-            </div>
-            <div style="display:flex; justify-content:space-between;">
-                <span style="opacity:0.7;">Network</span>
-                <span style="font-weight:bold;">WPT Mainnet</span>
-            </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:30px;">
-            <button class="btn-buy-stars" style="background:#fff; color:#000; font-weight:bold; border-radius:15px; padding:15px;">SEND</button>
-            <button class="btn-buy-stars" style="background:var(--gold); color:#000; font-weight:bold; border-radius:15px; padding:15px;">RECEIVE</button>
-        </div>
-        
-        <button class="btn-buy-stars" style="width:100%; margin-top:15px; background:rgba(255,255,255,0.1); color:#fff; border:1px solid #444; border-radius:15px; padding:15px;">
-            💱 TRADE / SWAP
-        </button>
-    </div>
-</div>
-
-
-
-
-
-
+    <h3>💎 MY ASSETS</h3>
+    <div id="user-portfolio"></div>
 
      <div class="card" style="margin-top:20px; background: #1c1c1e; padding: 15px; border-radius: 20px; border: 1px solid #333;">
         <h3>🎁 Invite Friends</h3>
@@ -633,22 +533,6 @@ async function refresh() {
             refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
         }
 
-// Dans ton refresh(), après avoir récupéré 'd'
-if(d.assets) {
-    const port = document.getElementById('user-portfolio');
-    port.innerHTML = d.assets.map(a => `
-        <div class="card" onclick="openTokenDetails('${a.n}', '${a.s}', ${a.a})" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px; border:1px solid #333;">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <div style="width:35px; height:35px; background:var(--gold); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">${a.s[0]}</div>
-                <b>${a.n}</b>
-            </div>
-            <span>${a.a.toLocaleString()}</span>
-        </div>
-    `).join('');
-}
-
-}
-
         // 7. STARS SHOP PRICES
         const starsPrices = [50, 250, 500];
         document.querySelectorAll('.star-price').forEach((p, i) => {
@@ -828,57 +712,6 @@ function shareRef() {
 
 
 
-// Fonction pour afficher la liste des tokens
-function renderAssets(assets) {
-    const container = document.getElementById('user-portfolio');
-    if(!container) return;
-
-    if(!assets || assets.length === 0) {
-        container.innerHTML = "<p style='opacity:0.5; text-align:center;'>No assets yet</p>";
-        return;
-    }
-
-    container.innerHTML = assets.map(token => `
-        <div class="card" onclick="openTokenDetails('${token.n}', '${token.s}', ${token.a})" 
-             style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px; border:1px solid #333;">
-            <div style="display:flex; align-items:center; gap:12px;">
-                <div style="width:40px; height:40px; background:var(--gold); border-radius:10px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">
-                    ${token.s.charAt(0)}
-                </div>
-                <div>
-                    <b style="display:block;">${token.n}</b>
-                    <small style="opacity:0.6;">${token.s}</small>
-                </div>
-            </div>
-            <div style="text-align:right;">
-                <b>${token.a.toLocaleString()}</b>
-            </div>
-        </div>
-    `).join('');
-}
-
-// Fonction pour ouvrir la page détails
-function openTokenDetails(name, symbol, amount) {
-    // 1. On remplit les infos
-    document.getElementById('det-name').innerText = name;
-    document.getElementById('det-symbol').innerText = symbol;
-    document.getElementById('det-amount').innerText = amount.toLocaleString();
-    
-    // On peut changer l'icône selon le symbole
-    const icon = document.getElementById('det-icon');
-    if(symbol === 'WPT') icon.innerText = '💎';
-    else if(symbol === 'GEN') icon.innerText = '🚀';
-    else icon.innerText = '🪙';
-
-    // 2. On change de page
-    showPage('p-details');
-}
-
-
-
-
-
-
 
 let lastPage = 'p-home';
 
@@ -918,6 +751,7 @@ function openListingDetails(tokenData) {
 function closeDetails() {
     showPage(lastPage);
 }
+
 
 
 
