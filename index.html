@@ -628,6 +628,12 @@
         const res = await response.json();
 
         if (res.ok) {
+
+const eBar = document.getElementById('e-f');
+if (eBar) {
+    const currentWidth = parseFloat(eBar.style.width);
+    eBar.style.width = (currentWidth - 1) + "%"; // On descend d'1% par clic
+}
             // --- ANIMATION VISUELLE ---
             const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
             const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
