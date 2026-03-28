@@ -522,10 +522,7 @@
         if (!r.ok) throw new Error("Erreur Serveur : " + r.status);
         
         const d = await r.json(); 
-        console.log("Données reçues :", d);
-// À ajouter dans la fonction refresh() après avoir reçu les données 'd'
-window.userMiningBoost = d.mining_boost || 1.0;
-
+       
 
         const update = (id, val) => {
             const el = document.getElementById(id);
