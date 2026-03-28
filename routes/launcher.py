@@ -13,35 +13,42 @@ class TradeRequest(BaseModel):
     token_id: int
     amount: float  # 'amount' sera utilisé pour le montant WPT (achat) ou QUANTITÉ (vente)
 
+# --- DANS ROUTES/LAUNCHER.PY ---
+
 @router.get("/list")
 async def list_tokens():
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On sélectionne toutes les colonnes nécessaires
+        # On sélectionne id, name, symbol, logo, banner, price, description, website, twitter
         c.execute("""
-            SELECT id, name, symbol, logo, price, 
+            SELECT id, name, symbol, logo, banner, price, 
                    description, website_url, twitter_url 
             FROM community_tokens 
             ORDER BY id DESC
         """)
         res = c.fetchall()
         
-        # On mappe les résultats dans un dictionnaire propre pour le JS
+        # On renvoie un dictionnaire complet et propre
         return [{
             "id": r[0], 
             "name": r[1], 
             "symbol": r[2], 
-            "logo": r[3], 
-            "price": float(r[4]),
-            "description": r[5] or "This project has no description yet.", # Par défaut si vide
-            "website": r[6] or "", 
-            "twitter": r[7] or ""
+            "logo": r[3], # Si c'est en b64, c'est bon
+            "banner": r[4], # Si c'est en b64, c'est bon
+            "price": float(r[5]),
+            # On gère les valeurs vides s'il n'y a pas encore de description/urls
+            "description": r[6] or "No description provided.",
+            "website": r[7] or "",
+            "twitter": r[8] or ""
         } for r in res]
     except Exception as e:
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+        # En cas d'erreur SQL, on renvoie une liste vide pour ne pas faire planter l'app
+        print(f"Erreur SQL List: {e}")
+        return []
     finally:
         c.close(); conn.close()
+
 
 @router.post("/buy")
 async def buy_token(req: TradeRequest):
