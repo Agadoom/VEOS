@@ -607,6 +607,11 @@ if (d.assets && d.assets.length > 0) {
 }
 
 
+// On remplit la liste du profil ET celle du wallet si elle existe
+const walletPortfolio = document.getElementById('wallet-assets-list'); // Ajoute cet ID dans ton HTML Wallet
+if(walletPortfolio && d.assets) {
+    walletPortfolio.innerHTML = d.assets.map(a => `...ton code de carte...`).join('');
+}
 
 
 
