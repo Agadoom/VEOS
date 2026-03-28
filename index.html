@@ -408,8 +408,21 @@
             <button class="btn btn-action" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
             <button class="btn btn-action" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
         </div>
+ <div class="card" style="margin-top:15px;">
+        <p id="det-desc" style="font-size:13px;"></p> </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+        <div class="card" style="text-align:center; flex-direction:column;">
+            <small style="opacity:0.6;">Holders</small>
+            <b id="det-holders">0</b>
+        </div>
+        <div class="card" style="text-align:center; flex-direction:column;">
+            <small style="opacity:0.6;">Market Cap</small>
+            <b id="det-mcap">$0</b>
+        </div>
     </div>
-</div>
+    </div>
+    
 
 
 
