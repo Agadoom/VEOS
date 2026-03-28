@@ -695,10 +695,11 @@ function copyRef() {
 
 
 function shareRef() {
-    const text = encodeURIComponent("🚀 Join WPT Hub and start mining! Get 500 WPT bonus!");
-    const shareUrl = `https://t.me/share/url?url=${myReferralLink}&text=${text}`;
-    tg.openTelegramLink(shareUrl);
+    const myLink = `https://t.me/OWPCsBot?start=${uid}`;
+    const text = encodeURIComponent("🚀 Join WPT Hub and start mining!");
+    tg.openTelegramLink(`https://t.me/share/url?url=${myLink}&text=${text}`);
 }
+
 
 
     // --- INITIALISATION ---
