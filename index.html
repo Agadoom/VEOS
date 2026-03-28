@@ -515,57 +515,61 @@
 
     // --- REFRESH DATA ---
     async function mine(type, event) {
-        try {
-            const r = await fetch(`${BASE_URL}/api/mine`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, token: type })
-            });
-            const res = await r.json();
-            if(res.ok) {
-                const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
-                const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
-                const ft = document.createElement('div');
-                ft.className = 'floating-text'; ft.innerText = "+" + res.reward;
-                ft.style.left = x + "px"; ft.style.top = y + "px";
-                document.body.appendChild(ft);
-                setTimeout(() => ft.remove(), 800);
+    if (!uid) return;
+
+    try {
+        // 1. Calcul du montant avec le boost du Streak
+        // On récupère d.mining_boost stocké lors du refresh()
+        const boost = window.userMiningBoost || 1.0; 
+        const baseGain = 1.0; // Gain de base par clic
+        const finalAmount = baseGain * boost;
+
+        // 2. Envoi UNIQUE au serveur
+        const response = await fetch(`${BASE_URL}/api/mine`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                user_id: uid,       // Doit correspondre au modèle Python
+                token_type: type,   // "genesis", "unity" ou "veo"
+                amount: finalAmount 
+            })
+        });
+
+        const res = await response.json();
+
+        if (res.ok) {
+            // --- ANIMATION VISUELLE ---
+            const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
+            const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
+            
+            const ft = document.createElement('div');
+            ft.className = 'floating-text';
+            ft.innerText = "+" + parseFloat(res.reward).toFixed(2);
+            ft.style.left = x + "px";
+            ft.style.top = (y - 40) + "px";
+            document.body.appendChild(ft);
+            
+            setTimeout(() => ft.remove(), 800);
+
+            // Petit vibreur Telegram
+            if (tg.HapticFeedback) {
                 tg.HapticFeedback.impactOccurred('light');
-                refresh();
             }
-        } catch(e) {}
-    }
 
-    // --- LAUNCHPAD & DETAILS ---
-    function processFile(t) {
-        const f = document.getElementById('f-'+t).files[0];
-        const reader = new FileReader();
-        reader.onloadend = () => { 
-            if(t==='logo') { b64_logo=reader.result; document.getElementById('label-logo').innerText='✅ Logo Ready'; }
-            else { b64_banner=reader.result; document.getElementById('label-banner').innerText='✅ Banner Ready'; }
-        };
-        if(f) reader.readAsDataURL(f);
-    }
+            // Mise à jour des scores sans recharger toute la page
+            refresh(); 
+        } else {
+            console.error("Erreur API Mine:", res.error);
+            if (res.error === "Insufficient energy") {
+                tg.showAlert("🪫 No energy left! Wait for recharge.");
+            }
+        }
 
-    async function deployToken() {
-        const n = document.getElementById('tk-name').value.trim();
-        const s = document.getElementById('tk-sym').value.trim();
-        if(!n || !s || !b64_logo) return tg.showAlert("❌ Name, Symbol and Logo required!");
-        
-        try {
-            const res = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid, name: n, symbol: s, 
-                    website_url: document.getElementById('tk-url').value,
-                    twitter_url: document.getElementById('tk-x').value,
-                    description: document.getElementById('tk-desc').value,
-                    logo_b64: b64_logo, banner_b64: b64_banner
-                })
-            });
-            if(res.ok) { tg.showAlert("🚀 Token Live!"); showPage('p-launcher'); }
-            else { const d = await res.json(); tg.showAlert(d.error); }
-        } catch(e) { tg.showAlert("Deploy failed"); }
+    } catch (e) {
+        console.error("Erreur réseau Minage:", e);
     }
+}
+
 
 
 
