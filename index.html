@@ -608,6 +608,62 @@ async function fetchAndOpenToken(tokenId) {
 
 
 
+
+
+
+async function loadNewListings() {
+    const list = document.getElementById('token-list');
+    if(!list) return;
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/list`); // On utilise /list qui est plus stable
+        const tokens = await r.json();
+
+        list.innerHTML = tokens.map(t => {
+            // Sécurisation de l'objet pour le passer dans le onclick
+            const safeData = JSON.stringify(t).replace(/'/g, "\\'"); 
+
+            return `
+                <div class="card" 
+                     onclick='handleTokenClick(${safeData})' 
+                     style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-bottom:10px; position:relative; z-index:100;">
+                    
+                    <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
+                        <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
+                        <div style="text-align:left;">
+                            <b style="display:block; font-size:16px;">${t.name}</b>
+                            <small style="color:var(--gold); font-weight:bold;">$${t.symbol}</small>
+                        </div>
+                    </div>
+                    
+                    <div style="text-align:right; pointer-events:none;">
+                        <b style="color:var(--green); font-family:monospace; font-size:16px;">${parseFloat(t.price).toFixed(6)}</b>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch(e) { console.error("Load error:", e); }
+}
+
+// FONCTION DE RELAIS (Pour s'assurer que ça s'ouvre)
+function handleTokenClick(t) {
+    console.log("Token cliqué :", t.name);
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    
+    // On prépare les données pour la page de détails
+    const formattedToken = {
+        id: t.id,
+        name: t.name,
+        symbol: t.symbol,
+        price: t.price,
+        logo_url: t.logo, // On mappe 'logo' vers 'logo_url'
+        banner_url: t.banner
+    };
+    
+    openListingDetails(formattedToken);
+}
+
+
    
 
 
