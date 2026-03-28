@@ -665,21 +665,28 @@ async function refresh() {
 
 
 async function buyStarsPack(starsAmount) {
-console.log("Montant cliqué:", amount);
-    // starsAmount recevra 50, 250 ou 500 selon le bouton cliqué
+    console.log("Montant cliqué:", starsAmount); 
     try {
+        // On utilise starsAmount ici aussi
         const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${starsAmount}`);
         const d = await r.json();
+        
         if(d.invoice_link) {
             tg.openInvoice(d.invoice_link, (status) => {
                 if(status === 'paid') {
-                    tg.showAlert("✨ Pack added!");
+                    tg.showConfirm("✨ Pack added! Your balance will update.");
                     refresh();
                 }
             });
+        } else {
+            console.error("Lien de facture manquant dans la réponse API");
         }
-    } catch(e) { tg.showAlert("Error"); }
+    } catch(e) { 
+        console.error("Erreur achat:", e);
+        tg.showAlert("Connection error, please try again."); 
+    }
 }
+
 
 
 
