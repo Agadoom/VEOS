@@ -581,7 +581,11 @@ async function loadMarket() {
 
 async function openTokenDetails(t) {
     // 1. Vibration pour confirmer le contact
-    if (window.Telegram && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    window.currentTokenId = t.id; 
+    
+    console.log("ID du Token chargé :", window.currentTokenId);
+
+if (window.Telegram && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
     try {
         // 2. On affiche d'abord la page (pour éviter l'écran noir)
