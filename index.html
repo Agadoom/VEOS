@@ -550,6 +550,22 @@ const genesisEl = document.querySelector('.card:nth-child(2) small'); // Ou l'ID
 if(genesisEl) {
     // Si 'd.score' est ton total, affiche-le ici aussi ou utilise une autre variable de ta BDD
     genesisEl.innerText = parseFloat(d.score || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+
+
+
+// --- MISE À JOUR DES PETITS COMPTEURS (Genesis, Unity, Veo) ---
+const gv = document.getElementById('gv');
+if(gv) gv.innerText = parseFloat(d.p_genesis || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+
+const uv = document.getElementById('uv');
+if(uv) uv.innerText = parseFloat(d.p_unity || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+
+const vv = document.getElementById('vv');
+if(vv) vv.innerText = parseFloat(d.p_veo || 0).toLocaleString(undefined, {minimumFractionDigits: 2});
+
+
+
+
 }
 
 
