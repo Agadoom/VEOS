@@ -521,72 +521,57 @@
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) throw new Error("Erreur Serveur : " + r.status);
         
-        const d = await r.json(); // Reçoit l'objet { "g": ..., "score": ..., "name": ... }
+        const d = await r.json(); 
+        console.log("Données reçues :", d);
 
-        // --- FONCTION DE MISE À JOUR SÉCURISÉE ---
         const update = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.innerText = val;
         };
 
-        // 1. Mise à jour des Soldes (Clés Python: score, g, u, v)
-        // 'score' est ton score total calculé en Python
-        const totalScore = parseFloat(d.score || 0);
-        update('tot', totalScore.toLocaleString());
-        update('wallet-balance', totalScore.toLocaleString());
-        
-        // Sous-balances (Genesis, Unity, Veo)
-        // 'g' est ton p_genesis, 'u' ton p_unity, 'v' ton p_veo
+        // 1. Soldes (Clés : score, g, u, v)
+        const total = parseFloat(d.score || 0);
+        update('tot', total.toLocaleString());
+        update('wallet-balance', total.toLocaleString());
         update('gv', parseFloat(d.g || 0).toLocaleString());
         update('uv', parseFloat(d.u || 0).toLocaleString());
         update('vv', parseFloat(d.v || 0).toLocaleString());
 
-        // 2. Infos Profil (Clés Python: name, rank, usd_value)
+        // 2. Profil (Clés : name, rank, usd_value)
         update('prof-name', d.name || 'Citizen');
         update('prof-rank', "RANK: #" + (d.rank || '---'));
         update('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
         
-        // Initiale du cercle
         const initEl = document.getElementById('prof-initials');
         if (initEl) initEl.innerText = (d.name || "C")[0].toUpperCase();
 
-        // 3. Énergie (Clés Python: energy, max_energy)
+        // 3. Énergie (Clés : energy, max_energy)
         const eBar = document.getElementById('e-f');
         if (eBar && d.max_energy > 0) {
-            const percent = (d.energy / d.max_energy) * 100;
-            eBar.style.width = percent + "%";
+            eBar.style.width = (d.energy / d.max_energy * 100) + "%";
         }
         update('e-t', `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`);
 
-        // 4. Lien de parrainage
-        const refEl = document.getElementById('ref-link-display');
-        if (refEl) refEl.innerText = `https://t.me/OWPCsBot?start=${uid}`;
+        // 4. Daily Streak & Boost (Clés Python : streak, mining_boost)
+        if (d.streak > 0) {
+            const sBadge = document.getElementById('streak-badge');
+            if(sBadge) sBadge.style.display = 'inline-flex';
+            update('streak-val', d.streak);
+        }
 
-        // Variable globale pour le minage/achat
-        // Ton Python renvoie 'g' pour Genesis (WPT)
+        // ATTENTION : Ta route Python renvoie 'mining_boost', pas 'mining_multiplier'
+        if(document.getElementById('mining-boost')) {
+            update('mining-boost', `Boost: x${d.mining_boost || 1.0}`);
+        }
+
+        update('ref-link-display', `https://t.me/OWPCsBot?start=${uid}`);
         window.userWptBalance = d.g || 0;
-
-        console.log("✅ Profil synchronisé :", d.name);
-
-
-
-if (d.streak > 0) {
-    const sBadge = document.getElementById('streak-badge');
-    const sVal = document.getElementById('streak-val');
-    if(sBadge) sBadge.style.display = 'inline-flex';
-    if(sVal) sVal.innerText = d.streak;
-}
-
-// Optionnel : Afficher le multiplicateur de minage
-if(document.getElementById('mining-boost')) {
-    document.getElementById('mining-boost').innerText = `Boost: x${d.mining_multiplier}`;
-}
 
     } catch(e) { 
         console.error("Erreur de rafraîchissement :", e); 
-        // tg.showAlert("Erreur : " + e.message); // Temporaire pour debugger
     }
 }
+
 
 
 
