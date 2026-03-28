@@ -653,38 +653,43 @@ async function openTokenDetails(t) {
     function closeDetails() { document.getElementById('p-details').style.display = 'none'; }
 
     async function executeTrade() {
-    const val = document.getElementById('trade-amount').value;
-    if (!val || val <= 0) return tg.showAlert("Please enter an amount");
+    const amountInput = document.getElementById('trade-amount');
+    const val = parseFloat(amountInput.value);
+
+    // Sécurité de base
+    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
+    if (!currentTokenId) return tg.showAlert("Error: Token ID missing");
 
     try {
-        // Le chemin dépend de si c'est 'buy' ou 'sell'
         const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
         
-        const r = await fetch(`${BASE_URL}${path}`, {
+        const response = await fetch(`${BASE_URL}${path}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                user_id: uid,
-                token_id: currentTokenId, // Vérifie que ce n'est pas undefined
-                amount: parseFloat(val)
+                user_id: parseInt(uid),           // Force INTEGER
+                token_id: parseInt(currentTokenId), // Force INTEGER
+                amount: parseFloat(val)            // Force FLOAT
             })
         });
 
-        const res = await r.json();
+        const res = await response.json();
 
-        if (res.ok) {
+        if (response.ok) {
             tg.showAlert("✅ Transaction Successful!");
             closeTrade();
-            refresh(); // Met à jour ton solde WPT
-            updateHoldings(currentTokenId); // Met à jour ton solde de ce token
+            refresh(); 
+            updateHoldings(currentTokenId);
         } else {
-            // Affiche l'erreur précise venant de Python (ex: "Insufficient balance")
-            tg.showAlert("Trade Error: " + (res.error || "Unknown error"));
+            // Affiche l'erreur détaillée de FastAPI si elle existe
+            console.error("Détails erreur 422:", res.detail);
+            tg.showAlert(res.error || "Check your balance or input");
         }
     } catch (e) {
-        tg.showAlert("Trade failed: Server unreachable");
+        tg.showAlert("Network Error: Trade failed");
     }
 }
+
 
     async function updateHoldings(tid) {
         try {
