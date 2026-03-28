@@ -858,6 +858,21 @@ function openTokenDetails(name, symbol, amount) {
 
 
 
+
+function openTokenDetails(name, symbol, amount) {
+    document.getElementById('det-name').innerText = name;
+    document.getElementById('det-symbol').innerText = symbol;
+    document.getElementById('det-amount').innerText = amount.toLocaleString();
+    
+    // Met la première lettre du symbole dans le carré si pas d'icône
+    document.getElementById('det-icon').innerText = symbol.charAt(0).toUpperCase();
+    
+    showPage('p-details');
+}
+
+
+
+
     // --- INITIALISATION ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
         manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
