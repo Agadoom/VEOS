@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Query
 import database
 from pydantic import BaseModel
 import time
@@ -16,16 +16,30 @@ class TradeRequest(BaseModel):
 # --- DANS ROUTES/LAUNCHER.PY ---
 
 @router.get("/list")
-async def list_tokens():
+async def list_tokens(q: str = Query(None)): # On ajoute le paramètre de recherche 'q'
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        c.execute("""
-            SELECT id, name, symbol, logo, banner, price, 
-                   description, website_url, twitter_url 
-            FROM community_tokens 
-            ORDER BY id DESC
-        """)
+        if q:
+            # Recherche filtrée (ILIKE pour ignorer les majuscules/minuscules)
+            search_pattern = f"%{q}%"
+            c.execute("""
+                SELECT id, name, symbol, logo, banner, price, 
+                       description, website_url, twitter_url 
+                FROM community_tokens 
+                WHERE name ILIKE %s OR symbol ILIKE %s
+                ORDER BY price DESC 
+                LIMIT 50
+            """, (search_pattern, search_pattern))
+        else:
+            # Liste normale par défaut (Les plus récents en premier)
+            c.execute("""
+                SELECT id, name, symbol, logo, banner, price, 
+                       description, website_url, twitter_url 
+                FROM community_tokens 
+                ORDER BY id DESC
+            """)
+            
         res = c.fetchall()
         return [{
             "id": r[0], "name": r[1], "symbol": r[2], 
@@ -35,8 +49,8 @@ async def list_tokens():
             "twitter": r[8] or ""
         } for r in res]
     except Exception as e:
-        print(f"❌ Erreur SQL List: {e}")
-        return [] # Retourne une liste vide au lieu de faire planter le script
+        print(f"❌ Erreur SQL List/Search: {e}")
+        return []
     finally:
         c.close(); conn.close()
 
