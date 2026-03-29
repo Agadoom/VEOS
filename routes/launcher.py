@@ -290,14 +290,12 @@ async def get_total_burned():
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On récupère la somme stockée (assure-toi d'avoir une table global_stats avec total_burned)
-        # Si tu n'as pas de table, on peut la créer ou utiliser une valeur par défaut pour le test
         c.execute("SELECT total_burned FROM global_stats LIMIT 1")
         res = c.fetchone()
-        burned = float(res[0]) if res else 0.0
-        return {"total_burned": burned}
-    except Exception as e:
-        return {"total_burned": 0.0}
+        # Si res existe, on prend la valeur, sinon 0.0
+        val = float(res[0]) if res else 0.0
+        return {"total_burned": val}
     finally:
         c.close(); conn.close()
+
 
