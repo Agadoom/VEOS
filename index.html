@@ -431,6 +431,17 @@
 
 
 
+<div class="card" style="background: linear-gradient(145deg, #1a0a0a, #050505); border: 1px solid #eb4034; padding: 20px; margin-top: 20px; text-align: center;">
+    <div style="font-size: 30px; margin-bottom: 10px;">🔥</div>
+    <h3 style="margin: 0; color: #eb4034; letter-spacing: 1px;">WPT BURN PORTAL</h3>
+    <p style="font-size: 11px; color: var(--text); margin: 5px 0 15px 0;">Destroy WPT to increase ecosystem scarcity.</p>
+    
+    <input type="number" id="burn-amount" class="l-input" placeholder="Amount to burn..." style="text-align: center; border-color: #400000; margin-bottom: 10px;">
+    
+    <button class="btn" style="background: #eb4034; color: white; width: 100%; font-weight: 900;" onclick="executeBurn()">
+        BURN NOW
+    </button>
+</div>
 
 
 
@@ -1005,6 +1016,30 @@ if(refEl) {
         if(d.invoice_link) tg.openInvoice(d.invoice_link, (status) => { if(status === 'paid') refresh(); });
     }
 
+async function executeBurn() {
+    const amount = parseFloat(document.getElementById('burn-amount').value);
+    if (!amount || amount <= 0) return tg.showAlert("Enter a valid amount to burn 🔥");
+
+    tg.confirm(`Are you sure you want to PERMANENTLY DESTROY ${amount} WPT? This cannot be undone.`, async (ok) => {
+        if (ok) {
+            try {
+                const r = await fetch(`${BASE_URL}/api/launcher/burn?user_id=${uid}&amount=${amount}`, { method: 'POST' });
+                const res = await r.json();
+                
+                if (res.ok) {
+                    if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                    tg.showAlert(`🔥 Success! ${amount} WPT have been removed from circulation.`);
+                    document.getElementById('burn-amount').value = "";
+                    refresh(); // Pour mettre à jour le solde
+                } else {
+                    tg.showAlert("Error: " + res.error);
+                }
+            } catch (e) {
+                tg.showAlert("Network Error");
+            }
+        }
+    });
+}
 
 
 
