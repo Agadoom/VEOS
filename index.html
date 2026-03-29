@@ -590,71 +590,51 @@
     }
 }
 
-
-
-
 async function refresh() {
     if (typeof uid === 'undefined' || !uid) return;
 
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) return;
-        
+        if (!r.ok) throw new Error("Erreur API User");
         const d = await r.json();
-        console.log("📥 Data:", d);
 
-        // --- MISE À JOUR SÉCURISÉE ---
-        const set = (id, val) => {
+        // Fonction interne pour éviter les crashs si un ID manque dans le HTML
+        const safeUpdate = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.innerText = val;
         };
 
-        // 1. SOLDES (On utilise .toLocaleString pour le formatage propre)
-        set('tot', (d.score || 0).toLocaleString());
-        set('wallet-balance', (d.score || 0).toLocaleString());
-        set('gv', (d.g || 0).toLocaleString());
-        set('uv', (d.u || 0).toLocaleString());
-        set('vv', (d.v || 0).toLocaleString());
+        // 1. Mise à jour des Soldes
+        safeUpdate('tot', (d.score || 0).toLocaleString());
+        safeUpdate('wallet-balance', (d.score || 0).toLocaleString());
+        safeUpdate('gv', (d.g || 0).toLocaleString());
+        safeUpdate('uv', (d.u || 0).toLocaleString());
+        safeUpdate('vv', (d.v || 0).toLocaleString());
 
-        // 2. PROFIL
-        set('prof-name', d.name || "Citizen");
-        set('prof-rank', "RANK: #" + (d.rank || '---'));
-        set('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
+        // 2. Profil & Rank
+        safeUpdate('prof-name', d.name || "Citizen");
+        safeUpdate('prof-rank', "RANK: #" + (d.rank || "---"));
+        safeUpdate('usd-val', "$" + parseFloat(d.usd_value || 0).toFixed(2));
 
-        // Initiale
-        const init = document.getElementById('prof-initials');
-        if (init && d.name) init.innerText = d.name[0].toUpperCase();
-
-        // 3. ÉNERGIE (Fix pour la barre de progression)
+        // 3. Énergie
         const eBar = document.getElementById('e-f');
-        const maxE = d.max_energy || 100;
-        const curE = d.energy || 0;
         if (eBar) {
-            const percent = Math.min(100, (curE / maxE) * 100);
-            eBar.style.width = percent + "%";
+            const percent = ((d.energy || 0) / (d.max_energy || 100)) * 100;
+            eBar.style.width = Math.min(100, percent) + "%";
         }
-        set('e-t', `Energy: ${Math.floor(curE)}/${maxE}`);
+        safeUpdate('e-t', `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`);
 
-        // 4. STREAK
+        // 4. Streak & Boost (Sauvegarde pour le minage)
+        window.userMiningBoost = d.mining_boost || 1.0;
         const sBadge = document.getElementById('streak-badge');
         if (sBadge) sBadge.style.display = (d.streak > 0) ? 'inline-flex' : 'none';
-        set('streak-val', d.streak || 0);
+        safeUpdate('streak-val', d.streak || 0);
 
-        // 5. GLOBALS
-        window.userMiningBoost = d.mining_boost || 1.0;
-        window.userWptBalance = d.g || 0;
-
-        // --- DÉBLOCAGE DE LA NAVIGATION ---
-        // Si tes boutons ne marchent pas, c'est que la navigation est bloquée.
-        // On s'assure que le menu est bien actif.
-        console.log("✅ UI Ready");
-
+        console.log("✅ Refresh réussi pour:", d.name);
     } catch (e) {
         console.error("❌ Erreur Refresh:", e);
     }
 }
-
-
 
 
 
@@ -858,7 +838,7 @@ if(refEl) {
         tg.showAlert("Token Referral Link copied!");
     };
 }
-Et 
+
 
 // Variable pour éviter d'envoyer trop de requêtes (Debounce)
 let searchTimer;
