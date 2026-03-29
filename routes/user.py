@@ -56,7 +56,7 @@ async def get_user_data(uid: int):
         return JSONResponse(status_code=404, content={"error": "User not found"})
     
     # Ordre strict de database.get_user_full
-    p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, last_login_str = r
+    p_gen, p_uni, p_veo, name, energy, turbo_active, last_upd, streak, _, last_login_str = r
     
     # --- 🚀 LOGIQUE DU DAILY STREAK ---
     now_dt = datetime.now()
