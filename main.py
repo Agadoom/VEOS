@@ -147,35 +147,40 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
     payload = payment.invoice_payload
-    # total_amount est en "milli-stars" ou Stars selon la version, 
-    # mais on va se baser sur le payload pour être sûr du produit
-    
     uid = int(payload.split("_")[-1])
-    user_name = update.effective_user.first_name
     
-    # --- LOGIQUE DE CALCUL DU PACK ---
-    wpt_to_add = 0
-    pack_name = ""
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    msg = ""
 
-    if "buy_stars_50" in payload:
-        wpt_to_add = 10000
-        pack_name = "Base Pack (10k)"
-    elif "buy_stars_250" in payload:
-        wpt_to_add = 60000  # 10k * 5 + 20% bonus
-        pack_name = "Medium Pack (60k)"
-    elif "buy_stars_500" in payload:
-        wpt_to_add = 150000 # 10k * 10 + 50% bonus
-        pack_name = "Mega Pack (150k)"
-
-    if wpt_to_add > 0:
-        # 1. Créditer le montant dynamique en BDD
-        conn = database.get_db_conn()
-        c = conn.cursor()
-        # On utilise wpt_to_add au lieu de 10000
+    # --- LOGIQUE DE DISTRIBUTION ---
+    
+    # Cas 1 : Packs de WPT (50, 250, 1000)
+    if "stars_pack_" in payload:
+        amount = int(payload.split("_")[2])
+        wpt_to_add = 0
+        if amount == 50: wpt_to_add = 10000
+        elif amount == 250: wpt_to_add = 60000
+        elif amount == 1000: wpt_to_add = 300000
+        
         c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (wpt_to_add, uid))
-        conn.commit()
-        c.close()
-        conn.close()
+        msg = f"✅ <b>Payment Received!</b>\n{wpt_to_add:,} WPT added to your balance. 🚀"
+
+    # Cas 2 : Turbo Boost (99 Stars)
+    elif "turbo_boost" in payload:
+        from datetime import datetime, timedelta
+        expiry = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
+        # On suppose que tu as ajouté la colonne 'turbo_until' à ta table users
+        c.execute("UPDATE users SET turbo_until = %s WHERE user_id = %s", (expiry, uid))
+        msg = "✅ <b>TURBO ACTIVATED!</b>\nYour energy will refill 3x faster for the next 24h! ⚡"
+
+    conn.commit()
+    c.close()
+    conn.close()
+
+    if msg:
+        await update.message.reply_text(msg, parse_mode="HTML")
+
 
         # --- LOG RAILWAY ---
         print(f"💰 SUCCESS: {wpt_to_add} WPT added to {user_name}")
