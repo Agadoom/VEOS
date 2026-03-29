@@ -35,27 +35,40 @@ app.include_router(stars.router)
 
 # --- API STARS (Générer le lien de paiement) ---
 @app.get("/api/stars/create-invoice/{uid}")
-async def create_invoice(uid: int):
-    # On récupère l'instance du bot stockée dans l'app
+async def create_invoice(uid: int, amount: int = 50): # On ajoute le paramètre amount
     bot = app.state.bot
     
-    # Prix : 50 Stars (En Telegram Stars, 1 Star = 1 unité, pas de centimes)
-    prices = [LabeledPrice(label="10,000 WPT Pack", amount=50)]
+    # --- CONFIGURATION DYNAMIQUE DES PACKS ---
+    title = "WPT Boost Pack"
+    description = "Get WPT instantly to trade community tokens!"
+    # On crée un payload unique qui contient le montant et l'ID
+    payload = f"stars_pack_{amount}_{uid}"
     
+    if amount == 1000:
+        title = "💎 LEGEND PACK"
+        description = "300,000 WPT + Exclusive Legendary Badge!"
+    elif amount == 250:
+        title = "🌟 MEDIUM PACK"
+        description = "60,000 WPT + 20% Bonus included!"
+    elif amount == 99:
+        title = "⚡ TURBO RECHARGE"
+        description = "Your energy refills 3x faster for 24h!"
+        payload = f"turbo_boost_99_{uid}"
+
     try:
-        # Génération du lien de paiement officiel Telegram Stars (XTR)
         invoice_link = await bot.create_invoice_link(
-            title="WPT Boost Pack",
-            description="Get 10,000 WPT instantly to trade community tokens!",
-            payload=f"buy_wpt_10k_{uid}",
-            provider_token="", # Vide pour Telegram Stars
-            currency="XTR",    # Code pour les Stars
-            prices=prices
+            title=title,
+            description=description,
+            payload=payload,
+            provider_token="", 
+            currency="XTR",
+            prices=[LabeledPrice(label=title, amount=amount)]
         )
         return {"invoice_link": invoice_link}
     except Exception as e:
         print(f"Invoice Error: {e}")
         return {"error": str(e)}
+
 
 
 
