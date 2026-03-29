@@ -107,3 +107,24 @@ def get_community_tokens():
         return []
     finally:
         c.close(); conn.close()
+
+
+
+def get_energy_recharge_rate(user_id):
+    conn = get_db_conn()
+    c = conn.cursor()
+    try:
+        # On vérifie si le Turbo est encore actif
+        c.execute("SELECT turbo_until FROM users WHERE user_id = %s", (user_id,))
+        res = c.fetchone()
+        
+        import datetime
+        now = datetime.datetime.now()
+        
+        # Si turbo_until existe et n'est pas encore passé
+        if res and res[0] and res[0] > now:
+            return 3.0  # Vitesse x3 🚀
+        else:
+            return 1.0  # Vitesse normale
+    finally:
+        c.close(); conn.close()
