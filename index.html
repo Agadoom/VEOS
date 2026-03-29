@@ -302,6 +302,18 @@
     </div>
     
     <div id="token-list" style="padding-bottom: 20px;"></div>
+
+
+<div style="padding: 10px;">
+    <input type="text" id="token-search" placeholder="🔍 Search by name or symbol..." 
+           oninput="filterTokens()"
+           style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,215,0,0.3); background: rgba(0,0,0,0.5); color: white; outline: none;">
+</div>
+<div id="token-list-container">
+    </div>
+
+
+
 </div>
 
 
@@ -961,6 +973,25 @@ if(refEl) {
         const d = await r.json();
         if(d.invoice_link) tg.openInvoice(d.invoice_link, (status) => { if(status === 'paid') refresh(); });
     }
+
+
+
+function filterTokens() {
+    const query = document.getElementById('token-search').value.toLowerCase();
+    const tokens = document.querySelectorAll('.token-card'); // Assure-toi que tes cartes de tokens ont cette classe
+
+    tokens.forEach(card => {
+        const name = card.querySelector('.token-name').innerText.toLowerCase();
+        const symbol = card.querySelector('.token-symbol').innerText.toLowerCase();
+        
+        if (name.includes(query) || symbol.includes(query)) {
+            card.style.display = "block";
+        } else {
+            card.style.display = "none";
+        }
+    });
+}
+
 
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
