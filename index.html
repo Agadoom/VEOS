@@ -848,10 +848,10 @@ async function filterTokens() {
                 // AJOUT DU CLIC SÉCURISÉ
                 card.onclick = () => {
                     console.log("👉 Navigation vers Token ID:", t.id);
-                    if (typeof openTokenDetail === "function") {
+                    if (typeof openTokenDetails === "function") {
                         openTokenDetail(t.id);
                     } else {
-                        console.error("❌ Erreur : La fonction openTokenDetail n'existe pas !");
+                        console.error("❌ Erreur : La fonction openTokenDetails n'existe pas !");
                     }
                 };
 
