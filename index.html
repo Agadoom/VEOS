@@ -179,6 +179,10 @@
 .rank-2 { border-left-color: #C0C0C0; }
 .rank-3 { border-left-color: #CD7F32; }
 
+.token-card:active {
+    transform: scale(0.98);
+    background: rgba(255, 215, 0, 0.1);
+}
 
 
     </style>
@@ -824,7 +828,12 @@ if(refEl) {
 }
 
 
-
+document.getElementById('launcher-view').style.display = 'none';
+    // 2. Afficher la vue détail
+    document.getElementById('token-detail-view').style.display = 'block';
+    // 3. Charger les données du token (via fetch api/launcher/token/${tokenId})
+    loadTokenData(tokenId); 
+}
 
     
 
