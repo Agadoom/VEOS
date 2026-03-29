@@ -256,3 +256,34 @@ async def get_user_portfolio(uid: int):
         return [{"name": r[0], "symbol": r[1], "logo": r[2], "amount": float(r[3]), "price": float(r[4])} for r in c.fetchall()]
     finally:
         c.close(); conn.close()
+
+
+@router.post("/burn")
+async def burn_wpt(user_id: int, amount: float):
+    if amount <= 0:
+        return {"ok": False, "error": "Invalid amount"}
+    
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Vérifier si l'utilisateur a assez de WPT
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (user_id,))
+        res = c.fetchone()
+        if not res or float(res[0]) < amount:
+            return {"ok": False, "error": "Insufficient balance to burn"}
+
+        # 2. SOUSTRAIRE du solde (Destruction)
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount, user_id))
+        
+        # 3. Enregistrer dans une table de stats globale (optionnel mais recommandé)
+        # On peut imaginer une table 'global_stats' avec une colonne 'total_burned'
+        c.execute("UPDATE global_stats SET total_burned = total_burned + %s", (amount,))
+        
+        conn.commit()
+        return {"ok": True, "burned": amount}
+    except Exception as e:
+        conn.rollback()
+        return {"ok": False, "error": str(e)}
+    finally:
+        c.close(); conn.close()
+
