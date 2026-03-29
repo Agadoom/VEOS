@@ -999,19 +999,40 @@ async function filterTokens() {
             }
 
             // On génère le HTML pour chaque token trouvé
+                        // Dans ta fonction filterTokens(), remplace la génération du HTML par ça :
             data.forEach(t => {
-                container.innerHTML += `
-                    <div class="card token-card" onclick="openTokenDetail(${t.id})" style="margin-bottom:10px;">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <img src="${t.logo || 'static/default_token.png'}" style="width:40px; height:40px; border-radius:50%;">
-                            <div style="flex:1;">
-                                <div style="font-weight:bold;">${t.name} <span style="color:var(--gold); font-size:12px;">$${t.symbol}</span></div>
-                                <div style="font-size:12px; color:var(--green);">${t.price.toFixed(6)} WPT</div>
+                // Création d'un élément div pour gérer l'événement proprement
+                const card = document.createElement('div');
+                card.className = "card token-card";
+                card.style.marginBottom = "10px";
+                card.style.cursor = "pointer";
+                
+                // Le contenu HTML de la carte
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <img src="${t.logo || 'static/owpc_logo.png'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                        <div style="flex:1;">
+                            <div style="font-weight:bold; color:white;">
+                                ${t.name} <span style="color:var(--gold); font-size:11px;">$${t.symbol}</span>
                             </div>
+                            <div style="font-size:12px; color:#4caf50;">${parseFloat(t.price).toFixed(6)} WPT</div>
                         </div>
                     </div>
                 `;
+
+                // AJOUT DU CLIC SÉCURISÉ
+                card.onclick = () => {
+                    console.log("👉 Navigation vers Token ID:", t.id);
+                    if (typeof openTokenDetail === "function") {
+                        openTokenDetail(t.id);
+                    } else {
+                        console.error("❌ Erreur : La fonction openTokenDetail n'existe pas !");
+                    }
+                };
+
+                container.appendChild(card);
             });
+
         } catch (e) {
             console.error("Search Error:", e);
         }
