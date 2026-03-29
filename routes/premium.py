@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-@router.post("/buy-premium")
+@router.get("/buy-premium")
 async def buy_premium(user_id: int, pack_id: str):
     print(f"💰 Premium Buy: User {user_id} -> {pack_id}")
     conn = database.get_db_conn()
