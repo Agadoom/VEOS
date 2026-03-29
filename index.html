@@ -384,19 +384,27 @@
             <button class="btn btn-buy-stars" style="width:100%; background: var(--gold); color: #000;" onclick="buyStarsPack(250)">BUY</button>
         </div>
 
-<div class="card" style="border: 1px solid var(--purple); background: rgba(162, 89, 255, 0.05); position: relative; overflow: hidden;">
-    <div style="position: absolute; top: 5px; right: -20px; background: var(--purple); color: white; font-size: 8px; padding: 2px 20px; transform: rotate(45deg);">VIP</div>
-    <div style="text-align:left;">
-        <b style="color:var(--purple)">⚡ TURBO RECHARGE</b><br>
-        <small style="opacity:0.7">Energy refills 3x faster for 24h</small>
+<div style="display: grid; gap: 15px; margin-top: 20px;">
+    <div class="card" style="border: 2px solid var(--gold); background: rgba(255, 215, 0, 0.05); flex-direction: column; padding: 25px;">
+        <div style="font-size: 40px;">💎</div>
+        <b style="font-size: 20px; color: var(--gold);">LEGEND PACK</b>
+        <p style="font-size: 12px; margin: 5px 0;">300,000 WPT + exclusive Badge</p>
+        <button class="btn" style="width: 100%; background: var(--gold); color: black;" onclick="processStarsPurchase('pack_legend', 1000)">
+            1000 ⭐
+        </button>
     </div>
-    <button class="btn" style="background:var(--purple); color:white;" onclick="buyTurbo()">
-        99 ⭐
-    </button>
+
+    <div class="card" style="border: 1px solid var(--purple); background: rgba(162, 89, 255, 0.05); padding: 20px;">
+        <div style="text-align: left;">
+            <b style="color: var(--purple); font-size: 16px;">⚡ TURBO x3</b><br>
+            <small style="opacity: 0.7;">Refill energy 3x faster (24h)</small>
+        </div>
+        <button class="btn" style="background: var(--purple); color: white;" onclick="processStarsPurchase('turbo_boost', 99)">
+            99 ⭐
+        </button>
+    </div>
 </div>
 
-
-    </div>
 </div>
 
 
