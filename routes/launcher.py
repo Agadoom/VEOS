@@ -17,22 +17,37 @@ class TradeRequest(BaseModel):
 # --- DANS ROUTES/LAUNCHER.PY ---
 
 @router.get("/list")
-async def list_tokens(q: str = None): # 'q' est le paramètre de recherche
+async def list_tokens(q: str = None, filter: str = "new", uid: int = 0):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
+        query = "SELECT id, name, symbol, logo, banner, price, description FROM community_tokens"
+        params = []
+        
+        # 1. Gestion de la recherche
+        where_clauses = []
         if q:
-            # Recherche filtrée par nom ou symbole
-            search = f"%{q}%"
-            c.execute("""
-                SELECT id, name, symbol, logo, banner, price, description, website_url, twitter_url 
-                FROM community_tokens 
-                WHERE name ILIKE %s OR symbol ILIKE %s 
-                ORDER BY price DESC LIMIT 50
-            """, (search, search))
+            where_clauses.append("(name ILIKE %s OR symbol ILIKE %s)")
+            params.extend([f"%{q}%", f"%{q}%"])
+            
+        # 2. Gestion des onglets
+        if filter == "my":
+            where_clauses.append("creator_id = %s")
+            params.append(uid)
+            
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+            
+        # 3. Tri
+        if filter == "hot":
+            # On trie par prix ou par nombre de transactions (si tu as une table trades)
+            query += " ORDER BY price DESC"
         else:
-            # Liste normale
-            c.execute("SELECT id, name, symbol, logo, banner, price, description, website_url, twitter_url FROM community_tokens ORDER BY id DESC LIMIT 50")
+            query += " ORDER BY id DESC" # Newest first
+            
+        query += " LIMIT 50"
+        
+        c.execute(query, tuple(params))
 
             
         res = c.fetchall()
