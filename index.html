@@ -1173,36 +1173,29 @@ async function processStarsPurchase(packId, starsAmount) {
 
 
 async function processStarsPurchase(packId, starsAmount) {
-    console.log("💎 Tentative d'achat:", packId, starsAmount);
     if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('heavy');
 
-    // ÉTAPE 1: On demande à Telegram d'ouvrir le paiement (Facture Stars)
-    // Note: Pour tester SANS payer de vraies Stars, on simule l'appel API direct
-    try {
-        // Affiche un petit loading pour que l'utilisateur sache que ça travaille
-        tg.MainButton.setText("PROCESSING PAYMENT...");
-        tg.MainButton.show();
+    // On prévient l'utilisateur qu'on traite la commande
+    tg.showConfirm(`Confirm purchase of ${packId} for ${starsAmount} Stars?`, async (confirm) => {
+        if (confirm) {
+            try {
+                // On appelle ton API Railway pour valider l'achat
+                const r = await fetch(`${BASE_URL}/api/launcher/buy-premium?user_id=${uid}&pack_id=${packId}`);
+                const res = await r.json();
 
-        const response = await fetch(`${BASE_URL}/api/launcher/buy-premium?user_id=${uid}&pack_id=${packId}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        });
-
-        const res = await response.json();
-
-        if (res.ok) {
-            tg.showAlert("✅ " + res.message);
-            if(window.refresh) refresh(); // Met à jour ton solde WPT direct
-        } else {
-            tg.showAlert("❌ Error: " + (res.error || "Payment failed"));
+                if (res.ok) {
+                    tg.showAlert("✨ Success! " + res.message);
+                    refresh(); // Pour mettre à jour le solde
+                } else {
+                    tg.showAlert("❌ Server Error: " + res.error);
+                }
+            } catch (e) {
+                tg.showAlert("📡 Connection error. Check your API.");
+            }
         }
-    } catch (e) {
-        console.error("Erreur Achat:", e);
-        tg.showAlert("📡 Connection error. Check your server!");
-    } finally {
-        tg.MainButton.hide(); // On cache le bouton de chargement
-    }
+    });
 }
+
 
 
     // --- INIT ---
