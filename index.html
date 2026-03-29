@@ -181,6 +181,17 @@
 
 
 
+
+
+@keyframes pulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+
+
+
     </style>
 </head>
 <body>
@@ -203,6 +214,7 @@
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <small id="e-t" style="color:var(--text); font-weight: bold; font-size: 11px; opacity: 0.8;">Energy: 0/100</small>
+<span id="turbo-status" style="display:none; background:#A259FF; color:white; font-size:9px; padding:2px 6px; border-radius:10px; font-weight:900; margin-left:5px; animation: pulse 1.5s infinite;">⚡ TURBO ACTIVE</span>
                 <small style="color:var(--gold); font-size: 10px; font-weight: 900;">⚡ AUTO-RECHARGE</small>
             </div>
         </div>
@@ -691,6 +703,21 @@ async function updateBurnStats() {
         
         // Stockage du solde global pour d'autres calculs JS
         window.userWptBalance = d.g || 0;
+
+
+// Dans ton fetch de données profil (d = await r.json())
+const turboEl = document.getElementById('turbo-status'); // Crée un petit span dans ton HTML
+if (d.turbo_active) {
+    if(turboEl) turboEl.style.display = 'inline-block';
+    // On peut aussi changer la couleur de la barre d'énergie en Violet
+    document.getElementById('e-f').style.background = "linear-gradient(90deg, #A259FF, #FFD700)";
+} else {
+    if(turboEl) turboEl.style.display = 'none';
+    document.getElementById('e-f').style.background = "linear-gradient(90deg, var(--gold), #ffaa00)";
+}
+
+
+
 
         console.log("✅ UI synchronisée avec succès.");
 
