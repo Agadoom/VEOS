@@ -255,6 +255,18 @@
         <div id="p-launcher" class="page">
     <h2 style="text-align:center; letter-spacing: 2px; font-weight: 800; color: #fff;">🚀 LAUNCHPAD</h2>
     
+
+<div style="padding: 10px; margin-bottom: 10px;">
+    <div style="position: relative;">
+        <span style="position: absolute; left: 12px; top: 12px; opacity: 0.5;">🔍</span>
+        <input type="text" id="token-search" oninput="filterTokens()" 
+               placeholder="Search by name or $symbol..." 
+               style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 15px; border: 1px solid #333; background: rgba(255,255,255,0.03); color: white; outline: none; font-size: 14px;">
+    </div>
+</div>
+
+
+
     <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #0a0a0b, #121214); padding:25px; border: 1px solid #222; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
         
         <div style="text-align:center; margin-bottom: 5px;">
@@ -955,6 +967,53 @@ if(refEl) {
         const d = await r.json();
         if(d.invoice_link) tg.openInvoice(d.invoice_link, (status) => { if(status === 'paid') refresh(); });
     }
+
+
+
+
+
+let searchTimer;
+
+async function filterTokens() {
+    const query = document.getElementById('token-search').value;
+    const list = document.getElementById('token-list');
+    if (!list) return;
+
+    // On attend 300ms pour ne pas harceler le serveur
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(async () => {
+        try {
+            // On appelle l'API avec le paramètre q
+            const r = await fetch(`${BASE_URL}/api/launcher/list?q=${encodeURIComponent(query)}`);
+            const tokens = await r.json();
+            
+            if (!tokens || tokens.length === 0) {
+                list.innerHTML = "<p style='text-align:center; opacity:0.5; margin-top:20px;'>No tokens found 🔍</p>";
+                return;
+            }
+
+            // On reconstruit la liste
+            list.innerHTML = tokens.map(t => {
+                const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
+                return `
+                    <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
+                            <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
+                            <div style="text-align:left;">
+                                <b style="display:block;">${t.name}</b>
+                                <small style="color:var(--gold)">$${t.symbol}</small>
+                            </div>
+                        </div>
+                        <b style="color:var(--green); pointer-events:none;">${parseFloat(t.price || 0).toFixed(6)}</b>
+                    </div>
+                `;
+            }).join('');
+            
+        } catch (e) {
+            console.error("Search Error:", e);
+        }
+    }, 300);
+}
 
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
