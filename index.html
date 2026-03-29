@@ -757,9 +757,19 @@ async function loadMarket() {
 // DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
 
 async function openTokenDetails(t) {
+
+if(document.getElementById('launcher-view')) document.getElementById('launcher-view').style.display = 'none';
+    if(document.getElementById('token-detail-view')) document.getElementById('token-detail-view').style.display = 'block';
+
     // 1. Initialisation de l'ID pour le Trade
     window.currentTokenId = t.id;
     if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+ 
+   
+   
+    
+
 
     // 2. Remplissage des textes de base
     const fill = (id, val) => { if(document.getElementById(id)) document.getElementById(id).innerText = val; };
@@ -1035,7 +1045,7 @@ async function filterTokens() {
                     if (typeof openTokenDetail === "function") {
                         openTokenDetails(t.id);
                     } else {
-                        console.error("❌ Erreur : La fonction openTokenDetail n'existe pas !");
+                        console.error("❌ Erreur : La fonction openTokenDetails n'existe pas !");
                     }
                 };
 
