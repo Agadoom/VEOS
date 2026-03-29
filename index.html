@@ -208,6 +208,20 @@
         </div>
     </div>
 
+
+
+<div id="burn-stats-header" style="text-align: center; margin-top: -10px; margin-bottom: 20px; opacity: 0.9;">
+    <span style="background: rgba(235, 64, 52, 0.1); color: #eb4034; padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid rgba(235, 64, 52, 0.2);">
+        🔥 TOTAL BURNED: <span id="global-burned-val">0.00</span> WPT
+    </span>
+</div>
+
+
+
+
+
+
+
     <div style="display: grid; gap: 10px; margin-top: 10px;">
         <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
             <div>
@@ -1052,6 +1066,27 @@ async function executeBurn() {
 }
 
 
+
+
+
+async function updateBurnStats() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/total-burned`);
+        const data = await r.json();
+        
+        const el = document.getElementById('global-burned-val');
+        if (el) {
+            // Petit effet d'animation de compteur si tu veux être pro
+            el.innerText = parseFloat(data.total_burned || 0).toLocaleString();
+        }
+    } catch (e) {
+        console.error("Burn Stats Error:", e);
+    }
+}
+
+// Appelle cette fonction au chargement de l'app et toutes les 60 secondes
+setInterval(updateBurnStats, 60000);
+updateBurnStats();
 
 
 
