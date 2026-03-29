@@ -1051,9 +1051,14 @@ async function executeBurn() {
                 const result = await response.json();
 
                 if (result.ok) {
-                    tg.showAlert(`🔥 TOASTED! ${amount} WPT burned forever.`);
-                    amountInput.value = ""; // On vide l'input
-                    if (window.refresh) refresh(); // On actualise ton solde
+    tg.showAlert(`🔥 TOASTED! ${amount} WPT burned.`);
+    // On met à jour manuellement l'affichage sans attendre le refresh
+    const burnValEl = document.getElementById('global-burned-val');
+    if (burnValEl) {
+        let current = parseFloat(burnValEl.innerText.replace(/,/g, '')) || 0;
+        burnValEl.innerText = (current + amount).toLocaleString();
+    }
+    refresh();  // On actualise ton solde
                 } else {
                     tg.showAlert("❌ Error: " + (result.error || "Unknown error"));
                 }
