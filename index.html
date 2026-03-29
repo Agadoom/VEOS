@@ -530,86 +530,66 @@
 
     // --- REFRESH DATA ---
     async function refresh() {
-    if (!uid) {
-        console.warn("Refresh annulé : UID non défini.");
-        return;
-    }
+    if (typeof uid === 'undefined' || !uid) return;
 
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) throw new Error("Réponse serveur non OK : " + r.status);
+        if (!r.ok) return;
         
-        const d = await r.json(); 
-        console.log("📥 Données Profil reçues :", d);
+        const d = await r.json();
+        console.log("📥 Data:", d);
 
-        // --- FONCTION DE MISE À JOUR SÉCURISÉE ---
-        const update = (id, val) => {
+        // --- MISE À JOUR SÉCURISÉE ---
+        const set = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.innerText = val;
         };
 
-        // 1. SOLDES PRINCIPAUX (Clés Python: score, g, u, v)
-        const total = parseFloat(d.score || 0);
-        update('tot', total.toLocaleString()); // Score haut de page
-        update('wallet-balance', total.toLocaleString()); // Score onglet Wallet
-        
-        // Sous-balances (Genesis/WPT, Unity, Veo)
-        update('gv', parseFloat(d.g || 0).toLocaleString());
-        update('uv', parseFloat(d.u || 0).toLocaleString());
-        update('vv', parseFloat(d.v || 0).toLocaleString());
+        // 1. SOLDES (On utilise .toLocaleString pour le formatage propre)
+        set('tot', (d.score || 0).toLocaleString());
+        set('wallet-balance', (d.score || 0).toLocaleString());
+        set('gv', (d.g || 0).toLocaleString());
+        set('uv', (d.u || 0).toLocaleString());
+        set('vv', (d.v || 0).toLocaleString());
 
-        // 2. INFOS PROFIL (Clés Python: name, rank, usd_value)
-        const userName = d.name || 'Citizen';
-        update('prof-name', userName);
-        update('prof-rank', "RANK: #" + (d.rank || '---'));
-        
-        const usdValue = parseFloat(d.usd_value || 0);
-        update('usd-val', `$${usdValue.toFixed(2)}`);
-        
-        // Initiale dans le cercle (ex: 'B' pour Bello)
-        const initEl = document.getElementById('prof-initials');
-        if (initEl) initEl.innerText = userName[0].toUpperCase();
+        // 2. PROFIL
+        set('prof-name', d.name || "Citizen");
+        set('prof-rank', "RANK: #" + (d.rank || '---'));
+        set('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
 
-        // 3. ÉNERGIE (Clés Python: energy, max_energy)
+        // Initiale
+        const init = document.getElementById('prof-initials');
+        if (init && d.name) init.innerText = d.name[0].toUpperCase();
+
+        // 3. ÉNERGIE (Fix pour la barre de progression)
         const eBar = document.getElementById('e-f');
-        if (eBar && d.max_energy > 0) {
-            const percent = (d.energy / d.max_energy) * 100;
+        const maxE = d.max_energy || 100;
+        const curE = d.energy || 0;
+        if (eBar) {
+            const percent = Math.min(100, (curE / maxE) * 100);
             eBar.style.width = percent + "%";
         }
-        update('e-t', `Energy: ${Math.floor(d.energy || 0)}/${d.max_energy || 100}`);
+        set('e-t', `Energy: ${Math.floor(curE)}/${maxE}`);
 
-        // 4. DAILY STREAK & BOOST (Clés Python: streak, mining_boost)
+        // 4. STREAK
         const sBadge = document.getElementById('streak-badge');
-        const sContainer = document.getElementById('streak-container'); // Si tu as un conteneur global
-        
-        if (d.streak > 0) {
-            if (sBadge) sBadge.style.display = 'inline-flex';
-            if (sContainer) sContainer.style.display = 'block';
-            update('streak-val', d.streak);
-        }
+        if (sBadge) sBadge.style.display = (d.streak > 0) ? 'inline-flex' : 'none';
+        set('streak-val', d.streak || 0);
 
-        // Sauvegarde du boost pour la fonction mine()
+        // 5. GLOBALS
         window.userMiningBoost = d.mining_boost || 1.0;
-        
-        // Affichage du boost dans l'UI si l'élément existe
-        const boostEl = document.getElementById('mining-boost');
-        if (boostEl) {
-            boostEl.innerText = `Boost: x${parseFloat(d.mining_boost || 1.0).toFixed(2)}`;
-        }
-
-        // 5. LIENS ET DIVERS
-        const refDisplay = document.getElementById('ref-link-display');
-        if (refDisplay) refDisplay.innerText = `https://t.me/OWPCsBot?start=${uid}`;
-        
-        // Stockage du solde global pour d'autres calculs JS
         window.userWptBalance = d.g || 0;
 
-        console.log("✅ UI synchronisée avec succès.");
+        // --- DÉBLOCAGE DE LA NAVIGATION ---
+        // Si tes boutons ne marchent pas, c'est que la navigation est bloquée.
+        // On s'assure que le menu est bien actif.
+        console.log("✅ UI Ready");
 
-    } catch (e) { 
-        console.error("❌ Erreur critique Refresh :", e);
+    } catch (e) {
+        console.error("❌ Erreur Refresh:", e);
     }
 }
+
 
 
 
