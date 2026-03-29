@@ -729,13 +729,29 @@
         } catch(e) { tg.showAlert("Deploy failed"); }
     }
 
-    // 1. CHARGEMENT DU MARCHÉ
+    let searchTimer;
+let currentFilter = 'new';
+
+async function setFilter(mode, el) {
+    currentFilter = mode;
+    // Update UI des onglets
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active-tab'));
+    el.classList.add('active-tab');
+    
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    
+    // Recharge la liste avec le nouveau filtre
+    loadMarket();
+}
+
 async function loadMarket() {
     const list = document.getElementById('token-list');
-    if (!list) return;
-
+    const searchQuery = document.getElementById('token-search')?.value || "";
+    
     try {
-        const r = await fetch(`${BASE_URL}/api/launcher/list`);
+        // On envoie le filtre et la recherche au backend
+        const url = `${BASE_URL}/api/launcher/list?q=${encodeURIComponent(searchQuery)}&filter=${currentFilter}&uid=${uid}`;
+        const r = await fetch(url);
         const tokens = await r.json();
         
         if (!tokens || tokens.length === 0) {
@@ -744,12 +760,9 @@ async function loadMarket() {
         }
 
         list.innerHTML = tokens.map(t => {
-            // 1. On sécurise les données pour éviter les bugs avec les apostrophes
             const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
-            
-            // 2. On retourne UN SEUL bloc HTML bien fermé
             return `
-                <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer;">
                     <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
                         <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
                         <div style="text-align:left;">
@@ -757,13 +770,14 @@ async function loadMarket() {
                             <small style="color:var(--gold)">$${t.symbol}</small>
                         </div>
                     </div>
-                    <b style="color:var(--green); pointer-events:none;">${parseFloat(t.price || 0).toFixed(6)}</b>
+                    <div style="text-align:right; pointer-events:none;">
+                        <b style="color:var(--green); display:block;">${parseFloat(t.price || 0).toFixed(6)}</b>
+                        <small style="font-size:9px; opacity:0.5;">${currentFilter === 'hot' ? '🔥 HIGH VOLUME' : ''}</small>
+                    </div>
                 </div>
-            `; // La div est bien fermée ici
+            `;
         }).join('');
-    } catch(e) {
-        console.error("Erreur market:", e);
-    }
+    } catch(e) { console.error("Market error:", e); }
 }
 
 
@@ -994,56 +1008,7 @@ if(refEl) {
 
 
 
-let searchTimer;
-let currentFilter = 'new';
 
-async function setFilter(mode, el) {
-    currentFilter = mode;
-    // Update UI des onglets
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active-tab'));
-    el.classList.add('active-tab');
-    
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    
-    // Recharge la liste avec le nouveau filtre
-    loadMarket();
-}
-
-async function loadMarket() {
-    const list = document.getElementById('token-list');
-    const searchQuery = document.getElementById('token-search')?.value || "";
-    
-    try {
-        // On envoie le filtre et la recherche au backend
-        const url = `${BASE_URL}/api/launcher/list?q=${encodeURIComponent(searchQuery)}&filter=${currentFilter}&uid=${uid}`;
-        const r = await fetch(url);
-        const tokens = await r.json();
-        
-        if (!tokens || tokens.length === 0) {
-            list.innerHTML = "<p style='text-align:center; opacity:0.5; margin-top:20px;'>No tokens found.</p>";
-            return;
-        }
-
-        list.innerHTML = tokens.map(t => {
-            const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
-            return `
-                <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer;">
-                    <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
-                        <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
-                        <div style="text-align:left;">
-                            <b style="display:block;">${t.name}</b>
-                            <small style="color:var(--gold)">$${t.symbol}</small>
-                        </div>
-                    </div>
-                    <div style="text-align:right; pointer-events:none;">
-                        <b style="color:var(--green); display:block;">${parseFloat(t.price || 0).toFixed(6)}</b>
-                        <small style="font-size:9px; opacity:0.5;">${currentFilter === 'hot' ? '🔥 HIGH VOLUME' : ''}</small>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch(e) { console.error("Market error:", e); }
-}
 
 
     // --- INIT ---
