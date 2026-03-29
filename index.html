@@ -758,8 +758,16 @@ async function loadMarket() {
 
 async function openTokenDetails(t) {
 
-if(document.getElementById('launcher-view')) document.getElementById('launcher-view').style.display = 'none';
-    if(document.getElementById('token-detail-view')) document.getElementById('token-detail-view').style.display = 'block';
+de la vue détail
+    const listView = document.getElementById('launcher-view');
+    const detailView = document.getElementById('token-detail-view');
+    
+    if (listView) listView.style.display = 'none';
+    if (detailView) detailView.style.display = 'block';
+
+    // On remonte en haut de page
+    window.scrollTo(0, 0);
+
 
     // 1. Initialisation de l'ID pour le Trade
     window.currentTokenId = t.id;
@@ -1020,37 +1028,36 @@ async function filterTokens() {
             // On génère le HTML pour chaque token trouvé
                         // Dans ta fonction filterTokens(), remplace la génération du HTML par ça :
             data.forEach(t => {
-                // Création d'un élément div pour gérer l'événement proprement
-                const card = document.createElement('div');
-                card.className = "card token-card";
-                card.style.marginBottom = "10px";
-                card.style.cursor = "pointer";
-                
-                // Le contenu HTML de la carte
-                card.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <img src="${t.logo || 'static/owpc_logo.png'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-                        <div style="flex:1;">
-                            <div style="font-weight:bold; color:white;">
-                                ${t.name} <span style="color:var(--gold); font-size:11px;">$${t.symbol}</span>
-                            </div>
-                            <div style="font-size:12px; color:#4caf50;">${parseFloat(t.price).toFixed(6)} WPT</div>
-                        </div>
-                    </div>
-                `;
+    const card = document.createElement('div');
+    card.className = "card token-card";
+    card.style.marginBottom = "10px";
+    card.style.cursor = "pointer";
+    
+    // On s'assure que le prix est bien un nombre pour l'affichage miniature
+    const displayPrice = parseFloat(t.price || 0).toFixed(6);
 
-                // AJOUT DU CLIC SÉCURISÉ
-                card.onclick = () => {
-                    console.log("👉 Navigation vers Token ID:", t.id);
-                    if (typeof openTokenDetails === "function") {
-                        openTokenDetails(t.id);
-                    } else {
-                        console.error("❌ Erreur : La fonction openTokenDetails n'existe pas !");
-                    }
-                };
+    card.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px;">
+            <img src="${t.logo || 'static/owpc_logo.png'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+            <div style="flex:1;">
+                <div style="font-weight:bold; color:white;">
+                    ${t.name} <span style="color:var(--gold); font-size:11px;">$${t.symbol}</span>
+                </div>
+                <div style="font-size:12px; color:#4caf50;">${displayPrice} WPT</div>
+            </div>
+        </div>
+    `;
 
-                container.appendChild(card);
-            });
+    // LE FIX DE LA NAVIGATION :
+    card.onclick = () => {
+        console.log("Navigation vers :", t.name);
+        // On appelle la fonction AVEC le 's' et on passe l'objet 't'
+        openTokenDetails(t); 
+    };
+
+    container.appendChild(card);
+});
+
 
         } catch (e) {
             console.error("Search Error:", e);
