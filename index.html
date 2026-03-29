@@ -534,67 +534,6 @@
 
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) return;
-        
-        const d = await r.json();
-        console.log("📥 Data:", d);
-
-        // --- MISE À JOUR SÉCURISÉE ---
-        const set = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = val;
-        };
-
-        // 1. SOLDES (On utilise .toLocaleString pour le formatage propre)
-        set('tot', (d.score || 0).toLocaleString());
-        set('wallet-balance', (d.score || 0).toLocaleString());
-        set('gv', (d.g || 0).toLocaleString());
-        set('uv', (d.u || 0).toLocaleString());
-        set('vv', (d.v || 0).toLocaleString());
-
-        // 2. PROFIL
-        set('prof-name', d.name || "Citizen");
-        set('prof-rank', "RANK: #" + (d.rank || '---'));
-        set('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
-
-        // Initiale
-        const init = document.getElementById('prof-initials');
-        if (init && d.name) init.innerText = d.name[0].toUpperCase();
-
-        // 3. ÉNERGIE (Fix pour la barre de progression)
-        const eBar = document.getElementById('e-f');
-        const maxE = d.max_energy || 100;
-        const curE = d.energy || 0;
-        if (eBar) {
-            const percent = Math.min(100, (curE / maxE) * 100);
-            eBar.style.width = percent + "%";
-        }
-        set('e-t', `Energy: ${Math.floor(curE)}/${maxE}`);
-
-        // 4. STREAK
-        const sBadge = document.getElementById('streak-badge');
-        if (sBadge) sBadge.style.display = (d.streak > 0) ? 'inline-flex' : 'none';
-        set('streak-val', d.streak || 0);
-
-        // 5. GLOBALS
-        window.userMiningBoost = d.mining_boost || 1.0;
-        window.userWptBalance = d.g || 0;
-
-        // --- DÉBLOCAGE DE LA NAVIGATION ---
-        // Si tes boutons ne marchent pas, c'est que la navigation est bloquée.
-        // On s'assure que le menu est bien actif.
-        console.log("✅ UI Ready");
-
-    } catch (e) {
-        console.error("❌ Erreur Refresh:", e);
-    }
-}
-
-async function refresh() {
-    if (typeof uid === 'undefined' || !uid) return;
-
-    try {
-        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) throw new Error("Erreur API User");
         const d = await r.json();
 
@@ -635,6 +574,7 @@ async function refresh() {
         console.error("❌ Erreur Refresh:", e);
     }
 }
+
 
 
 
@@ -776,68 +716,48 @@ async function loadMarket() {
 // 2. AFFICHAGE DES DÉTAILS
 // DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
 
-Async function openTokenDetails(t) {
-    // 1. Initialisation de l'ID pour le Trade
-    window.currentTokenId = t.id;
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-
-    // 2. Remplissage des textes de base
-    const fill = (id, val) => { if(document.getElementById(id)) document.getElementById(id).innerText = val; };
+async function openTokenDetails(t) {
+    if (!t) return;
     
+    // 1. Switch de vue (Navigation)
+    const listView = document.getElementById('launcher-view');
+    const detailView = document.getElementById('token-detail-view');
+    if (listView) listView.style.display = 'none';
+    if (detailView) detailView.style.display = 'block';
+
+    window.currentTokenId = t.id;
+    if (window.Telegram && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+    // 2. Remplissage des infos
+    const fill = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = val;
+    };
+
     fill('det-name', t.name);
     fill('det-sym', '$' + t.symbol);
     fill('det-price-top', parseFloat(t.price || 0).toFixed(6));
-    fill('det-desc', t.description || t.desc || "New Futur vision");
+    fill('det-desc', t.description || "No description provided.");
 
-    // 3. Gestion des Liens (🌐 et 𝕏) - On vérifie TOUS les noms possibles
-    const socialDiv = document.getElementById('det-socials');
-    if (socialDiv) {
-        socialDiv.innerHTML = "";
-        let hasLinks = false;
-        
-        // On teste t.website, t.website_url, t.twitter, t.twitter_url
-        const web = t.website || t.website_url;
-        const twit = t.twitter || t.twitter_url;
-
-        if (web && web.length > 3) {
-            socialDiv.innerHTML += `<a href="${web.startsWith('http') ? web : 'https://'+web}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
-            hasLinks = true;
-        }
-        if (twit && twit.length > 1) {
-            let xUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
-            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:10px;">𝕏</a>`;
-            hasLinks = true;
-        }
-        socialDiv.style.display = hasLinks ? "flex" : "none";
-    }
-
-    // 4. RÉCUPÉRATION DES STATS (Holders / MCap)
+    // 3. Stats (MCap / Holders)
     try {
-        const response = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
-        const stats = await response.json();
-        
-        fill('det-holders', stats.holders || "1"); 
+        const res = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
+        const stats = await res.json();
+        fill('det-holders', stats.holders || "1");
         fill('det-mcap', "$" + (stats.mcap || 0).toLocaleString());
-    } catch(e) {
-        console.error("Stats Error:", e);
-        fill('det-holders', "1"); // Valeur par défaut (le créateur)
+    } catch (e) {
+        fill('det-holders', "1");
         fill('det-mcap', "$---");
     }
 
-
-// Génère un lien qui contient : Ton ID (parrain) + l'ID du Token
-const refLinkToken = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
-
-// On l'affiche dans un élément (ajoute cet ID dans ton HTML de détail)
-const refEl = document.getElementById('det-ref-link');
-if(refEl) {
-    refEl.innerText = refLinkToken;
-    // Optionnel : un bouton pour copier le lien
-    refEl.onclick = () => {
-        navigator.clipboard.writeText(refLinkToken);
-        tg.showAlert("Token Referral Link copied!");
-    };
+    // 4. Lien de parrainage du token
+    const refEl = document.getElementById('det-ref-link');
+    if (refEl) refEl.innerText = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
 }
+
+
+
+
 
 
 // Variable pour éviter d'envoyer trop de requêtes (Debounce)
@@ -1072,6 +992,52 @@ document.getElementById('launcher-view').style.display = 'none';
 // Variable pour éviter d'envoyer trop de requêtes (Debounce)
 let searchTimer;
 
+async function filterTokens() {
+    const query = document.getElementById('token-search').value;
+    const container = document.getElementById('token-list-container');
+    if (!container) return;
+
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(async () => {
+        try {
+            const r = await fetch(`${BASE_URL}/api/launcher/list?q=${encodeURIComponent(query)}`);
+            const data = await r.json();
+
+            container.innerHTML = ""; // On vide proprement
+
+            if (!data || data.length === 0) {
+                container.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.5;'>No tokens found 🔍</p>";
+                return;
+            }
+
+            data.forEach(t => {
+                const card = document.createElement('div');
+                card.className = "card token-card";
+                card.style.marginBottom = "10px";
+                card.style.cursor = "pointer";
+
+                card.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <img src="${t.logo || 'static/owpc_logo.png'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+                        <div style="flex:1;">
+                            <div style="font-weight:bold; color:white;">
+                                ${t.name} <span style="color:var(--gold); font-size:11px;">$${t.symbol}</span>
+                            </div>
+                            <div style="font-size:12px; color:#4caf50;">${parseFloat(t.price || 0).toFixed(6)} WPT</div>
+                        </div>
+                    </div>
+                `;
+
+                // CLIC : On appelle la fonction AVEC le 's'
+                card.onclick = () => openTokenDetails(t);
+
+                container.appendChild(card);
+            });
+        } catch (e) {
+            console.error("❌ Erreur Recherche:", e);
+        }
+    }, 300);
+}
 
 
 
