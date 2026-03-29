@@ -1150,6 +1150,25 @@ async function buyTurbo() {
     if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 }
 
+async function processStarsPurchase(packId, starsAmount) {
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('heavy');
+    
+    // Ici, tu appelles la facturation Telegram Stars
+    // Une fois le paiement validé par Telegram, tu appelles ton API :
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/buy-premium?user_id=${uid}&pack_id=${packId}`, {
+            method: 'POST'
+        });
+        const res = await r.json();
+        
+        if(res.ok) {
+            tg.showAlert(res.message);
+            refresh(); // Mise à jour du solde
+        }
+    } catch(e) {
+        tg.showAlert("Transaction Error ❌");
+    }
+}
 
 
     // --- INIT ---
