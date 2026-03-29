@@ -1171,6 +1171,40 @@ async function processStarsPurchase(packId, starsAmount) {
 }
 
 
+
+async function processStarsPurchase(packId, starsAmount) {
+    console.log("💎 Tentative d'achat:", packId, starsAmount);
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('heavy');
+
+    // ÉTAPE 1: On demande à Telegram d'ouvrir le paiement (Facture Stars)
+    // Note: Pour tester SANS payer de vraies Stars, on simule l'appel API direct
+    try {
+        // Affiche un petit loading pour que l'utilisateur sache que ça travaille
+        tg.MainButton.setText("PROCESSING PAYMENT...");
+        tg.MainButton.show();
+
+        const response = await fetch(`${BASE_URL}/api/launcher/buy-premium?user_id=${uid}&pack_id=${packId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        const res = await response.json();
+
+        if (res.ok) {
+            tg.showAlert("✅ " + res.message);
+            if(window.refresh) refresh(); // Met à jour ton solde WPT direct
+        } else {
+            tg.showAlert("❌ Error: " + (res.error || "Payment failed"));
+        }
+    } catch (e) {
+        console.error("Erreur Achat:", e);
+        tg.showAlert("📡 Connection error. Check your server!");
+    } finally {
+        tg.MainButton.hide(); // On cache le bouton de chargement
+    }
+}
+
+
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
     tg.expand(); refresh(); setInterval(refresh, 15000);
