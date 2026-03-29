@@ -17,29 +17,23 @@ class TradeRequest(BaseModel):
 # --- DANS ROUTES/LAUNCHER.PY ---
 
 @router.get("/list")
-async def list_tokens(q: str = Query(None)): # On ajoute le paramètre de recherche 'q'
+async def list_tokens(q: str = None): # 'q' est le paramètre de recherche
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
         if q:
-            # Recherche filtrée (ILIKE pour ignorer les majuscules/minuscules)
-            search_pattern = f"%{q}%"
+            # Recherche filtrée par nom ou symbole
+            search = f"%{q}%"
             c.execute("""
-                SELECT id, name, symbol, logo, banner, price, 
-                       description, website_url, twitter_url 
+                SELECT id, name, symbol, logo, banner, price, description, website_url, twitter_url 
                 FROM community_tokens 
-                WHERE name ILIKE %s OR symbol ILIKE %s
-                ORDER BY price DESC 
-                LIMIT 50
-            """, (search_pattern, search_pattern))
+                WHERE name ILIKE %s OR symbol ILIKE %s 
+                ORDER BY price DESC LIMIT 50
+            """, (search, search))
         else:
-            # Liste normale par défaut (Les plus récents en premier)
-            c.execute("""
-                SELECT id, name, symbol, logo, banner, price, 
-                       description, website_url, twitter_url 
-                FROM community_tokens 
-                ORDER BY id DESC
-            """)
+            # Liste normale
+            c.execute("SELECT id, name, symbol, logo, banner, price, description, website_url, twitter_url FROM community_tokens ORDER BY id DESC LIMIT 50")
+
             
         res = c.fetchall()
         return [{
