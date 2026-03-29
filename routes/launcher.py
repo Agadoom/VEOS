@@ -257,33 +257,33 @@ async def get_user_portfolio(uid: int):
     finally:
         c.close(); conn.close()
 
+# Dans routes/launcher.py
 
 @router.post("/burn")
 async def burn_wpt(user_id: int, amount: float):
-    if amount <= 0:
-        return {"ok": False, "error": "Invalid amount"}
-    
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Vérifier si l'utilisateur a assez de WPT
+        # 1. Vérifier le solde
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (user_id,))
         res = c.fetchone()
+        
         if not res or float(res[0]) < amount:
-            return {"ok": False, "error": "Insufficient balance to burn"}
+            return {"ok": False, "error": "Insufficient balance"}
 
-        # 2. SOUSTRAIRE du solde (Destruction)
+        # 2. Brûler (Retirer du solde de l'user sans le donner à personne)
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount, user_id))
         
-        # 3. Enregistrer dans une table de stats globale (optionnel mais recommandé)
-        # On peut imaginer une table 'global_stats' avec une colonne 'total_burned'
-        c.execute("UPDATE global_stats SET total_burned = total_burned + %s", (amount,))
+        # 3. (Optionnel) Ajouter aux stats globales du burn
+        # c.execute("UPDATE global_stats SET total_burned = total_burned + %s", (amount,))
         
         conn.commit()
+        print(f"🔥 Burn Success: {amount} WPT by {user_id}")
         return {"ok": True, "burned": amount}
+        
     except Exception as e:
         conn.rollback()
+        print(f"❌ Burn Error: {e}")
         return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
-
