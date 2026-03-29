@@ -558,28 +558,30 @@
     let b64_logo = "", b64_banner = "", tradeType = 'buy', sourcePage = 'p-mine';
 
     // --- INITIALISATION AU CHARGEMENT ---
-    window.addEventListener('DOMContentLoaded', () => {
-        refresh();           // Charge ton solde
-        loadMarket();        // Charge les tokens
-        updateBurnStats();   // CHARGE LE FEU GLOBAL 🔥
-        
-        // Optionnel: rafraîchir le burn toutes les minutes
-        setInterval(updateBurnStats, 60000);
-    });
+    // --- LANCEMENT AUTOMATIQUE ---
+window.addEventListener('DOMContentLoaded', () => {
+    // 1. On charge tes infos
+    refresh(); 
+    // 2. On charge les tokens
+    loadMarket(); 
+    // 3. ON CHARGE LE BURN GLOBAL (C'est ça qui manque !)
+    updateBurnStats(); 
+});
 
-    async function updateBurnStats() {
-        try {
-            const r = await fetch(`${BASE_URL}/api/launcher/total-burned`);
-            const data = await r.json();
-            const el = document.getElementById('global-burned-val');
-            if (el) {
-                // On affiche la valeur réelle venant de Railway
-                el.innerText = parseFloat(data.total_burned || 0).toLocaleString();
-            }
-        } catch (e) {
-            console.error("Erreur récup Burn:", e);
+async function updateBurnStats() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/total-burned`);
+        const data = await r.json();
+        const el = document.getElementById('global-burned-val');
+        if (el) {
+            // Affiche la valeur réelle stockée sur Railway
+            el.innerText = parseFloat(data.total_burned || 0).toLocaleString();
         }
+    } catch (e) {
+        console.error("Impossible de charger le Burn global", e);
     }
+}
+
 
     // --- NAVIGATION ---
     function showPage(pageId) {
