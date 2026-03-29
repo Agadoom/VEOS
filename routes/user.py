@@ -55,15 +55,34 @@ async def get_user_data(uid: int):
     if not r: 
         return JSONResponse(status_code=404, content={"error": "User not found"})
     
-    # Ordre strict de database.get_user_full
-    p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, last_login_str = r
+    # Ordre strict de database.get_user_full (Assure-toi que turbo_until est en 9ème position)
+    # p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, last_login_str, turbo_until
+    p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, last_login_str = r[:9]
     
+    # --- 🚀 LOGIQUE TURBO (Vérification de la date) ---
+    turbo_active = False
+    recharge_rate = 1.0 # Vitesse normale : 1 point par minute
+    
+    try:
+        conn = database.get_db_conn()
+        c = conn.cursor()
+        c.execute("SELECT turbo_until FROM users WHERE user_id = %s", (uid,))
+        t_res = c.fetchone()
+        
+        if t_res and t_res[0]:
+            # t_res[0] est un objet datetime de la BDD
+            if t_res[0] > datetime.now():
+                turbo_active = True
+                recharge_rate = 3.0 # Vitesse x3 si Turbo actif ! ⚡
+        c.close(); conn.close()
+    except Exception as e:
+        print(f"Turbo Check Error: {e}")
+
     # --- 🚀 LOGIQUE DU DAILY STREAK ---
     now_dt = datetime.now()
     today_str = now_dt.strftime("%Y-%m-%d")
     current_streak = streak or 0
     
-    # On ne fait l'update que si c'est une nouvelle journée
     if last_login_str != today_str:
         try:
             conn = database.get_db_conn()
@@ -93,11 +112,16 @@ async def get_user_data(uid: int):
     try:
         conn = database.get_db_conn()
         c = conn.cursor()
-        
-        # Total Supply
         c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
         total_supply = c.fetchone()[0] or 0
-        current_price = get_wpt_price(total_supply)
+        
+        # On peut aussi ajouter le TOTAL BURNED ici pour le prix
+        c.execute("SELECT total_burned FROM global_stats LIMIT 1")
+        b_res = c.fetchone()
+        burned = b_res[0] if b_res else 0
+        
+        # Le prix monte si la supply baisse (Burn)
+        current_price = 0.0001 + (burned * 0.00000001) 
         usd_value = score_total * current_price
 
         # Rank
@@ -109,21 +133,21 @@ async def get_user_data(uid: int):
         """, (uid,))
         res_rank = c.fetchone()
         rank_display = res_rank[0] if res_rank else "---"
-        
         c.close(); conn.close()
     except:
         current_price = 0.0001
         usd_value = score_total * 0.0001
         rank_display = "---"
 
-    # --- ÉNERGIE (SÉCURITÉ ANTI-CRASH) ---
+    # --- ÉNERGIE DYNAMIQUE (Avec Recharge Rate) ---
     try:
         now_ts = int(time.time())
         max_e = 100
-        # On s'assure que last_upd est un nombre
         l_upd = int(last_upd) if last_upd else now_ts
         minutes_passed = (now_ts - l_upd) / 60
-        current_e = min(max_e, (float(energy or 0)) + (minutes_passed * 1.0))
+        
+        # ICI on multiplie par recharge_rate (1.0 ou 3.0)
+        current_e = min(max_e, (float(energy or 0)) + (minutes_passed * recharge_rate))
     except:
         current_e = 100
 
@@ -139,9 +163,10 @@ async def get_user_data(uid: int):
         "max_energy": 100,
         "rank": rank_display,
         "streak": current_streak,
-        "turbo_active": turbo_active,
+        "turbo_active": turbo_active, # Maintenant elle est définie !
         "mining_boost": round(mining_boost, 2)
     }
+
 
 
 # --- 4. RETRAIT & WALLET ---
