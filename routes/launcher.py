@@ -298,6 +298,24 @@ async def get_listings():
         c.close(); conn.close()
 
 
+@router.get("/search")
+async def search_tokens(q: str = ""):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # Recherche insensible à la casse dans le nom ou le symbole
+        query = f"%{q}%"
+        c.execute("""
+            SELECT id, name, symbol, price, creator_id 
+            FROM community_tokens 
+            WHERE name ILIKE %s OR symbol ILIKE %s 
+            ORDER BY price DESC LIMIT 20
+        """, (query, query))
+        
+        rows = c.fetchall()
+        return [{"id": r[0], "name": r[1], "symbol": r[2], "price": r[3]} for r in rows]
+    finally:
+        c.close(); conn.close()
 
 
 
