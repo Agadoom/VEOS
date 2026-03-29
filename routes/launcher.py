@@ -264,26 +264,22 @@ async def burn_wpt(user_id: int, amount: float):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Vérifier le solde
+        # 1. On vérifie le solde
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (user_id,))
         res = c.fetchone()
-        
         if not res or float(res[0]) < amount:
             return {"ok": False, "error": "Insufficient balance"}
 
-        # 2. Brûler (Retirer du solde de l'user sans le donner à personne)
+        # 2. On retire les WPT de l'utilisateur
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount, user_id))
         
-        # 3. (Optionnel) Ajouter aux stats globales du burn
-        # c.execute("UPDATE global_stats SET total_burned = total_burned + %s", (amount,))
+        # 3. ON MET À JOUR LE COMPTEUR GLOBAL (Le fix est ici !)
+        c.execute("UPDATE global_stats SET total_burned = total_burned + %s", (amount,))
         
         conn.commit()
-        print(f"🔥 Burn Success: {amount} WPT by {user_id}")
         return {"ok": True, "burned": amount}
-        
     except Exception as e:
         conn.rollback()
-        print(f"❌ Burn Error: {e}")
         return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
