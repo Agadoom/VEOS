@@ -972,21 +972,49 @@ if(refEl) {
 
 
 
-function filterTokens() {
-    const query = document.getElementById('token-search').value.toLowerCase();
-    const tokens = document.querySelectorAll('.token-card'); // Assure-toi que tes cartes de tokens ont cette classe
+// Variable pour éviter d'envoyer trop de requêtes (Debounce)
+let searchTimer;
 
-    tokens.forEach(card => {
-        const name = card.querySelector('.token-name').innerText.toLowerCase();
-        const symbol = card.querySelector('.token-symbol').innerText.toLowerCase();
-        
-        if (name.includes(query) || symbol.includes(query)) {
-            card.style.display = "block";
-        } else {
-            card.style.display = "none";
+async function filterTokens() {
+    const query = document.getElementById('token-search').value;
+
+    // On attend 300ms après la frappe avant de chercher en BDD
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(async () => {
+        try {
+            // On appelle ta route modifiée avec ?q=...
+            const r = await fetch(`${BASE_URL}/api/launcher/list?q=${encodeURIComponent(query)}`);
+            const data = await r.json();
+            
+            // On vide le conteneur et on recharge les résultats
+            const container = document.getElementById('token-list-container');
+            container.innerHTML = ""; 
+
+            if (data.length === 0) {
+                container.innerHTML = "<p style='text-align:center; padding:20px; opacity:0.5;'>No token found 🔍</p>";
+                return;
+            }
+
+            // On génère le HTML pour chaque token trouvé
+            data.forEach(t => {
+                container.innerHTML += `
+                    <div class="card token-card" onclick="openTokenDetail(${t.id})" style="margin-bottom:10px;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <img src="${t.logo || 'static/default_token.png'}" style="width:40px; height:40px; border-radius:50%;">
+                            <div style="flex:1;">
+                                <div style="font-weight:bold;">${t.name} <span style="color:var(--gold); font-size:12px;">$${t.symbol}</span></div>
+                                <div style="font-size:12px; color:var(--green);">${t.price.toFixed(6)} WPT</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        } catch (e) {
+            console.error("Search Error:", e);
         }
-    });
+    }, 300);
 }
+
 
 
     // --- INIT ---
