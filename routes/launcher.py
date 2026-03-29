@@ -280,7 +280,7 @@ async def burn_wpt(user_id: int, amount: float):
 
 
 
-@@router.get("/total-burned")
+@router.get("/total-burned")
 async def get_total_burned():
     conn = database.get_db_conn()
     c = conn.cursor()
