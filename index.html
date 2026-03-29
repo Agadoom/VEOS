@@ -1067,11 +1067,25 @@ if(refEl) {
     }
 
     function copyRef() { navigator.clipboard.writeText(`https://t.me/OWPCsBot?start=${uid}`); tg.showAlert("Link copied! ✅"); }
-    async function buyStarsPack(amt) {
-        const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${amt}`);
-        const d = await r.json();
-        if(d.invoice_link) tg.openInvoice(d.invoice_link, (status) => { if(status === 'paid') refresh(); });
+
+
+
+async function buyStarsPack(amt) {
+    // On ajoute ?amount=... à l'URL
+    const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${amt}`);
+    const d = await r.json();
+    if(d.invoice_link) {
+        tg.openInvoice(d.invoice_link, (status) => { 
+            if(status === 'paid') {
+                tg.showAlert("Payment Successful! 💎");
+                refresh(); 
+            } 
+        });
     }
+}
+
+
+
 
 async function executeBurn() {
     const amountInput = document.getElementById('burn-amount');
