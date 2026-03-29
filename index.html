@@ -308,10 +308,33 @@
         </button>
     </div>
 
-    <div style="display: flex; align-items: center; margin: 30px 0 15px 10px;">
-        <span style="font-size: 20px; margin-right: 8px;">🔥</span>
-        <h3 style="margin: 0; letter-spacing: 1px;">NEW LISTINGS</h3>
-    </div>
+    <div style="display: flex; gap: 10px; margin: 20px 0 15px 0; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none;">
+    <div onclick="setFilter('new', this)" class="tab-btn active-tab">✨ New</div>
+    <div onclick="setFilter('hot', this)" class="tab-btn">🔥 Hot</div>
+    <div onclick="setFilter('my', this)" class="tab-btn">👤 My Tokens</div>
+</div>
+
+<style>
+    .tab-btn {
+        background: #1a1a1c;
+        padding: 8px 16px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: bold;
+        color: var(--text);
+        white-space: nowrap;
+        cursor: pointer;
+        border: 1px solid #333;
+        transition: 0.3s;
+    }
+    .active-tab {
+        background: var(--gold);
+        color: #000;
+        border-color: var(--gold);
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+    }
+</style>
+
     
     <div id="token-list" style="padding-bottom: 20px;"></div>
 </div>
@@ -972,48 +995,56 @@ if(refEl) {
 
 
 
-let searchTimer;
+let currentFilter = 'new';
 
-async function filterTokens() {
-    const query = document.getElementById('token-search').value;
-    const list = document.getElementById('token-list');
-    if (!list) return;
-
-    // On attend 300ms pour ne pas harceler le serveur
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(async () => {
-        try {
-            // On appelle l'API avec le paramètre q
-            const r = await fetch(`${BASE_URL}/api/launcher/list?q=${encodeURIComponent(query)}`);
-            const tokens = await r.json();
-            
-            if (!tokens || tokens.length === 0) {
-                list.innerHTML = "<p style='text-align:center; opacity:0.5; margin-top:20px;'>No tokens found 🔍</p>";
-                return;
-            }
-
-            // On reconstruit la liste
-            list.innerHTML = tokens.map(t => {
-                const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
-                return `
-                    <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
-                        <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
-                            <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
-                            <div style="text-align:left;">
-                                <b style="display:block;">${t.name}</b>
-                                <small style="color:var(--gold)">$${t.symbol}</small>
-                            </div>
-                        </div>
-                        <b style="color:var(--green); pointer-events:none;">${parseFloat(t.price || 0).toFixed(6)}</b>
-                    </div>
-                `;
-            }).join('');
-            
-        } catch (e) {
-            console.error("Search Error:", e);
-        }
-    }, 300);
+async function setFilter(mode, el) {
+    currentFilter = mode;
+    // Update UI des onglets
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active-tab'));
+    el.classList.add('active-tab');
+    
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    
+    // Recharge la liste avec le nouveau filtre
+    loadMarket();
 }
+
+async function loadMarket() {
+    const list = document.getElementById('token-list');
+    const searchQuery = document.getElementById('token-search')?.value || "";
+    
+    try {
+        // On envoie le filtre et la recherche au backend
+        const url = `${BASE_URL}/api/launcher/list?q=${encodeURIComponent(searchQuery)}&filter=${currentFilter}&uid=${uid}`;
+        const r = await fetch(url);
+        const tokens = await r.json();
+        
+        if (!tokens || tokens.length === 0) {
+            list.innerHTML = "<p style='text-align:center; opacity:0.5; margin-top:20px;'>No tokens found.</p>";
+            return;
+        }
+
+        list.innerHTML = tokens.map(t => {
+            const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
+            return `
+                <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer;">
+                    <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
+                        <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
+                        <div style="text-align:left;">
+                            <b style="display:block;">${t.name}</b>
+                            <small style="color:var(--gold)">$${t.symbol}</small>
+                        </div>
+                    </div>
+                    <div style="text-align:right; pointer-events:none;">
+                        <b style="color:var(--green); display:block;">${parseFloat(t.price || 0).toFixed(6)}</b>
+                        <small style="font-size:9px; opacity:0.5;">${currentFilter === 'hot' ? '🔥 HIGH VOLUME' : ''}</small>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch(e) { console.error("Market error:", e); }
+}
+
 
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
