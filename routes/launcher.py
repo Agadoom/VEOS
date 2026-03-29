@@ -264,25 +264,20 @@ async def burn_wpt(user_id: int, amount: float):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. On vérifie le solde
-        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (user_id,))
-        res = c.fetchone()
-        if not res or float(res[0]) < amount:
-            return {"ok": False, "error": "Insufficient balance"}
-
-        # 2. On retire les WPT de l'utilisateur
+        # On retire à l'user
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (amount, user_id))
         
-        # 3. ON MET À JOUR LE COMPTEUR GLOBAL (Le fix est ici !)
+        # On ajoute au compteur global (ID 1 est la ligne par défaut)
         c.execute("UPDATE global_stats SET total_burned = total_burned + %s", (amount,))
         
-        conn.commit()
+        conn.commit() # <--- TRÈS IMPORTANT : C'est ça qui "sauvegarde" sur le disque
         return {"ok": True, "burned": amount}
     except Exception as e:
         conn.rollback()
         return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
+
 
 
 @router.get("/total-burned")
