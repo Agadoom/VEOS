@@ -280,16 +280,26 @@ async def burn_wpt(user_id: int, amount: float):
 
 
 
-@router.get("/total-burned")
+@@router.get("/total-burned")
 async def get_total_burned():
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
+        # 1. On tente de récupérer le score
         c.execute("SELECT total_burned FROM global_stats LIMIT 1")
         res = c.fetchone()
-        # Si res existe, on prend la valeur, sinon 0.0
-        val = float(res[0]) if res else 0.0
-        return {"total_burned": val}
+        
+        if res:
+            return {"total_burned": float(res[0])}
+        else:
+            # 2. SI LA TABLE EST VIDE : On crée la ligne initiale à 0
+            c.execute("INSERT INTO global_stats (total_burned) VALUES (0)")
+            conn.commit()
+            return {"total_burned": 0.0}
+            
+    except Exception as e:
+        print(f"Erreur Burn Stats: {e}")
+        return {"total_burned": 0.0}
     finally:
         c.close(); conn.close()
 
