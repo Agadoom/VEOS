@@ -55,112 +55,87 @@ async def get_user_data(uid: int):
     if not r: 
         return JSONResponse(status_code=404, content={"error": "User not found"})
     
-    # Ordre strict de database.get_user_full (Assure-toi que turbo_until est en 9ème position)
-    # p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, last_login_str, turbo_until
+    # Extraction des données (Assure-toi que l'ordre correspond à ta BDD)
     p_gen, p_uni, p_veo, name, energy, last_upd, streak, _, last_login_str = r[:9]
     
-    # --- 🚀 LOGIQUE TURBO (Vérification de la date) ---
+    # --- INITIALISATION DES VARIABLES ---
     turbo_active = False
-    recharge_rate = 1.0 # Vitesse normale : 1 point par minute
-    
+    recharge_rate = 1.0
+    rank_display = "---"
+    now_dt = datetime.now()
+    now_ts = int(time.time())
+
     try:
         conn = database.get_db_conn()
         c = conn.cursor()
+
+        # --- 🚀 LOGIQUE TURBO ---
         c.execute("SELECT turbo_until FROM users WHERE user_id = %s", (uid,))
         t_res = c.fetchone()
-        
-        if t_res and t_res[0]:
-            # t_res[0] est un objet datetime de la BDD
-            if t_res[0] > datetime.now():
-                turbo_active = True
-                recharge_rate = 3.0 # Vitesse x3 si Turbo actif ! ⚡
-        c.close(); conn.close()
-    except Exception as e:
-        print(f"Turbo Check Error: {e}")
+        if t_res and t_res[0] and t_res[0] > now_dt:
+            turbo_active = True
+            recharge_rate = 3.0
 
-    # --- 🚀 LOGIQUE DU DAILY STREAK ---
-    now_dt = datetime.now()
-    today_str = now_dt.strftime("%Y-%m-%d")
-    current_streak = streak or 0
-    
-    if last_login_str != today_str:
-        try:
-            conn = database.get_db_conn()
-            c = conn.cursor()
+        # --- 🚀 LOGIQUE DAILY STREAK ---
+        today_str = now_dt.strftime("%Y-%m-%d")
+        current_streak = streak or 0
+        if last_login_str != today_str:
             if last_login_str:
                 last_login_dt = datetime.strptime(last_login_str, "%Y-%m-%d").date()
                 yesterday = now_dt.date() - timedelta(days=1)
-                
                 if last_login_dt == yesterday:
                     current_streak += 1
                 elif last_login_dt < yesterday:
                     current_streak = 1
             else:
                 current_streak = 1
-            
             c.execute("UPDATE users SET streak = %s, last_login_date = %s WHERE user_id = %s", 
                       (current_streak, today_str, uid))
             conn.commit()
-            c.close(); conn.close()
-        except Exception as e:
-            print(f"Streak Update Error: {e}")
 
-    mining_boost = 1 + (min(current_streak, 10) * 0.05)
-    score_total = (float(p_gen or 0) + float(p_uni or 0) + float(p_veo or 0))
+        # --- 🚀 CALCULS FINANCIERS (PRIX & SUPPLY) ---
+        c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+        total_supply = c.fetchone()[0] or 0
+        
+        c.execute("SELECT total_burned FROM global_stats LIMIT 1")
+        b_res = c.fetchone()
+        burned = b_res[0] if b_res else 0
+        
+        # Calcul du prix et score
+        score_total = (float(p_gen or 0) + float(p_uni or 0) + float(p_veo or 0))
+        current_price = 0.0001 + (float(burned) * 0.00000001) 
+        usd_value = score_total * current_price
 
-    # --- CALCULS ADDITIONNELS (SÉCURISÉS) ---
+        # --- 🚀 LE FIX DU RANK ✨ ---
+        c.execute("""
+            SELECT position FROM (
+                SELECT user_id, 
+                       RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as position 
+                FROM users
+            ) AS ranking 
+            WHERE user_id = %s
+        """, (uid,))
+        res_rank = c.fetchone()
+        if res_rank:
+            rank_display = res_rank[0]
+
+        c.close(); conn.close()
+    except Exception as e:
+        print(f"❌ Erreur Data Init: {e}")
+        score_total = (float(p_gen or 0) + float(p_uni or 0) + float(p_veo or 0))
+        usd_value = score_total * 0.0001
+        current_streak = streak or 0
+
+    # --- 🚀 ÉNERGIE DYNAMIQUE ---
     try:
-                # --- CALCULS ADDITIONNELS (SÉCURISÉS ET BLINDÉS) ---
-        rank_display = "---" # Valeur par défaut
-        try:
-            conn = database.get_db_conn()
-            c = conn.cursor()
-            
-            # 1. Total Supply & Burned (Prix)
-            c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-            total_supply = c.fetchone()[0] or 0
-            
-            c.execute("SELECT total_burned FROM global_stats LIMIT 1")
-            b_res = c.fetchone()
-            burned = b_res[0] if b_res else 0
-            current_price = 0.0001 + (burned * 0.00000001) 
-            usd_value = score_total * current_price
-
-            # 2. LE FIX DU RANK (Méthode blindée) ✨
-            # J'ai simplifié la requête pour qu'elle soit plus rapide et sûre
-            c.execute("""
-                SELECT position FROM (
-                    SELECT user_id, 
-                           RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as position 
-                    FROM users
-                ) AS ranking 
-                WHERE user_id = %s
-            """, (uid,))
-            
-            res_rank = c.fetchone()
-            if res_rank:
-                rank_display = res_rank[0]
-                print(f"🏆 Rank trouvé pour {uid}: #{rank_display}")
-            else:
-                print(f"⚠️ Aucun rang trouvé pour l'user {uid} dans la table.")
-
-            c.close(); conn.close()
-            
-        except Exception as sql_e:
-            print(f"❌ Erreur SQL Critique (Rank/Supply): {sql_e}")
-            rank_display = "Err" # Pour te signaler un problème pendant le test
-
-    # --- ÉNERGIE DYNAMIQUE (Avec Recharge Rate) ---
-    try:
-        now_ts = int(time.time())
         max_e = 100
         l_upd = int(last_upd) if last_upd else now_ts
         minutes_passed = (now_ts - l_upd) / 60
-        
-        # ICI on multiplie par recharge_rate (1.0 ou 3.0)
         current_e = min(max_e, (float(energy or 0)) + (minutes_passed * recharge_rate))
     except:
         current_e = 100
+
+    mining_boost = 1 + (min(current_streak, 10) * 0.05)
 
     return {
         "uid": uid, 
@@ -174,9 +149,10 @@ async def get_user_data(uid: int):
         "max_energy": 100,
         "rank": rank_display,
         "streak": current_streak,
-        "turbo_active": turbo_active, # Maintenant elle est définie !
+        "turbo_active": turbo_active,
         "mining_boost": round(mining_boost, 2)
     }
+
 
 
 
