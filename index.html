@@ -1033,7 +1033,7 @@ async function filterTokens() {
                 card.onclick = () => {
                     console.log("👉 Navigation vers Token ID:", t.id);
                     if (typeof openTokenDetail === "function") {
-                        openTokenDetail(t.id);
+                        openTokenDetails(t.id);
                     } else {
                         console.error("❌ Erreur : La fonction openTokenDetail n'existe pas !");
                     }
