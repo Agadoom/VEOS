@@ -1017,25 +1017,35 @@ if(refEl) {
     }
 
 async function executeBurn() {
-    const amount = parseFloat(document.getElementById('burn-amount').value);
-    if (!amount || amount <= 0) return tg.showAlert("Enter a valid amount to burn 🔥");
+    const amountInput = document.getElementById('burn-amount');
+    const amount = parseFloat(amountInput.value);
+    
+    if (!amount || amount <= 0) {
+        return tg.showAlert("Please enter a valid amount of WPT to burn 🔥");
+    }
 
-    tg.confirm(`Are you sure you want to PERMANENTLY DESTROY ${amount} WPT? This cannot be undone.`, async (ok) => {
+    // Fenêtre de confirmation Telegram
+    tg.showConfirm(`Are you sure you want to PERMANENTLY BURN ${amount} WPT?`, async (ok) => {
         if (ok) {
             try {
-                const r = await fetch(`${BASE_URL}/api/launcher/burn?user_id=${uid}&amount=${amount}`, { method: 'POST' });
-                const res = await r.json();
-                
-                if (res.ok) {
-                    if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                    tg.showAlert(`🔥 Success! ${amount} WPT have been removed from circulation.`);
-                    document.getElementById('burn-amount').value = "";
-                    refresh(); // Pour mettre à jour le solde
+                // IMPORTANT : On passe les paramètres dans l'URL ici
+                const response = await fetch(`${BASE_URL}/api/launcher/burn?user_id=${uid}&amount=${amount}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+
+                if (result.ok) {
+                    tg.showAlert(`🔥 TOASTED! ${amount} WPT burned forever.`);
+                    amountInput.value = ""; // On vide l'input
+                    if (window.refresh) refresh(); // On actualise ton solde
                 } else {
-                    tg.showAlert("Error: " + res.error);
+                    tg.showAlert("❌ Error: " + (result.error || "Unknown error"));
                 }
-            } catch (e) {
-                tg.showAlert("Network Error");
+            } catch (error) {
+                console.error("Burn Error:", error);
+                tg.showAlert("📡 Connection error with the server.");
             }
         }
     });
