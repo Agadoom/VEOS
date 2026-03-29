@@ -1,27 +1,36 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-from fastapi import Query
-import database
 from pydantic import BaseModel
+import database
 import time
+import asyncio
 
-# On définit le préfixe une seule fois ici
 router = APIRouter(prefix="/api/launcher", tags=["Launcher"])
 
-# Modèle de données unique pour les transactions
+# --- CONFIGURATION ADMIN (Machine à Cash) ---
+ADMIN_ID = 1414016840 # Ton Telegram ID pour recevoir les taxes
+
 class TradeRequest(BaseModel):
     user_id: int
     token_id: int
-    amount: float  # 'amount' sera utilisé pour le montant WPT (achat) ou QUANTITÉ (vente)
+    amount: float 
 
-# --- DANS ROUTES/LAUNCHER.PY ---
+class DeployRequest(BaseModel):
+    user_id: int
+    name: str
+    symbol: str
+    description: str = ""
+    website_url: str = ""
+    twitter_url: str = ""
+    logo_b64: str
+    banner_b64: str = ""
 
+# --- 📋 LISTE UNIFIÉE (Recherche + Onglets) ---
 @router.get("/list")
 async def list_tokens(q: str = None, filter: str = "new", uid: int = 0):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. On récupère TOUTES les colonnes nécessaires (9 colonnes au total)
         query = """
             SELECT id, name, symbol, logo, banner, price, 
                    description, website_url, twitter_url 
@@ -30,12 +39,10 @@ async def list_tokens(q: str = None, filter: str = "new", uid: int = 0):
         params = []
         where_clauses = []
         
-        # 2. Gestion de la recherche
         if q:
             where_clauses.append("(name ILIKE %s OR symbol ILIKE %s)")
             params.extend([f"%{q}%", f"%{q}%"])
             
-        # 3. Gestion de l'onglet "My Tokens"
         if filter == "my" and uid > 0:
             where_clauses.append("creator_id = %s")
             params.append(uid)
@@ -43,7 +50,6 @@ async def list_tokens(q: str = None, filter: str = "new", uid: int = 0):
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
             
-        # 4. Gestion du Tri (Hot = par prix, New = par ID)
         if filter == "hot":
             query += " ORDER BY price DESC"
         else:
@@ -54,53 +60,49 @@ async def list_tokens(q: str = None, filter: str = "new", uid: int = 0):
         c.execute(query, tuple(params))
         res = c.fetchall()
 
-        # 5. Formatage de la réponse
         return [{
-            "id": r[0], 
-            "name": r[1], 
-            "symbol": r[2], 
-            "logo": r[3], 
-            "banner": r[4], 
-            "price": float(r[5] or 0),
+            "id": r[0], "name": r[1], "symbol": r[2], 
+            "logo": r[3], "banner": r[4], "price": float(r[5] or 0),
             "description": r[6] or "No description provided.",
-            "website_url": r[7] or "",  # Correspond à website_url
-            "twitter_url": r[8] or ""   # Correspond à twitter_url
+            "website_url": r[7] or "",
+            "twitter_url": r[8] or ""
         } for r in res]
-
     except Exception as e:
-        print(f"❌ Erreur SQL List/Search: {e}")
+        print(f"❌ Erreur SQL List: {e}")
         return []
     finally:
         c.close(); conn.close()
 
-
-
-
-
+# --- 🚀 ACHAT (BUY) AVEC TAXE 1% ---
 @router.post("/buy")
-async def buy_token(req: TradeRequest, request: Request): # On ajoute 'request: Request'
-    print(f"📥 Buy Attempt: User {req.user_id} -> Token {req.token_id}")
+async def buy_token(req: TradeRequest, request: Request):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Vérification du solde et infos du Token / Créateur
+        # 1. Vérification solde
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
         u = c.fetchone()
         if not u or float(u[0]) < req.amount:
             return JSONResponse(status_code=400, content={"ok": False, "error": "Insufficient WPT Balance"})
 
-        # On récupère le prix MAIS AUSSI le nom et le créateur
+        # 2. Calcul Taxe (1%)
+        fee = req.amount * 0.01
+        net_amount = req.amount - fee
+
         c.execute("SELECT price, name, symbol, creator_id FROM community_tokens WHERE id = %s", (req.token_id,))
         t = c.fetchone()
-        if not t:
-            return JSONResponse(status_code=404, content={"ok": False, "error": "Token not found"})
+        if not t: return JSONResponse(status_code=404, content={"ok": False, "error": "Token not found"})
             
         current_price, t_name, t_symbol, creator_id = float(t[0]), t[1], t[2], t[3]
-        qty_to_receive = req.amount / current_price
+        qty_to_receive = net_amount / current_price
 
-        # 2. Exécution financière
+        # 3. Transferts WPT
+        # Débit acheteur
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount, req.user_id))
+        # Crédit Admin (Taxe Protocol)
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (fee, ADMIN_ID))
         
+        # 4. Crédit Assets
         c.execute("""
             INSERT INTO user_community_assets (user_id, token_id, amount) 
             VALUES (%s, %s, %s)
@@ -112,31 +114,18 @@ async def buy_token(req: TradeRequest, request: Request): # On ajoute 'request: 
         new_price = current_price * 1.01
         c.execute("UPDATE community_tokens SET price = %s WHERE id = %s", (new_price, req.token_id))
 
-        # Historique
         c.execute("INSERT INTO token_price_history (token_id, price, timestamp) VALUES (%s, %s, %s)", 
                   (req.token_id, new_price, int(time.time())))
         
         conn.commit()
 
-        # --- 🚀 NOTIFICATION PUMP ALERT ---
-        # On récupère le bot stocké dans l'application FastAPI
+        # Notification Pump
         bot = request.app.state.bot 
         if creator_id and bot:
-            try:
-                # On prépare un message stylé
-                msg = (
-                    f"🚀 <b>PUMP ALERT!</b>\n\n"
-                    f"Someone just bought <b>{t_name}</b> (${t_symbol})!\n"
-                    f"New Price: <code>{new_price:.6f}</code> WPT\n\n"
-                    f"Keep mining and sharing! 🔥"
-                )
-                # On utilise asyncio pour ne pas bloquer la réponse de l'API
-                import asyncio
-                asyncio.create_task(bot.send_message(chat_id=creator_id, text=msg, parse_mode="HTML"))
-            except Exception as e:
-                print(f"🔔 Notification Error: {e}")
+            msg = f"🚀 <b>PUMP ALERT!</b>\n\nSomeone bought <b>{t_name}</b> (${t_symbol})!\nNew Price: <code>{new_price:.6f}</code> WPT\nFee to Protocol: {fee:.2f} WPT"
+            asyncio.create_task(bot.send_message(chat_id=creator_id, text=msg, parse_mode="HTML"))
 
-        return {"ok": True, "received": qty_to_receive}
+        return {"ok": True, "received": qty_to_receive, "fee": fee}
 
     except Exception as e:
         conn.rollback()
@@ -144,91 +133,47 @@ async def buy_token(req: TradeRequest, request: Request): # On ajoute 'request: 
     finally:
         c.close(); conn.close()
 
-
+# --- 📉 VENTE (SELL) AVEC TAXE 1% ---
 @router.post("/sell")
 async def sell_token(req: TradeRequest):
-    print(f"📉 Sell Attempt: User {req.user_id} -> Token {req.token_id} Amount: {req.amount}")
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Vérifier si l'utilisateur possède bien ces tokens (req.amount est ici la quantité de tokens)
         c.execute("SELECT amount FROM user_community_assets WHERE user_id = %s AND token_id = %s", (req.user_id, req.token_id))
         res = c.fetchone()
-        
         if not res or float(res[0]) < req.amount:
-            return JSONResponse(status_code=400, content={"ok": False, "error": "Not enough tokens to sell"})
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Not enough tokens"})
 
-        # 2. Récupérer le prix actuel
         c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
-        t = c.fetchone()
-        current_price = float(t[0])
-        total_wpt_earned = req.amount * current_price
+        current_price = float(c.fetchone()[0])
+        gross_wpt = req.amount * current_price
 
-        # 3. Exécution : Retirer tokens -> Ajouter WPT -> Baisser le prix (Dump)
+        # Taxe 1% sur la vente
+        fee = gross_wpt * 0.01
+        net_wpt = gross_wpt - fee
+
+        # Exécution
         c.execute("UPDATE user_community_assets SET amount = amount - %s WHERE user_id = %s AND token_id = %s", 
                   (req.amount, req.user_id, req.token_id))
         
-        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (total_wpt_earned, req.user_id))
+        # Utilisateur reçoit le net, Admin reçoit la taxe
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (net_wpt, req.user_id))
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (fee, ADMIN_ID))
         
-        # Le prix baisse de 1% par vente
         new_price = current_price * 0.99
         c.execute("UPDATE community_tokens SET price = %s WHERE id = %s", (new_price, req.token_id))
-
-        # Historique
         c.execute("INSERT INTO token_price_history (token_id, price, timestamp) VALUES (%s, %s, %s)", 
                   (req.token_id, new_price, int(time.time())))
 
         conn.commit()
-        return {"ok": True, "received": total_wpt_earned} # 'received' ici est le WPT gagné
+        return {"ok": True, "received": net_wpt, "fee": fee}
     except Exception as e:
         conn.rollback()
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
     finally:
         c.close(); conn.close()
 
-@router.get("/history/{tid}")
-async def get_token_history(tid: int):
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    try:
-        c.execute("SELECT price FROM token_price_history WHERE token_id = %s ORDER BY timestamp ASC LIMIT 50", (tid,))
-        prices = [float(r[0]) for r in c.fetchall()]
-        return prices if prices else [0.0001]
-    finally:
-        c.close(); conn.close()
-
-@router.get("/stats/{tid}")
-async def get_token_stats(tid: int):
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    try:
-        # On compte les holders + on ajoute 1 (le créateur)
-        c.execute("SELECT COUNT(DISTINCT user_id) FROM user_community_assets WHERE token_id = %s", (tid,))
-        holders = (c.fetchone()[0] or 0) + 1 
-        
-        c.execute("SELECT price FROM community_tokens WHERE id = %s", (tid,))
-        price = float(c.fetchone()[0] or 0.0001)
-        
-        # Market Cap basé sur 1 milliard de supply
-        mcap = price * 1000000000
-        
-        return {"holders": holders, "mcap": round(mcap, 2)}
-    finally:
-        c.close(); conn.close()
-
-
-
-
-class DeployRequest(BaseModel):
-    user_id: int
-    name: str
-    symbol: str
-    description: str = ""
-    website_url: str = "" # AJOUTÉ
-    twitter_url: str = "" # AJOUTÉ
-    logo_b64: str
-    banner_b64: str = ""
-
+# --- 🏗️ DEPLOY (FEE 5000 WPT -> ADMIN) ---
 @router.post("/deploy")
 async def deploy_token(req: DeployRequest):
     conn = database.get_db_conn()
@@ -238,23 +183,50 @@ async def deploy_token(req: DeployRequest):
         c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
         u = c.fetchone()
         if not u or float(u[0]) < fee:
-            return JSONResponse(status_code=400, content={"ok": False, "error": "Frais de 5000 WPT requis."})
+            return JSONResponse(status_code=400, content={"ok": False, "error": "5000 WPT required."})
 
-        # Ajout des colonnes website_url et twitter_url dans l'INSERT
         c.execute("""
             INSERT INTO community_tokens (name, symbol, description, website_url, twitter_url, logo, banner, price, creator_id) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
         """, (req.name, req.symbol, req.description, req.website_url, req.twitter_url, req.logo_b64, req.banner_b64, 0.0001, req.user_id))
         
-        new_token_id = c.fetchone()[0]
+        new_id = c.fetchone()[0]
+        # On prélève chez l'utilisateur
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (fee, req.user_id))
+        # On donne à l'ADMIN
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (fee, ADMIN_ID))
+        
         c.execute("INSERT INTO token_price_history (token_id, price, timestamp) VALUES (%s, %s, %s)", 
-                  (new_token_id, 0.0001, int(time.time())))
+                  (new_id, 0.0001, int(time.time())))
         conn.commit()
-        return {"ok": True, "token_id": new_token_id}
+        return {"ok": True, "token_id": new_id}
     except Exception as e:
         conn.rollback()
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    finally:
+        c.close(); conn.close()
+
+# Routes de lecture (History, Stats, Balance, Portfolio)
+@router.get("/history/{tid}")
+async def get_token_history(tid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT price FROM token_price_history WHERE token_id = %s ORDER BY timestamp ASC LIMIT 50", (tid,))
+        return [float(r[0]) for r in c.fetchall()] or [0.0001]
+    finally:
+        c.close(); conn.close()
+
+@router.get("/stats/{tid}")
+async def get_token_stats(tid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT COUNT(DISTINCT user_id) FROM user_community_assets WHERE token_id = %s", (tid,))
+        holders = (c.fetchone()[0] or 0) + 1 
+        c.execute("SELECT price FROM community_tokens WHERE id = %s", (tid,))
+        price = float(c.fetchone()[0] or 0.0001)
+        return {"holders": holders, "mcap": round(price * 1000000000, 2)}
     finally:
         c.close(); conn.close()
 
@@ -265,21 +237,15 @@ async def get_user_token_balance(uid: int, tid: int):
     try:
         c.execute("SELECT amount FROM user_community_assets WHERE user_id = %s AND token_id = %s", (uid, tid))
         res = c.fetchone()
-        balance = float(res[0]) if res else 0.0
-        return {"ok": True, "balance": balance}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+        return {"ok": True, "balance": float(res[0]) if res else 0.0}
     finally:
         c.close(); conn.close()
-
-
 
 @router.get("/portfolio/{uid}")
 async def get_user_portfolio(uid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On joint la table des assets avec celle des infos tokens
         c.execute("""
             SELECT t.name, t.symbol, t.logo, a.amount, t.price 
             FROM user_community_assets a
@@ -287,69 +253,6 @@ async def get_user_portfolio(uid: int):
             WHERE a.user_id = %s AND a.amount > 0
             ORDER BY (a.amount * t.price) DESC
         """, (uid,))
-        res = c.fetchall()
-        
-        portfolio = []
-        for r in res:
-            portfolio.append({
-                "name": r[0],
-                "symbol": r[1],
-                "logo": r[2],
-                "amount": float(r[3]),
-                "price": float(r[4])
-            })
-        return portfolio
-    except Exception as e:
-        print(f"Portfolio Error: {e}")
-        return []
+        return [{"name": r[0], "symbol": r[1], "logo": r[2], "amount": float(r[3]), "price": float(r[4])} for r in c.fetchall()]
     finally:
         c.close(); conn.close()
-
-@router.get("/listings")
-async def get_listings():
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    try:
-        # On utilise les colonnes : id, name, symbol, logo, price
-        c.execute("SELECT id, name, symbol, logo, price FROM community_tokens ORDER BY id DESC LIMIT 20")
-        rows = c.fetchall()
-        
-        # On renvoie un format propre que le JS peut lire sans erreur
-        return [
-            {
-                "id": r[0], 
-                "name": r[1], 
-                "symbol": r[2], 
-                "logo": r[3],  # On garde le nom 'logo' pour être cohérent
-                "price": float(r[4])
-            } 
-            for r in rows
-        ]
-    except Exception as e:
-        print(f"❌ Erreur Listings: {e}")
-        return []
-    finally:
-        c.close(); conn.close()
-
-
-@router.get("/search")
-async def search_tokens(q: str = ""):
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    try:
-        # Recherche insensible à la casse dans le nom ou le symbole
-        query = f"%{q}%"
-        c.execute("""
-            SELECT id, name, symbol, price, creator_id 
-            FROM community_tokens 
-            WHERE name ILIKE %s OR symbol ILIKE %s 
-            ORDER BY price DESC LIMIT 20
-        """, (query, query))
-        
-        rows = c.fetchall()
-        return [{"id": r[0], "name": r[1], "symbol": r[2], "price": r[3]} for r in rows]
-    finally:
-        c.close(); conn.close()
-
-
-
