@@ -110,34 +110,45 @@ async def get_user_data(uid: int):
 
     # --- CALCULS ADDITIONNELS (SÉCURISÉS) ---
     try:
-        conn = database.get_db_conn()
-        c = conn.cursor()
-        c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
-        total_supply = c.fetchone()[0] or 0
-        
-        # On peut aussi ajouter le TOTAL BURNED ici pour le prix
-        c.execute("SELECT total_burned FROM global_stats LIMIT 1")
-        b_res = c.fetchone()
-        burned = b_res[0] if b_res else 0
-        
-        # Le prix monte si la supply baisse (Burn)
-        current_price = 0.0001 + (burned * 0.00000001) 
-        usd_value = score_total * current_price
+                # --- CALCULS ADDITIONNELS (SÉCURISÉS ET BLINDÉS) ---
+        rank_display = "---" # Valeur par défaut
+        try:
+            conn = database.get_db_conn()
+            c = conn.cursor()
+            
+            # 1. Total Supply & Burned (Prix)
+            c.execute("SELECT SUM(COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) FROM users")
+            total_supply = c.fetchone()[0] or 0
+            
+            c.execute("SELECT total_burned FROM global_stats LIMIT 1")
+            b_res = c.fetchone()
+            burned = b_res[0] if b_res else 0
+            current_price = 0.0001 + (burned * 0.00000001) 
+            usd_value = score_total * current_price
 
-        # Rank
-        c.execute("""
-            SELECT pos FROM (
-                SELECT user_id, RANK() OVER (ORDER BY (p_genesis + p_unity + p_veo) DESC) as pos 
-                FROM users
-            ) r WHERE user_id = %s
-        """, (uid,))
-        res_rank = c.fetchone()
-        rank_display = res_rank[0] if res_rank else "---"
-        c.close(); conn.close()
-    except:
-        current_price = 0.0001
-        usd_value = score_total * 0.0001
-        rank_display = "---"
+            # 2. LE FIX DU RANK (Méthode blindée) ✨
+            # J'ai simplifié la requête pour qu'elle soit plus rapide et sûre
+            c.execute("""
+                SELECT position FROM (
+                    SELECT user_id, 
+                           RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as position 
+                    FROM users
+                ) AS ranking 
+                WHERE user_id = %s
+            """, (uid,))
+            
+            res_rank = c.fetchone()
+            if res_rank:
+                rank_display = res_rank[0]
+                print(f"🏆 Rank trouvé pour {uid}: #{rank_display}")
+            else:
+                print(f"⚠️ Aucun rang trouvé pour l'user {uid} dans la table.")
+
+            c.close(); conn.close()
+            
+        except Exception as sql_e:
+            print(f"❌ Erreur SQL Critique (Rank/Supply): {sql_e}")
+            rank_display = "Err" # Pour te signaler un problème pendant le test
 
     # --- ÉNERGIE DYNAMIQUE (Avec Recharge Rate) ---
     try:
