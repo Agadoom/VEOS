@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse Query
+from fastapi.responses import JSONResponse
+from fastapi import Query
 import database
 from pydantic import BaseModel
 import time
