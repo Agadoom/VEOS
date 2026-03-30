@@ -1,49 +1,36 @@
-from fastapi import APIRouter, HTTPException
-import database
-import config
+from fastapi import Request
 
-router = APIRouter(prefix="/api/admin", tags=["Admin"])
+@router.post("/broadcast/{admin_id}")
+async def send_broadcast(admin_id: int, request: Request):
+    # 1. Vérification Admin
+    if admin_id != config.ADMIN_ID:
+        return {"ok": False, "error": "Unauthorized"}
+    
+    # 2. Récupérer le message depuis le corps de la requête
+    data = await request.json()
+    message_text = data.get("message")
+    
+    if not message_text:
+        return {"ok": False, "error": "Empty message"}
 
-@router.get("/stats/{admin_id}")
-async def get_admin_stats(admin_id: int):
-    # --- SÉCURITÉ : Seul TOI peux voir ça ---
-    if admin_id != config.ADMIN_ID: # Ajoute ADMIN_ID dans ton config.py
-        raise HTTPException(status_code=403, detail="Access Denied")
-
+    bot = request.app.state.bot
     conn = database.get_db_conn()
     c = conn.cursor()
+    
     try:
-        # 1. Stats Utilisateurs
-        c.execute("SELECT COUNT(*) FROM users")
-        total_users = c.fetchone()[0]
-
-        # 2. Économie WPT (Supply & Burn)
-        c.execute("SELECT SUM(p_genesis + p_unity + p_veo) FROM users")
-        total_supply = c.fetchone()[0] or 0
+        c.execute("SELECT user_id FROM users")
+        users = c.fetchall()
         
-        c.execute("SELECT total_burned FROM global_stats WHERE id = 1")
-        total_burned = c.fetchone()[0] or 0
-
-        # 3. Stats Loterie de la semaine
-        c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
-        weekly_tickets = c.fetchone()[0] or 0
-        current_jackpot = weekly_tickets * 1000
-
-        # 4. Top 5 Whales (Détails)
-        c.execute("""
-            SELECT name, (p_genesis + p_unity + p_veo) as total 
-            FROM users ORDER BY total DESC LIMIT 5
-        """)
-        whales = [{"name": r[0], "balance": round(r[1], 2)} for r in c.fetchall()]
-
-        return {
-            "users": total_users,
-            "supply": round(total_supply, 2),
-            "burned": round(total_burned, 2),
-            "jackpot": current_jackpot,
-            "tickets": weekly_tickets,
-            "whales": whales,
-            "wpt_price": 0.0001 + (float(total_burned) * 0.00000001)
-        }
+        count = 0
+        for (uid,) in users:
+            try:
+                await bot.send_message(chat_id=uid, text=f"📢 <b>GLOBAL ANNOUNCEMENT</b>\n\n{message_text}", parse_mode="HTML")
+                count += 1
+                # Petit délai pour éviter le spam-ban de Telegram
+                if count % 20 == 0: await asyncio.sleep(1) 
+            except:
+                continue # L'utilisateur a peut-être bloqué le bot
+                
+        return {"ok": True, "sent": count}
     finally:
         c.close(); conn.close()
