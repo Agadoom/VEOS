@@ -1,5 +1,6 @@
 import psycopg2, os, time
 from psycopg2.extras import RealDictCursor
+from datetime import datetime, timedelta
 
 def get_db_conn():
     return psycopg2.connect(os.getenv("DATABASE_URL"))
@@ -8,7 +9,7 @@ def init_db_structure():
     conn = get_db_conn()
     c = conn.cursor()
     try:
-        # 1. Table Users
+        # 1. Table Users (AVEC LA COLONNE TURBO_UNTIL !) ⚡
         c.execute("""CREATE TABLE IF NOT EXISTS users (
             user_id BIGINT PRIMARY KEY,
             name TEXT,
@@ -19,8 +20,18 @@ def init_db_structure():
             last_energy_update INTEGER,
             streak INTEGER DEFAULT 0,
             referrer_id BIGINT,
-            last_login_date TEXT
+            last_login_date TEXT,
+            turbo_until TIMESTAMP DEFAULT NULL,
+            wallet TEXT DEFAULT NULL
         )""")
+
+        # --- FIX: Ajouter les colonnes si elles manquent sur une table existante ---
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS turbo_until TIMESTAMP DEFAULT NULL")
+            c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_date TEXT")
+            c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS wallet TEXT")
+        except:
+            pass # Les colonnes existent déjà
 
         # 2. Table Tokens
         c.execute("""CREATE TABLE IF NOT EXISTS community_tokens (
@@ -47,44 +58,44 @@ def init_db_structure():
             PRIMARY KEY (user_id, token_id)
         )""")
 
-      # --- NOUVELLES TABLES LOTERIE ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS lottery_tickets (
+        # 4. Table Loterie (Tickets) 🎟️
+        c.execute("""CREATE TABLE IF NOT EXISTS lottery_tickets (
             id SERIAL PRIMARY KEY,
             user_id BIGINT,
             tickets_count INTEGER DEFAULT 0,
             week_number INTEGER,
             UNIQUE(user_id, week_number)
-        )
-    """)
-    
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS lottery_winners (
+        )""")
+        
+        # 5. Table Loterie (Winners) 🏆
+        c.execute("""CREATE TABLE IF NOT EXISTS lottery_winners (
             id SERIAL PRIMARY KEY,
             user_id BIGINT,
             amount_won NUMERIC,
             draw_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    # --- TABLE STATS GLOBALES (Si pas déjà faite) ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS global_stats (
+        )""")
+        
+        # 6. Table Stats Globales (Burn 🔥)
+        c.execute("""CREATE TABLE IF NOT EXISTS global_stats (
             id SERIAL PRIMARY KEY,
             total_burned NUMERIC DEFAULT 0
-        )
-    """)
+        )""")
+        
+        # Initialisation de la ligne de stats si vide
+        c.execute("INSERT INTO global_stats (id, total_burned) VALUES (1, 0) ON CONFLICT DO NOTHING")
 
-    conn.commit()
-    c.close()
-    conn.close()
-    print("✅ Database structure synchronized!")
+        conn.commit()
+        print("✅ Database structure synchronized!")
+    except Exception as e:
+        print(f"❌ Error init_db: {e}")
+    finally:
+        c.close(); conn.close()
 
-# --- LA FONCTION QUI MANQUAIT POUR FIXER LE PROFIL ---
 def get_user_full(uid):
     conn = get_db_conn()
     c = conn.cursor()
     try:
+        # On récupère 9 éléments pour correspondre à ton r[:9] dans user.py
         c.execute("""
             SELECT p_genesis, p_unity, p_veo, name, energy, 
                    last_energy_update, streak, referrer_id, last_login_date 
@@ -93,7 +104,6 @@ def get_user_full(uid):
         res = c.fetchone()
         
         if not res: 
-            # Si l'user n'existe pas, on le crée
             now = int(time.time())
             c.execute("""
                 INSERT INTO users (user_id, name, energy, last_energy_update, streak, p_genesis) 
@@ -109,48 +119,16 @@ def get_user_full(uid):
     finally:
         c.close(); conn.close()
 
-def get_community_tokens():
-    conn = get_db_conn()
-    c = conn.cursor()
-    try:
-        c.execute("""
-            SELECT id, name, symbol, price, mcap, logo, banner, description, website_url, twitter_url 
-            FROM community_tokens 
-            ORDER BY id DESC
-        """)
-        res = c.fetchall()
-        return [
-            {
-                "id": r[0], "name": r[1], "symbol": r[2], 
-                "price": float(r[3] or 0.0001), "mcap": float(r[4] or 0), 
-                "logo": r[5] or "", "banner": r[6] or "",
-                "description": r[7] or "No description provided.",
-                "website": r[8] or "", "twitter": r[9] or ""
-            } for r in res
-        ]
-    except Exception as e:
-        print(f"❌ Error fetching tokens: {e}")
-        return []
-    finally:
-        c.close(); conn.close()
-
-
-
 def get_energy_recharge_rate(user_id):
     conn = get_db_conn()
     c = conn.cursor()
     try:
-        # On vérifie si le Turbo est encore actif
         c.execute("SELECT turbo_until FROM users WHERE user_id = %s", (user_id,))
         res = c.fetchone()
-        
-        import datetime
-        now = datetime.datetime.now()
-        
-        # Si turbo_until existe et n'est pas encore passé
-        if res and res[0] and res[0] > now:
-            return 3.0  # Vitesse x3 🚀
-        else:
-            return 1.0  # Vitesse normale
+        if res and res[0] and res[0] > datetime.now():
+            return 3.0  # Speed x3 🚀
+        return 1.0
+    except:
+        return 1.0
     finally:
         c.close(); conn.close()
