@@ -11,6 +11,12 @@ from fastapi.responses import FileResponse
 import config, database
 from routes import mine, launcher, user, stars
 
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from routes.lottery import draw_lottery # On importe la fonction de tirage
+
+
+
 # --- INITIALIZATION ---
 database.init_db_structure()
 
