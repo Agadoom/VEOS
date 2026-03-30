@@ -1,0 +1,28 @@
+@router.post("/buy-ticket")
+async def buy_lottery_ticket(user_id: int, quantity: int):
+    price_per_ticket = 1000 # 1000 WPT le ticket
+    total_cost = price_per_ticket * quantity
+    
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Vérifier le solde
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (user_id,))
+        balance = c.fetchone()[0]
+        if balance < total_cost:
+            return {"ok": False, "error": "Pas assez de WPT"}
+
+        # 2. Déduire les WPT et ajouter les tickets
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (total_cost, user_id))
+        
+        # On insère ou on met à jour le nombre de tickets
+        c.execute("""
+            INSERT INTO lottery_tickets (user_id, tickets_count, week_number) 
+            VALUES (%s, %s, EXTRACT(WEEK FROM CURRENT_DATE))
+            ON CONFLICT (user_id, week_number) DO UPDATE SET tickets_count = lottery_tickets.tickets_count + %s
+        """, (user_id, quantity, quantity))
+        
+        conn.commit()
+        return {"ok": True, "msg": f"{quantity} tickets achetés !"}
+    finally:
+        c.close(); conn.close()
