@@ -155,39 +155,46 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payment = update.message.successful_payment
     payload = payment.invoice_payload
-    uid = int(payload.split("_")[-1])
+    
+    # On extrait l'UID depuis le payload (ex: stars_pack_50_123456)
+    parts = payload.split("_")
+    uid = int(parts[-1])
     
     conn = database.get_db_conn()
     c = conn.cursor()
     msg = ""
 
-    # --- LOGIQUE DE DISTRIBUTION ---
-    
-    # Cas 1 : Packs de WPT (50, 250, 1000)
-    if "stars_pack_" in payload:
-        amount = int(payload.split("_")[2])
-        wpt_to_add = 0
-        if amount == 50: wpt_to_add = 10000
-        elif amount == 250: wpt_to_add = 60000
-        elif amount == 1000: wpt_to_add = 300000
-        
-        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (wpt_to_add, uid))
-        msg = f"✅ <b>Payment Received!</b>\n{wpt_to_add:,} WPT added to your balance. 🚀"
+    try:
+        # CASE 1: WPT PACKS
+        if "stars_pack_" in payload:
+            amount_stars = int(parts[2])
+            wpt_to_add = 0
+            if amount_stars == 50: wpt_to_add = 10000
+            elif amount_stars == 250: wpt_to_add = 60000
+            elif amount_stars == 1000: wpt_to_add = 300000
+            
+            if wpt_to_add > 0:
+                c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (wpt_to_add, uid))
+                msg = f"✅ <b>Payment Received!</b>\n{wpt_to_add:,} WPT added to your balance. 🚀"
+                print(f"💰 SUCCESS: {wpt_to_add} WPT added to user {uid}")
 
-    # Cas 2 : Turbo Boost (99 Stars)
-    elif "turbo_boost" in payload:
-        from datetime import datetime, timedelta
-        expiry = (datetime.now() + timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
-        # On suppose que tu as ajouté la colonne 'turbo_until' à ta table users
-        c.execute("UPDATE users SET turbo_until = %s WHERE user_id = %s", (expiry, uid))
-        msg = "✅ <b>TURBO ACTIVATED!</b>\nYour energy will refill 3x faster for the next 24h! ⚡"
+        # CASE 2: TURBO BOOST
+        elif "turbo_boost" in payload:
+            expiry = (datetime.now() + timedelta(hours=24))
+            c.execute("UPDATE users SET turbo_until = %s WHERE user_id = %s", (expiry, uid))
+            msg = "✅ <b>TURBO ACTIVATED!</b>\nYour energy will refill 3x faster for 24h! ⚡"
+            print(f"⚡ TURBO: Activated for user {uid}")
 
-    conn.commit()
-    c.close()
-    conn.close()
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Payment Error: {e}")
+        msg = "⚠️ An error occurred while processing your payment. Contact support."
+    finally:
+        c.close(); conn.close()
 
     if msg:
         await update.message.reply_text(msg, parse_mode="HTML")
+
 
 
         # --- LOG RAILWAY ---
