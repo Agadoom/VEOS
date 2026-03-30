@@ -74,55 +74,55 @@ async def get_admin_stats(admin_id: int):
 # --- Garde ta route @router.post("/broadcast") ici en dessous ---
 
 
-# --- 📢 GLOBAL BROADCAST ---
+# --- 📢 GLOBAL BROADCAST (MULTI-CHANNEL) ---
 @router.post("/broadcast/{admin_id}")
 async def send_broadcast(admin_id: int, request: Request):
     # 1. Sécurité Admin
     if admin_id != config.ADMIN_ID:
         return {"ok": False, "error": "Unauthorized access"}
     
-    # 2. Récupérer le message
     try:
         data = await request.json()
         message_text = data.get("message")
     except:
-        return {"ok": False, "error": "Invalid JSON data"}
+        return {"ok": False, "error": "Invalid JSON"}
     
     if not message_text:
-        return {"ok": False, "error": "Message is empty"}
+        return {"ok": False, "error": "Message empty"}
 
     bot = request.app.state.bot
     conn = database.get_db_conn()
     c = conn.cursor()
     
     try:
-        # On récupère tous les IDs des utilisateurs enregistrés
+        # --- ÉTAPE A : PUBLICATION SUR LE CANAL PUBLIC ---
+        # On utilise l'ID de ton canal configuré dans config.py
+        try:
+            public_text = f"📢 <b>COMMUNITY UPDATE</b>\n\n{message_text}\n\n🚀 @{config.BOT_USERNAME}" # Ajoute BOT_USERNAME dans config.py
+            await bot.send_message(chat_id=config.LOTTERY_CHANNEL_ID, text=public_text, parse_mode="HTML")
+            print("✅ Public Channel notified!")
+        except Exception as e:
+            print(f"⚠️ Channel Post Error: {e}")
+
+        # --- ÉTAPE B : ENVOI AUX UTILISATEURS (DMs) ---
         c.execute("SELECT user_id FROM users")
         users = c.fetchall()
         
         sent_count = 0
-        failed_count = 0
-
         for (uid,) in users:
             try:
-                # On envoie le message formaté
-                text = f"📢 <b>GLOBAL ANNOUNCEMENT</b>\n\n{message_text}"
-                await bot.send_message(chat_id=uid, text=text, parse_mode="HTML")
+                dm_text = f"📢 <b>WPT ANNOUNCEMENT</b>\n\n{message_text}"
+                await bot.send_message(chat_id=uid, text=dm_text, parse_mode="HTML")
                 sent_count += 1
+                if sent_count % 30 == 0: await asyncio.sleep(1)
+            except:
+                continue
                 
-                # Anti-Spam Telegram : On fait une mini pause tous les 30 messages
-                if sent_count % 30 == 0:
-                    await asyncio.sleep(1)
-            except Exception:
-                failed_count += 1
-                continue # L'utilisateur a peut-être bloqué le bot
-                
-        return {"ok": True, "sent": sent_count, "failed": failed_count}
+        return {"ok": True, "sent": sent_count, "channel_posted": True}
         
     except Exception as e:
-        print(f"Broadcast error: {e}")
         return {"ok": False, "error": str(e)}
     finally:
-        c.close()
-        conn.close()
+        c.close(); conn.close()
+
 
