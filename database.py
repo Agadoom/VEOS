@@ -47,12 +47,38 @@ def init_db_structure():
             PRIMARY KEY (user_id, token_id)
         )""")
 
-        conn.commit()
-        print("🚀 Database structure verified!")
-    except Exception as e:
-        print(f"❌ DB Error Init: {e}")
-    finally:
-        c.close(); conn.close()
+      # --- NOUVELLES TABLES LOTERIE ---
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS lottery_tickets (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            tickets_count INTEGER DEFAULT 0,
+            week_number INTEGER,
+            UNIQUE(user_id, week_number)
+        )
+    """)
+    
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS lottery_winners (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            amount_won NUMERIC,
+            draw_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # --- TABLE STATS GLOBALES (Si pas déjà faite) ---
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS global_stats (
+            id SERIAL PRIMARY KEY,
+            total_burned NUMERIC DEFAULT 0
+        )
+    """)
+
+    conn.commit()
+    c.close()
+    conn.close()
+    print("✅ Database structure synchronized!")
 
 # --- LA FONCTION QUI MANQUAIT POUR FIXER LE PROFIL ---
 def get_user_full(uid):
