@@ -72,3 +72,57 @@ async def get_admin_stats(admin_id: int):
         conn.close()
 
 # --- Garde ta route @router.post("/broadcast") ici en dessous ---
+
+
+# --- 📢 GLOBAL BROADCAST ---
+@router.post("/broadcast/{admin_id}")
+async def send_broadcast(admin_id: int, request: Request):
+    # 1. Sécurité Admin
+    if admin_id != config.ADMIN_ID:
+        return {"ok": False, "error": "Unauthorized access"}
+    
+    # 2. Récupérer le message
+    try:
+        data = await request.json()
+        message_text = data.get("message")
+    except:
+        return {"ok": False, "error": "Invalid JSON data"}
+    
+    if not message_text:
+        return {"ok": False, "error": "Message is empty"}
+
+    bot = request.app.state.bot
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    
+    try:
+        # On récupère tous les IDs des utilisateurs enregistrés
+        c.execute("SELECT user_id FROM users")
+        users = c.fetchall()
+        
+        sent_count = 0
+        failed_count = 0
+
+        for (uid,) in users:
+            try:
+                # On envoie le message formaté
+                text = f"📢 <b>GLOBAL ANNOUNCEMENT</b>\n\n{message_text}"
+                await bot.send_message(chat_id=uid, text=text, parse_mode="HTML")
+                sent_count += 1
+                
+                # Anti-Spam Telegram : On fait une mini pause tous les 30 messages
+                if sent_count % 30 == 0:
+                    await asyncio.sleep(1)
+            except Exception:
+                failed_count += 1
+                continue # L'utilisateur a peut-être bloqué le bot
+                
+        return {"ok": True, "sent": sent_count, "failed": failed_count}
+        
+    except Exception as e:
+        print(f"Broadcast error: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        c.close()
+        conn.close()
+
