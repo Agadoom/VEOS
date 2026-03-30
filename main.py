@@ -219,9 +219,16 @@ async def main():
     # --- 🕒 CONFIGURATION DE LA LOTERIE (CRON) ---
     scheduler = AsyncIOScheduler()
     
-    # On programme le tirage : Chaque Dimanche (sun) à 21:00
-    # On passe le bot en argument pour qu'il puisse annoncer le gagnant (si tu veux)
-    scheduler.add_job(draw_lottery, 'cron', day_of_week='sun', hour=21, minute=0)
+    # FIX: On ajoute args=[bot_app.bot] pour que la fonction draw_lottery 
+    # puisse utiliser le bot pour annoncer le gagnant ! 📣
+    scheduler.add_job(
+        draw_lottery, 
+        'cron', 
+        day_of_week='sun', 
+        hour=21, 
+        minute=0, 
+        args=[bot_app.bot] 
+    )
     
     scheduler.start()
     print("📅 Scheduler Started: Lottery draw set for Sunday 21:00 UTC")
@@ -235,13 +242,16 @@ async def main():
     # 4. Start Bot (Polling mode)
     await bot_app.initialize()
     await bot_app.start()
-    asyncio.create_task(bot_app.updater.start_polling())
+    
+    # On lance le polling en arrière-plan
+    asyncio.create_task(bot_app.updater.start_polling()) 
     
     # 5. Run FastAPI
     print(f"🚀 Server & Bot active on port {config.PORT}")
     uv_config = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
     server = uvicorn.Server(uv_config)
     await server.serve()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
