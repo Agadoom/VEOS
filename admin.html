@@ -1,100 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WPT HUB - MASTER DASHBOARD</title>
+    <title>WPT COMMAND CENTER</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        :root { --gold: #bf953f; --cyber: #00ecff; --burn: #ff4d4d; --bg: #050505; --card: #121212; }
-        body { background: var(--bg); color: #fff; font-family: 'Courier New', monospace; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--gold); padding-bottom: 10px; margin-bottom: 20px; }
-        .online-badge { background: #00ff00; color: #000; padding: 5px 10px; border-radius: 5px; font-weight: bold; animation: blink 1.5s infinite; }
-        @keyframes blink { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
+        :root { --gold: #bf953f; --cyber: #00ecff; --burn: #ff4d4d; --bg: #0a0a0a; }
+        body { background: var(--bg); color: #fff; font-family: sans-serif; padding: 15px; margin: 0; }
+        h1 { color: var(--gold); font-size: 20px; text-align: center; margin-bottom: 20px; }
         
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
-        .card { background: var(--card); padding: 20px; border: 1px solid #222; border-radius: 8px; position: relative; }
-        .card h3 { margin: 0; font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: 1px; }
-        .card p { margin: 10px 0 0; font-size: 24px; font-weight: bold; }
+        /* Grille des Stats */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .card { background: #151515; padding: 15px; border-radius: 10px; border-left: 4px solid var(--gold); }
+        .card h3 { margin: 0; font-size: 10px; opacity: 0.6; text-transform: uppercase; }
+        .card p { margin: 5px 0 0; font-size: 18px; font-weight: bold; }
+
+        /* Bloc Broadcast */
+        .broadcast-zone { background: #151515; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+        textarea { width: 100%; height: 80px; background: #000; color: var(--cyber); border: 1px solid #444; border-radius: 5px; padding: 10px; box-sizing: border-box; }
+        button { width: 100%; background: var(--cyber); color: #000; border: none; padding: 12px; border-radius: 5px; font-weight: bold; margin-top: 10px; cursor: pointer; }
         
-        .activity-log { margin-top: 30px; background: #0a0a0a; border: 1px solid #333; padding: 15px; border-radius: 8px; }
-        .log-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1a1a1a; font-size: 13px; }
-        
-        .broadcast-zone { margin-top: 30px; padding: 20px; background: linear-gradient(to right, #111, #1a1a1a); border-radius: 10px; border: 1px solid var(--cyber); }
-        textarea { width: 100%; background: #000; color: var(--cyber); border: 1px solid #444; padding: 10px; margin-top: 10px; box-sizing: border-box; }
-        button { width: 100%; background: var(--cyber); color: #000; border: none; padding: 15px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .activity-log { margin-top: 20px; font-size: 12px; background: #111; padding: 10px; border-radius: 8px; }
+        .log-item { border-bottom: 1px solid #222; padding: 5px 0; display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1 style="margin:0;">🛰️ WPT COMMAND CENTER</h1>
-        <div id="status-live" class="online-badge">0 USERS ONLINE</div>
-    </div>
+    <h1>🛰️ WPT COMMAND CENTER</h1>
 
     <div class="grid">
-        <div class="card"><h3>Total Registered</h3><p id="total-users">0</p></div>
-        <div class="card"><h3>WPT Price (Live)</h3><p id="wpt-price" style="color:var(--cyber)">$0.00</p></div>
-        <div class="card"><h3>Market Supply</h3><p id="total-supply" class="gold">0</p></div>
-        <div class="card"><h3>Total Burned</h3><p id="total-burned" style="color:var(--burn)">0</p></div>
-        <div class="card"><h3>Current Jackpot</h3><p id="jackpot">0</p></div>
-        <div class="card"><h3>Tickets Sold</h3><p id="tickets">0</p></div>
-    </div>
-
-    <div class="activity-log">
-        <h3 style="color: var(--gold); margin-top: 0;">⚡ LIVE ACTIVITY (LATEST TICKETS)</h3>
-        <div id="log-list">Loading events...</div>
+        <div class="card"><h3>Online</h3><p id="online">0</p></div>
+        <div class="card"><h3>Total Users</h3><p id="users">0</p></div>
+        <div class="card"><h3>WPT Price</h3><p id="price" style="color:var(--cyber)">$0.00</p></div>
+        <div class="card"><h3>Jackpot</h3><p id="jackpot" class="gold">0</p></div>
     </div>
 
     <div class="broadcast-zone">
-        <h3 style="margin:0; color: var(--cyber);">📢 SEND GLOBAL PUSH NOTIFICATION</h3>
-        <textarea id="msg" placeholder="Broadcast message..."></textarea>
-        <button onclick="sendMsg()">EXECUTE BROADCAST 🚀</button>
-        <div id="status" style="margin-top:10px; font-size:12px;"></div>
+        <h3 style="margin:0; font-size:12px; color:var(--cyber)">📢 BROADCAST SYSTEM</h3>
+        <textarea id="bc-msg" placeholder="Your message..."></textarea>
+        <button onclick="doBroadcast()" id="bc-btn">SEND TO ALL USERS 🚀</button>
+        <div id="bc-status" style="font-size:10px; margin-top:5px;"></div>
+    </div>
+
+    <div class="activity-log">
+        <h3 style="margin:0 0 10px 0; font-size:11px; color:var(--gold)">⚡ RECENT TICKETS</h3>
+        <div id="logs">Loading...</div>
     </div>
 
 <script>
     const ADMIN_ID = 1414016840;
 
-    async function refreshData() {
+    async function loadData() {
         try {
             const r = await fetch(`/api/admin/stats/${ADMIN_ID}`);
+            if(!r.ok) throw new Error("Unauthorized");
             const d = await r.json();
 
-            document.getElementById('status-live').innerText = `${d.online} USERS ONLINE`;
-            document.getElementById('total-users').innerText = d.users.toLocaleString();
-            document.getElementById('wpt-price').innerText = `$${d.wpt_price.toFixed(8)}`;
-            document.getElementById('total-supply').innerText = d.supply.toLocaleString();
-            document.getElementById('total-burned').innerText = d.burned.toLocaleString();
-            document.getElementById('jackpot').innerText = d.jackpot.toLocaleString() + " WPT";
-            document.getElementById('tickets').innerText = d.tickets.toLocaleString();
+            // Mise à jour des champs
+            document.getElementById('online').innerText = d.online;
+            document.getElementById('users').innerText = d.users;
+            document.getElementById('price').innerText = `$${d.wpt_price.toFixed(8)}`;
+            document.getElementById('jackpot').innerText = d.jackpot.toLocaleString();
 
-            // Render Activity Log
+            // Logs d'activité
             const logHtml = d.activity.map(a => `
                 <div class="log-item">
                     <span>👤 ${a.name}</span>
-                    <span style="color:var(--gold)">Bought ${a.qty} Tickets 🎟️</span>
+                    <span style="color:var(--gold)">+${a.qty} Tix</span>
                 </div>
             `).join('');
-            document.getElementById('log-list').innerHTML = logHtml || "No recent activity.";
+            document.getElementById('logs').innerHTML = logHtml || "No activity";
 
-        } catch(e) { console.error(e); }
+        } catch(e) {
+            console.error(e);
+            document.body.innerHTML += `<div style="color:red; text-align:center;">Auth Error: Check config.py</div>`;
+        }
     }
 
-    async function sendMsg() {
-        const text = document.getElementById('msg').value;
-        if(!text || !confirm("Send to ALL?")) return;
-        const s = document.getElementById('status');
-        s.innerText = "Sending...";
-        const r = await fetch(`/api/admin/broadcast/${ADMIN_ID}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text})
-        });
-        const res = await r.json();
-        s.innerText = res.ok ? `✅ Sent to ${res.sent} users!` : "❌ Error";
+    async function doBroadcast() {
+        const msg = document.getElementById('bc-msg').value;
+        if(!msg) return;
+        const btn = document.getElementById('bc-btn');
+        btn.disabled = true;
+        
+        try {
+            const r = await fetch(`/api/admin/broadcast/${ADMIN_ID}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: msg})
+            });
+            const res = await r.json();
+            document.getElementById('bc-status').innerText = res.ok ? `✅ Sent to ${res.sent}` : "❌ Error";
+        } catch(e) { alert("Error"); }
+        btn.disabled = false;
     }
 
-    refreshData();
-    setInterval(refreshData, 10000); // Live update every 10s
+    loadData();
+    setInterval(loadData, 10000);
 </script>
-
 </body>
 </html>
