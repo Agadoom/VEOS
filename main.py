@@ -34,9 +34,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 
-@app.get("/secret-admin-dashboard")
-async def admin_page():
-    return FileResponse("admin.html")
 
 
 # --- INDEXATION DES ROUTES ---
@@ -83,6 +80,17 @@ async def create_invoice(uid: int, amount: int = 50): # On ajoute le paramètre 
     except Exception as e:
         print(f"Invoice Error: {e}")
         return {"error": str(e)}
+
+
+
+@app.get("/secret-admin-dashboard", response_class=HTMLResponse)
+async def serve_admin_page():
+    # On vérifie si le fichier est bien à la racine du projet (/app/admin.html)
+    file_path = "admin.html"
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h1>❌ Admin Dashboard file (admin.html) not found!</h1>"
 
 
 
