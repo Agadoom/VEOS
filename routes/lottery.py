@@ -8,25 +8,24 @@ router = APIRouter(prefix="/api/lottery", tags=["lottery"])
 
 # --- 1. ACHETER DES TICKETS ---
 @router.post("/buy-ticket")
-async def buy_lottery_ticket(user_id: int, quantity: int):
+async def buy_lottery_ticket(user_id: int, quantity: int, request: Request): # Ajoute request: Request
     price_per_ticket = 1000 
     total_cost = price_per_ticket * quantity
     
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # Check balance
-        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (user_id,))
+        # 1. Vérification solde
+        c.execute("SELECT p_genesis, name FROM users WHERE user_id = %s", (user_id,))
         res = c.fetchone()
         balance = res[0] if res else 0
+        user_name = res[1] if res else "A Whale"
 
         if balance < total_cost:
             return {"ok": False, "error": "Not enough WPT balance"}
 
-        # Deduct WPT and Add tickets
+        # 2. Update DB
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (total_cost, user_id))
-        
-        # INSERT or UPDATE tickets for current week
         c.execute("""
             INSERT INTO lottery_tickets (user_id, tickets_count, week_number) 
             VALUES (%s, %s, EXTRACT(WEEK FROM CURRENT_DATE))
@@ -34,11 +33,31 @@ async def buy_lottery_ticket(user_id: int, quantity: int):
             DO UPDATE SET tickets_count = lottery_tickets.tickets_count + %s
         """, (user_id, quantity, quantity))
         
+        # 3. Calcul du nouveau Jackpot pour l'annonce
+        c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
+        new_jackpot = (c.fetchone()[0] or 0) * 1000
+        
         conn.commit()
-        return {"ok": True, "msg": f"Successfully purchased {quantity} tickets!"}
-    except Exception as e:
-        conn.rollback()
-        return {"ok": False, "error": str(e)}
+
+        # --- 🚀 NOTIFICATION TELEGRAM ---
+        try:
+            bot = request.app.state.bot
+            import config
+            # Message stylé pour le groupe
+            text = (
+                f"🎟️ <b>New Tickets Purchased!</b>\n\n"
+                f"👤 <b>User:</b> {user_name}\n"
+                f"🎫 <b>Amount:</b> {quantity} tickets\n"
+                f"💰 <b>Current Jackpot:</b> {new_jackpot:,} WPT\n\n"
+                f"🍀 <i>Try your luck in the App!</i>"
+            )
+            # On envoie au canal défini dans config.py
+            await bot.send_message(chat_id=config.LOTTERY_CHANNEL_ID, text=text, parse_mode="HTML")
+        except Exception as e:
+            print(f"Notification Error: {e}")
+
+        return {"ok": True, "msg": "Successfully purchased!"}
+        
     finally:
         c.close(); conn.close()
 
