@@ -14,6 +14,11 @@ async def get_admin_stats(admin_id: int):
 
     conn = database.get_db_conn()
     c = conn.cursor()
+
+ # --- AJOUTE CETTE LIGNE ICI ---
+    # Ça met à jour ton propre statut dès que tu regardes le dashboard
+    c.execute("UPDATE users SET last_energy_update = %s WHERE user_id = %s", (int(time.time()), admin_id))
+
     try:
         c.execute("SELECT COUNT(*) FROM users")
         total_users = c.fetchone()[0]
