@@ -1342,24 +1342,7 @@ async function processStarsPurchase(packId, starsAmount) {
 
 
 
-function showPage(id) {
-    // 1. Cacher toutes les pages
-    document.querySelectorAll('.p').forEach(p => p.style.display = 'none');
-    
-    // 2. Afficher la page sélectionnée
-    const target = document.getElementById(id);
-    if(target) target.style.display = 'block';
 
-    // 3. Gérer les icônes de la nav
-    document.querySelectorAll('.n-i').forEach(i => i.classList.remove('active'));
-    
-    // On trouve l'ID de l'icône (ex: n-lottery pour p-lottery)
-    const navId = id.replace('p-', 'n-');
-    const navIcon = document.getElementById(navId);
-    if(navIcon) navIcon.classList.add('active');
-
-    if(tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-}
 
 
 
