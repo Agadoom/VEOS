@@ -49,9 +49,13 @@ async def sync_energy(uid: int):
 async def mine_action(request: Request):
     try:
         data = await request.json()
-         uid = data.get("user_id") or data.get("uid") # On accepte les deux noms
+        # FIX INDENTATION & KEY NAMES
+        uid = data.get("user_id") or data.get("uid")
         token_type = data.get("token_type") or "genesis"
         
+        if not uid:
+            return JSONResponse(status_code=400, content={"error": "User ID missing in request"})
+
         conn = database.get_db_conn()
         c = conn.cursor()
         
@@ -61,47 +65,54 @@ async def mine_action(request: Request):
         """, (uid,))
         res = c.fetchone()
         
-        if not res: return JSONResponse(status_code=400, content={"error": "User not found"})
+        if not res: 
+            c.close(); conn.close()
+            return JSONResponse(status_code=400, content={"error": "User not found in database"})
 
         energy, last_upd, last_click, streak, multiplier, turbo_until = res
         now_ms = int(time.time() * 1000)
         now_s = now_ms // 1000
 
         # Anti-Spam (80ms)
-        if (now_ms - (last_click or 0)) < 80:
+        if last_click and (now_ms - last_click) < 80:
+            c.close(); conn.close()
             return JSONResponse(status_code=400, content={"error": "Too fast"})
 
-        # Recharge temps réel pour éviter le blocage à 0
+        # --- CALCUL ÉNERGIE SÉCURISÉ ---
         regen_rate = getattr(config, 'REGEN_RATE', 1.0)
         max_energy = getattr(config, 'MAX_ENERGY', 100)
-        current_energy = min(max_energy, (energy or 0) + ((now_s - (last_upd or now_s)) / 60 * regen_rate))
+        
+        # Si last_upd est None, on prend le temps actuel
+        l_upd = last_upd if last_upd else now_s
+        diff_minutes = (now_s - l_upd) / 60
+        
+        current_energy = min(float(max_energy), float(energy or 0) + (diff_minutes * regen_rate))
 
         if current_energy < 1:
+            c.close(); conn.close()
             return JSONResponse(status_code=400, content={"error": "Low energy"})
 
         # --- CALCUL RÉCOMPENSE ---
         base_reward = 0.05
         streak_boost = 1 + (min(streak or 0, 10) * 0.05)
-        mag_boost = multiplier or 1.0
+        mag_boost = float(multiplier or 1.0)
         
-        # Vérification Turbo (Sécurisée)
+        # Turbo check
         is_turbo = False
-        if turbo_until:
-            # On compare des objets datetime
-            if isinstance(turbo_until, datetime):
-                if turbo_until > datetime.now():
-                    is_turbo = True
+        if turbo_until and isinstance(turbo_until, datetime):
+            if turbo_until > datetime.now():
+                is_turbo = True
         
         turbo_boost = 2.0 if is_turbo else 1.0
         final_reward = base_reward * streak_boost * mag_boost * turbo_boost
 
-        # Mise à jour
+        # --- MISE À JOUR ---
         valid_fields = {"genesis": "p_genesis", "unity": "p_unity", "veo": "p_veo"}
         db_field = valid_fields.get(token_type, "p_genesis")
         
         c.execute(f"""
             UPDATE users 
-            SET {db_field} = {db_field} + %s, 
+            SET {db_field} = COALESCE({db_field}, 0) + %s, 
                 energy = %s, 
                 last_energy_update = %s, 
                 last_click_time = %s 
@@ -109,10 +120,16 @@ async def mine_action(request: Request):
         """, (final_reward, current_energy - 1, now_s, now_ms, uid))
         
         conn.commit()
-        return {"ok": True, "reward": round(final_reward, 4), "new_energy": int(current_energy - 1)}
+        return {
+            "ok": True, 
+            "reward": round(final_reward, 4), 
+            "new_energy": int(current_energy - 1),
+            "multiplier": mag_boost # On renvoie le multiplier pour le JS !
+        }
 
     except Exception as e:
-        print(f"❌ Critical Mine Error: {e}") # Regarde tes logs Railway pour voir l'erreur exacte
-        return JSONResponse(status_code=500, content={"error": "Server Error"})
+        print(f"❌ Critical Mine Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
-        c.close(); conn.close()
+        if 'c' in locals(): c.close()
+        if 'conn' in locals(): conn.close()
