@@ -85,14 +85,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]])
     await update.message.reply_text(f"<b>Welcome {name}!</b>\n\nWPT Ecosystem is active.", parse_mode="HTML", reply_markup=keyboard)
 
+@app.get("/admin_command_v2") # Change légèrement l'URL ici
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid != config.ADMIN_ID:
         return 
+
+    # On ajoute ?v=123 pour forcer le rafraîchissement du cache
+    timestamp = int(time.time())
+    url = f"https://veos-production-a2de.up.railway.app/secret-admin-dashboard?v={timestamp}"
+    
     keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🖥️ OPEN COMMAND CENTER", web_app=WebAppInfo(url="https://veos-production-a2de.up.railway.app/secret-admin-dashboard"))
+        InlineKeyboardButton("🖥️ COMMAND CENTER (V2)", web_app=WebAppInfo(url=url))
     ]])
-    await update.message.reply_text("Welcome back, Boss. 🛰️", reply_markup=keyboard)
+    await update.message.reply_text("Re-loading Command Center... 🛰️", reply_markup=keyboard)
+
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
