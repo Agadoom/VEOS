@@ -17,16 +17,13 @@ database.init_db_structure()
 app = FastAPI(title="WPT Hub API")
 
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- INDEXATION DES ROUTES ---
+# --- ROUTES API ---
 app.include_router(user.router)
 app.include_router(mine.router)
 app.include_router(launcher.router)
@@ -35,57 +32,70 @@ app.include_router(lottery.router)
 app.include_router(premium.router)
 app.include_router(admin.router)
 
-# --- SERVEUR DE PAGES ---
 @app.get("/secret-admin-dashboard", response_class=HTMLResponse)
 async def serve_admin_page():
     if os.path.exists("admin.html"):
-        with open("admin.html", "r", encoding="utf-8") as f:
-            return f.read()
+        with open("admin.html", "r", encoding="utf-8") as f: return f.read()
     return "<h1>❌ Admin Dashboard not found!</h1>"
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
     if os.path.exists("index.html"):
-        with open("index.html", "r", encoding="utf-8") as f:
-            return f.read()
+        with open("index.html", "r", encoding="utf-8") as f: return f.read()
     return "<h1>Frontend index.html not found!</h1>"
 
 # --- TELEGRAM HANDLERS ---
 
-# COMMANDE /ADMIN (C'est elle qui gère tout !)
-async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid != config.ADMIN_ID:
-        return 
-
-    # On ajoute un timestamp pour briser le cache de Telegram
-    v = int(time.time())
-    admin_url = f"https://veos-production-a2de.up.railway.app/secret-admin-dashboard?v={v}"
-    
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🖥️ COMMAND CENTER (LIVE)", web_app=WebAppInfo(url=admin_url))
-    ]])
-    
-    await update.message.reply_text(
-        "🛰️ <b>WPT Master Access Granted.</b>\nOpening secure dashboard...", 
-        parse_mode="HTML", 
-        reply_markup=keyboard
-    )
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     name = update.effective_user.first_name
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))
-    ]])
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
     await update.message.reply_text(f"Welcome {name}!", reply_markup=keyboard)
+
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != config.ADMIN_ID: return 
+    v = int(time.time())
+    admin_url = f"https://veos-production-a2de.up.railway.app/secret-admin-dashboard?v={v}"
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🖥️ COMMAND CENTER", web_app=WebAppInfo(url=admin_url))]])
+    await update.message.reply_text("🛰️ <b>Admin Access Granted.</b>", parse_mode="HTML", reply_markup=keyboard)
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # (Garde ton code de paiement habituel ici...)
-    pass
+    # --- ICI LE CODE QUI ÉTAIT MANQUANT ---
+    payment = update.message.successful_payment
+    payload = payment.invoice_payload
+    parts = payload.split("_")
+    uid = int(parts[-1])
+    
+    conn = database.get_db_conn(); c = conn.cursor()
+    msg = ""
+    try:
+        if "stars_pack_" in payload:
+            amount_stars = int(parts[2])
+            wpt_to_add = 0
+            if amount_stars == 50: wpt_to_add = 10000
+            elif amount_stars == 250: wpt_to_add = 60000
+            elif amount_stars == 1000: wpt_to_add = 300000
+            
+            if wpt_to_add > 0:
+                c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (wpt_to_add, uid))
+                msg = f"✅ <b>Payment Received!</b>\n{wpt_to_add:,} WPT added. 🚀"
+
+        elif "turbo_boost" in payload:
+            expiry = (datetime.now() + timedelta(hours=24))
+            c.execute("UPDATE users SET turbo_until = %s WHERE user_id = %s", (expiry, uid))
+            msg = "✅ <b>TURBO ACTIVATED!</b>\nRefill 3x faster for 24h! ⚡"
+
+        conn.commit()
+    except Exception as e:
+        print(f"❌ Payment Error: {e}")
+        msg = "⚠️ Error processing payment."
+    finally:
+        c.close(); conn.close()
+    
+    if msg: await update.message.reply_text(msg, parse_mode="HTML")
 
 # --- MAIN RUNNER ---
 async def main():
@@ -96,9 +106,8 @@ async def main():
     scheduler.add_job(draw_lottery, 'cron', day_of_week='sun', hour=21, minute=0, args=[bot_app.bot])
     scheduler.start()
 
-    # Enregistrement des commandes Telegram
     bot_app.add_handler(CommandHandler("start", start_command))
-    bot_app.add_handler(CommandHandler("admin", admin_command)) # <--- LA COMMANDE EST ICI
+    bot_app.add_handler(CommandHandler("admin", admin_command))
     bot_app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     bot_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
