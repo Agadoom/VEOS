@@ -11,40 +11,53 @@
 </head>
 <body>
     <h1>🛰️ WPT COMMAND CENTER</h1>
-    <div id="stats">Loading global data...</div>
+   <div class="stat-card" style="border-left-color: #00ecff; background: #1a1a1a;">
+    <h3>📢 BROADCAST SYSTEM</h3>
+    <textarea id="broadcast-msg" placeholder="Type your message here..." 
+              style="width: 100%; height: 80px; background: #000; color: #00ecff; border: 1px solid #333; border-radius: 5px; padding: 10px;"></textarea>
+    <br><br>
+    <button onclick="sendBroadcast()" id="btn-send"
+            style="background: #00ecff; color: #000; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">
+        SEND TO ALL USERS 🚀
+    </button>
+    <p id="broadcast-status" style="font-size: 12px; margin-top: 10px;"></p>
+</div>
 
-   <script>
-    // Ton ID est maintenant bien configuré
-    const ADMIN_ID = 1414016840; 
-
-    async function loadStats() {
+<script>
+    async function sendBroadcast() {
+        const msg = document.getElementById('broadcast-msg').value;
+        if(!msg) return alert("Please type a message!");
+        
+        if(!confirm("Are you sure? This will send a notification to EVERYONE.")) return;
+        
+        const btn = document.getElementById('btn-send');
+        const status = document.getElementById('broadcast-status');
+        
+        btn.disabled = true;
+        status.innerText = "Sending... Please wait.";
+        
         try {
-            // FIX: Utilise ADMIN_ID ici au lieu de MY_ID
-            const r = await fetch(`/api/admin/stats/${ADMIN_ID}`);
+            const r = await fetch(`/api/admin/broadcast/${ADMIN_ID}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: msg})
+            });
+            const res = await r.json();
             
-            if (!r.ok) {
-                if(r.status === 403) throw new Error("Accès Refusé : Ton ID n'est pas autorisé.");
-                throw new Error("Erreur Serveur");
+            if(res.ok) {
+                status.style.color = "#00ff00";
+                status.innerText = `✅ Success! Message sent to ${res.sent} users.`;
+                document.getElementById('broadcast-msg').value = "";
+            } else {
+                throw new Error(res.error);
             }
-            
-            const d = await r.json();
-            
-            document.getElementById('stats').innerHTML = `
-                <div class="stat-card">👥 Total Users: <b>${d.users}</b></div>
-                <div class="stat-card">💰 Total Supply: <b class="gold">${d.supply.toLocaleString()} WPT</b></div>
-                <div class="stat-card">🔥 Total Burned: <b class="burn">${d.burned.toLocaleString()} WPT</b></div>
-                <div class="stat-card">📈 WPT Price: <b>$${d.wpt_price.toFixed(8)}</b></div>
-                <hr style="border: 0.5px solid #333; margin: 20px 0;">
-                <div class="stat-card">🎰 Weekly Tickets Sold: <b>${d.tickets}</b></div>
-                <div class="stat-card">🏆 Current Jackpot: <b class="gold">${d.jackpot.toLocaleString()} WPT</b></div>
-                <div class="stat-card" style="border-left-color: #00ff00;">💎 Top Whale: <b>${d.whales[0]?.name || 'N/A'}</b> (${d.whales[0]?.balance.toLocaleString()} WPT)</div>
-            `;
-        } catch (err) {
-            document.getElementById('stats').innerHTML = `<b style="color:red">❌ ERROR: ${err.message}</b>`;
+        } catch (e) {
+            status.style.color = "#ff4d4d";
+            status.innerText = "❌ Error: " + e.message;
+        } finally {
+            btn.disabled = false;
         }
     }
-    loadStats();
-    setInterval(loadStats, 10000); // Mise à jour auto toutes les 10s
 </script>
 
 </body>
