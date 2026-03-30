@@ -1478,6 +1478,37 @@ async function updateLotteryInfo() {
 }
 
 
+
+
+async function handleMine() {
+    try {
+        const response = await fetch('/api/mine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: tg_user_id, // Vérifie que cette variable contient bien ton ID Telegram
+                token_type: "genesis" // ou "unity", "veo"
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            // Mise à jour de l'affichage
+            balanceGenesis += data.reward;
+            currentEnergy = data.new_energy;
+            document.getElementById('balance-display').innerText = balanceGenesis.toFixed(4);
+            document.getElementById('energy-display').innerText = currentEnergy;
+        } else {
+            console.error("Erreur de minage:", data.error);
+            alert(data.error); // Affiche l'erreur (ex: Insufficient energy)
+        }
+    } catch (err) {
+        console.error("Erreur réseau:", err);
+    }
+}
+
+
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
     tg.expand(); refresh(); setInterval(refresh, 15000);
