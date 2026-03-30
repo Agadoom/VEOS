@@ -16,19 +16,29 @@
     <script>
         const ADMIN_ID = 1414016840; // METS TON ID TELEGRAM ICI
         async function loadStats() {
-            const r = await fetch(`/api/admin/stats/${ADMIN_ID}`);
+        try {
+            // On appelle l'API qu'on a créée dans routes/admin.py
+            const r = await fetch(`/api/admin/stats/${MY_ID}`);
+            if (!r.ok) throw new Error("Access Denied or Server Error");
+            
             const d = await r.json();
+            
+            // Mise à jour de l'affichage
             document.getElementById('stats').innerHTML = `
-                <div class="stat-card">👥 Total Citizens: <b>${d.users}</b></div>
+                <div class="stat-card">👥 Total Users: <b>${d.users}</b></div>
                 <div class="stat-card">💰 Total Supply: <b class="gold">${d.supply.toLocaleString()} WPT</b></div>
                 <div class="stat-card">🔥 Total Burned: <b class="burn">${d.burned.toLocaleString()} WPT</b></div>
-                <div class="stat-card">📈 WPT Price: <b>$${d.wpt_price.toFixed(8)}</b></div>
-                <hr>
-                <div class="stat-card">🎰 Current Jackpot: <b>${d.jackpot.toLocaleString()} WPT</b> (${d.tickets} tickets sold)</div>
+                <div class="stat-card">📉 WPT Price: <b>$${d.wpt_price.toFixed(8)}</b></div>
+                <hr style="border: 0.5px solid #333; margin: 20px 0;">
+                <div class="stat-card">🎰 Weekly Tickets: <b>${d.tickets}</b></div>
+                <div class="stat-card">🏆 Current Jackpot: <b class="gold">${d.jackpot.toLocaleString()} WPT</b></div>
             `;
+        } catch (err) {
+            document.getElementById('stats').innerHTML = `<b style="color:red">❌ ERROR: ${err.message}</b>`;
         }
-        loadStats();
-        setInterval(loadStats, 30000); // Refresh toutes les 30 sec
+    }
+    loadStats();
+    setInterval(loadStats, 10000); // Rafraîchit toutes les 10 secondes
     </script>
 </body>
 </html>
