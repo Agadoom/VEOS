@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 
 # Import de tes configurations et modules
 import config, database
-from routes import mine, launcher, user, stars, lottery, prenium
+from routes import mine, launcher, user, stars, lottery, premium
 
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -39,7 +39,7 @@ app.include_router(mine.router)
 app.include_router(launcher.router)
 app.include_router(stars.router)
 app.include_router(lottery.router)
-app.include_router(prenium.router)
+app.include_router(premium.router)
 
 # --- API STARS (Générer le lien de paiement) ---
 @app.get("/api/stars/create-invoice/{uid}")
