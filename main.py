@@ -39,7 +39,6 @@ async def admin_page():
     return FileResponse("admin.html")
 
 
-
 # --- INDEXATION DES ROUTES ---
 app.include_router(user.router)
 app.include_router(mine.router)
