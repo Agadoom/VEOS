@@ -19,5 +19,5 @@ DEPLOY_FEE_TON = 0.5  # Exemple : 0.5 TON pour lancer un token
 DEPLOY_FEE_STARS = 10  # Environ 5$ (ajuste selon tes besoins)
 # Tu peux aussi ajouter des frais pour "Boost" un token
 BOOST_FEE_STARS = 100
-LOTTERY_CHANNEL_ID = 8657676090
+LOTTERY_CHANNEL_ID = -1003564334773
 
