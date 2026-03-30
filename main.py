@@ -93,11 +93,6 @@ async def get_manifest():
 
 
 
-# Dans ta fonction main()
-scheduler = AsyncIOScheduler()
-# On tire au sort tous les dimanches à 21h00
-scheduler.add_job(draw_lottery, 'cron', day_of_week='sun', hour=21, minute=0)
-scheduler.start()
 
 
 
