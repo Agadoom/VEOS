@@ -697,19 +697,41 @@ async function updateBurnStats() {
 
     // --- NAVIGATION ---
     function showPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-        const target = document.getElementById(pageId);
-        if(target) target.classList.add('active-page');
+    // 1. Gestion de l'affichage des pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+    const target = document.getElementById(pageId);
+    if(target) target.classList.add('active-page');
 
-        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-        const navId = pageId.replace('p-', 'n-');
-        if(document.getElementById(navId)) document.getElementById(navId).classList.add('active');
+    // 2. Gestion des icônes de la barre de navigation
+    document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+    const navId = pageId.replace('p-', 'n-');
+    const navIcon = document.getElementById(navId);
+    if(navIcon) navIcon.classList.add('active');
 
-        if(pageId === 'p-profil') { refresh(); loadLeaderboard(); loadPortfolio(); }
-        if(pageId === 'p-launcher') loadMarket();
-        
-        if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+    // 3. DÉCLENCHEURS DE CHARGEMENT (API)
+    // On rafraîchit les données selon la page pour éviter de charger pour rien
+    if(pageId === 'p-mine' || pageId === 'p-profil') { 
+        refresh(); 
+        if(pageId === 'p-profil') { loadLeaderboard(); loadPortfolio(); }
     }
+    
+    if(pageId === 'p-launcher') {
+        loadMarket();
+    }
+
+    if(pageId === 'p-lottery') {
+        // Appelle tes futures fonctions pour charger le jackpot et tes tickets
+        updateLotteryInfo(); 
+    }
+
+    if(pageId === 'p-wallet') {
+        refresh(); // Pour être sûr que le solde WPT est à jour avant d'acheter
+    }
+    
+    // 4. Retour haptique Telegram
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+}
+
 
     // --- REFRESH DATA ---
     async function refresh() {
