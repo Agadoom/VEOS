@@ -1363,6 +1363,24 @@ function showPage(id) {
 
 
 
+
+async function updateLotteryInfo() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/lottery/info?user_id=${uid}`);
+        const d = await r.json();
+        
+        // On met à jour le texte du Jackpot et le nombre de tickets de l'user
+        const jackEl = document.getElementById('jackpot-amount');
+        const countEl = document.getElementById('user-tickets-count');
+        
+        if(jackEl) jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
+        if(countEl) countEl.innerText = `You have: ${d.user_tickets || 0} tickets`;
+    } catch (e) {
+        console.error("Erreur chargement Loterie", e);
+    }
+}
+
+
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
     tg.expand(); refresh(); setInterval(refresh, 15000);
