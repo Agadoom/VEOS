@@ -224,6 +224,22 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
 
 # --- MAIN RUNNER ---
 
+
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    if uid != config.ADMIN_ID:
+        return # Le bot ne répond même pas aux autres
+
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🖥️ OPEN COMMAND CENTER", web_app=WebAppInfo(url="https://veos-production-a2de.up.railway.app/secret-admin-dashboard"))
+    ]])
+    
+    await update.message.reply_text("Welcome back, Boss. 🛰️", reply_markup=keyboard)
+
+
+
+
+
 async def main():
     # 1. Init Bot App
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
@@ -253,6 +269,9 @@ async def main():
     bot_app.add_handler(CommandHandler("start", start_command))
     bot_app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     bot_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+
+
+bot_app.add_handler(CommandHandler("admin", admin_command))
 
     # 4. Start Bot (Polling mode)
     await bot_app.initialize()
