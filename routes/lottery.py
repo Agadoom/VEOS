@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/lottery", tags=["lottery"])
 
 
 
-@router.get("/buy-ticket")
+@router.post("/buy-ticket")
 async def buy_lottery_ticket(user_id: int, quantity: int):
     price_per_ticket = 1000 # 1000 WPT le ticket
     total_cost = price_per_ticket * quantity
