@@ -539,19 +539,20 @@
 
     <div style="padding: 0 15px;">
         <div class="card" style="background: linear-gradient(145deg, #1a0a0a, #050505); border: 1px solid #eb4034; padding: 25px; margin-top: 25px; text-align: center; border-radius: 20px; position: relative;">
-            <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #eb4034; color: white; padding: 2px 15px; border-radius: 10px; font-size: 10px; font-weight: 900;">DANGER ZONE</div>
-            <div style="font-size: 32px; margin-bottom: 5px;">🔥</div>
-            <h3 style="margin: 0; color: #eb4034; letter-spacing: 2px; font-weight: 900;">WPT BURN PORTAL</h3>
-            <p style="font-size: 11px; color: #888; margin: 5px 0 20px 0;">Burning tokens increases the value of your remaining balance.</p>
-            
-            <div style="position: relative;">
-                <input type="number" id="burn-amount" class="l-input" placeholder="Amount to burn..." style="text-align: center; border-color: #400000; margin-bottom: 12px; background: #000; font-size: 18px; font-family: 'monospace'; color: #eb4034; height: 50px;">
-            </div>
-            
-            <button class="btn" style="background: #eb4034; color: white; width: 100%; font-weight: 900; height: 50px; box-shadow: 0 4px 15px rgba(235, 64, 52, 0.4);" onclick="executeBurn()">
-                EXECUTE SACRIFICE
-            </button>
-        </div>
+    <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #eb4034; color: white; padding: 2px 15px; border-radius: 10px; font-size: 10px; font-weight: 900; z-index: 10;">DANGER ZONE</div>
+    <div style="font-size: 32px; margin-bottom: 5px;">🔥</div>
+    <h3 style="margin: 0; color: #eb4034; letter-spacing: 2px; font-weight: 900;">WPT BURN PORTAL</h3>
+    <p style="font-size: 11px; color: #888; margin: 5px 0 20px 0;">Destroy WPT to increase scarcity.</p>
+    
+    <input type="number" id="burn-amount" 
+           placeholder="0.00" 
+           style="width: 80%; text-align: center; background: #000; border: 2px solid #400000; color: #eb4034; font-size: 24px; font-family: monospace; padding: 12px; border-radius: 12px; margin-bottom: 15px; outline: none; -webkit-appearance: none;">
+    
+    <button class="btn" style="background: #eb4034; color: white; width: 100%; font-weight: 900; height: 50px; box-shadow: 0 4px 15px rgba(235, 64, 52, 0.4);" onclick="executeBurn()">
+        EXECUTE SACRIFICE
+    </button>
+</div>
+
     </div>
 
     <div style="padding: 0 15px;">
