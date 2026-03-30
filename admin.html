@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WPT OWNER DASHBOARD</title>
+    <style>
+        body { background: #000; color: #fff; font-family: sans-serif; padding: 20px; }
+        .stat-card { background: #111; padding: 15px; border-radius: 10px; border-left: 5px solid #ff00ff; margin-bottom: 10px; }
+        .gold { color: #bf953f; }
+        .burn { color: #ff4d4d; }
+    </style>
+</head>
+<body>
+    <h1>🛰️ WPT COMMAND CENTER</h1>
+    <div id="stats">Loading global data...</div>
+
+    <script>
+        const ADMIN_ID = 12345678; // METS TON ID TELEGRAM ICI
+        async function loadStats() {
+            const r = await fetch(`/api/admin/stats/${ADMIN_ID}`);
+            const d = await r.json();
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">👥 Total Citizens: <b>${d.users}</b></div>
+                <div class="stat-card">💰 Total Supply: <b class="gold">${d.supply.toLocaleString()} WPT</b></div>
+                <div class="stat-card">🔥 Total Burned: <b class="burn">${d.burned.toLocaleString()} WPT</b></div>
+                <div class="stat-card">📈 WPT Price: <b>$${d.wpt_price.toFixed(8)}</b></div>
+                <hr>
+                <div class="stat-card">🎰 Current Jackpot: <b>${d.jackpot.toLocaleString()} WPT</b> (${d.tickets} tickets sold)</div>
+            `;
+        }
+        loadStats();
+        setInterval(loadStats, 30000); // Refresh toutes les 30 sec
+    </script>
+</body>
+</html>
