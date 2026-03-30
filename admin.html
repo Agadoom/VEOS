@@ -1,63 +1,172 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>WPT OWNER DASHBOARD</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WPT COMMAND CENTER</title>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; padding: 20px; }
-        .stat-card { background: #111; padding: 15px; border-radius: 10px; border-left: 5px solid #ff00ff; margin-bottom: 10px; }
-        .gold { color: #bf953f; }
-        .burn { color: #ff4d4d; }
+        :root {
+            --gold: #bf953f;
+            --cyber: #00ecff;
+            --burn: #ff4d4d;
+            --bg: #0a0a0a;
+            --card: #151515;
+        }
+        body { 
+            background: var(--bg); 
+            color: #fff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            margin: 0;
+        }
+        h1 { color: var(--gold); text-align: center; letter-spacing: 2px; text-transform: uppercase; }
+        
+        .container { max-width: 800px; margin: 0 auto; }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card { 
+            background: var(--card); 
+            padding: 20px; 
+            border-radius: 12px; 
+            border-left: 4px solid var(--gold);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .stat-card h3 { margin: 0; font-size: 12px; opacity: 0.6; text-transform: uppercase; }
+        .stat-card p { margin: 10px 0 0; font-size: 22px; font-weight: bold; }
+
+        .broadcast-box {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            margin-top: 30px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            background: #000;
+            color: var(--cyber);
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+
+        button {
+            background: var(--cyber);
+            color: #000;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+            transition: 0.3s;
+        }
+
+        button:hover { opacity: 0.8; transform: translateY(-2px); }
+        button:disabled { background: #555; cursor: not-allowed; }
+
+        .gold { color: var(--gold); }
+        .burn { color: var(--burn); }
+        .cyber { color: var(--cyber); }
+        
+        #broadcast-status { text-align: center; font-size: 13px; margin-top: 10px; }
     </style>
 </head>
 <body>
+
+<div class="container">
     <h1>🛰️ WPT COMMAND CENTER</h1>
-   <div class="stat-card" style="border-left-color: #00ecff; background: #1a1a1a;">
-    <h3>📢 BROADCAST SYSTEM</h3>
-    <textarea id="broadcast-msg" placeholder="Type your message here..." 
-              style="width: 100%; height: 80px; background: #000; color: #00ecff; border: 1px solid #333; border-radius: 5px; padding: 10px;"></textarea>
-    <br><br>
-    <button onclick="sendBroadcast()" id="btn-send"
-            style="background: #00ecff; color: #000; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">
-        SEND TO ALL USERS 🚀
-    </button>
-    <p id="broadcast-status" style="font-size: 12px; margin-top: 10px;"></p>
+
+    <div class="stat-grid" id="stats-container">
+        <div class="stat-card"><h3>Total Citizens</h3><p id="count-users">...</p></div>
+        <div class="stat-card"><h3>WPT Price</h3><p id="wpt-price" class="cyber">...</p></div>
+        <div class="stat-card"><h3>Total Supply</h3><p id="total-supply" class="gold">...</p></div>
+        <div class="stat-card"><h3>Total Burned</h3><p id="total-burned" class="burn">...</p></div>
+        <div class="stat-card"><h3>Weekly Jackpot</h3><p id="current-jackpot">...</p></div>
+        <div class="stat-card"><h3>Tickets Sold</h3><p id="tickets-sold">...</p></div>
+    </div>
+
+    <div class="broadcast-box">
+        <h3 style="margin:0; color: var(--cyber);">📢 GLOBAL BROADCAST</h3>
+        <p style="font-size: 11px; opacity: 0.6;">Send a push notification to EVERY user in the database.</p>
+        <textarea id="broadcast-msg" placeholder="Write your announcement here... (HTML tags supported)"></textarea>
+        <button id="btn-send" onclick="sendBroadcast()">SEND ANNOUNCEMENT 🚀</button>
+        <p id="broadcast-status"></p>
+    </div>
 </div>
 
 <script>
+    // --- CONFIGURATION ---
+    const ADMIN_ID = 1414016840; // Ton ID Telegram
+
+    // 1. CHARGER LES STATS
+    async function loadStats() {
+        try {
+            const r = await fetch(`/api/admin/stats/${ADMIN_ID}`);
+            if (!r.ok) throw new Error("Access Denied");
+            const d = await r.json();
+
+            document.getElementById('count-users').innerText = d.users.toLocaleString();
+            document.getElementById('wpt-price').innerText = `$${d.wpt_price.toFixed(8)}`;
+            document.getElementById('total-supply').innerText = d.supply.toLocaleString();
+            document.getElementById('total-burned').innerText = d.burned.toLocaleString();
+            document.getElementById('current-jackpot').innerText = d.jackpot.toLocaleString() + " WPT";
+            document.getElementById('tickets-sold').innerText = d.tickets.toLocaleString();
+
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // 2. ENVOYER UN BROADCAST
     async function sendBroadcast() {
         const msg = document.getElementById('broadcast-msg').value;
-        if(!msg) return alert("Please type a message!");
-        
-        if(!confirm("Are you sure? This will send a notification to EVERYONE.")) return;
-        
         const btn = document.getElementById('btn-send');
         const status = document.getElementById('broadcast-status');
-        
+
+        if(!msg) return alert("Please enter a message!");
+        if(!confirm("⚠️ WARNING: This will notify ALL users. Proceed?")) return;
+
         btn.disabled = true;
-        status.innerText = "Sending... Please wait.";
-        
+        status.innerText = "🛰️ Broadcasters active... sending to all users...";
+
         try {
             const r = await fetch(`/api/admin/broadcast/${ADMIN_ID}`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({message: msg})
+                body: JSON.stringify({ message: msg })
             });
             const res = await r.json();
-            
+
             if(res.ok) {
-                status.style.color = "#00ff00";
-                status.innerText = `✅ Success! Message sent to ${res.sent} users.`;
+                status.innerHTML = `<b style="color:var(--cyber)">✅ Success! Sent to ${res.sent} users.</b>`;
                 document.getElementById('broadcast-msg').value = "";
             } else {
                 throw new Error(res.error);
             }
-        } catch (e) {
-            status.style.color = "#ff4d4d";
-            status.innerText = "❌ Error: " + e.message;
+        } catch (err) {
+            status.innerHTML = `<b style="color:var(--burn)">❌ Error: ${err.message}</b>`;
         } finally {
             btn.disabled = false;
         }
     }
+
+    // Initialisation
+    loadStats();
+    setInterval(loadStats, 30000); // Update every 30s
 </script>
 
 </body>
