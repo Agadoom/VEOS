@@ -1421,6 +1421,42 @@ async function processStarsPurchase(packId, starsAmount) {
 
 
 
+async function buyLotteryTicket() {
+    const qtyInput = document.getElementById('ticket-qty');
+    const qty = parseInt(qtyInput.value);
+
+    // 1. Validation check
+    if (isNaN(qty) || qty < 1) {
+        tg.showAlert("Please choose at least 1 ticket! 🎟️");
+        return;
+    }
+
+    // 2. Telegram Haptic Feedback
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+    try {
+        // 3. API CALL
+        const response = await fetch(`${BASE_URL}/api/lottery/buy-ticket?user_id=${uid}&quantity=${qty}`, {
+            method: 'POST'
+        });
+        const res = await response.json();
+
+        if (res.ok) {
+            // SUCCESS MESSAGE
+            tg.showAlert(`✅ CONGRATULATIONS!\nYou just bought ${qty} ticket(s) for the Sunday draw! 🍀`);
+            
+            // 4. UI UPDATE
+            if(window.refresh) refresh();            // Update WPT Balance
+            if(window.updateLotteryInfo) updateLotteryInfo();  // Update Jackpot & Ticket count
+        } else {
+            // SERVER ERROR MESSAGE
+            tg.showAlert("❌ Error: " + (res.error || res.msg || "Transaction failed"));
+        }
+    } catch (e) {
+        console.error("Lottery purchase error:", e);
+        tg.showAlert("📡 Connection error. Lottery server is offline.");
+    }
+}
 
 
 
