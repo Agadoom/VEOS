@@ -49,8 +49,8 @@ async def sync_energy(uid: int):
 async def mine_action(request: Request):
     try:
         data = await request.json()
-        uid = data.get("user_id")
-        token_type = data.get("token_type") 
+         uid = data.get("user_id") or data.get("uid") # On accepte les deux noms
+        token_type = data.get("token_type") or "genesis"
         
         conn = database.get_db_conn()
         c = conn.cursor()
