@@ -1337,40 +1337,38 @@ async function buyStarsPack(amt) {
 
 
 async function executeBurn() {
-    const amountInput = document.getElementById('burn-amount');
-    const amount = parseFloat(amountInput.value);
-    
-    if (!amount || amount <= 0) {
-        return tg.showAlert("Please enter a valid amount of WPT to burn 🔥");
+    const input = document.getElementById('burn-amount');
+    const amount = parseFloat(input.value);
+
+    // Vérification de sécurité
+    if (isNaN(amount) || amount <= 0) {
+        tg.showAlert("Please enter a valid amount of WPT to burn 🔥");
+        return;
     }
 
-    // Fenêtre de confirmation Telegram
+    if (amount > window.userWptBalance) {
+        tg.showAlert("❌ Not enough WPT in your balance!");
+        return;
+    }
+
+    // Confirmation Telegram
     tg.showConfirm(`Are you sure you want to PERMANENTLY BURN ${amount} WPT?`, async (ok) => {
         if (ok) {
             try {
-                // IMPORTANT : On passe les paramètres dans l'URL ici
-                const response = await fetch(`${BASE_URL}/api/launcher/burn?user_id=${uid}&amount=${amount}`, {
+                const r = await fetch(`${BASE_URL}/api/burn`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: uid, amount: amount })
                 });
-
-                const result = await response.json();
-
-                if (result.ok) {
-    tg.showAlert(`🔥 TOASTED! ${amount} WPT burned.`);
-    // On met à jour manuellement l'affichage sans attendre le refresh
-    const burnValEl = document.getElementById('global-burned-val');
-    if (burnValEl) {
-        let current = parseFloat(burnValEl.innerText.replace(/,/g, '')) || 0;
-        burnValEl.innerText = (current + amount).toLocaleString();
-    }
-    refresh();  // On actualise ton solde
-                } else {
-                    tg.showAlert("❌ Error: " + (result.error || "Unknown error"));
+                const res = await r.json();
+                
+                if (res.ok) {
+                    tg.showAlert(`🔥 Success! ${amount} WPT destroyed forever.`);
+                    input.value = ""; // On vide l'input
+                    refresh(); // On met à jour le solde
                 }
-            } catch (error) {
-                console.error("Burn Error:", error);
-                tg.showAlert("📡 Connection error with the server.");
+            } catch (e) {
+                console.error("Burn error:", e);
             }
         }
     });
