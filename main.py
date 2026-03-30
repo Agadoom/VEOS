@@ -47,6 +47,7 @@ app.include_router(launcher.router)
 app.include_router(stars.router)
 app.include_router(lottery.router)
 app.include_router(premium.router)
+app.include_router(admin.router)
 
 # --- API STARS (Générer le lien de paiement) ---
 @app.get("/api/stars/create-invoice/{uid}")
