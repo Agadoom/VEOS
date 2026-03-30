@@ -26,3 +26,38 @@ async def buy_lottery_ticket(user_id: int, quantity: int):
         return {"ok": True, "msg": f"{quantity} tickets achetés !"}
     finally:
         c.close(); conn.close()
+
+
+
+
+
+async def draw_lottery():
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    
+    # 1. Récupérer tous les participants (un user avec 10 tickets a 10 chances)
+    c.execute("SELECT user_id, tickets_count FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
+    participants = c.fetchall()
+    
+    if not participants: return
+
+    pool = []
+    for uid, count in participants:
+        pool.extend([uid] * count)
+
+    import random
+    winner_id = random.choice(pool)
+    
+    # 2. Calculer le Jackpot (ex: 80% des tickets vendus, 20% sont Burn 🔥)
+    total_tickets = len(pool)
+    jackpot = total_tickets * 1000 * 0.8
+    
+    # 3. Payer le gagnant
+    c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (jackpot, winner_id))
+    
+    # 4. Enregistrer le gagnant
+    c.execute("INSERT INTO lottery_winners (user_id, amount_won) VALUES (%s, %s)", (winner_id, jackpot))
+    
+    conn.commit()
+    # Envoyer un message Telegram au gagnant ici via le bot
+
