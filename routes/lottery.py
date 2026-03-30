@@ -72,3 +72,25 @@ async def draw_lottery():
     conn.commit()
     # Envoyer un message Telegram au gagnant ici via le bot
 
+
+
+@router.get("/info")
+async def get_lottery_info(user_id: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # Jackpot total (Tickets vendus cette semaine * 1000)
+        c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
+        total_tickets = c.fetchone()[0] or 0
+        jackpot = total_tickets * 1000
+        
+        # Tickets de l'utilisateur
+        c.execute("SELECT tickets_count FROM lottery_tickets WHERE user_id = %s AND week_number = EXTRACT(WEEK FROM CURRENT_DATE)", (user_id,))
+        user_res = c.fetchone()
+        user_tickets = user_res[0] if user_res else 0
+        
+        return {"jackpot": jackpot, "user_tickets": user_tickets}
+    finally:
+        c.close(); conn.close()
+
+
