@@ -13,32 +13,39 @@
     <h1>🛰️ WPT COMMAND CENTER</h1>
     <div id="stats">Loading global data...</div>
 
-    <script>
-        const ADMIN_ID = 1414016840; // METS TON ID TELEGRAM ICI
-        async function loadStats() {
+   <script>
+    // Ton ID est maintenant bien configuré
+    const ADMIN_ID = 1414016840; 
+
+    async function loadStats() {
         try {
-            // On appelle l'API qu'on a créée dans routes/admin.py
-            const r = await fetch(`/api/admin/stats/${MY_ID}`);
-            if (!r.ok) throw new Error("Access Denied or Server Error");
+            // FIX: Utilise ADMIN_ID ici au lieu de MY_ID
+            const r = await fetch(`/api/admin/stats/${ADMIN_ID}`);
+            
+            if (!r.ok) {
+                if(r.status === 403) throw new Error("Accès Refusé : Ton ID n'est pas autorisé.");
+                throw new Error("Erreur Serveur");
+            }
             
             const d = await r.json();
             
-            // Mise à jour de l'affichage
             document.getElementById('stats').innerHTML = `
                 <div class="stat-card">👥 Total Users: <b>${d.users}</b></div>
                 <div class="stat-card">💰 Total Supply: <b class="gold">${d.supply.toLocaleString()} WPT</b></div>
                 <div class="stat-card">🔥 Total Burned: <b class="burn">${d.burned.toLocaleString()} WPT</b></div>
-                <div class="stat-card">📉 WPT Price: <b>$${d.wpt_price.toFixed(8)}</b></div>
+                <div class="stat-card">📈 WPT Price: <b>$${d.wpt_price.toFixed(8)}</b></div>
                 <hr style="border: 0.5px solid #333; margin: 20px 0;">
-                <div class="stat-card">🎰 Weekly Tickets: <b>${d.tickets}</b></div>
+                <div class="stat-card">🎰 Weekly Tickets Sold: <b>${d.tickets}</b></div>
                 <div class="stat-card">🏆 Current Jackpot: <b class="gold">${d.jackpot.toLocaleString()} WPT</b></div>
+                <div class="stat-card" style="border-left-color: #00ff00;">💎 Top Whale: <b>${d.whales[0]?.name || 'N/A'}</b> (${d.whales[0]?.balance.toLocaleString()} WPT)</div>
             `;
         } catch (err) {
             document.getElementById('stats').innerHTML = `<b style="color:red">❌ ERROR: ${err.message}</b>`;
         }
     }
     loadStats();
-    setInterval(loadStats, 10000); // Rafraîchit toutes les 10 secondes
-    </script>
+    setInterval(loadStats, 10000); // Mise à jour auto toutes les 10s
+</script>
+
 </body>
 </html>
