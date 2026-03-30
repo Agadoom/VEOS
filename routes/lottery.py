@@ -65,7 +65,7 @@ async def get_lottery_info(user_id: int):
         c.close(); conn.close()
 
 # --- 3. LE TIRAGE (Draw) ---
-# async def draw_lottery():
+
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
