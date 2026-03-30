@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 
 # Import de tes configurations et modules
 import config, database
-from routes import mine, launcher, user, stars, lottery, premium
+from routes import mine, launcher, user, stars, lottery, premium, admin
 
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
