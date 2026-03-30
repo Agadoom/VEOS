@@ -209,6 +209,17 @@ async def main():
     # 2. Stocker le bot dans FastAPI pour y accéder depuis les routes
     app.state.bot = bot_app.bot 
 
+    # --- 🕒 CONFIGURATION DE LA LOTERIE (CRON) ---
+    scheduler = AsyncIOScheduler()
+    
+    # On programme le tirage : Chaque Dimanche (sun) à 21:00
+    # On passe le bot en argument pour qu'il puisse annoncer le gagnant (si tu veux)
+    scheduler.add_job(draw_lottery, 'cron', day_of_week='sun', hour=21, minute=0)
+    
+    scheduler.start()
+    print("📅 Scheduler Started: Lottery draw set for Sunday 21:00 UTC")
+    # -----------------------------------------------
+
     # 3. Handlers
     bot_app.add_handler(CommandHandler("start", start_command))
     bot_app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
@@ -217,7 +228,7 @@ async def main():
     # 4. Start Bot (Polling mode)
     await bot_app.initialize()
     await bot_app.start()
-    asyncio.create_task(bot_app.updater.start_polling()) # Run polling in background
+    asyncio.create_task(bot_app.updater.start_polling())
     
     # 5. Run FastAPI
     print(f"🚀 Server & Bot active on port {config.PORT}")
