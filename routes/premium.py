@@ -1,3 +1,9 @@
+from fastapi import APIRouter
+router = APIRouter(prefix="/api/premium", tags=["premium"])
+
+
+
+
 from datetime import datetime, timedelta
 
 @router.get("/buy-premium")
