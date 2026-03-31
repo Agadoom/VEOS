@@ -1309,16 +1309,51 @@ async function executeTrade() {
 
 
     async function loadPortfolio() {
+    try {
         const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
         const assets = await r.json();
-        document.getElementById('user-portfolio').innerHTML = assets.map(a => `
-            <div class="card">
-                <div style="display:flex; align-items:center; gap:10px;"><img src="${a.logo}" style="width:35px; height:35px; border-radius:8px;"><b>${a.symbol}</b></div>
-                <b>${a.amount.toLocaleString()}</b>
-            </div>`).join('');
-    }
+        const container = document.getElementById('user-portfolio');
+        
+        if (!container) return;
+        container.innerHTML = "";
 
-    function copyRef() { navigator.clipboard.writeText(`https://t.me/OWPCsBot?start=${uid}`); tg.showAlert("Link copied! ✅"); }
+        if (assets.length === 0) {
+            container.innerHTML = "<p style='opacity:0.5; text-align:center; font-size:12px; padding:20px;'>No assets yet.</p>";
+            return;
+        }
+
+        assets.forEach(asset => {
+            // Calcul de la valeur en USD
+            const valueUsd = (asset.amount * asset.price).toFixed(2);
+            
+            // CRÉATION DE LA LIGNE CLIQUABLE
+            const div = document.createElement('div');
+            div.className = "portfolio-item";
+            div.style = "display:flex; align-items:center; justify-content:space-between; padding:12px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;";
+            
+            // AU CLIC : On appelle openTokenDetails avec l'objet complet
+            div.onclick = () => openTokenDetails(asset);
+
+            div.innerHTML = `
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <img src="${asset.logo}" style="width:35px; height:35px; border-radius:50%; border:1px solid #333;">
+                    <div>
+                        <div style="font-weight:bold; font-size:14px;">${asset.name}</div>
+                        <div style="font-size:11px; opacity:0.6;">${asset.amount.toLocaleString()} ${asset.symbol}</div>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="color:var(--green); font-weight:bold; font-size:14px;">$${valueUsd}</div>
+                    <div style="font-size:10px; opacity:0.5;">@ ${asset.price.toFixed(6)}</div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    } catch (e) {
+        console.error("Portfolio Error:", e);
+    }
+}
+
 
 
 
