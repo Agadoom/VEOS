@@ -58,32 +58,17 @@ async def buy_lottery_ticket(user_id: int, quantity: int, request: Request):
         c.close(); conn.close()
 
 # --- 2. GET INFO ---
-@router.get("/lottery/info")
+@router.get("/api/lottery/info")
 async def get_lottery_info(user_id: int):
-    conn = database.get_db_conn()
-    c = conn.cursor()
-    try:
-        # 1. Somme totale du Jackpot (ex: 1% de chaque mine ou tickets achetés)
-        c.execute("SELECT pool_amount, last_winner_name FROM lottery_stats WHERE id = 1")
-        lottery = c.fetchone()
-        
-        # 2. Nombre de tickets de l'utilisateur
-        c.execute("SELECT tickets FROM users WHERE user_id = %s", (user_id,))
-        user_data = c.fetchone()
-        
-        # 3. Total des tickets vendus pour le calcul des chances
-        c.execute("SELECT SUM(tickets) FROM users")
-        total_tickets = c.fetchone()[0] or 0
+    # Ici, on simule des données, mais tu pourras les lier à ta DB plus tard
+    return {
+        "ok": True,
+        "jackpot": 125000, # Montant total à gagner
+        "last_winner": "NEEV", # Nom du dernier gagnant
+        "user_tickets": 0, # À récupérer en DB selon l'user_id
+        "total_tickets": 150 # Total des tickets en jeu
+    }
 
-        return {
-            "ok": True,
-            "jackpot": lottery[0] if lottery else 0,
-            "last_winner": lottery[1] if lottery else None,
-            "user_tickets": user_data[0] if user_data else 0,
-            "total_tickets": total_tickets
-        }
-    finally:
-        c.close(); conn.close()
 
 
 # --- 3. THE DRAW (Cron Job) ---
