@@ -631,6 +631,11 @@
 
 </div>
 
+
+
+
+
+
 <div id="p-lottery" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh;">
     
     <div style="text-align: center; margin-bottom: 25px;">
@@ -1581,6 +1586,40 @@ async function handleMine() {
     }
 }
 
+
+
+
+
+
+function updateNetWorth(wptBalance, assets) {
+    const wptPrice = 0.0001; // Ton prix fixe
+    let totalUsd = wptBalance * wptPrice;
+
+    // On ajoute la valeur des autres tokens du portfolio
+    if(assets && assets.length > 0) {
+        assets.forEach(asset => {
+            totalUsd += (asset.amount * asset.price);
+        });
+    }
+
+    // Animation de compteur fluide
+    const el = document.getElementById('usd-val');
+    const startVal = parseFloat(el.innerText.replace('$', '')) || 0;
+    animateValue(el, startVal, totalUsd, 1000);
+}
+
+function animateValue(obj, start, end, duration) {
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        obj.innerHTML = "$" + (progress * (end - start) + start).toFixed(2);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    window.requestAnimationFrame(step);
+}
 
 
 
