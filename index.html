@@ -604,6 +604,46 @@
 
 
 
+<div id="p-lottery" class="p" style="display:none;">
+    <div class="header-lotto">
+        <h2 style="color:var(--gold); margin-bottom:5px;">WEEKLY LOTTERY</h2>
+        <div style="font-size:12px; opacity:0.8;">Next Draw: Sunday at 21:00 UTC</div>
+    </div>
+
+    <div class="golden-ticket" style="margin: 20px 0;">
+        <div class="ticket-top">
+            <span style="font-size:24px;">✨</span>
+            <div style="text-align:center;">
+                <b style="letter-spacing:3px; font-size:18px;">WPT GOLDEN TICKET</b><br>
+                <small id="user-tickets-count">You have: 0 tickets</small>
+            </div>
+            <span style="font-size:24px;">✨</span>
+        </div>
+        
+        <div class="ticket-middle">
+            <div style="font-size:10px; opacity:0.6;">ESTIMATED JACKPOT</div>
+            <div style="font-size:28px; font-weight:bold; color:#1a1a1a;">
+                <span id="jackpot-amount">150,000</span> <small style="font-size:14px;">WPT</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="background: rgba(255, 215, 0, 0.1); border: 1px solid var(--gold);">
+        <p style="font-size:13px; margin-bottom:15px;">Increase your chances! 1 Ticket = 1,000 WPT</p>
+        <div style="display:flex; gap:10px; align-items:center; justify-content:center;">
+            <input type="number" id="ticket-qty" value="1" min="1" class="input-lotto">
+            <button class="btn" style="background:var(--gold); color:black; font-weight:bold;" onclick="buyLotteryTicket()">
+                BUY TICKETS
+            </button>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+
 <div id="p-lottery" class="page" style="display:none; padding: 20px;">
     
     <div style="text-align: center; margin-bottom: 25px;">
