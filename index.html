@@ -471,35 +471,7 @@
 
 
 
-    // --- 🌐 FIX AFFICHAGE LIENS (Website & Twitter) ---
-    const socialDiv = document.getElementById('det-socials');
-    if (socialDiv) {
-        socialDiv.innerHTML = ""; // On vide avant de remplir
-        let hasLinks = false;
-        
-        // On récupère les valeurs depuis les clés exactes du Python
-        const web = t.website_url;
-        const twit = t.twitter_url;
-
-        console.log("Debug Liens:", { web, twit }); // Pour voir dans ta console si les données arrivent
-
-        if (web && web.length > 5) {
-            const wUrl = web.startsWith('http') ? web : 'https://' + web;
-            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:26px; filter: drop-shadow(0 0 5px gold);">🌐</a>`;
-            hasLinks = true;
-        }
-        
-        if (twit && twit.length > 2) {
-            // Si c'est juste un handle @nom, on crée l'URL x.com
-            const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
-            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:26px; margin-left:20px; filter: drop-shadow(0 0 5px gold);">𝕏</a>`;
-            hasLinks = true;
-        }
-        
-        // On affiche la div seulement si on a des liens
-        socialDiv.style.display = hasLinks ? "flex" : "none";
-        socialDiv.style.justifyContent = "center";
-    }
+    
 
     <p id="det-desc" style="font-size:12px; color:#ccc; line-height:1.4;">---</p>
 
@@ -1084,21 +1056,34 @@ async function openTokenDetails(t) {
     fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
     fill('det-desc', t.description || "No description provided.");
 
-    // 2. Fix Réseaux Sociaux (🌐 et 𝕏)
+    // --- 🌐 FIX AFFICHAGE LIENS (Website & Twitter) ---
     const socialDiv = document.getElementById('det-socials');
     if (socialDiv) {
-        socialDiv.innerHTML = "";
-        const web = t.website_url || t.website;
-        const twit = t.twitter_url || t.twitter;
+        socialDiv.innerHTML = ""; // On vide avant de remplir
+        let hasLinks = false;
+        
+        // On récupère les valeurs depuis les clés exactes du Python
+        const web = t.website_url;
+        const twit = t.twitter_url;
+
+        console.log("Debug Liens:", { web, twit }); // Pour voir dans ta console si les données arrivent
 
         if (web && web.length > 5) {
             const wUrl = web.startsWith('http') ? web : 'https://' + web;
-            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
+            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:26px; filter: drop-shadow(0 0 5px gold);">🌐</a>`;
+            hasLinks = true;
         }
+        
         if (twit && twit.length > 2) {
+            // Si c'est juste un handle @nom, on crée l'URL x.com
             const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
-            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:15px;">𝕏</a>`;
+            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:26px; margin-left:20px; filter: drop-shadow(0 0 5px gold);">𝕏</a>`;
+            hasLinks = true;
         }
+        
+        // On affiche la div seulement si on a des liens
+        socialDiv.style.display = hasLinks ? "flex" : "none";
+        socialDiv.style.justifyContent = "center";
     }
 
     // 3. Dessin de la courbe
