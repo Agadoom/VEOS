@@ -196,60 +196,57 @@
 
 
 
-/* Styles pour la Loterie & Jackpot */
-:root {
-    --gold: #d4af37; /* Couleur dorée */
-    --gold-bright: #ffcc00;
-}
-
+/* DESIGN PREMIUM POUR LA LOTERIE */
 #p-lottery {
+    background: #000; /* Fond noir profond */
     color: white;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
+#p-lottery .card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+
+/* Effet de lueur sur le Jackpot */
 #jackpot-amount {
-    background: linear-gradient(to bottom, #fff 0%, var(--gold) 100%);
+    background: linear-gradient(180deg, #fff 0%, var(--gold) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     font-weight: 900;
-    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.5));
-}
-
-@keyframes pulse {
-    0% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.1); opacity: 0.8; }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-.lottery-pulse {
-    animation: pulse 2s infinite;
+    text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
 }
 
 /* Style de l'input quantité */
 #ticket-qty {
-    border: 1px solid #444;
-    transition: border-color 0.3s;
-}
-
-#ticket-qty:focus {
-    border-color: var(--gold);
+    background: #111;
+    border: 1px solid var(--gold);
+    color: white;
+    border-radius: 10px;
+    padding: 10px;
+    font-family: monospace;
     outline: none;
 }
 
-.btn-gold {
+/* Bouton d'achat */
+.btn-buy-lotto {
     background: var(--gold);
     color: black;
-    border: none;
-    padding: 15px;
-    border-radius: 12px;
     font-weight: 900;
-    cursor: pointer;
-    transition: transform 0.1s;
+    border: none;
+    border-radius: 15px;
+    height: 55px;
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
+    transition: 0.2s;
 }
 
-.btn-gold:active {
-    transform: scale(0.98);
+.btn-buy-lotto:active {
+    transform: scale(0.96);
 }
+
 
 
     </style>
@@ -602,46 +599,31 @@
 
 
 
-
 <div id="p-lottery" class="page" style="display:none; padding: 20px;">
-    
-    <div style="text-align: center; margin-bottom: 25px;">
-        <h2 style="color: var(--gold); margin: 0; letter-spacing: 2px; font-weight: 900;">🎰 GLOBAL JACKPOT</h2>
-        <div style="font-size:12px; opacity:0.6; margin-top:5px;">Next Draw: Sunday at 21:00 UTC ⏳</div>
-        
-        <div style="background: linear-gradient(145deg, #1a1a1c, #000); padding: 30px; border-radius: 25px; border: 2px solid var(--gold); margin: 20px 0; box-shadow: 0 0 20px rgba(255, 204, 0, 0.3);">
-            <h1 id="jackpot-amount" style="font-size: 48px; margin: 0; font-family: monospace; color: #fff; text-shadow: 0 0 10px rgba(255,215,0,0.5);">0</h1>
-            <small style="color: var(--gold); font-weight: bold; letter-spacing: 2px;">WPT IN THE POOL</small>
-        </div>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: var(--gold); margin: 0; font-weight: 900; letter-spacing: 2px;">🎰 GLOBAL JACKPOT</h2>
+        <div style="font-size:11px; opacity:0.5; margin-top:5px;">Next Draw: Sunday 21:00 UTC</div>
     </div>
 
-    <div class="card" style="background: rgba(255,255,255,0.03); border: 1px solid #333; padding: 25px; border-radius: 20px; text-align: center;">
-        <div style="margin-bottom: 15px;">
-            <span style="font-size: 12px; opacity: 0.6;">YOUR TICKETS</span><br>
-            <b id="user-tickets" style="color: var(--gold); font-size: 20px;">0</b>
+    <div style="background: linear-gradient(145deg, #1a1a1c, #000); padding: 30px; border-radius: 25px; border: 2px solid var(--gold); text-align: center; margin-bottom: 25px;">
+        <h1 id="jackpot-amount" style="font-size: 50px; margin: 0;">0</h1>
+        <small style="color: var(--gold); font-weight: bold;">WPT IN THE POOL</small>
+    </div>
+
+    <div class="card">
+        <div style="margin-bottom: 15px; text-align: center;">
+            <span style="opacity: 0.6; font-size: 12px;">YOUR TICKETS</span><br>
+            <b id="user-tickets" style="color: var(--gold); font-size: 22px;">0</b>
         </div>
         
         <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; align-items: center;">
-            <span style="opacity: 0.7; font-size: 14px;">QTY:</span>
-            <input type="number" id="ticket-qty" value="1" min="1" 
-                   style="width: 80px; background: #000; border: 1px solid var(--gold); color: #fff; text-align: center; border-radius: 10px; padding: 10px; font-weight: bold; font-size: 16px;">
+            <span style="opacity: 0.7;">QTY:</span>
+            <input type="number" id="ticket-qty" value="1" min="1">
         </div>
 
-        <button class="btn" style="width: 100%; background: var(--gold); color: #000; font-weight: 900; height: 55px; border-radius: 15px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);" onclick="buyLotteryTicket()">
-            🎟️ BUY TICKETS (1k WPT/ea)
+        <button class="btn-buy-lotto" onclick="buyLotteryTicket()">
+            🎟️ BUY TICKETS (1k/ea)
         </button>
-        
-        <small style="display: block; margin-top: 15px; opacity: 0.5; font-size: 11px;">1 Ticket = 1,000 WPT. Increase your win chance! 🍀</small>
-    </div>
-
-    <div style="margin-top: 30px; padding: 10px;">
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
-            <div style="width: 3px; height: 15px; background: var(--gold);"></div>
-            <h3 style="margin: 0; font-size: 12px; color: var(--gold); text-transform: uppercase; letter-spacing: 1px;">Recent Activity</h3>
-        </div>
-        <div id="lottery-activity" style="font-size: 11px; color: #888; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 12px; border: 1px solid #222;">
-            Waiting for the next lucky winner... 🚀
-        </div>
     </div>
 </div>
 
