@@ -103,7 +103,8 @@ async def main():
     app.state.bot = bot_app.bot 
 
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(draw_lottery, 'cron', day_of_week='sun', hour=21, minute=0, args=[bot_app.bot])
+    scheduler.add_job(draw_lottery, 'cron', day_of_week='sun', hour=21, minute=0)
+
     scheduler.start()
 
     bot_app.add_handler(CommandHandler("start", start_command))
