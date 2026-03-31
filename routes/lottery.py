@@ -5,6 +5,8 @@ from fastapi import APIRouter, Request
 router = APIRouter()
 
 # --- 1. ACHAT DE TICKETS ---
+# DANS routes/lottery.py
+
 @router.post("/api/lottery/buy-ticket")
 async def buy_lottery_ticket(request: Request):
     try:
@@ -16,16 +18,16 @@ async def buy_lottery_ticket(request: Request):
         conn = database.get_db_conn()
         c = conn.cursor()
 
-        # Vérifier solde
-        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
+        # 1. Check balance & Name
+        c.execute("SELECT p_genesis, name FROM users WHERE user_id = %s", (uid,))
         res = c.fetchone()
         if not res or res[0] < cost:
-            return {"ok": False, "error": "Insufficient WPT"}
+            return {"ok": False, "error": "Insufficient balance"}
+        
+        user_name = res[1] or "A Whale"
 
-        # Retirer WPT
+        # 2. Update DB
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (cost, uid))
-
-        # Ajouter tickets
         c.execute("""
             INSERT INTO lottery_tickets (user_id, tickets_count, week_number) 
             VALUES (%s, %s, EXTRACT(WEEK FROM CURRENT_DATE))
@@ -33,45 +35,43 @@ async def buy_lottery_ticket(request: Request):
             DO UPDATE SET tickets_count = lottery_tickets.tickets_count + %s
         """, (uid, qty, qty))
 
+        # 3. Calcul du nouveau Jackpot pour le message
+        c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
+        new_jackpot = (c.fetchone()[0] or 0) * 1000
+        
         conn.commit()
+
+        # --- 🚀 NOTIFICATION TELEGRAM ---
+        try:
+            # On récupère l'instance du bot stockée dans app.state
+            bot = request.app.state.bot
+            text = (
+                f"🎟️ <b>New Tickets Purchased!</b>\n\n"
+                f"👤 <b>User:</b> {user_name}\n"
+                f"🎫 <b>Amount:</b> {qty} tickets\n"
+                f"💰 <b>Current Jackpot:</b> {new_jackpot:,} WPT\n\n"
+                f"🍀 <i>Check the App to try your luck!</i>"
+            )
+            # Utilise l'ID de ton groupe/canal défini dans config.py
+            import config
+            await bot.send_message(chat_id=config.LOTTERY_CHANNEL_ID, text=text, parse_mode="HTML")
+        except Exception as e:
+            print(f"⚠️ Telegram Notify Error: {e}")
+
         return {"ok": True}
+
     except Exception as e:
-        print(f"❌ Error Buy: {e}")
+        print(f"❌ Error: {e}")
         return {"ok": False, "error": str(e)}
     finally:
-        if 'c' in locals(): c.close()
-        if 'conn' in locals(): conn.close()
+        c.close(); conn.close()
 
-# --- 2. INFOS LOTERIE ---
-@router.get("/api/lottery/info")
-async def get_lottery_info(user_id: int):
-    try:
-        conn = database.get_db_conn()
-        c = conn.cursor()
-        
-        # Jackpot
-        c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
-        total_tickets = c.fetchone()[0] or 0
-        jackpot = total_tickets * 1000
 
-        # Tickets utilisateur
-        c.execute("SELECT tickets_count FROM lottery_tickets WHERE user_id = %s AND week_number = EXTRACT(WEEK FROM CURRENT_DATE)", (user_id,))
-        u_res = c.fetchone()
-        user_tickets = u_res[0] if u_res else 0
 
-        return {
-            "ok": True,
-            "jackpot": jackpot if jackpot > 0 else 8500,
-            "user_tickets": user_tickets,
-            "total_tickets": total_tickets,
-            "last_winner": "None yet"
-        }
-    except Exception as e:
-        print(f"❌ Error Info: {e}")
-        return {"ok": False}
-    finally:
-        if 'c' in locals(): c.close()
-        if 'conn' in locals(): conn.close()
+
+
+
+
 
 # --- 3. LE MOTEUR DE TIRAGE (Pour APScheduler) ---
 async def draw_lottery():
