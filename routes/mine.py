@@ -133,3 +133,40 @@ async def mine_action(request: Request):
     finally:
         if 'c' in locals(): c.close()
         if 'conn' in locals(): conn.close()
+
+
+
+
+@router.post("/burn")
+async def burn_wpt(request: Request):
+    try:
+        data = await request.json()
+        uid = data.get("user_id")
+        amount = float(data.get("amount", 0))
+
+        if amount <= 0: return {"ok": False, "error": "Invalid amount"}
+
+        conn = database.get_db_conn()
+        c = conn.cursor()
+
+        # 1. Vérifier si l'utilisateur a assez de WPT (p_genesis)
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (uid,))
+        res = c.fetchone()
+        if not res or res[0] < amount:
+            return {"ok": False, "error": "Insufficient balance"}
+
+        # 2. Soustraire le montant et mettre à jour le global_burned (optionnel)
+        c.execute("""
+            UPDATE users 
+            SET p_genesis = p_genesis - %s 
+            WHERE user_id = %s
+        """, (amount, uid))
+        
+        conn.commit()
+        return {"ok": True, "new_balance": res[0] - amount}
+
+    except Exception as e:
+        print(f"Burn Error: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        c.close(); conn.close()
