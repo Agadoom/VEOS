@@ -593,52 +593,39 @@
 
 
 
-<div id="p-lottery" class="page">
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h2 style="color: var(--gold); text-shadow: 0 0 10px rgba(255,215,0,0.5);">🎰 WEEKLY LOTTERY</h2>
-        <p style="font-size: 12px; opacity: 0.7;">Next Draw: <span id="lotto-timer" style="color:var(--gold)">Sunday 21:00</span></p>
-    </div>
-
-    <div class="golden-ticket">
-        <div class="ticket-header">
-            <span>✨</span>
-            <b style="letter-spacing: 2px;">WPT HUB OFFICIAL</b>
-            <span>✨</span>
-        </div>
-        
-        <div class="ticket-body">
-            <div style="font-size: 10px; text-transform: uppercase; opacity: 0.8;">Current Jackpot</div>
-            <div style="font-size: 32px; font-weight: 900; margin: 5px 0;">
-                <span id="jackpot-amount">0</span> <small style="font-size: 14px;">WPT</small>
-            </div>
-            <div id="user-tickets-count" style="font-size: 13px; background: rgba(0,0,0,0.2); display: inline-block; padding: 4px 12px; border-radius: 20px; margin-top: 10px;">
-                🎟️ You have: 0 tickets
-            </div>
-        </div>
-
-        <div class="ticket-footer-lines">
-            <span>••••••••••••••••••••••••••••••••</span>
+<div id="p-lottery" class="page" style="display:none; padding: 20px;">
+    
+    <div style="text-align: center; margin-bottom: 25px;">
+        <h2 style="color: var(--gold); margin: 0; letter-spacing: 2px; font-weight: 900;">🎰 GLOBAL JACKPOT</h2>
+        <div style="background: linear-gradient(145deg, #1a1a1c, #000); padding: 30px; border-radius: 25px; border: 2px solid var(--gold); margin: 20px 0; box-shadow: 0 0 20px rgba(255, 204, 0, 0.2);">
+            <h1 id="jackpot-amount" style="font-size: 48px; margin: 0; font-family: monospace; color: #fff;">0</h1>
+            <small style="color: var(--gold); font-weight: bold; letter-spacing: 2px;">WPT IN THE POOL</small>
         </div>
     </div>
 
-    <div class="card" style="margin-top: 25px; border: 1px dashed var(--gold); background: rgba(255,215,0,0.05);">
-        <h4 style="margin-bottom: 10px;">Get your tickets!</h4>
-        <p style="font-size: 11px; opacity: 0.8; margin-bottom: 15px;">1 Ticket = 1,000 WPT. More tickets = Higher chance to win the whole pot! 🔥</p>
+    <div class="card" style="background: rgba(255,255,255,0.03); border: 1px solid #333; padding: 20px; border-radius: 20px; text-align: center;">
+        <p style="font-size: 14px; margin-bottom: 10px;">Your Tickets: <b id="user-tickets" style="color: var(--gold);">0</b></p>
         
-        <div style="display: flex; gap: 10px; justify-content: center; align-items: center;">
+        <div style="display: flex; gap: 10px; margin-bottom: 15px; justify-content: center;">
+            <span style="align-self: center; opacity: 0.7;">QTY:</span>
             <input type="number" id="ticket-qty" value="1" min="1" 
-                   style="width: 70px; height: 45px; background: #000; border: 1px solid var(--gold); color: var(--gold); border-radius: 10px; text-align: center; font-size: 20px; font-weight: bold;">
-            
-            <button class="btn" style="background: var(--gold); color: #000; font-weight: 800; flex: 1; height: 45px;" onclick="buyLotteryTicket()">
-                BUY TICKETS 🎟️
-            </button>
+                   style="width: 70px; background: #000; border: 1px solid #444; color: #fff; text-align: center; border-radius: 8px; padding: 8px; font-weight: bold;">
         </div>
+
+        <button class="btn" style="width: 100%; background: var(--gold); color: #000; font-weight: 900; height: 50px;" onclick="buyLotteryTicket()">
+            🎟️ BUY TICKETS (1k/ea)
+        </button>
+        <small style="display: block; margin-top: 12px; opacity: 0.5; font-size: 11px;">1 Ticket = 1,000 WPT. Draw every Sunday. 🍀</small>
     </div>
 
-    <div style="margin-top: 30px; font-size: 11px; opacity: 0.5; text-align: center;">
-        <i>Last Winner: <span id="last-winner">None yet</span></i>
+    <div style="margin-top: 25px; padding: 10px;">
+        <h3 style="font-size: 12px; color: var(--gold); text-transform: uppercase;">Recent Activity</h3>
+        <div id="lottery-activity" style="font-size: 11px; color: #888; margin-top: 10px;">
+            No recent draws. Be the first! 🚀
+        </div>
     </div>
 </div>
+
 
 
 
@@ -1422,37 +1409,44 @@ async function buyLotteryTicket() {
     const qtyInput = document.getElementById('ticket-qty');
     const qty = parseInt(qtyInput.value);
 
-    // 1. Validation check
+    // 1. Validation
     if (isNaN(qty) || qty < 1) {
         tg.showAlert("Please choose at least 1 ticket! 🎟️");
         return;
     }
 
-    // 2. Telegram Haptic Feedback
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    const totalCost = qty * 1000;
+    
+    // 2. Confirmation Telegram (Évite les erreurs de clic)
+    tg.showConfirm(`Buy ${qty} tickets for ${totalCost.toLocaleString()} WPT? 🍀`, async (ok) => {
+        if (ok) {
+            if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-    try {
-        // 3. API CALL
-        const response = await fetch(`${BASE_URL}/api/lottery/buy-ticket?user_id=${uid}&quantity=${qty}`, {
-            method: 'POST'
-        });
-        const res = await response.json();
+            try {
+                // 3. API CALL (On utilise POST pour plus de sécurité)
+                const response = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: uid,
+                        quantity: qty
+                    })
+                });
+                
+                const res = await response.json();
 
-        if (res.ok) {
-            // SUCCESS MESSAGE
-            tg.showAlert(`✅ CONGRATULATIONS!\nYou just bought ${qty} ticket(s) for the Sunday draw! 🍀`);
-            
-            // 4. UI UPDATE
-            if(window.refresh) refresh();            // Update WPT Balance
-            if(window.updateLotteryInfo) updateLotteryInfo();  // Update Jackpot & Ticket count
-        } else {
-            // SERVER ERROR MESSAGE
-            tg.showAlert("❌ Error: " + (res.error || res.msg || "Transaction failed"));
+                if (res.ok) {
+                    tg.showAlert(`✅ CONGRATULATIONS!\nYou just bought ${qty} ticket(s). Good luck! 🍀`);
+                    if(window.refresh) refresh(); 
+                } else {
+                    tg.showAlert("❌ Error: " + (res.error || "Insufficient funds"));
+                }
+            } catch (e) {
+                console.error("Lottery error:", e);
+                tg.showAlert("📡 Connection error. Server offline.");
+            }
         }
-    } catch (e) {
-        console.error("Lottery purchase error:", e);
-        tg.showAlert("📡 Connection error. Lottery server is offline.");
-    }
+    });
 }
 
 
