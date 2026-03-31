@@ -1553,6 +1553,31 @@ async function handleMine() {
 }
 
 
+
+
+function startTrade(type) {
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    
+    const action = type === 'buy' ? "Buy" : "Sell";
+    const color = type === 'buy' ? "WPT" : "Tokens";
+
+    tg.showPopup({
+        title: `${action} Token`,
+        message: `How much do you want to ${type}?`,
+        buttons: [
+            {id: 'btn1', type: 'default', text: `1,000 ${color}`},
+            {id: 'btn2', type: 'default', text: `5,000 ${color}`},
+            {id: 'cancel', type: 'destructive', text: 'Cancel'}
+        ]
+    }, (buttonId) => {
+        if (buttonId !== 'cancel') {
+            tg.showAlert(`🚀 Order placed! Your ${action} request for ${window.currentTokenId} is being processed.`);
+            // Ici tu pourras appeler ton API backend plus tard
+        }
+    });
+}
+
+
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
     tg.expand(); refresh(); setInterval(refresh, 15000);
