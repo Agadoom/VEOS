@@ -1393,6 +1393,9 @@ async function updateLotteryInfo() {
     try {
         const r = await fetch(`${BASE_URL}/api/lottery/info?user_id=${uid}`);
         const d = await r.json();
+console.log("DEBUG LOTTERY:", d); // Regarde tes logs Railway
+// tg.showAlert("Jackpot reçu: " + d.jackpot); // Décommente cette ligne pour voir une alerte sur ton tel
+
         if (d.ok) {
             document.getElementById('jackpot-amount').innerText = d.jackpot.toLocaleString();
             document.getElementById('user-tickets').innerText = d.user_tickets || 0;
