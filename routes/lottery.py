@@ -107,3 +107,46 @@ async def draw_lottery():
         print(f"❌ Draw Error: {e}")
     finally:
         c.close(); conn.close()
+
+
+
+
+
+@router.get("/api/lottery/info")
+async def get_lottery_info(user_id: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Calcul du Jackpot Total (Somme de TOUS les tickets de la semaine)
+        # On utilise COALESCE pour éviter de renvoyer None si la table est vide
+        c.execute("""
+            SELECT COALESCE(SUM(tickets_count), 0) 
+            FROM lottery_tickets 
+            WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)
+        """)
+        total_tickets = c.fetchone()[0]
+        jackpot = int(total_tickets * 1000)
+
+        # 2. Tickets de l'utilisateur spécifique
+        c.execute("""
+            SELECT COALESCE(tickets_count, 0) 
+            FROM lottery_tickets 
+            WHERE user_id = %s AND week_number = EXTRACT(WEEK FROM CURRENT_DATE)
+        """, (user_id,))
+        u_res = c.fetchone()
+        user_tickets = u_res[0] if u_res else 0
+
+        # 3. On renvoie tout proprement
+        return {
+            "ok": True,
+            "jackpot": jackpot if jackpot > 0 else 8500, # 8500 est le montant "plancher" visuel
+            "user_tickets": user_tickets,
+            "total_tickets": total_tickets,
+            "last_winner": "None yet"
+        }
+    except Exception as e:
+        print(f"❌ Erreur Python Info: {e}")
+        return {"ok": False, "error": str(e)}
+    finally:
+        c.close(); conn.close()
+
