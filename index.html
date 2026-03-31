@@ -582,47 +582,46 @@
 
 </div>
 
-
-<div id="p-lottery" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; color: white;">
+<div id="p-lottery" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh;">
     
-    <div style="text-align: center; margin-bottom: 30px;">
-        <div style="font-size: 40px; filter: drop-shadow(0 0 10px gold);">🎰</div>
-        <h2 style="color: #d4af37; margin: 5px 0; font-weight: 900; letter-spacing: 2px;">GLOBAL JACKPOT</h2>
-        <div id="last-winner" style="font-size: 12px; color: #888; font-style: italic;">Last Winner: None yet 🏆</div>
+    <div style="text-align: center; margin-bottom: 25px;">
+        <div style="font-size: 45px; filter: drop-shadow(0 0 10px gold);">🎰</div>
+        <h2 style="color: #d4af37; font-weight: 900; letter-spacing: 2px; margin: 5px 0;">GLOBAL JACKPOT</h2>
+        <div id="last-winner" style="font-size: 11px; color: #888; font-style: italic;">Last Winner: None yet 🏆</div>
     </div>
 
-    <div style="background: linear-gradient(145deg, #1a1a1c, #000); padding: 35px 20px; border-radius: 25px; border: 2px solid #d4af37; text-align: center; box-shadow: 0 0 25px rgba(212, 175, 55, 0.2); margin-bottom: 30px;">
-        <span style="font-size: 10px; color: #d4af37; font-weight: 900; letter-spacing: 2px;">CURRENT PRIZE POOL</span>
-        <h1 id="jackpot-amount" style="font-size: 50px; margin: 10px 0; font-family: monospace; color: #fff; text-shadow: 0 0 10px #fff;">0</h1>
-        <div style="font-size: 12px; color: #d4af37;">WPT TO BE WON</div>
+    <div style="background: linear-gradient(145deg, #1a1a1c, #000); padding: 35px 20px; border-radius: 25px; border: 2px solid #d4af37; text-align: center; box-shadow: 0 0 25px rgba(212, 175, 55, 0.2); margin-bottom: 25px;">
+        <span style="font-size: 10px; color: #d4af37; font-weight: 900; letter-spacing: 2px;">PRIZE POOL</span>
+        <h1 id="jackpot-amount" style="font-size: 55px; margin: 5px 0; font-family: monospace; color: #fff; text-shadow: 0 0 15px #fff;">0</h1>
+        <div style="font-size: 12px; color: #d4af37; font-weight: bold;">WPT TO BE WON</div>
     </div>
 
     <div style="background: rgba(255,255,255,0.05); border: 1px solid #333; padding: 25px; border-radius: 20px; text-align: center;">
         <div style="display: flex; justify-content: space-around; margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 15px;">
             <div>
-                <small style="opacity: 0.6; display: block; font-size: 10px;">MY TICKETS</small>
-                <b id="user-tickets" style="font-size: 20px; color: #fff;">0</b>
+                <small style="opacity: 0.5; display: block; font-size: 10px;">MY TICKETS</small>
+                <b id="user-tickets" style="font-size: 22px; color: #fff;">0</b>
             </div>
             <div>
-                <small style="opacity: 0.6; display: block; font-size: 10px;">WIN CHANCE</small>
-                <b id="win-chance" style="font-size: 20px; color: #d4af37;">0%</b>
+                <small style="opacity: 0.5; display: block; font-size: 10px;">CHANCE</small>
+                <b id="win-chance" style="font-size: 22px; color: #d4af37;">0%</b>
             </div>
         </div>
 
         <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 20px;">
-            <span style="font-size: 14px; opacity: 0.8;">Quantity:</span>
+            <span style="font-size: 14px; opacity: 0.8;">Qty:</span>
             <input type="number" id="ticket-qty" value="1" min="1" 
                    style="width: 80px; background: #000; border: 1px solid #d4af37; color: #fff; text-align: center; border-radius: 10px; padding: 10px; font-weight: bold; font-size: 18px; outline: none;">
         </div>
 
         <button onclick="buyLotteryTicket()" 
-                style="width: 100%; background: #d4af37; color: #000; border: none; border-radius: 15px; height: 55px; font-weight: 900; font-size: 16px; cursor: pointer; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);">
+                style="width: 100%; background: #d4af37; color: #000; border: none; border-radius: 15px; height: 55px; font-weight: 900; font-size: 16px; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);">
             🎟️ BUY TICKETS (1k/ea)
         </button>
-        
-        <p style="font-size: 10px; margin-top: 15px; opacity: 0.5;">Draw every Sunday at 21:00 UTC. Good luck! 🍀</p>
+        <p style="font-size: 10px; margin-top: 15px; opacity: 0.4;">Draw: Sunday 21:00 UTC. Increase your luck! 🍀</p>
     </div>
 </div>
+
 
 <nav class="nav">
     <div onclick="showPage('p-mine')" id="n-mine" class="n-i active">🏠</div>
@@ -1392,44 +1391,26 @@ async function buyLotteryTicket() {
 async function updateLotteryInfo() {
     if (!uid) return;
     try {
-        // Appelle la route API (Assure-toi que ton Python a cette route !)
         const r = await fetch(`${BASE_URL}/api/lottery/info?user_id=${uid}`);
-        if (!r.ok) throw new Error("API Offline");
         const d = await r.json();
-
         if (d.ok) {
-            // Mise à jour des textes
             document.getElementById('jackpot-amount').innerText = d.jackpot.toLocaleString();
             document.getElementById('user-tickets').innerText = d.user_tickets || 0;
+            if (d.last_winner !== "None yet") document.getElementById('last-winner').innerText = `Last Winner: ${d.last_winner} 🏆`;
             
-            if (d.last_winner) {
-                document.getElementById('last-winner').innerText = `Last Winner: ${d.last_winner} 🏆`;
-            }
-
-            // Calcul de la chance
             if (d.total_tickets > 0) {
                 let p = ((d.user_tickets / d.total_tickets) * 100).toFixed(2);
                 document.getElementById('win-chance').innerText = p + "%";
             }
         }
-    } catch (e) {
-        console.error("Erreur Loterie UI:", e);
-        // Valeur par défaut si l'API échoue
-        document.getElementById('jackpot-amount').innerText = "8,500"; 
-    }
+    } catch (e) { console.error("Lottery UI Error", e); }
 }
 
-// TA FONCTION D'ACHAT CORRIGÉE
 async function buyLotteryTicket() {
-    const qtyInput = document.getElementById('ticket-qty');
-    const qty = parseInt(qtyInput.value);
+    const qty = parseInt(document.getElementById('ticket-qty').value);
+    if (!qty || qty < 1) return tg.showAlert("Invalid quantity 🎟️");
 
-    if (isNaN(qty) || qty < 1) {
-        tg.showAlert("Choose a valid quantity! 🎟️");
-        return;
-    }
-
-    tg.showConfirm(`Buy ${qty} ticket(s) for ${qty * 1000} WPT?`, async (ok) => {
+    tg.showConfirm(`Buy ${qty} tickets for ${qty * 1000} WPT?`, async (ok) => {
         if (ok) {
             try {
                 const response = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
@@ -1438,20 +1419,17 @@ async function buyLotteryTicket() {
                     body: JSON.stringify({ user_id: uid, quantity: qty })
                 });
                 const res = await response.json();
-
                 if (res.ok) {
-                    tg.showAlert("✅ Success! You're in the draw.");
-                    updateLotteryInfo(); // On rafraîchit les chiffres
-                    refresh(); // On rafraîchit le solde global
+                    tg.showAlert("✅ Success! Your tickets are secured.");
+                    updateLotteryInfo(); refresh(); 
                 } else {
-                    tg.showAlert("❌ Error: " + (res.error || "Insufficient balance"));
+                    tg.showAlert("❌ " + (res.error || "Failed"));
                 }
-            } catch (e) {
-                tg.showAlert("📡 Server error. Try again.");
-            }
+            } catch (e) { tg.showAlert("📡 Server error"); }
         }
     });
 }
+
 
 
 
