@@ -447,47 +447,59 @@
 
 
 
-<div id="p-details" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh;">
-    <div onclick="showPage('p-launcher')" style="color: var(--gold); margin-bottom: 20px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-        ⬅️ <span style="font-size: 14px;">Back to Launcher</span>
-    </div>
-
-    <div class="card" style="text-align: center; border: 1px solid #333; background: rgba(255,255,255,0.02); padding: 25px; border-radius: 20px;">
-        <div id="det-icon" style="font-size: 50px; margin-bottom: 10px;">🪙</div>
-        <h1 id="det-name" style="margin: 0; font-size: 24px; color: #fff;">Token Name</h1>
-        <b id="det-symbol" style="color: var(--gold); letter-spacing: 2px;">$TKN</b>
-        
-        <div style="margin-top: 20px; display: flex; justify-content: space-around; border-top: 1px solid #222; padding-top: 20px;">
-            <div>
-                <small style="opacity: 0.5; display: block; font-size: 10px;">PRICE</small>
-                <span id="det-price" style="font-weight: bold; color: #4caf50;">0.0001</span>
+<div id="p-details" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; color: white;">
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px;">
+        <div onclick="showPage('p-launcher')" style="cursor: pointer; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 12px; color: var(--gold); font-weight: bold;">
+            ⬅️ Back
+        </div>
+        <div id="det-socials" style="display: flex; gap: 15px;">
             </div>
-            <div>
-                <small style="opacity: 0.5; display: block; font-size: 10px;">MCAP</small>
-                <span id="det-mcap" style="font-weight: bold; color: #fff;">$0</span>
-            </div>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div style="font-size: 50px; filter: drop-shadow(0 0 10px gold); margin-bottom: 10px;">🪙</div>
+        <h1 id="det-name" style="margin: 0; font-size: 28px; font-weight: 900;">Token Name</h1>
+        <div id="det-sym" style="color: var(--gold); font-size: 18px; letter-spacing: 2px; font-weight: bold;">$SYMBOL</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
+        <div style="background: #111; border: 1px solid #222; padding: 15px; border-radius: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 10px; display: block;">PRICE (WPT)</small>
+            <b id="det-price-top" style="font-size: 18px; color: #4caf50;">0.000000</b>
+        </div>
+        <div style="background: #111; border: 1px solid #222; padding: 15px; border-radius: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 10px; display: block;">MARKET CAP</small>
+            <b id="det-mcap" style="font-size: 18px; color: #fff;">$0</b>
+        </div>
+        <div style="background: #111; border: 1px solid #222; padding: 15px; border-radius: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 10px; display: block;">HOLDERS</small>
+            <b id="det-holders" style="font-size: 18px; color: #fff;">1</b>
+        </div>
+        <div style="background: #111; border: 1px solid #222; padding: 15px; border-radius: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 10px; display: block;">NETWORK</small>
+            <b style="font-size: 18px; color: var(--gold);">OWPC</b>
         </div>
     </div>
 
-    <div style="margin-top: 20px; padding: 15px; background: #111; border-radius: 15px; text-align: center; border: 1px solid #222;">
-        <div style="font-size: 12px; color: #888; margin-bottom: 10px;">Price Action (24h)</div>
-        <div style="height: 60px; display: flex; align-items: flex-end; justify-content: center; gap: 5px;">
-            <div style="width:10px; height:20px; background: #444; border-radius: 2px;"></div>
-            <div style="width:10px; height:35px; background: #444; border-radius: 2px;"></div>
-            <div style="width:10px; height:25px; background: #444; border-radius: 2px;"></div>
-            <div style="width:10px; height:45px; background: var(--gold); border-radius: 2px;"></div>
-        </div>
+    <div style="margin-bottom: 25px;">
+        <h3 style="font-size: 14px; opacity: 0.6; margin-bottom: 10px;">Description</h3>
+        <p id="det-desc" style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; font-size: 13px; line-height: 1.5; color: #ccc;">
+            Loading description...
+        </p>
     </div>
 
-    <div style="margin-top: 25px;">
-        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-            <input type="number" id="buy-amount" placeholder="Amount in WPT" 
-                   style="flex: 1; background: #000; border: 1px solid #444; color: #fff; padding: 15px; border-radius: 12px;">
+    <div style="background: linear-gradient(145deg, #1a1a1c, #000); border: 1px dashed var(--gold); padding: 15px; border-radius: 15px; margin-bottom: 30px;">
+        <small style="color: var(--gold); font-size: 11px; font-weight: bold; display: block; margin-bottom: 8px;">SHARE & EARN REF REWARDS 🚀</small>
+        <div id="det-ref-link" style="font-size: 11px; color: #888; background: #000; padding: 10px; border-radius: 8px; word-break: break-all; cursor: pointer;">
+            Generating link...
         </div>
-        <button onclick="buyToken()" style="width: 100%; background: var(--gold); color: #000; font-weight: 900; height: 55px; border: none; border-radius: 15px; font-size: 16px;">
-            🚀 BUY TOKEN
-        </button>
+        <small style="font-size: 9px; opacity: 0.4; margin-top: 5px; display: block;">Click to copy your link</small>
     </div>
+
+    <button onclick="openTradeInterface()" style="width: 100%; background: var(--gold); color: #000; border: none; height: 60px; border-radius: 20px; font-weight: 900; font-size: 18px; box-shadow: 0 5px 20px rgba(212, 175, 55, 0.3);">
+        🚀 TRADE THIS TOKEN
+    </button>
 </div>
 
 
@@ -1039,25 +1051,26 @@ async function loadMarket() {
 // DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
 
 async function openTokenDetails(t) {
-    // 1. Initialisation de l'ID pour le Trade
+    // 1. Initialisation
     window.currentTokenId = t.id;
     if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-    // 2. Remplissage des textes de base
-    const fill = (id, val) => { if(document.getElementById(id)) document.getElementById(id).innerText = val; };
+    // 2. Remplissage des textes
+    const fill = (id, val) => { 
+        const el = document.getElementById(id);
+        if(el) el.innerText = val; 
+    };
     
     fill('det-name', t.name);
     fill('det-sym', '$' + t.symbol);
-    fill('det-price-top', parseFloat(t.price || 0).toFixed(6));
-    fill('det-desc', t.description || t.desc || "New Futur vision");
+    fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
+    fill('det-desc', t.description || t.desc || "New vision for the community.");
 
-    // 3. Gestion des Liens (🌐 et 𝕏) - On vérifie TOUS les noms possibles
+    // 3. Gestion des Liens (🌐 et 𝕏)
     const socialDiv = document.getElementById('det-socials');
     if (socialDiv) {
         socialDiv.innerHTML = "";
         let hasLinks = false;
-        
-        // On teste t.website, t.website_url, t.twitter, t.twitter_url
         const web = t.website || t.website_url;
         const twit = t.twitter || t.twitter_url;
 
@@ -1067,38 +1080,36 @@ async function openTokenDetails(t) {
         }
         if (twit && twit.length > 1) {
             let xUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
-            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:10px;">𝕏</a>`;
+            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:24px;">𝕏</a>`;
             hasLinks = true;
         }
         socialDiv.style.display = hasLinks ? "flex" : "none";
     }
 
-    // 4. RÉCUPÉRATION DES STATS (Holders / MCap)
+    // 4. RÉCUPÉRATION DES STATS
     try {
-        const response = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
-        const stats = await response.json();
-        
+        const r = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
+        const stats = await r.json();
         fill('det-holders', stats.holders || "1"); 
         fill('det-mcap', "$" + (stats.mcap || 0).toLocaleString());
     } catch(e) {
-        console.error("Stats Error:", e);
-        fill('det-holders', "1"); // Valeur par défaut (le créateur)
+        fill('det-holders', "1");
         fill('det-mcap', "$---");
     }
 
+    // 5. LIEN REFERRAL
+    const refLinkToken = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
+    const refEl = document.getElementById('det-ref-link');
+    if(refEl) {
+        refEl.innerText = refLinkToken;
+        refEl.onclick = () => {
+            navigator.clipboard.writeText(refLinkToken);
+            tg.showAlert("Ref link copied! 🛰️");
+        };
+    }
 
-// Génère un lien qui contient : Ton ID (parrain) + l'ID du Token
-const refLinkToken = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
-
-// On l'affiche dans un élément (ajoute cet ID dans ton HTML de détail)
-const refEl = document.getElementById('det-ref-link');
-if(refEl) {
-    refEl.innerText = refLinkToken;
-    // Optionnel : un bouton pour copier le lien
-    refEl.onclick = () => {
-        navigator.clipboard.writeText(refLinkToken);
-        tg.showAlert("Token Referral Link copied!");
-    };
+    // --- CRUCIAL : AFFICHER LA PAGE ---
+    showPage('p-details'); 
 }
 
 
