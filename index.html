@@ -487,9 +487,10 @@
     </div>
 
     <div style="display: flex; gap: 10px;">
-        <button onclick="tg.showAlert('Buying opening in 24h! 🚀')" style="flex: 1; height: 50px; background: #4caf50; color: #fff; border: none; border-radius: 12px; font-weight: bold;">BUY</button>
-        <button onclick="tg.showAlert('Selling opening in 24h! 📉')" style="flex: 1; height: 50px; background: #f44336; color: #fff; border: none; border-radius: 12px; font-weight: bold;">SELL</button>
-    </div>
+    <button onclick="startTrade('buy')" style="flex: 1; height: 50px; background: #4caf50; color: #fff; border: none; border-radius: 12px; font-weight: bold; font-size: 16px;">BUY</button>
+    <button onclick="startTrade('sell')" style="flex: 1; height: 50px; background: #f44336; color: #fff; border: none; border-radius: 12px; font-weight: bold; font-size: 16px;">SELL</button>
+</div>
+
 </div>
 
 
@@ -1056,18 +1057,26 @@ async function openTokenDetails(t) {
     fill('det-desc', t.description || t.desc || "Community driven token on OWPC.");
 
     // 🌐 GESTION DES LIENS SOCIAUX (URL + X)
+        // 🌐 GESTION DES LIENS SOCIAUX (URL + X)
     const socialDiv = document.getElementById('det-socials');
     if (socialDiv) {
         socialDiv.innerHTML = "";
-        // On vérifie les champs possibles de ton objet token (t.website, t.twitter)
-        if (t.website) {
-            socialDiv.innerHTML += `<a href="${t.website.startsWith('http') ? t.website : 'https://'+t.website}" target="_blank" style="text-decoration:none; font-size:20px;">🌐</a>`;
+        
+        // On teste plusieurs noms de clés possibles au cas où
+        const web = t.website || t.website_url || t.url;
+        const twit = t.twitter || t.twitter_url || t.x_link;
+
+        if (web && web.length > 5) {
+            const webLink = web.startsWith('http') ? web : 'https://' + web;
+            socialDiv.innerHTML += `<a href="${webLink}" target="_blank" style="text-decoration:none; font-size:20px;">🌐</a>`;
         }
-        if (t.twitter) {
-            let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@','')}`;
-            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:20px;">𝕏</a>`;
+        
+        if (twit && twit.length > 2) {
+            let xUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
+            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:20px; margin-left:15px;">𝕏</a>`;
         }
     }
+
 
     // 📈 DESSIN DE LA COURBE SYNCHRO
     drawMiniChart(t.price || 0.0001);
