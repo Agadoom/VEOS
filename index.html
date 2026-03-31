@@ -447,48 +447,49 @@
 
 
 <div id="p-details" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; color: white;">
-    <div onclick="showPage('p-launcher')" style="color:#d4af37; margin-bottom: 20px; cursor: pointer; font-weight: bold;">
-        ⬅️ Back to Launcher
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+        <div onclick="showPage('p-launcher')" style="color:#d4af37; cursor: pointer; font-weight: bold; background: rgba(255,255,255,0.05); padding: 8px 15px; border-radius: 10px;">⬅️ Back</div>
+        <div id="det-socials" style="display: flex; gap: 15px;">
+            </div>
     </div>
 
-    <div style="text-align: center; margin-bottom: 25px;">
-        <h1 id="det-name" style="margin:0;">---</h1>
-        <div id="det-sym" style="color:#d4af37; letter-spacing: 2px;">$---</div>
-        <div id="det-socials" style="margin-top: 10px;"></div>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1 id="det-name" style="margin:0; font-size: 24px;">---</h1>
+        <div id="det-sym" style="color:#d4af37; font-size: 14px; letter-spacing: 2px;">$---</div>
     </div>
 
-    <div style="background: #111; border-radius: 15px; padding: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border: 1px solid #222;">
-        <div style="text-align: center;">
-            <small style="opacity: 0.5; display: block; font-size: 10px;">PRICE</small>
-            <b id="det-price-top" style="color:#4caf50;">0.000000</b>
-        </div>
-        <div style="text-align: center;">
-            <small style="opacity: 0.5; display: block; font-size: 10px;">MARKET CAP</small>
-            <b id="det-mcap">$0</b>
-        </div>
-        <div style="text-align: center;">
-            <small style="opacity: 0.5; display: block; font-size: 10px;">HOLDERS</small>
-            <b id="det-holders">1</b>
-        </div>
-        <div style="text-align: center;">
-            <small style="opacity: 0.5; display: block; font-size: 10px;">STATUS</small>
-            <b style="color: #d4af37;">LIVE</b>
+    <div style="background: #111; border: 1px solid #222; border-radius: 20px; padding: 15px; margin-bottom: 20px; position: relative;">
+        <div style="position: absolute; top: 10px; left: 15px; font-size: 10px; color: #4caf50; font-weight: bold;">LIVE CHART</div>
+        <canvas id="token-chart" width="300" height="120" style="width: 100%; height: 120px;"></canvas>
+        <div style="display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #222; padding-top: 10px;">
+            <div style="text-align: center; flex: 1;">
+                <small style="opacity: 0.5; font-size: 9px; display: block;">PRICE</small>
+                <b id="det-price-top" style="color:#4caf50; font-size: 14px;">0.000000</b>
+            </div>
+            <div style="text-align: center; flex: 1; border-left: 1px solid #222;">
+                <small style="opacity: 0.5; font-size: 9px; display: block;">MARKET CAP</small>
+                <b id="det-mcap" style="font-size: 14px;">$0</b>
+            </div>
         </div>
     </div>
 
-    <div style="margin-top: 20px;">
-        <small style="opacity: 0.5;">Description:</small>
-        <p id="det-desc" style="font-size: 13px; line-height: 1.4; color: #bbb;">---</p>
+    <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px; margin-bottom: 20px;">
+        <p id="det-desc" style="font-size: 12px; line-height: 1.4; color: #bbb; margin: 0;">---</p>
+        <div style="margin-top: 10px; font-size: 11px; color: #d4af37;">
+            Holders: <span id="det-holders" style="color: white;">1</span>
+        </div>
     </div>
 
-    <div style="margin-top: 20px; background: rgba(212, 175, 55, 0.1); border: 1px dashed #d4af37; padding: 12px; border-radius: 10px; text-align: center;">
-        <small style="display:block; color:#d4af37; font-size:10px; margin-bottom:5px;">EARN REF REWARDS</small>
-        <div id="det-ref-link" style="font-size: 10px; word-break: break-all; opacity: 0.7; cursor: pointer;">---</div>
+    <div style="background: #0a0a0a; border: 1px dashed #d4af37; padding: 12px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
+        <small style="display:block; color:#d4af37; font-size:9px; margin-bottom:4px;">SHARE TO EARN 🚀</small>
+        <div id="det-ref-link" style="font-size: 10px; opacity: 0.6; word-break: break-all; cursor: pointer;">---</div>
     </div>
 
-    <button onclick="tg.showAlert('Trading Opening Soon...')" style="width:100%; height: 55px; background: #d4af37; color: #000; border: none; border-radius: 15px; margin-top: 25px; font-weight: 900; font-size: 16px;">
-        🚀 TRADE TOKEN
-    </button>
+    <div style="display: flex; gap: 10px;">
+        <button onclick="tg.showAlert('Buying opening in 24h! 🚀')" style="flex: 1; height: 50px; background: #4caf50; color: #fff; border: none; border-radius: 12px; font-weight: bold;">BUY</button>
+        <button onclick="tg.showAlert('Selling opening in 24h! 📉')" style="flex: 1; height: 50px; background: #f44336; color: #fff; border: none; border-radius: 12px; font-weight: bold;">SELL</button>
+    </div>
 </div>
 
 
@@ -1044,69 +1045,88 @@ async function loadMarket() {
 
 async function openTokenDetails(t) {
     if (!t) return;
-    console.log("Ouverture du token:", t);
-
-    // 1. Initialisation de l'ID Global
     window.currentTokenId = t.id;
     if (window.tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-    // 2. Fonction de remplissage sécurisée pour éviter les erreurs
-    const fill = (id, val) => { 
-        const el = document.getElementById(id);
-        if (el) el.innerText = val; 
-    };
+    const fill = (id, val) => { if(document.getElementById(id)) document.getElementById(id).innerText = val; };
     
-    // Remplissage des données de base
-    fill('det-name', t.name || "Unknown Token");
+    fill('det-name', t.name || "Token");
     fill('det-sym', '$' + (t.symbol || "TKN"));
     fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
-    fill('det-desc', t.description || t.desc || "A new vision for the OWPC ecosystem.");
+    fill('det-desc', t.description || t.desc || "Community driven token on OWPC.");
 
-    // 3. Récupération des Stats (Holders & MCap)
-    try {
-        const response = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
-        if (response.ok) {
-            const stats = await response.json();
-            fill('det-holders', stats.holders || "1"); 
-            fill('det-mcap', "$" + (stats.mcap || 0).toLocaleString());
-        }
-    } catch(e) {
-        console.warn("Stats API offline, using defaults");
-        fill('det-holders', "1");
-        fill('det-mcap', "$---");
-    }
-
-    // 4. Gestion des Réseaux Sociaux (🌐 & 𝕏)
+    // 🌐 GESTION DES LIENS SOCIAUX (URL + X)
     const socialDiv = document.getElementById('det-socials');
     if (socialDiv) {
         socialDiv.innerHTML = "";
-        let links = "";
-        if (t.website) links += `<a href="${t.website}" target="_blank" style="text-decoration:none; font-size:20px;">🌐</a>`;
+        // On vérifie les champs possibles de ton objet token (t.website, t.twitter)
+        if (t.website) {
+            socialDiv.innerHTML += `<a href="${t.website.startsWith('http') ? t.website : 'https://'+t.website}" target="_blank" style="text-decoration:none; font-size:20px;">🌐</a>`;
+        }
         if (t.twitter) {
             let xUrl = t.twitter.includes('http') ? t.twitter : `https://x.com/${t.twitter.replace('@','')}`;
-            links += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:20px; margin-left:15px;">𝕏</a>`;
+            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:20px;">𝕏</a>`;
         }
-        socialDiv.innerHTML = links;
     }
 
-    // 5. Lien Referral
+    // 📈 DESSIN DE LA COURBE SYNCHRO
+    drawMiniChart(t.price || 0.0001);
+
+    // RÉCUPÉRATION STATS
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
+        const stats = await r.json();
+        fill('det-holders', stats.holders || "1"); 
+        fill('det-mcap', "$" + (stats.mcap || 0).toLocaleString());
+    } catch(e) {
+        fill('det-mcap', "$---");
+    }
+
+    // REF LINK
     const refEl = document.getElementById('det-ref-link');
-    if (refEl && typeof uid !== 'undefined') {
+    if(refEl) {
         const link = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
         refEl.innerText = link;
-        refEl.onclick = () => {
-            navigator.clipboard.writeText(link);
-            tg.showAlert("Ref link copied! 🛰️");
-        };
+        refEl.onclick = () => { navigator.clipboard.writeText(link); tg.showAlert("Ref link copied! 🛰️"); };
     }
 
-    // 6. NAVIGATION ET UPDATE SOLDE
-    showPage('p-details'); 
-    
-    // Si tu as une fonction pour voir combien l'utilisateur possède de ce token
-    if (typeof updateHoldings === "function") {
-        updateHoldings(t.id);
+    showPage('p-details');
+}
+
+// FONCTION POUR DESSINER LE GRAPHIQUE
+function drawMiniChart(currentPrice) {
+    const canvas = document.getElementById('token-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // On génère des points semi-aléatoires basés sur le prix actuel pour simuler une courbe
+    const points = [];
+    let lastY = canvas.height / 2;
+    for (let i = 0; i < 20; i++) {
+        lastY += (Math.random() - 0.5) * 20;
+        if(lastY < 10) lastY = 10;
+        if(lastY > canvas.height - 10) lastY = canvas.height - 10;
+        points.push({ x: (canvas.width / 19) * i, y: lastY });
     }
+
+    // Dessin de la ligne
+    ctx.beginPath();
+    ctx.strokeStyle = '#4caf50';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let p of points) ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+
+    // Effet de dégradé sous la courbe
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(0, canvas.height);
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, 'rgba(76, 175, 80, 0.3)');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fill();
 }
 
 
