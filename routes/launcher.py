@@ -247,15 +247,22 @@ async def get_user_portfolio(uid: int):
     c = conn.cursor()
     try:
         c.execute("""
-            SELECT t.name, t.symbol, t.logo, a.amount, t.price 
+            SELECT t.id, t.name, t.symbol, t.logo, a.amount, t.price, 
+                   t.description, t.website_url, t.twitter_url 
             FROM user_community_assets a
             JOIN community_tokens t ON a.token_id = t.id
             WHERE a.user_id = %s AND a.amount > 0
             ORDER BY (a.amount * t.price) DESC
         """, (uid,))
-        return [{"name": r[0], "symbol": r[1], "logo": r[2], "amount": float(r[3]), "price": float(r[4])} for r in c.fetchall()]
+        res = c.fetchall()
+        return [{
+            "id": r[0], "name": r[1], "symbol": r[2], "logo": r[3], 
+            "amount": float(r[4]), "price": float(r[5]),
+            "description": r[6], "website_url": r[7], "twitter_url": r[8]
+        } for r in res]
     finally:
         c.close(); conn.close()
+
 
 # Dans routes/launcher.py
 
