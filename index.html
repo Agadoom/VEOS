@@ -469,6 +469,38 @@
         </div>
     </div>
 
+
+
+    // --- 🌐 FIX AFFICHAGE LIENS (Website & Twitter) ---
+    const socialDiv = document.getElementById('det-socials');
+    if (socialDiv) {
+        socialDiv.innerHTML = ""; // On vide avant de remplir
+        let hasLinks = false;
+        
+        // On récupère les valeurs depuis les clés exactes du Python
+        const web = t.website_url;
+        const twit = t.twitter_url;
+
+        console.log("Debug Liens:", { web, twit }); // Pour voir dans ta console si les données arrivent
+
+        if (web && web.length > 5) {
+            const wUrl = web.startsWith('http') ? web : 'https://' + web;
+            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:26px; filter: drop-shadow(0 0 5px gold);">🌐</a>`;
+            hasLinks = true;
+        }
+        
+        if (twit && twit.length > 2) {
+            // Si c'est juste un handle @nom, on crée l'URL x.com
+            const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
+            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:26px; margin-left:20px; filter: drop-shadow(0 0 5px gold);">𝕏</a>`;
+            hasLinks = true;
+        }
+        
+        // On affiche la div seulement si on a des liens
+        socialDiv.style.display = hasLinks ? "flex" : "none";
+        socialDiv.style.justifyContent = "center";
+    }
+
     <p id="det-desc" style="font-size:12px; color:#ccc; line-height:1.4;">---</p>
 
     <div id="det-ref-link" style="font-size:10px; border:1px dashed #d4af37; padding:10px; margin-top:20px; border-radius:8px; word-break:break-all; cursor:pointer;">---</div>
