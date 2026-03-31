@@ -622,87 +622,55 @@
 </div>
 
 
-    <nav class="nav">
+<div id="p-lottery" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; color: white;">
+    
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div style="font-size: 40px; filter: drop-shadow(0 0 10px gold);">🎰</div>
+        <h2 style="color: #d4af37; margin: 5px 0; font-weight: 900; letter-spacing: 2px;">GLOBAL JACKPOT</h2>
+        <div id="last-winner" style="font-size: 12px; color: #888; font-style: italic;">Last Winner: None yet 🏆</div>
+    </div>
+
+    <div style="background: linear-gradient(145deg, #1a1a1c, #000); padding: 35px 20px; border-radius: 25px; border: 2px solid #d4af37; text-align: center; box-shadow: 0 0 25px rgba(212, 175, 55, 0.2); margin-bottom: 30px;">
+        <span style="font-size: 10px; color: #d4af37; font-weight: 900; letter-spacing: 2px;">CURRENT PRIZE POOL</span>
+        <h1 id="jackpot-amount" style="font-size: 50px; margin: 10px 0; font-family: monospace; color: #fff; text-shadow: 0 0 10px #fff;">0</h1>
+        <div style="font-size: 12px; color: #d4af37;">WPT TO BE WON</div>
+    </div>
+
+    <div style="background: rgba(255,255,255,0.05); border: 1px solid #333; padding: 25px; border-radius: 20px; text-align: center;">
+        <div style="display: flex; justify-content: space-around; margin-bottom: 20px; border-bottom: 1px solid #222; padding-bottom: 15px;">
+            <div>
+                <small style="opacity: 0.6; display: block; font-size: 10px;">MY TICKETS</small>
+                <b id="user-tickets" style="font-size: 20px; color: #fff;">0</b>
+            </div>
+            <div>
+                <small style="opacity: 0.6; display: block; font-size: 10px;">WIN CHANCE</small>
+                <b id="win-chance" style="font-size: 20px; color: #d4af37;">0%</b>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 20px;">
+            <span style="font-size: 14px; opacity: 0.8;">Quantity:</span>
+            <input type="number" id="ticket-qty" value="1" min="1" 
+                   style="width: 80px; background: #000; border: 1px solid #d4af37; color: #fff; text-align: center; border-radius: 10px; padding: 10px; font-weight: bold; font-size: 18px; outline: none;">
+        </div>
+
+        <button onclick="buyLotteryTicket()" 
+                style="width: 100%; background: #d4af37; color: #000; border: none; border-radius: 15px; height: 55px; font-weight: 900; font-size: 16px; cursor: pointer; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);">
+            🎟️ BUY TICKETS (1k/ea)
+        </button>
+        
+        <p style="font-size: 10px; margin-top: 15px; opacity: 0.5;">Draw every Sunday at 21:00 UTC. Good luck! 🍀</p>
+    </div>
+</div>
+
+<nav class="nav">
     <div onclick="showPage('p-mine')" id="n-mine" class="n-i active">🏠</div>
     <div onclick="showPage('p-launcher')" id="n-launcher" class="n-i">🚀</div>
-    <div onclick="showPage('p-lottery')" id="n-lottery" class="n-i">🎟️</div> <div onclick="showPage('p-wallet')" id="n-wallet" class="n-i">💼</div> 
+    <div onclick="showPage('p-lottery')" id="n-lottery" class="n-i">🎟️</div> 
+    <div onclick="showPage('p-wallet')" id="n-wallet" class="n-i">💼</div> 
     <div onclick="showPage('p-profil')" id="n-profil" class="n-i">👤</div>
 </nav>
 
-
-
-
-
-
-
-
-
-
-
-
-   <div id="p-details" class="page">
-    <div style="padding: 20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <button class="btn" onclick="closeDetails()" style="background:#222; color:#fff;">← BACK</button>
-            <b id="det-price-top" style="color:var(--green); font-family:monospace; font-size:18px;">0.000100</b>
-        </div>
-
-        <div style="margin-top:20px; text-align: left;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div>
-                    <h1 id="det-name" style="margin:0; font-size: 32px; font-weight: 800; color: #fff;">Token Name</h1>
-                    <small style="color:var(--gold); font-size: 11px; text-transform: uppercase;">WPT ECOSYSTEM TOKEN</small>
-                </div>
-                
-                <div id="det-socials" style="display:flex; gap:15px; margin-top: 10px;">
-                    </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
-                <b id="det-sym" style="color:var(--gold); font-size: 16px;">$SYM</b>
-                <p id="det-user-balance" style="color:var(--text); font-size:11px; margin: 0;">Balance: 0.00</p>
-            </div>
-        </div>
-
-        <div class="card" style="flex-direction:column; align-items:flex-start; gap:10px; margin-top:20px; background:#0a0a0b; padding: 20px; border: 1px solid #222;">
-            <p id="det-desc" style="font-size:13px; color:var(--text); margin:0; line-height:1.4;">
-                This project has no description yet.
-            </p>
-        </div>
-
-        <div class="chart-container" style="margin-top:20px; background: rgba(255,255,255,0.02); border-radius: 15px; padding: 10px; position: relative;">
-            <img src="static/genesis.png" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; opacity: 0.05; pointer-events: none;">
-            
-            <svg viewBox="0 0 300 100" style="width:100%; height:80px; position: relative; z-index: 1;">
-                <polyline fill="none" stroke="#34C759" stroke-width="2.5" points="0,80 50,70 100,85 150,50 200,60 250,30 300,40" />
-            </svg>
-        </div>
-
-        <div id="det-actions-trade" style="display:flex; gap:12px; padding:20px 0;">
-            <button class="btn btn-action" style="flex:1; background:var(--green); color:#fff;" onclick="openTrade('buy')">BUY</button>
-            <button class="btn btn-action" style="flex:1; background:var(--red); color:#fff;" onclick="openTrade('sell')">SELL</button>
-        </div>
- <div class="card" style="margin-top:15px;">
-        <p id="det-desc" style="font-size:13px;"></p> </div>
-
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
-        <div class="card" style="text-align:center; flex-direction:column;">
-            <small style="opacity:0.6;">Holders</small>
-            <b id="det-holders">0</b>
-        </div>
-        <div class="card" style="text-align:center; flex-direction:column;">
-            <small style="opacity:0.6;">Market Cap</small>
-            <b id="det-mcap">$0</b>
-        </div>
-
-<div class="card" style="margin-top:10px; border: 1px dashed var(--gold);">
-    <small style="opacity:0.6;">Share this token & earn:</small>
-    <div id="det-ref-link" style="font-size:10px; color:var(--gold); word-break:break-all; cursor:pointer;"></div>
-</div>
-
-    </div>
-    </div>
-    
 
 
 
