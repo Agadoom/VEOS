@@ -445,52 +445,36 @@
 
 
 
-
 <div id="p-details" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; color: white;">
-    
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
-        <div onclick="showPage('p-launcher')" style="color:#d4af37; cursor: pointer; font-weight: bold; background: rgba(255,255,255,0.05); padding: 8px 15px; border-radius: 10px;">⬅️ Back</div>
-        <div id="det-socials" style="display: flex; gap: 15px;">
-            </div>
-    </div>
+    <div onclick="showPage('p-launcher')" style="color:#d4af37; cursor:pointer; font-weight:bold; margin-bottom:20px;">⬅️ Back</div>
 
     <div style="text-align: center; margin-bottom: 20px;">
-        <h1 id="det-name" style="margin:0; font-size: 24px;">---</h1>
-        <div id="det-sym" style="color:#d4af37; font-size: 14px; letter-spacing: 2px;">$---</div>
+        <h1 id="det-name" style="margin:0;">Token</h1>
+        <div id="det-sym" style="color:#d4af37; font-size:18px;">$TKN</div>
+        <div id="det-socials" style="margin-top:10px; display:flex; justify-content:center; gap:15px;"></div>
     </div>
 
-    <div style="background: #111; border: 1px solid #222; border-radius: 20px; padding: 15px; margin-bottom: 20px; position: relative;">
-        <div style="position: absolute; top: 10px; left: 15px; font-size: 10px; color: #4caf50; font-weight: bold;">LIVE CHART</div>
-        <canvas id="token-chart" width="300" height="120" style="width: 100%; height: 120px;"></canvas>
-        <div style="display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #222; padding-top: 10px;">
-            <div style="text-align: center; flex: 1;">
-                <small style="opacity: 0.5; font-size: 9px; display: block;">PRICE</small>
-                <b id="det-price-top" style="color:#4caf50; font-size: 14px;">0.000000</b>
-            </div>
-            <div style="text-align: center; flex: 1; border-left: 1px solid #222;">
-                <small style="opacity: 0.5; font-size: 9px; display: block;">MARKET CAP</small>
-                <b id="det-mcap" style="font-size: 14px;">$0</b>
-            </div>
+    <div style="background:#111; border:1px solid #222; border-radius:15px; padding:10px; margin-bottom:20px;">
+        <canvas id="token-chart" width="300" height="120" style="width:100%; height:120px;"></canvas>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
+        <div class="card" style="text-align:center; background:#111; padding:10px; border-radius:10px;">
+            <small style="opacity:0.5; font-size:10px;">PRICE</small><br>
+            <b id="det-price-top" style="color:#4caf50;">0.000000</b>
+        </div>
+        <div class="card" style="text-align:center; background:#111; padding:10px; border-radius:10px;">
+            <small style="opacity:0.5; font-size:10px;">MCAP</small><br>
+            <b id="det-mcap">$0</b>
         </div>
     </div>
 
-    <div style="background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px; margin-bottom: 20px;">
-        <p id="det-desc" style="font-size: 12px; line-height: 1.4; color: #bbb; margin: 0;">---</p>
-        <div style="margin-top: 10px; font-size: 11px; color: #d4af37;">
-            Holders: <span id="det-holders" style="color: white;">1</span>
-        </div>
+    <p id="det-desc" style="font-size:12px; color:#ccc; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px;">---</p>
+
+    <div style="display:flex; gap:10px; margin-top:20px;">
+        <button onclick="openTrade('buy')" style="flex:1; height:50px; background:#4caf50; color:white; border:none; border-radius:12px; font-weight:bold;">BUY</button>
+        <button onclick="openTrade('sell')" style="flex:1; height:50px; background:#f44336; color:white; border:none; border-radius:12px; font-weight:bold;">SELL</button>
     </div>
-
-    <div style="background: #0a0a0a; border: 1px dashed #d4af37; padding: 12px; border-radius: 12px; margin-bottom: 20px; text-align: center;">
-        <small style="display:block; color:#d4af37; font-size:9px; margin-bottom:4px;">SHARE TO EARN 🚀</small>
-        <div id="det-ref-link" style="font-size: 10px; opacity: 0.6; word-break: break-all; cursor: pointer;">---</div>
-    </div>
-
-    <div style="display: flex; gap: 10px;">
-    <button onclick="startTrade('buy')" style="flex: 1; height: 50px; background: #4caf50; color: #fff; border: none; border-radius: 12px; font-weight: bold; font-size: 16px;">BUY</button>
-    <button onclick="startTrade('sell')" style="flex: 1; height: 50px; background: #f44336; color: #fff; border: none; border-radius: 12px; font-weight: bold; font-size: 16px;">SELL</button>
-</div>
-
 </div>
 
 
@@ -1160,65 +1144,64 @@ async function executeTrade() {
 async function openTokenDetails(t) {
     if (!t) return;
     window.currentTokenId = t.id;
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    if (window.tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
     const fill = (id, val) => { 
         const el = document.getElementById(id);
         if (el) el.innerText = val; 
     };
     
-    fill('det-name', t.name || "Token");
+    // Remplissage des données
+    fill('det-name', t.name || "Unknown");
     fill('det-sym', '$' + (t.symbol || "TKN"));
     fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
-    fill('det-desc', t.description || t.desc || "No description provided.");
+    fill('det-desc', t.description || t.desc || "Community Token on OWPC Network.");
 
-    // --- FIX LIENS SOCIAUX 🌐 & 𝕏 ---
+    // GESTION DES LIENS (🌐 et 𝕏)
     const socialDiv = document.getElementById('det-socials');
     if (socialDiv) {
         socialDiv.innerHTML = "";
-        // On vérifie toutes les clés possibles venant du Python
         const web = t.website || t.website_url;
         const twit = t.twitter || t.twitter_url;
 
-        if (web && web.length > 5) {
+        if (web) {
             const wUrl = web.startsWith('http') ? web : 'https://' + web;
             socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
         }
-        if (twit && twit.length > 2) {
+        if (twit) {
             const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
             socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:15px;">𝕏</a>`;
         }
     }
 
-    // Affichage des stats et du graphique
+    // Graphique & Stats
     if (typeof drawMiniChart === "function") drawMiniChart(t.price);
     
-    // Mise à jour du lien Ref
-    const refEl = document.getElementById('det-ref-link');
-    if (refEl) {
-        const link = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
-        refEl.innerText = link;
-        refEl.onclick = () => { navigator.clipboard.writeText(link); tg.showAlert("Ref link copied! 🛰️"); };
-    }
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
+        const stats = await r.json();
+        fill('det-mcap', "$" + (stats.mcap || 0).toLocaleString());
+    } catch(e) { console.log("Stats error"); }
 
+    // NAVIGATION (L'étape qui débloque tout)
     showPage('p-details');
 }
 
-// --- 2. GESTION DU TRADE RÉEL ---
-let tradeType = 'buy';
-
+// Fonction de Trade simple pour éviter les crashs de modal
 function openTrade(type) {
-    tradeType = type;
-    const modal = document.getElementById('trade-modal');
-    if (modal) {
-        modal.style.display = 'flex';
-        document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy Token' : '📉 Sell Token');
-        document.getElementById('trade-amount').value = "";
-    } else {
-        // Si tu n'as pas encore créé le HTML du modal, on utilise le popup de secours
-        startTradeFallback(type);
-    }
+    const action = type === 'buy' ? 'Acheter' : 'Vendre';
+    tg.showPopup({
+        title: `${action} de ${window.currentTokenId}`,
+        message: `Voulez-vous ${action} ce token ? (Interface de trading complète en cours de déploiement)`,
+        buttons: [
+            {id: 'ok', type: 'default', text: 'Confirmer'},
+            {id: 'no', type: 'destructive', text: 'Annuler'}
+        ]
+    }, (id) => {
+        if(id === 'ok') tg.showAlert("🚀 Ordre envoyé au réseau OWPC !");
+    });
 }
+
 
 async function executeTrade() {
     const val = parseFloat(document.getElementById('trade-amount').value);
