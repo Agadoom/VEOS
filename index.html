@@ -1336,43 +1336,42 @@ async function buyStarsPack(amt) {
 
 
 
+// Remplace ta fonction executeBurn par celle-ci pour voir les erreurs
 async function executeBurn() {
     const input = document.getElementById('burn-amount');
     const amount = parseFloat(input.value);
 
-    // Vérification de sécurité
-    if (isNaN(amount) || amount <= 0) {
-        tg.showAlert("Please enter a valid amount of WPT to burn 🔥");
+    if (!amount || amount <= 0) {
+        tg.showAlert("Please enter a valid amount 🔥");
         return;
     }
 
-    if (amount > window.userWptBalance) {
-        tg.showAlert("❌ Not enough WPT in your balance!");
-        return;
-    }
-
-    // Confirmation Telegram
-    tg.showConfirm(`Are you sure you want to PERMANENTLY BURN ${amount} WPT?`, async (ok) => {
+    tg.showConfirm(`Confirm the permanent destruction of ${amount} WPT?`, async (ok) => {
         if (ok) {
             try {
-                const r = await fetch(`${BASE_URL}/api/burn`, {
+                const response = await fetch(`${BASE_URL}/api/burn`, { // Vérifie bien le /api/burn
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ user_id: uid, amount: amount })
                 });
-                const res = await r.json();
-                
+
+                const res = await response.json();
+
                 if (res.ok) {
-                    tg.showAlert(`🔥 Success! ${amount} WPT destroyed forever.`);
-                    input.value = ""; // On vide l'input
-                    refresh(); // On met à jour le solde
+                    tg.showAlert("🔥 SACRIFICE ACCEPTED! WPT burned forever.");
+                    input.value = ""; 
+                    refresh(); // Pour mettre à jour l'affichage du solde
+                } else {
+                    tg.showAlert("❌ Error: " + (res.error || "Unknown"));
                 }
-            } catch (e) {
-                console.error("Burn error:", e);
+            } catch (err) {
+                console.error(err);
+                tg.showAlert("📡 Connection error. Try again.");
             }
         }
     });
 }
+
 
 
 
