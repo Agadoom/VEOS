@@ -442,6 +442,59 @@
 </div>
 
 
+
+
+
+
+
+<div id="p-details" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh;">
+    <div onclick="showPage('p-launcher')" style="color: var(--gold); margin-bottom: 20px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+        ⬅️ <span style="font-size: 14px;">Back to Launcher</span>
+    </div>
+
+    <div class="card" style="text-align: center; border: 1px solid #333; background: rgba(255,255,255,0.02); padding: 25px; border-radius: 20px;">
+        <div id="det-icon" style="font-size: 50px; margin-bottom: 10px;">🪙</div>
+        <h1 id="det-name" style="margin: 0; font-size: 24px; color: #fff;">Token Name</h1>
+        <b id="det-symbol" style="color: var(--gold); letter-spacing: 2px;">$TKN</b>
+        
+        <div style="margin-top: 20px; display: flex; justify-content: space-around; border-top: 1px solid #222; padding-top: 20px;">
+            <div>
+                <small style="opacity: 0.5; display: block; font-size: 10px;">PRICE</small>
+                <span id="det-price" style="font-weight: bold; color: #4caf50;">0.0001</span>
+            </div>
+            <div>
+                <small style="opacity: 0.5; display: block; font-size: 10px;">MCAP</small>
+                <span id="det-mcap" style="font-weight: bold; color: #fff;">$0</span>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 15px; background: #111; border-radius: 15px; text-align: center; border: 1px solid #222;">
+        <div style="font-size: 12px; color: #888; margin-bottom: 10px;">Price Action (24h)</div>
+        <div style="height: 60px; display: flex; align-items: flex-end; justify-content: center; gap: 5px;">
+            <div style="width:10px; height:20px; background: #444; border-radius: 2px;"></div>
+            <div style="width:10px; height:35px; background: #444; border-radius: 2px;"></div>
+            <div style="width:10px; height:25px; background: #444; border-radius: 2px;"></div>
+            <div style="width:10px; height:45px; background: var(--gold); border-radius: 2px;"></div>
+        </div>
+    </div>
+
+    <div style="margin-top: 25px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <input type="number" id="buy-amount" placeholder="Amount in WPT" 
+                   style="flex: 1; background: #000; border: 1px solid #444; color: #fff; padding: 15px; border-radius: 12px;">
+        </div>
+        <button onclick="buyToken()" style="width: 100%; background: var(--gold); color: #000; font-weight: 900; height: 55px; border: none; border-radius: 15px; font-size: 16px;">
+            🚀 BUY TOKEN
+        </button>
+    </div>
+</div>
+
+
+
+
+
+
         <div id="p-wallet" class="page">
     <h2 style="text-align:center; letter-spacing: 2px; font-weight: 800;">💼 MY WALLET</h2>
     
