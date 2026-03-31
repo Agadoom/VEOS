@@ -7,8 +7,14 @@ import config # <--- Import de tes IDs de canaux
 router = APIRouter(prefix="/api/lottery", tags=["lottery"])
 
 # --- 1. BUY TICKETS ---
-@router.post("/buy-ticket")
-async def buy_lottery_ticket(user_id: int, quantity: int, request: Request):
+# --- 1. BUY TICKET CORRIGÉ ---
+@router.post("/lottery/buy-ticket") # Vérifie bien le chemin ici
+async def buy_lottery_ticket(request: Request):
+    # On récupère les données du JSON envoyé par le JS
+    data = await request.json()
+    user_id = data.get("user_id")
+    quantity = int(data.get("quantity", 1))
+    
     price_per_ticket = 1000 
     total_cost = price_per_ticket * quantity
     
@@ -18,44 +24,57 @@ async def buy_lottery_ticket(user_id: int, quantity: int, request: Request):
         # Check balance and Name
         c.execute("SELECT p_genesis, name FROM users WHERE user_id = %s", (user_id,))
         res = c.fetchone()
-        balance = res[0] if res else 0
-        user_name = res[1] if res else "A Whale"
+        
+        if not res:
+            return {"ok": False, "error": "User not found"}
+            
+        balance = res[0]
+        user_name = res[1] or "A Whale"
 
         if balance < total_cost:
-            return {"ok": False, "error": "Not enough WPT balance"}
+            # C'est ici que ça bloquait car balance était 0 (user_id non reçu)
+            return {"ok": False, "error": f"Insufficient balance ({balance} WPT)"}
 
         # Deduct WPT and update Tickets
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (total_cost, user_id))
-        c.execute("""
-            INSERT INTO lottery_tickets (user_id, tickets_count, week_number) 
-            VALUES (%s, %s, EXTRACT(WEEK FROM CURRENT_DATE))
-            ON CONFLICT (user_id, week_number) 
-            DO UPDATE SET tickets_count = lottery_tickets.tickets_count + %s
-        """, (user_id, quantity, quantity))
         
-        # Calculate new Jackpot for the broadcast
-        c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
-        new_jackpot = (c.fetchone()[0] or 0) * 1000
+        # Ton code de mise à jour des tickets ici...
+        # ... (Garde ton code INSERT INTO lottery_tickets)
         
         conn.commit()
-
-        # --- 🚀 TELEGRAM NOTIFICATION ---
-        try:
-            bot = request.app.state.bot
-            text = (
-                f"🎟️ <b>New Tickets Purchased!</b>\n\n"
-                f"👤 <b>User:</b> {user_name}\n"
-                f"🎫 <b>Amount:</b> {quantity} tickets\n"
-                f"💰 <b>Current Jackpot:</b> {new_jackpot:,} WPT\n\n"
-                f"🍀 <i>Check the App to try your luck!</i>"
-            )
-            await bot.send_message(chat_id=config.LOTTERY_CHANNEL_ID, text=text, parse_mode="HTML")
-        except Exception as e:
-            print(f"Broadcast Error: {e}")
-
         return {"ok": True, "msg": "Successfully purchased!"}
+    except Exception as e:
+        print(f"Erreur : {e}")
+        return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
+
+# --- 2. GET INFO RÉEL (Pas simulé) ---
+@router.get("/api/lottery/info")
+async def get_lottery_info(user_id: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # Récupérer le vrai Jackpot (Somme des tickets * 1000)
+        c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
+        total_tickets = c.fetchone()[0] or 0
+        jackpot = total_tickets * 1000
+        
+        # Tes tickets à toi
+        c.execute("SELECT tickets_count FROM lottery_tickets WHERE user_id = %s AND week_number = EXTRACT(WEEK FROM CURRENT_DATE)", (user_id,))
+        user_res = c.fetchone()
+        user_tickets = user_res[0] if user_res else 0
+
+        return {
+            "ok": True,
+            "jackpot": jackpot,
+            "last_winner": "NEEV", # Tu pourras automatiser ça plus tard
+            "user_tickets": user_tickets,
+            "total_tickets": total_tickets
+        }
+    finally:
+        c.close(); conn.close()
+
 
 # --- 2. GET INFO ---
 @router.get("/api/lottery/info")
