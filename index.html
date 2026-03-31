@@ -1043,65 +1043,106 @@ let currentTradeType = 'buy';
 async function openTokenDetails(t) {
     if (!t) return;
     window.currentTokenId = t.id;
-    if (window.tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    
+    // 1. On affiche la page D'ABORD pour que le Canvas existe dans le DOM
+    showPage('p-details');
 
     const fill = (id, val) => { 
         const el = document.getElementById(id);
         if (el) el.innerText = val; 
     };
     
-    // 1. Textes de base
     fill('det-name', t.name || "Token");
     fill('det-sym', '$' + (t.symbol || "TKN"));
     fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
     fill('det-desc', t.description || "No description provided.");
 
-    // --- 🌐 FIX AFFICHAGE LIENS (Website & Twitter) ---
+    // 2. Liens Sociaux (Déjà OK sur ta photo, on garde la logique)
     const socialDiv = document.getElementById('det-socials');
     if (socialDiv) {
-        socialDiv.innerHTML = ""; // On vide avant de remplir
-        let hasLinks = false;
-        
-        // On récupère les valeurs depuis les clés exactes du Python
+        socialDiv.innerHTML = "";
         const web = t.website_url;
         const twit = t.twitter_url;
-
-        console.log("Debug Liens:", { web, twit }); // Pour voir dans ta console si les données arrivent
-
-        if (web && web.length > 5) {
-            const wUrl = web.startsWith('http') ? web : 'https://' + web;
-            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:26px; filter: drop-shadow(0 0 5px gold);">🌐</a>`;
-            hasLinks = true;
-        }
-        
-        if (twit && twit.length > 2) {
-            // Si c'est juste un handle @nom, on crée l'URL x.com
-            const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
-            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:26px; margin-left:20px; filter: drop-shadow(0 0 5px gold);">𝕏</a>`;
-            hasLinks = true;
-        }
-        
-        // On affiche la div seulement si on a des liens
-        socialDiv.style.display = hasLinks ? "flex" : "none";
-        socialDiv.style.justifyContent = "center";
+        if (web) socialDiv.innerHTML += `<a href="${web.startsWith('http') ? web : 'https://'+web}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
+        if (twit) socialDiv.innerHTML += `<a href="${twit.includes('http') ? twit : 'https://x.com/'+twit.replace('@','')}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:15px;">𝕏</a>`;
+        socialDiv.style.display = (web || twit) ? "flex" : "none";
     }
 
-    // 3. Dessin de la courbe
-    if (typeof drawMiniChart === "function") drawMiniChart(t.price);
+    // 3. RÉCUPÉRATION DES STATS RÉELLES (Fix MCAP 0)
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
+        const stats = await r.json();
+        console.log("Stats reçues:", stats);
+        // On force l'affichage du MCAP reçu
+        const mcapVal = stats.mcap ? stats.mcap.toLocaleString() : "0";
+        fill('det-mcap', "$" + mcapVal);
+    } catch(e) {
+        console.error("Erreur stats:", e);
+        fill('det-mcap', "$---");
+    }
 
-    // 4. Lien Referral (Correction de l'affichage ---)
+    // 4. DESSIN DE LA COURBE (Appelé APRES showPage)
+    // On attend un tout petit peu que le navigateur affiche le canvas
+    setTimeout(() => {
+        drawMiniChart(t.price);
+    }, 50);
+
+    // 5. Lien Referral
     const refEl = document.getElementById('det-ref-link');
     if (refEl) {
         const link = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
         refEl.innerText = link;
-        refEl.onclick = () => { 
-            navigator.clipboard.writeText(link); 
-            tg.showAlert("Referral link copied! 🛰️"); 
-        };
     }
-
-    showPage('p-details');
 }
+
+
+
+
+
+
+function drawMiniChart(price) {
+    const canvas = document.getElementById('token-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Nettoyage
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Création de points fictifs basés sur le prix pour la "vibe"
+    ctx.beginPath();
+    ctx.strokeStyle = '#4caf50';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    
+    let x = 0;
+    let y = canvas.height / 2;
+    ctx.moveTo(x, y);
+
+    for (let i = 1; i <= 10; i++) {
+        x += canvas.width / 10;
+        y += (Math.random() - 0.5) * 40; // Simulation de mouvement
+        if (y < 10) y = 10;
+        if (y > canvas.height - 10) y = canvas.height - 10;
+        ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    
+    // Gradient sous la courbe
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.lineTo(0, canvas.height);
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, 'rgba(76, 175, 80, 0.2)');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fill();
+}
+
+
+
+
+
+
+
 
 // GESTION DU TRADE
 function openTrade(type) {
