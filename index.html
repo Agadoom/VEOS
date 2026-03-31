@@ -196,48 +196,59 @@
 
 
 
-.golden-ticket {
-    background: linear-gradient(135deg, #bf953f 0%, #fcf6ba 45%, #b38728 50%, #fbf5b7 55%, #aa771c 100%);
-    color: #1a1a1a;
-    border-radius: 15px;
-    padding: 25px 15px;
-    text-align: center;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5), inset 0 0 15px rgba(255,255,255,0.5);
-    position: relative;
-    overflow: hidden;
-    border: 1px solid #fff;
+/* Styles pour la Loterie & Jackpot */
+:root {
+    --gold: #d4af37; /* Couleur dorée */
+    --gold-bright: #ffcc00;
 }
 
-.ticket-header {
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
-    border-bottom: 1px solid rgba(0,0,0,0.1);
-    padding-bottom: 8px;
-    margin-bottom: 15px;
+#p-lottery {
+    color: white;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
-.ticket-footer-lines {
-    margin-top: 15px;
-    letter-spacing: 2px;
-    opacity: 0.3;
+#jackpot-amount {
+    background: linear-gradient(to bottom, #fff 0%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 900;
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.5));
 }
 
-/* L'effet de brillance qui traverse le ticket */
-.golden-ticket::before {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%;
-    width: 50%; height: 100%;
-    background: linear-gradient(to right, transparent, rgba(255,255,255,0.8), transparent);
-    transform: skewX(-25deg);
-    animation: shine-effect 5s infinite;
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
 }
 
-@keyframes shine-effect {
-    0% { left: -100%; }
-    20% { left: 150%; }
-    100% { left: 150%; }
+.lottery-pulse {
+    animation: pulse 2s infinite;
+}
+
+/* Style de l'input quantité */
+#ticket-qty {
+    border: 1px solid #444;
+    transition: border-color 0.3s;
+}
+
+#ticket-qty:focus {
+    border-color: var(--gold);
+    outline: none;
+}
+
+.btn-gold {
+    background: var(--gold);
+    color: black;
+    border: none;
+    padding: 15px;
+    border-radius: 12px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.btn-gold:active {
+    transform: scale(0.98);
 }
 
 
