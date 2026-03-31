@@ -1044,56 +1044,46 @@ async function loadMarket() {
 // 2. AFFICHAGE DES DÉTAILS
 // DANS LE SCRIPT DE INDEX.HTML, REMPLACE OPENTOKENDETAILS
 
+// --- 1. OUVERTURE DES DÉTAILS (CORRIGÉ POUR LES LIENS) ---
 async function openTokenDetails(t) {
     if (!t) return;
     window.currentTokenId = t.id;
-    if (window.tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-    const fill = (id, val) => { if(document.getElementById(id)) document.getElementById(id).innerText = val; };
+    const fill = (id, val) => { 
+        const el = document.getElementById(id);
+        if (el) el.innerText = val; 
+    };
     
     fill('det-name', t.name || "Token");
     fill('det-sym', '$' + (t.symbol || "TKN"));
     fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
-    fill('det-desc', t.description || t.desc || "Community driven token on OWPC.");
+    fill('det-desc', t.description || t.desc || "No description provided.");
 
-    // 🌐 GESTION DES LIENS SOCIAUX (URL + X)
-        // 🌐 GESTION DES LIENS SOCIAUX (URL + X)
+    // --- FIX LIENS SOCIAUX 🌐 & 𝕏 ---
     const socialDiv = document.getElementById('det-socials');
     if (socialDiv) {
         socialDiv.innerHTML = "";
-        
-        // On teste plusieurs noms de clés possibles au cas où
-        const web = t.website || t.website_url || t.url;
-        const twit = t.twitter || t.twitter_url || t.x_link;
+        // On vérifie toutes les clés possibles venant du Python
+        const web = t.website || t.website_url;
+        const twit = t.twitter || t.twitter_url;
 
         if (web && web.length > 5) {
-            const webLink = web.startsWith('http') ? web : 'https://' + web;
-            socialDiv.innerHTML += `<a href="${webLink}" target="_blank" style="text-decoration:none; font-size:20px;">🌐</a>`;
+            const wUrl = web.startsWith('http') ? web : 'https://' + web;
+            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
         }
-        
         if (twit && twit.length > 2) {
-            let xUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
-            socialDiv.innerHTML += `<a href="${xUrl}" target="_blank" style="text-decoration:none; font-size:20px; margin-left:15px;">𝕏</a>`;
+            const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
+            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:15px;">𝕏</a>`;
         }
     }
 
-
-    // 📈 DESSIN DE LA COURBE SYNCHRO
-    drawMiniChart(t.price || 0.0001);
-
-    // RÉCUPÉRATION STATS
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
-        const stats = await r.json();
-        fill('det-holders', stats.holders || "1"); 
-        fill('det-mcap', "$" + (stats.mcap || 0).toLocaleString());
-    } catch(e) {
-        fill('det-mcap', "$---");
-    }
-
-    // REF LINK
+    // Affichage des stats et du graphique
+    if (typeof drawMiniChart === "function") drawMiniChart(t.price);
+    
+    // Mise à jour du lien Ref
     const refEl = document.getElementById('det-ref-link');
-    if(refEl) {
+    if (refEl) {
         const link = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
         refEl.innerText = link;
         refEl.onclick = () => { navigator.clipboard.writeText(link); tg.showAlert("Ref link copied! 🛰️"); };
@@ -1102,41 +1092,54 @@ async function openTokenDetails(t) {
     showPage('p-details');
 }
 
-// FONCTION POUR DESSINER LE GRAPHIQUE
-function drawMiniChart(currentPrice) {
-    const canvas = document.getElementById('token-chart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+// --- 2. GESTION DU TRADE RÉEL ---
+let tradeType = 'buy';
 
-    // On génère des points semi-aléatoires basés sur le prix actuel pour simuler une courbe
-    const points = [];
-    let lastY = canvas.height / 2;
-    for (let i = 0; i < 20; i++) {
-        lastY += (Math.random() - 0.5) * 20;
-        if(lastY < 10) lastY = 10;
-        if(lastY > canvas.height - 10) lastY = canvas.height - 10;
-        points.push({ x: (canvas.width / 19) * i, y: lastY });
+function openTrade(type) {
+    tradeType = type;
+    const modal = document.getElementById('trade-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy Token' : '📉 Sell Token');
+        document.getElementById('trade-amount').value = "";
+    } else {
+        // Si tu n'as pas encore créé le HTML du modal, on utilise le popup de secours
+        startTradeFallback(type);
     }
-
-    // Dessin de la ligne
-    ctx.beginPath();
-    ctx.strokeStyle = '#4caf50';
-    ctx.lineWidth = 3;
-    ctx.lineJoin = 'round';
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let p of points) ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-
-    // Effet de dégradé sous la courbe
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.lineTo(0, canvas.height);
-    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    grad.addColorStop(0, 'rgba(76, 175, 80, 0.3)');
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad;
-    ctx.fill();
 }
+
+async function executeTrade() {
+    const val = parseFloat(document.getElementById('trade-amount').value);
+    const tid = window.currentTokenId;
+
+    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
+    
+    const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+    
+    try {
+        const response = await fetch(BASE_URL + path, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: parseInt(uid),
+                token_id: parseInt(tid),
+                amount: val
+            })
+        });
+
+        const res = await response.json();
+        if (response.ok) {
+            tg.showAlert("✅ Transaction Successful!");
+            document.getElementById('trade-modal').style.display = 'none';
+            refresh(); // Mise à jour solde WPT
+        } else {
+            tg.showAlert("❌ Error: " + (res.error || "Transaction failed"));
+        }
+    } catch (e) {
+        tg.showAlert("❌ Network Error. Check connection.");
+    }
+}
+
 
 
 
@@ -1153,63 +1156,99 @@ function drawMiniChart(currentPrice) {
 
 
     // --- TRADE ---
-    function openTrade(type) {
-        tradeType = type;
-        document.getElementById('trade-modal').style.display = 'flex';
-        document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy' : '📉 Sell');
-        document.getElementById('trade-amount').value = "";
-    }
-    function closeTrade() { document.getElementById('trade-modal').style.display = 'none'; }
-    function closeDetails() { document.getElementById('p-details').style.display = 'none'; }
+   // --- 1. OUVERTURE DES DÉTAILS (CORRIGÉ POUR LES LIENS) ---
+async function openTokenDetails(t) {
+    if (!t) return;
+    window.currentTokenId = t.id;
+    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-    async function executeTrade() {
+    const fill = (id, val) => { 
+        const el = document.getElementById(id);
+        if (el) el.innerText = val; 
+    };
+    
+    fill('det-name', t.name || "Token");
+    fill('det-sym', '$' + (t.symbol || "TKN"));
+    fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
+    fill('det-desc', t.description || t.desc || "No description provided.");
+
+    // --- FIX LIENS SOCIAUX 🌐 & 𝕏 ---
+    const socialDiv = document.getElementById('det-socials');
+    if (socialDiv) {
+        socialDiv.innerHTML = "";
+        // On vérifie toutes les clés possibles venant du Python
+        const web = t.website || t.website_url;
+        const twit = t.twitter || t.twitter_url;
+
+        if (web && web.length > 5) {
+            const wUrl = web.startsWith('http') ? web : 'https://' + web;
+            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
+        }
+        if (twit && twit.length > 2) {
+            const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
+            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:15px;">𝕏</a>`;
+        }
+    }
+
+    // Affichage des stats et du graphique
+    if (typeof drawMiniChart === "function") drawMiniChart(t.price);
+    
+    // Mise à jour du lien Ref
+    const refEl = document.getElementById('det-ref-link');
+    if (refEl) {
+        const link = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
+        refEl.innerText = link;
+        refEl.onclick = () => { navigator.clipboard.writeText(link); tg.showAlert("Ref link copied! 🛰️"); };
+    }
+
+    showPage('p-details');
+}
+
+// --- 2. GESTION DU TRADE RÉEL ---
+let tradeType = 'buy';
+
+function openTrade(type) {
+    tradeType = type;
+    const modal = document.getElementById('trade-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('modal-title').innerText = (type === 'buy' ? '🚀 Buy Token' : '📉 Sell Token');
+        document.getElementById('trade-amount').value = "";
+    } else {
+        // Si tu n'as pas encore créé le HTML du modal, on utilise le popup de secours
+        startTradeFallback(type);
+    }
+}
+
+async function executeTrade() {
     const val = parseFloat(document.getElementById('trade-amount').value);
     const tid = window.currentTokenId;
 
     if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
-    if (!tid) return tg.showAlert("Error: Token ID is null");
-
-    // Diagnostic : On vérifie l'URL de destination
-    const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-    const finalUrl = BASE_URL + path;
     
-    console.log("Envoi du trade vers :", finalUrl);
-
+    const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
+    
     try {
-        const response = await fetch(finalUrl, {
+        const response = await fetch(BASE_URL + path, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 user_id: parseInt(uid),
                 token_id: parseInt(tid),
-                amount: parseFloat(val)
+                amount: val
             })
         });
 
-        console.log("Statut de la réponse :", response.status);
         const res = await response.json();
-
         if (response.ok) {
-            // SUCCESS
-            if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
             tg.showAlert("✅ Transaction Successful!");
-            
-            closeTrade(); 
-            // On force un rafraîchissement global
-            refresh(); 
-            if (typeof updateHoldings === "function") updateHoldings(tid);
+            document.getElementById('trade-modal').style.display = 'none';
+            refresh(); // Mise à jour solde WPT
         } else {
-            // ERREUR SERVEUR (ex: 400, 500)
-            tg.showAlert("❌ Server Error: " + (res.detail || res.error || "Unknown"));
+            tg.showAlert("❌ Error: " + (res.error || "Transaction failed"));
         }
-
-    } catch (error) {
-        // ERREUR RÉSEAU (URL injoignable, SSL, etc.)
-        console.error("Erreur Fetch:", error);
-        tg.showAlert("❌ Network Error: Could not connect to Railway. Check your Internet or BASE_URL.");
+    } catch (e) {
+        tg.showAlert("❌ Network Error. Check connection.");
     }
 }
 
@@ -1555,27 +1594,6 @@ async function handleMine() {
 
 
 
-function startTrade(type) {
-    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-    
-    const action = type === 'buy' ? "Buy" : "Sell";
-    const color = type === 'buy' ? "WPT" : "Tokens";
-
-    tg.showPopup({
-        title: `${action} Token`,
-        message: `How much do you want to ${type}?`,
-        buttons: [
-            {id: 'btn1', type: 'default', text: `1,000 ${color}`},
-            {id: 'btn2', type: 'default', text: `5,000 ${color}`},
-            {id: 'cancel', type: 'destructive', text: 'Cancel'}
-        ]
-    }, (buttonId) => {
-        if (buttonId !== 'cancel') {
-            tg.showAlert(`🚀 Order placed! Your ${action} request for ${window.currentTokenId} is being processed.`);
-            // Ici tu pourras appeler ton API backend plus tard
-        }
-    });
-}
 
 
     // --- INIT ---
