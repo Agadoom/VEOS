@@ -118,17 +118,22 @@ async def get_user_portfolio(uid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
+        # On récupère la quantité possédée par l'user (a.amount) 
+        # ET le prix actuel du token (t.price)
         c.execute("""
-            SELECT t.id, t.name, t.symbol, t.logo, a.amount, t.price, t.description, t.website_url, t.twitter_url 
+            SELECT t.id, t.name, t.symbol, t.logo, a.amount, t.price, t.description 
             FROM user_community_assets a
             JOIN community_tokens t ON a.token_id = t.id
-            WHERE a.user_id = %s AND a.amount > 0.000001
-            ORDER BY (a.amount * t.price) DESC
+            WHERE a.user_id = %s AND a.amount > 0
         """, (uid,))
         res = c.fetchall()
-        return [{"id": r[0], "name": r[1], "symbol": r[2], "logo": r[3], "amount": float(r[4]), "price": float(r[5]), "description": r[6], "website_url": r[7], "twitter_url": r[8]} for r in res]
+        return [{
+            "id": r[0], "name": r[1], "symbol": r[2], "logo": r[3], 
+            "amount": float(r[4]), "price": float(r[5]), "description": r[6]
+        } for r in res]
     finally:
         c.close(); conn.close()
+
 
 # --- 🔥 BURN & STATS ---
 @router.get("/total-burned")
