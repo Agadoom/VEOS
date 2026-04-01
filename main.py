@@ -16,17 +16,22 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routes.lottery import draw_lottery 
 
 # --- INITIALIZATION ---
+# --- INITIALIZATION ---
 database.init_db_structure()
-app = FastAPI(title="WPT Hub API")
+app = FastAPI(title="WPT Hub API") # ON GARDE CELUI-CI
+
+# Ajoute Jinja2 ici
+templates = Jinja2Templates(directory="templates")
 
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
+# Montage des fichiers statiques (UNE SEULE FOIS)
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- ROUTES API ---
+# --- ROUTES API (Elles sont bien là) ---
 app.include_router(user.router)
 app.include_router(mine.router)
 app.include_router(launcher.router)
@@ -35,25 +40,17 @@ app.include_router(lottery.router)
 app.include_router(premium.router)
 app.include_router(admin.router)
 
+# --- LA ROUTE HOME (Supprime le 'app = FastAPI()' qui était juste avant) ---
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    # Assure-toi que mine.html existe dans le dossier /templates
+    return templates.TemplateResponse("mine.html", {"request": request})
+
 @app.get("/secret-admin-dashboard", response_class=HTMLResponse)
 async def serve_admin_page():
     if os.path.exists("admin.html"):
         with open("admin.html", "r", encoding="utf-8") as f: return f.read()
     return "<h1>❌ Admin Dashboard not found!</h1>"
-
-
-
-
-
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.get("/")
-async def home(request: Request):
-    # Python prend 'mine.html', voit qu'il dépend de 'base.html', 
-    # fusionne les deux et envoie le résultat au téléphone.
-    return templates.TemplateResponse("mine.html", {"request": request})
 
 
 
