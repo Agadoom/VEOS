@@ -792,51 +792,42 @@ async function updateBurnStats() {
     // --- REFRESH DATA ---
     async function refresh() {
     if (!uid) return;
-    console.log("🔄 Tentative de rafraîchissement...");
-
     try {
+        fetch(`${BASE_URL}/api/mine/sync/${uid}`).catch(() => {});
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) {
-            console.error("L'API User a renvoyé une erreur");
-            return;
-        }
+        if (!r.ok) return;
         const d = await r.json();
 
-        // FONCTION INTERNE POUR EVITER LES CRASHES
+        // --- UTILISE LE MÊME NOM PARTOUT ---
         const safeSet = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.innerText = val;
         };
-safeUpdate('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
-        // 1. Les Soldes (Priorité)
-        try {
-           safeUpdate('tot', parseFloat(d.score || 0).toLocaleString());
-            safeUpdate('gv', parseFloat(d.g || 0).toLocaleString());
-            safeUpdate('uv', parseFloat(d.u || 0).toLocaleString());
-            safeUpdate('vv', parseFloat(d.v || 0).toLocaleString());
-            
 
-        // 2. L'Énergie
-        try {
-            const eBar = document.getElementById('e-f');
-            const eText = document.getElementById('e-t');
-            if (eBar && d.max_energy) {
-                const percent = (d.energy / d.max_energy) * 100;
-                eBar.style.width = percent + "%";
-                if(eText) eText.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
-            }
-        } catch(e) { console.log("Erreur énergie"); }
+        // Mise à jour des prix et soldes
+        safeSet('tot', parseFloat(d.score || 0).toLocaleString());
+        safeSet('gv', parseFloat(d.g || 0).toLocaleString());
+        safeSet('uv', parseFloat(d.u || 0).toLocaleString());
+        safeSet('vv', parseFloat(d.v || 0).toLocaleString());
+        
+        // Stockage du solde global pour le calcul du Portfolio
+        window.userWptBalance = parseFloat(d.g || 0);
 
-        // 3. Le Rank et Profil
-        safeSet('prof-rank', "RANK: #" + (d.rank || "---"));
-        safeSet('prof-name', d.name || "Citizen");
+        // --- ENERGIE ---
+        const eBar = document.getElementById('e-f');
+        const eText = document.getElementById('e-t');
+        if (eBar && d.max_energy) {
+            const percent = (d.energy / d.max_energy) * 100;
+            eBar.style.width = percent + "%";
+            if(eText) eText.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
+        }
 
-        console.log("✅ Refresh réussi, navigation débloquée !");
+        // --- MULTIPLIER ---
+        const m = parseFloat(d.multiplier || 1.0);
+        safeSet('mining-multiplier', m.toFixed(1));
+        safeSet('mining-multiplier-prof', `x${m.toFixed(1)}`);
 
-    } catch (e) {
-        console.error("❌ CRASH REFRESH :", e);
-        // On ne bloque pas la navigation même en cas d'erreur
-    }
+    } catch (e) { console.error("Refresh Error:", e); }
 }
 
 
@@ -1316,38 +1307,52 @@ async function executeTrade() {
 
 
          async function loadPortfolio() {
-        const container = document.getElementById('user-portfolio');
-        if (!container) return;
-        try {
-            const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-            const assets = await r.json();
-            container.innerHTML = "";
-            let tokensTotalUsd = 0;
+    const container = document.getElementById('user-portfolio');
+    if (!container) return;
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        const assets = await r.json();
+        container.innerHTML = "";
+        let totalTokensUsd = 0;
 
-            assets.filter(a => parseFloat(a.amount) > 0).forEach(asset => {
-                const val = parseFloat(asset.amount) * parseFloat(asset.price);
-                tokensTotalUsd += val;
-                
-                const item = document.createElement('div');
-                item.className = "portfolio-item";
-                item.style = "display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #222;";
-                item.onclick = () => openTokenDetails(asset);
-                item.innerHTML = `
-                    <div style="display:flex; gap:10px;">
-                        <img src="${asset.logo}" style="width:30px; height:30px; border-radius:50%;">
-                        <span>${asset.name}</span>
+        const myAssets = assets.filter(a => parseFloat(a.amount) > 0);
+
+        if (myAssets.length === 0) {
+            container.innerHTML = "<p style='opacity:0.5; text-align:center; padding:20px;'>No assets yet.</p>";
+            updateGlobalNetWorth(0);
+            return;
+        }
+
+        myAssets.forEach(asset => {
+            const qty = parseFloat(asset.amount);
+            const price = parseFloat(asset.price);
+            const val = qty * price;
+            totalTokensUsd += val;
+            
+            const item = document.createElement('div');
+            item.className = "portfolio-item";
+            item.style = "display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #222; cursor:pointer;";
+            item.onclick = () => openTokenDetails(asset);
+            
+            item.innerHTML = `
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${asset.logo}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
+                    <div style="text-align:left;">
+                        <b style="font-size:14px;">${asset.name}</b><br>
+                        <small style="opacity:0.6;">${qty.toLocaleString()} ${asset.symbol}</small>
                     </div>
-                    <b>$${val.toFixed(2)}</b>
-                `;
-                container.appendChild(item);
-            });
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green);">$${val.toFixed(2)}</b><br>
+                    <small style="opacity:0.4;">@ ${price.toFixed(6)}</small>
+                </div>
+            `;
+            container.appendChild(item);
+        });
 
-            // MISE À JOUR DU NET WORTH (Calcul local pour éviter le clignotement)
-            const finalWorth = (window.userWptBalance * 0.0001) + tokensTotalUsd;
-            const worthEl = document.getElementById('usd-val');
-            if (worthEl) worthEl.innerText = `$${finalWorth.toFixed(2)}`;
+        updateGlobalNetWorth(totalTokensUsd);
 
-        } catch (e) { console.error("Erreur Portfolio:", e); }
+    } catch (e) { console.error("Portfolio Error:", e); }
 }
 
 
