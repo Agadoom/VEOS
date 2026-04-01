@@ -775,10 +775,7 @@ async function updateBurnStats() {
         loadMarket();
     }
 
-    if(pageId === 'p-lottery') {
-        // Appelle tes futures fonctions pour charger le jackpot et tes tickets
-        updateLotteryInfo(); 
-    }
+    if(pageId === 'p-lottery') { updateLotteryUI(); } // Utilise UI au lieu de Info
 
     if(pageId === 'p-wallet') {
         refresh(); // Pour être sûr que le solde WPT est à jour avant d'acheter
