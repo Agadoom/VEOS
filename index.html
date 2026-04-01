@@ -1029,39 +1029,60 @@ async function setFilter(mode, el) {
 
 async function loadMarket() {
     const list = document.getElementById('token-list');
+    if (!list) return;
+    
     const searchQuery = document.getElementById('token-search')?.value || "";
     
     try {
-        // On envoie le filtre et la recherche au backend
         const url = `${BASE_URL}/api/launcher/list?q=${encodeURIComponent(searchQuery)}&filter=${currentFilter}&uid=${uid}`;
         const r = await fetch(url);
-        const tokens = await r.json();
         
+        // Sécurité : si le serveur est en erreur
+        if (!r.ok) throw new Error("Server Down");
+        
+        const tokens = await r.json();
+        list.innerHTML = ""; // On vide proprement
+
         if (!tokens || tokens.length === 0) {
             list.innerHTML = "<p style='text-align:center; opacity:0.5; margin-top:20px;'>No tokens found.</p>";
             return;
         }
 
-        list.innerHTML = tokens.map(t => {
-            const safeData = JSON.stringify(t).replace(/'/g, "&apos;");
-            return `
-                <div class="card" onclick='openTokenDetails(${safeData})' style="cursor:pointer;">
-                    <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
-                        <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
-                        <div style="text-align:left;">
-                            <b style="display:block;">${t.name}</b>
-                            <small style="color:var(--gold)">$${t.symbol}</small>
-                        </div>
-                    </div>
-                    <div style="text-align:right; pointer-events:none;">
-                        <b style="color:var(--green); display:block;">${parseFloat(t.price || 0).toFixed(6)}</b>
-                        <small style="font-size:9px; opacity:0.5;">${currentFilter === 'hot' ? '🔥 HIGH VOLUME' : ''}</small>
+        tokens.forEach(t => {
+            const card = document.createElement('div');
+            card.className = "card";
+            card.style.cursor = "pointer";
+            
+            // --- FIX CRITIQUE : On attache l'événement proprement ---
+            card.onclick = () => {
+                if(typeof openTokenDetails === 'function') {
+                    openTokenDetails(t);
+                }
+            };
+
+            card.innerHTML = `
+                <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
+                    <img src="${t.logo || ''}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; background:#222;">
+                    <div style="text-align:left;">
+                        <b style="display:block;">${t.name || 'Unnamed'}</b>
+                        <small style="color:var(--gold)">$${t.symbol || 'TKN'}</small>
                     </div>
                 </div>
+                <div style="text-align:right; pointer-events:none;">
+                    <b style="color:var(--green); display:block;">${parseFloat(t.price || 0.0001).toFixed(6)}</b>
+                    <small style="font-size:9px; opacity:0.5;">${currentFilter === 'hot' ? '🔥 HOT' : ''}</small>
+                </div>
             `;
-        }).join('');
-    } catch(e) { console.error("Market error:", e); }
+            list.appendChild(card);
+        });
+        
+        console.log("✅ Market loaded successfully");
+    } catch(e) { 
+        console.error("Market error:", e);
+        list.innerHTML = "<p style='text-align:center; color:red;'>Sync Error 📡</p>";
+    }
 }
+
 
 
 // 2. AFFICHAGE DES DÉTAILS
