@@ -1693,6 +1693,41 @@ function animateValue(obj, start, end, duration) {
 
 
 
+
+function showGlobalNotice(msg) {
+    const notice = document.createElement('div');
+    notice.style = "position:fixed; top:45px; left:50%; transform:translateX(-50%); background:rgba(255,215,0,0.9); color:black; padding:5px 15px; border-radius:20px; font-size:10px; font-weight:bold; z-index:2001; animation: fadeInOut 3s forwards;";
+    notice.innerText = msg;
+    document.body.appendChild(notice);
+    setTimeout(() => notice.remove(), 3000);
+}
+// À déclencher de temps en temps ou via un WebSocket plus tard
+
+
+
+
+
+
+
+
+let clickCount = 0;
+let lastClick = 0;
+
+function checkTurboClick() {
+    const now = Date.now();
+    if (now - lastClick < 300) clickCount++;
+    else clickCount = 0;
+    lastClick = now;
+
+    if (clickCount > 15) {
+        document.querySelector('.main-coin').style.filter = "drop-shadow(0 0 20px #ff4500) brightness(1.5)";
+        tg.HapticFeedback.notificationOccurred('success');
+        // Activer un multiplicateur local temporaire ici
+    }
+}
+
+
+
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
     tg.expand(); refresh(); setInterval(refresh, 15000);
