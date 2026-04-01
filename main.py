@@ -45,23 +45,12 @@ app.include_router(admin.router)
 # --- ROUTE HOME ---
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    try:
-        # On tente d'afficher la page
-        return templates.TemplateResponse("mine.html", {"request": request})
-    except Exception as e:
-        # SI ÇA FOIRE : On affiche l'erreur réelle sur ton écran !
-        import traceback
-        error_details = traceback.format_exc()
-        return f"""
-        <html>
-            <body style="background:#000; color:#ff4444; padding:20px; font-family:monospace;">
-                <h1>⚠️ JINJA2 ERROR DETECTED</h1>
-                <p><b>Message:</b> {str(e)}</p>
-                <hr>
-                <pre style="color:#aaa; font-size:10px;">{error_details}</pre>
-            </body>
-        </html>
-        """
+    # On précise explicitement "request=request"
+    return templates.TemplateResponse(
+        name="mine.html", 
+        context={"request": request}
+    )
+
 
 
 
