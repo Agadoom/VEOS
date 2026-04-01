@@ -1074,31 +1074,74 @@ async function openTokenDetails(t) {
     if (!t) return;
     window.currentTokenId = t.id;
     
+    // 1. Afficher la page
     showPage('p-details');
+
+    // Debug pour vérifier si website_url et twitter_url arrivent bien
+    console.log("Données du Token cliqué:", t);
 
     const fill = (id, val) => { 
         const el = document.getElementById(id);
         if (el) el.innerText = val; 
     };
     
-    // --- NOUVEAU : REMPLISSAGE DES IMAGES ---
+    // 2. Remplissage des images (Logo & Banner)
     const imgLogo = document.getElementById('det-logo');
     const imgBanner = document.getElementById('det-banner');
-    
     if (imgLogo) imgLogo.src = t.logo || "https://via.placeholder.com/100";
     if (imgBanner) imgBanner.src = t.banner || "https://via.placeholder.com/400x180";
-    // ----------------------------------------
 
+    // 3. Remplissage des textes
     fill('det-name', t.name || "Token");
     fill('det-sym', '$' + (t.symbol || "TKN"));
     fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
     fill('det-desc', t.description || "No description provided.");
 
-    // Le reste de ton code (Socials, Stats, Chart, Ref) ne change pas...
-    // Assure-toi juste que drawMiniChart est bien appelé après setTimeout
+    // --- 🌐 FIX LIENS SOCIAUX (Website & X) ---
+    const socialDiv = document.getElementById('det-socials');
+    if (socialDiv) {
+        socialDiv.innerHTML = ""; // On nettoie
+        let hasLinks = false;
+        
+        // On vérifie website_url et twitter_url (noms venant de launcher.py)
+        const web = t.website_url;
+        const twit = t.twitter_url;
+
+        if (web && web.length > 5) {
+            const wUrl = web.startsWith('http') ? web : 'https://' + web;
+            socialDiv.innerHTML += `<a href="${wUrl}" target="_blank" style="text-decoration:none; font-size:24px; filter: drop-shadow(0 0 5px gold);">🌐</a>`;
+            hasLinks = true;
+        }
+        
+        if (twit && twit.length > 2) {
+            const tUrl = twit.includes('http') ? twit : `https://x.com/${twit.replace('@','')}`;
+            socialDiv.innerHTML += `<a href="${tUrl}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:15px; filter: drop-shadow(0 0 5px gold);">𝕏</a>`;
+            hasLinks = true;
+        }
+        
+        socialDiv.style.display = hasLinks ? "flex" : "none";
+    }
+
+    // 4. Stats Réelles
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
+        const stats = await r.json();
+        const mcapVal = stats.mcap ? stats.mcap.toLocaleString() : "0";
+        fill('det-mcap', "$" + mcapVal);
+    } catch(e) {
+        fill('det-mcap', "$---");
+    }
+
+    // 5. Courbe (Delay pour laisser le canvas apparaître)
     setTimeout(() => {
-        drawMiniChart(t.price);
-    }, 50);
+        if(typeof drawMiniChart === "function") drawMiniChart(t.price);
+    }, 100);
+
+    // 6. Lien Referral
+    const refEl = document.getElementById('det-ref-link');
+    if (refEl) {
+        refEl.innerText = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
+    }
 }
 
 
