@@ -1,44 +1,116 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
     <title>WPT Network</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* --- TON CSS (L'HABIT DE L'APP) --- */
-        :root { --gold: #FFD700; --text: #eee; }
-        body { background: #000; color: white; font-family: sans-serif; margin: 0; }
-        .container { padding: 20px; padding-bottom: 80px; }
-        .page { display: none; } /* On cache tout par défaut */
-        .active-page { display: block; } /* On affiche la page active */
-        .card { background: #111; border: 1px solid #333; padding: 15px; border-radius: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .nav { position: fixed; bottom: 0; width: 100%; background: #050505; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #222; }
-        .btn { background: var(--gold); border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        /* Ajoute ici le reste de ton CSS si besoin */
+        /* --- DESIGN GLOBAL --- */
+        :root { --gold: #FFD700; --purple: #A259FF; --green: #4caf50; --text: #eee; }
+        body { background: #000; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; overflow-x: hidden; }
+        .container { padding: 15px; padding-bottom: 100px; max-width: 500px; margin: auto; }
+        
+        /* --- PAGES --- */
+        .page { display: none; animation: fadeIn 0.3s ease; }
+        .active-page { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- COMPOSANTS --- */
+        .card { background: linear-gradient(145deg, #1a1a1c, #0a0a0b); border: 1px solid #333; padding: 18px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .btn { background: var(--gold); color: black; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 900; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 0 #b8860b; }
+        .btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #b8860b; }
+        
+        /* --- NAVIGATION --- */
+        .nav { position: fixed; bottom: 0; width: 100%; background: rgba(5, 5, 5, 0.95); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #222; backdrop-filter: blur(10px); z-index: 9999; }
+        .n-i { font-size: 24px; cursor: pointer; opacity: 0.5; transition: 0.3s; }
+        .n-i.active { opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 8px var(--gold)); }
+
+        .ticker { background: var(--gold); color: black; font-size: 10px; font-weight: bold; padding: 4px 0; overflow: hidden; white-space: nowrap; }
     </style>
 </head>
 <body>
+    <div class="ticker">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN ● WPT HUB 2026</div>
 
     <div class="container">
         {% block content %}{% endblock %}
     </div>
 
     <nav class="nav">
-        <div onclick="showPage('p-mine')">🏠</div>
-        <div onclick="showPage('p-launcher')">🚀</div>
-        <div onclick="showPage('p-lottery')">🎟️</div>
-        <div onclick="showPage('p-wallet')">💼</div>
-        <div onclick="showPage('p-profil')">👤</div>
+        <div onclick="showPage('p-mine')" id="n-mine" class="n-i active">🏠</div>
+        <div onclick="showPage('p-launcher')" id="n-launcher" class="n-i">🚀</div>
+        <div onclick="showPage('p-lottery')" id="n-lottery" class="n-i">🎰</div>
+        <div onclick="showPage('p-wallet')" id="n-wallet" class="n-i">💼</div>
+        <div onclick="showPage('p-profil')" id="n-profil" class="n-i">👤</div>
     </nav>
 
     <script>
-        // --- TA LOGIQUE (LE CERVEAU) ---
+        const tg = window.Telegram.WebApp;
+        const uid = tg.initDataUnsafe?.user?.id || 12345; // 12345 pour test sur PC
+        const BASE_URL = window.location.origin;
+
+        // 1. NAVIGATION
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-            const target = document.getElementById(pageId);
-            if(target) target.classList.add('active-page');
+            document.getElementById(pageId).classList.add('active-page');
+            
+            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+            const navId = pageId.replace('p-', 'n-');
+            document.getElementById(navId).classList.add('active');
+            
+            if (pageId === 'p-profil') loadPortfolio();
+            if (pageId === 'p-launcher') loadMarket();
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
         }
-        // Ajoute ici tes fonctions mine(), refresh(), etc.
+
+        // 2. SYNCHRONISATION DATA
+        async function refresh() {
+            if (!uid) return;
+            try {
+                const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+                const d = await r.json();
+
+                const safeSet = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
+                
+                safeSet('tot', parseFloat(d.score || 0).toLocaleString());
+                safeSet('gv', parseFloat(d.g || 0).toLocaleString());
+                safeSet('uv', parseFloat(d.u || 0).toLocaleString());
+                safeSet('vv', parseFloat(d.v || 0).toLocaleString());
+                safeSet('prof-name', (d.name || "CITIZEN").toUpperCase());
+                safeSet('prof-rank', `RANK: #${d.rank || '---'}`);
+                safeSet('wallet-balance', parseFloat(d.g || 0).toLocaleString());
+                
+                const eBar = document.getElementById('e-f');
+                if (eBar) eBar.style.width = (d.energy || 0) + "%";
+                safeSet('e-t', `Energy: ${Math.floor(d.energy || 0)}/100`);
+
+            } catch (e) { console.error("Sync Error", e); }
+        }
+
+        // 3. MINAGE
+        async function mine(type, event) {
+            try {
+                const r = await fetch(`${BASE_URL}/api/mine`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: uid, token_type: type })
+                });
+                const res = await r.json();
+                if (res.ok) {
+                    refresh();
+                    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+                } else {
+                    tg.showAlert(res.error || "Low energy!");
+                }
+            } catch (e) { console.error("Mine error", e); }
+        }
+
+        // INITIALISATION
+        window.onload = () => {
+            tg.expand();
+            refresh();
+            setInterval(refresh, 15000);
+        };
     </script>
 </body>
 </html>
