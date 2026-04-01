@@ -18,20 +18,22 @@ from routes.lottery import draw_lottery
 # --- INITIALIZATION ---
 # --- INITIALIZATION ---
 database.init_db_structure()
-app = FastAPI(title="WPT Hub API") # ON GARDE CELUI-CI
 
-# Ajoute Jinja2 ici
+# UNE SEULE INSTANCE DE APP
+app = FastAPI(title="WPT Hub API")
+
+# CONFIGURATION JINJA2
 templates = Jinja2Templates(directory="templates")
 
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
-# Montage des fichiers statiques (UNE SEULE FOIS)
+# MONTAGE STATIC (UNE SEULE FOIS)
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- ROUTES API (Elles sont bien là) ---
+# --- ROUTES API ---
 app.include_router(user.router)
 app.include_router(mine.router)
 app.include_router(launcher.router)
@@ -40,17 +42,14 @@ app.include_router(lottery.router)
 app.include_router(premium.router)
 app.include_router(admin.router)
 
-# --- LA ROUTE HOME (Supprime le 'app = FastAPI()' qui était juste avant) ---
+# --- ROUTE HOME ---
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    # Assure-toi que mine.html existe dans le dossier /templates
-    return templates.TemplateResponse("mine.html", {"request": request})
-
-@app.get("/secret-admin-dashboard", response_class=HTMLResponse)
-async def serve_admin_page():
-    if os.path.exists("admin.html"):
-        with open("admin.html", "r", encoding="utf-8") as f: return f.read()
-    return "<h1>❌ Admin Dashboard not found!</h1>"
+    # ATTENTION : Si mine.html n'est pas dans /templates, ça donnera une Erreur 500
+    try:
+        return templates.TemplateResponse("mine.html", {"request": request})
+    except Exception as e:
+        return f"<h1>Dossier 'templates' ou fichier 'mine.html' manquant !</h1><p>{e}</p>"
 
 
 
