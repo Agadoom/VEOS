@@ -1352,54 +1352,106 @@ async function executeTrade() {
 
 
          async function loadPortfolio() {
+    const container = document.getElementById('user-portfolio');
+    if (!container) return;
+
     try {
         const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-        const assets = await r.json();
-        const container = document.getElementById('user-portfolio');
-        if (!container) return;
+        if (!r.ok) throw new Error("Portfolio fetch failed");
         
-        container.innerHTML = "";
-        const activeAssets = assets.filter(a => parseFloat(a.amount) > 0);
+        const assets = await r.json();
+        container.innerHTML = ""; // On vide pour rafraîchir
+
+        // 1. Filtrage : On ne garde que ce qui est > 0 (Bye bye Bello à 0)
+        const activeAssets = assets.filter(a => parseFloat(a.amount) > 0.000001);
 
         if (activeAssets.length === 0) {
-            container.innerHTML = "<p style='opacity:0.5; text-align:center; font-size:12px; padding:20px;'>No active assets.</p>";
+            container.innerHTML = `
+                <div style="text-align:center; padding:30px; opacity:0.5;">
+                    <div style="font-size:30px; margin-bottom:10px;">📦</div>
+                    <div style="font-size:12px;">No digital assets found.</div>
+                </div>`;
             return;
         }
 
+        // 2. Rendu des assets
         activeAssets.forEach(asset => {
             const amount = parseFloat(asset.amount);
-            const price = parseFloat(asset.price);
+            const price = parseFloat(asset.price || 0.0001);
             const valueUsd = (amount * price).toFixed(2);
             
             const div = document.createElement('div');
             div.className = "portfolio-item";
-            div.style = "display:flex; align-items:center; justify-content:space-between; padding:12px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;";
-            div.onclick = () => openTokenDetails(asset);
+            div.style = "display:flex; align-items:center; justify-content:space-between; padding:15px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer; transition:0.2s;";
+            
+            // Effet visuel au clic
+            div.onclick = () => {
+                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+                openTokenDetails(asset);
+            };
 
             div.innerHTML = `
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${asset.logo}" style="width:35px; height:35px; border-radius:50%; border:1px solid #333; object-fit:cover;">
+                    <img src="${asset.logo || ''}" style="width:40px; height:40px; border-radius:50%; border:1px solid #333; background:#111; object-fit:cover;">
                     <div>
-                        <div style="font-weight:bold; font-size:14px;">${asset.name}</div>
+                        <div style="font-weight:bold; font-size:14px; color:#fff;">${asset.name}</div>
                         <div style="font-size:11px; opacity:0.6;">${amount.toLocaleString()} ${asset.symbol}</div>
                     </div>
                 </div>
                 <div style="text-align:right;">
                     <div style="color:var(--green); font-weight:bold; font-size:14px;">$${parseFloat(valueUsd).toLocaleString()}</div>
-                    <div style="font-size:10px; opacity:0.5;">@ ${price.toFixed(6)}</div>
+                    <div style="font-size:10px; opacity:0.4;">@ ${price.toFixed(6)}</div>
                 </div>
             `;
             container.appendChild(div);
         });
-        
-        // On appelle la fonction de mise à jour du Net Worth
-        if(typeof updateNetWorth === 'function') updateNetWorth(window.userWptBalance, activeAssets);
 
-    } catch (e) { console.error("Portfolio Sync Error:", e); }
-} // <--- UNE SEULE ACCOLADE ICI ! (Tu en avais deux)
+        console.log("✅ Portfolio synchronisé");
 
-async function buyStarsPack(amt) {
-    // ... reste du code
+    } catch (e) {
+        console.error("❌ Portfolio Error:", e);
+        container.innerHTML = "<p style='text-align:center; color:red; padding:20px; font-size:12px;'>Unable to load portfolio 📡</p>";
+    }
+}
+
+
+
+
+async function buyStarsPack(starsAmt) {
+    if (!uid) return;
+    
+    // 1. Feedback tactile immédiat
+    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+    try {
+        // 2. Appel à ton API Railway pour créer la facture
+        // Note: Le backend doit utiliser l'API bot.createInvoiceLink de Telegram
+        const response = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${starsAmt}`);
+        const data = await response.json();
+
+        if (data.invoice_link) {
+            // 3. Ouvre l'interface de paiement native Telegram
+            tg.openInvoice(data.invoice_link, (status) => {
+                if (status === 'paid') {
+                    tg.showAlert("💎 Payment Successful! Your WPT balance has been updated.");
+                    refresh(); // On rafraîchit les soldes après achat
+                } else if (status === 'cancelled') {
+                    console.log("Paiement annulé par l'utilisateur.");
+                } else {
+                    tg.showAlert("❌ Payment failed or pending.");
+                }
+            });
+        } else {
+            tg.showAlert("❌ Error: Could not generate invoice. Try again later.");
+        }
+    } catch (e) {
+        console.error("Stars Purchase Error:", e);
+        tg.showAlert("📡 Connection error with the Payment Server.");
+    }
+}
+
+
+
 
 
 
