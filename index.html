@@ -1281,7 +1281,7 @@ async function executeTrade() {
 
 
 
-    async function loadPortfolio() {
+         async function loadPortfolio() {
     try {
         const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
         const assets = await r.json();
@@ -1289,8 +1289,6 @@ async function executeTrade() {
         if (!container) return;
         
         container.innerHTML = "";
-
-        // 1. On filtre pour ne garder que ce qui est supérieur à 0
         const activeAssets = assets.filter(a => parseFloat(a.amount) > 0);
 
         if (activeAssets.length === 0) {
@@ -1299,7 +1297,6 @@ async function executeTrade() {
         }
 
         activeAssets.forEach(asset => {
-            // 2. Calcul précis de la valeur
             const amount = parseFloat(asset.amount);
             const price = parseFloat(asset.price);
             const valueUsd = (amount * price).toFixed(2);
@@ -1307,7 +1304,6 @@ async function executeTrade() {
             const div = document.createElement('div');
             div.className = "portfolio-item";
             div.style = "display:flex; align-items:center; justify-content:space-between; padding:12px; border-bottom:1px solid rgba(255,255,255,0.05); cursor:pointer;";
-            
             div.onclick = () => openTokenDetails(asset);
 
             div.innerHTML = `
@@ -1325,31 +1321,15 @@ async function executeTrade() {
             `;
             container.appendChild(div);
         });
-
-        // 3. Mise à jour du Net Worth Global (Haut de page)
-        updateNetWorthFromPortfolio(activeAssets);
+        
+        // On appelle la fonction de mise à jour du Net Worth
+        if(typeof updateNetWorth === 'function') updateNetWorth(window.userWptBalance, activeAssets);
 
     } catch (e) { console.error("Portfolio Sync Error:", e); }
-}
-
-}
-
-
-
+} // <--- UNE SEULE ACCOLADE ICI ! (Tu en avais deux)
 
 async function buyStarsPack(amt) {
-    // On ajoute ?amount=... à l'URL
-    const r = await fetch(`${BASE_URL}/api/stars/create-invoice/${uid}?amount=${amt}`);
-    const d = await r.json();
-    if(d.invoice_link) {
-        tg.openInvoice(d.invoice_link, (status) => { 
-            if(status === 'paid') {
-                tg.showAlert("Payment Successful! 💎");
-                refresh(); 
-            } 
-        });
-    }
-}
+    // ... reste du code
 
 
 
