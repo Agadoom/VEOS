@@ -1357,67 +1357,54 @@ async function executeTrade() {
 
     try {
         const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
-        if (!r.ok) throw new Error("Portfolio fetch failed");
-        
+        if (!r.ok) return;
         const assets = await r.json();
-        container.innerHTML = ""; // On vide pour rafraîchir
+        
+        container.innerHTML = ""; // On nettoie
 
-        // 1. Filtrage : On ne garde que ce qui est > 0 (Bye bye Bello à 0)
-        const activeAssets = assets.filter(a => parseFloat(a.amount) > 0.000001);
+        // On filtre pour ne pas afficher les tokens à 0
+        const myAssets = assets.filter(a => parseFloat(a.amount) > 0);
 
-        if (activeAssets.length === 0) {
-            container.innerHTML = `
-                <div style="text-align:center; padding:30px; opacity:0.5;">
-                    <div style="font-size:30px; margin-bottom:10px;">📦</div>
-                    <div style="font-size:12px;">No digital assets found.</div>
-                </div>`;
+        if (myAssets.length === 0) {
+            container.innerHTML = "<p style='text-align:center; opacity:0.5; padding:20px;'>No assets yet</p>";
             return;
         }
 
-        // 2. Rendu des assets
-                activeAssets.forEach(asset => {
-            // Conversion forcée en nombres pour éviter les bugs de texte
+        myAssets.forEach(asset => {
             const amount = parseFloat(asset.amount || 0);
             const price = parseFloat(asset.price || 0.0001);
+            const totalValue = amount * price;
+
+            // CRÉATION DE L'ÉLÉMENT (Plus propre pour le clic)
+            const item = document.createElement('div');
+            item.style = "display:flex; align-items:center; justify-content:space-between; padding:12px; background:rgba(255,255,255,0.03); margin-bottom:8px; border-radius:12px; cursor:pointer;";
             
-            // Calcul de la valeur réelle détenue
-            const rawValue = amount * price;
-            
-            // Formatage propre : si c'est très petit, on met plus de décimales
-            const displayValue = rawValue.toLocaleString('en-US', {
-                style: 'currency',
-                currency: 'USD',
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            });
-            
-            const div = document.createElement('div');
-            // ... (reste de ton style div)
-            
-            div.innerHTML = `
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${asset.logo}" style="width:35px; height:35px; border-radius:50%; border:1px solid #333; object-fit:cover;">
+            // LE FIX DU CLIC EST ICI
+            item.onclick = () => {
+                console.log("Ouverture de :", asset.name);
+                openTokenDetails(asset); 
+            };
+
+            item.innerHTML = `
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${asset.logo}" style="width:35px; height:35px; border-radius:50%; object-fit:cover; border:1px solid #333;">
                     <div>
-                        <div style="font-weight:bold; font-size:14px;">${asset.name}</div>
+                        <div style="font-weight:900; font-size:13px;">${asset.name}</div>
                         <div style="font-size:11px; opacity:0.6;">${amount.toLocaleString()} ${asset.symbol}</div>
                     </div>
                 </div>
                 <div style="text-align:right;">
-                    <div style="color:var(--green); font-weight:bold; font-size:14px;">${displayValue}</div>
-                    <div style="font-size:10px; opacity:0.5;">@ ${price.toFixed(8)}</div>
+                    <div style="color:#4caf50; font-weight:900; font-size:14px;">$${totalValue.toFixed(2)}</div>
+                    <div style="font-size:9px; opacity:0.4;">@ ${price.toFixed(6)}</div>
                 </div>
             `;
-            container.appendChild(div);
-        
+            container.appendChild(item);
         });
-
-        console.log("✅ Portfolio synchronisé");
-
     } catch (e) {
-        console.error("❌ Portfolio Error:", e);
-        container.innerHTML = "<p style='text-align:center; color:red; padding:20px; font-size:12px;'>Unable to load portfolio 📡</p>";
+        console.error("Erreur Portfolio:", e);
     }
 }
+
 
 
 
