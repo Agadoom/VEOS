@@ -1206,14 +1206,12 @@ function closeTrade() {
 }
 
 async function executeTrade() {
-    const amount = parseFloat(document.getElementById('trade-amount').value);
+    const val = parseFloat(document.getElementById('trade-amount').value);
     const tid = window.currentTokenId;
 
-    if (!amount || amount <= 0) {
-        tg.showAlert("Please enter a valid amount!");
-        return;
-    }
-
+    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
+    
+    // On utilise currentTradeType (défini par openTrade)
     const path = (currentTradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
     
     try {
@@ -1221,42 +1219,8 @@ async function executeTrade() {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                user_id: parseInt(uid),
-                token_id: parseInt(tid),
-                amount: amount
-            })
-        });
-
-        const res = await response.json();
-        if (response.ok) {
-            tg.showAlert("✅ Transaction Successful!");
-            closeTrade();
-            refresh(); // Rafraîchit les soldes
-        } else {
-            tg.showAlert("❌ Error: " + (res.error || "Failed"));
-        }
-    } catch (e) {
-        tg.showAlert("❌ Connection Error to Railway");
-    }
-}
-
-
-
-async function executeTrade() {
-    const val = parseFloat(document.getElementById('trade-amount').value);
-    const tid = window.currentTokenId;
-
-    if (!val || val <= 0) return tg.showAlert("Please enter a valid amount");
-    
-    const path = (tradeType === 'buy') ? '/api/launcher/buy' : '/api/launcher/sell';
-    
-    try {
-        const response = await fetch(BASE_URL + path, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: parseInt(uid),
-                token_id: parseInt(tid),
+                user_id: uid, // Pas de parseInt ici, laisse l'ID tel quel
+                token_id: tid,
                 amount: val
             })
         });
@@ -1264,13 +1228,14 @@ async function executeTrade() {
         const res = await response.json();
         if (response.ok) {
             tg.showAlert("✅ Transaction Successful!");
-            document.getElementById('trade-modal').style.display = 'none';
-            refresh(); // Mise à jour solde WPT
+            closeTrade();
+            refresh(); 
+            if(currentTradeType === 'sell') loadPortfolio(); // Rafraîchit ton profil
         } else {
             tg.showAlert("❌ Error: " + (res.error || "Transaction failed"));
         }
     } catch (e) {
-        tg.showAlert("❌ Network Error. Check connection.");
+        tg.showAlert("❌ Network Error. Check Railway logs.");
     }
 }
 
