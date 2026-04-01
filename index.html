@@ -1710,6 +1710,40 @@ function checkTurboClick() {
 
 
 
+function changeLottoQty(val) {
+    const input = document.getElementById('ticket-qty');
+    let current = parseInt(input.value) || 1;
+    current += val;
+    if (current < 1) current = 1;
+    input.value = current;
+    if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+}
+
+// Cette fonction sera appelée par showPage('p-lottery')
+async function updateLotteryUI() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/lottery/info?user_id=${uid}`);
+        const d = await r.json();
+        
+        if (d.ok) {
+            document.getElementById('jackpot-amount').innerText = d.jackpot.toLocaleString();
+            document.getElementById('user-tickets').innerText = d.user_tickets;
+            document.getElementById('last-winner').innerText = d.last_winner_name || "Anonymous";
+            document.getElementById('last-win-amount').innerText = "+" + (d.last_win_amount || 0).toLocaleString() + " WPT";
+            
+            // Calcul de chance (Exemple : tes tickets / total tickets)
+            let chance = 0;
+            if (d.total_tickets > 0) {
+                chance = (d.user_tickets / d.total_tickets) * 100;
+            }
+            document.getElementById('win-chance').innerText = chance.toFixed(2) + "%";
+        }
+    } catch (e) { console.error("Lotto UI error"); }
+}
+
+
+
+
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
     tg.expand(); refresh(); setInterval(refresh, 15000);
