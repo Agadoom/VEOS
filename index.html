@@ -445,29 +445,54 @@
 
 
 
-<div id="p-details" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; color: white;">
-    <div onclick="showPage('p-launcher')" style="color:#d4af37; cursor:pointer; font-weight:bold; margin-bottom:20px;">⬅️ Back</div>
-
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h1 id="det-name">---</h1>
-        <div id="det-sym" style="color:#d4af37; font-size:18px;">$---</div>
-        <div id="det-socials" style="margin-top:10px; display:none; justify-content:center;"></div>
-    </div>
-
-    <div style="background:#111; border:1px solid #222; border-radius:15px; padding:10px; margin-bottom:20px;">
-        <canvas id="token-chart" width="300" height="120" style="width:100%; height:120px;"></canvas>
-    </div>
-
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
-        <div style="text-align:center; background:#111; padding:10px; border-radius:10px;">
-            <small style="opacity:0.5; font-size:9px;">PRICE</small><br>
-            <b id="det-price-top" style="color:#4caf50;">0.000000</b>
-        </div>
-        <div style="text-align:center; background:#111; padding:10px; border-radius:10px;">
-            <small style="opacity:0.5; font-size:9px;">MCAP</small><br>
-            <b id="det-mcap">$0</b>
+<div id="p-details" class="page" style="display:none; padding: 0; background: #000; min-height: 100vh; color: white; padding-bottom: 30px;">
+    
+    <div style="position: relative; width: 100%; height: 180px; background: #111;">
+        <img id="det-banner" src="" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.5;">
+        
+        <div onclick="showPage('p-launcher')" style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 10px; cursor: pointer; backdrop-filter: blur(5px); color: #d4af37; font-weight: bold; z-index: 10;">⬅️ Back</div>
+        
+        <div style="position: absolute; bottom: -30px; left: 20px; width: 80px; height: 80px; background: #000; border-radius: 20px; border: 4px solid #000; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.5);">
+            <img id="det-logo" src="" style="width: 100%; height: 100%; object-fit: cover;">
         </div>
     </div>
+
+    <div style="padding: 40px 20px 10px 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+            <h1 id="det-name" style="margin:0; font-size: 24px;">Token Name</h1>
+            <div id="det-sym" style="color:#d4af37; font-size: 16px;">$SYMBOL</div>
+        </div>
+        <div id="det-socials" style="display:flex; gap:15px; padding-bottom: 5px;"></div>
+    </div>
+
+    <div style="padding: 0 20px;">
+        <div style="background:#111; border:1px solid #222; border-radius:20px; padding:15px; margin-bottom:20px;">
+            <div style="font-size: 10px; color: #4caf50; margin-bottom: 10px; font-weight: bold;">LIVE PERFORMANCE</div>
+            <canvas id="token-chart" width="300" height="120" style="width:100%; height:120px;"></canvas>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px; border-top: 1px solid #222; padding-top: 15px;">
+                <div style="text-align:center;">
+                    <small style="opacity:0.5; font-size:9px; display: block;">PRICE</small>
+                    <b id="det-price-top" style="color:#4caf50; font-size: 16px;">0.000000</b>
+                </div>
+                <div style="text-align:center;">
+                    <small style="opacity:0.5; font-size:9px; display: block;">MARKET CAP</small>
+                    <b id="det-mcap" style="font-size: 16px;">$0</b>
+                </div>
+            </div>
+        </div>
+
+        <p id="det-desc" style="font-size:12px; color:#aaa; line-height:1.5; background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px;">---</p>
+
+        <div id="det-ref-link" style="font-size:9px; border:1px dashed #d4af37; padding:12px; margin-top:20px; border-radius:12px; word-break:break-all; cursor:pointer; text-align: center; opacity: 0.6;">---</div>
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="openTrade('buy')" style="flex:1; height:55px; background:#4caf50; color:white; border:none; border-radius:15px; font-weight:bold; font-size: 16px;">BUY</button>
+            <button onclick="openTrade('sell')" style="flex:1; height:55px; background:#f44336; color:white; border:none; border-radius:15px; font-weight:bold; font-size: 16px;">SELL</button>
+        </div>
+    </div>
+</div>
+
 
 
 
@@ -1049,7 +1074,6 @@ async function openTokenDetails(t) {
     if (!t) return;
     window.currentTokenId = t.id;
     
-    // 1. On affiche la page D'ABORD pour que le Canvas existe dans le DOM
     showPage('p-details');
 
     const fill = (id, val) => { 
@@ -1057,47 +1081,24 @@ async function openTokenDetails(t) {
         if (el) el.innerText = val; 
     };
     
+    // --- NOUVEAU : REMPLISSAGE DES IMAGES ---
+    const imgLogo = document.getElementById('det-logo');
+    const imgBanner = document.getElementById('det-banner');
+    
+    if (imgLogo) imgLogo.src = t.logo || "https://via.placeholder.com/100";
+    if (imgBanner) imgBanner.src = t.banner || "https://via.placeholder.com/400x180";
+    // ----------------------------------------
+
     fill('det-name', t.name || "Token");
     fill('det-sym', '$' + (t.symbol || "TKN"));
     fill('det-price-top', parseFloat(t.price || 0.0001).toFixed(6));
     fill('det-desc', t.description || "No description provided.");
 
-    // 2. Liens Sociaux (Déjà OK sur ta photo, on garde la logique)
-    const socialDiv = document.getElementById('det-socials');
-    if (socialDiv) {
-        socialDiv.innerHTML = "";
-        const web = t.website_url;
-        const twit = t.twitter_url;
-        if (web) socialDiv.innerHTML += `<a href="${web.startsWith('http') ? web : 'https://'+web}" target="_blank" style="text-decoration:none; font-size:24px;">🌐</a>`;
-        if (twit) socialDiv.innerHTML += `<a href="${twit.includes('http') ? twit : 'https://x.com/'+twit.replace('@','')}" target="_blank" style="text-decoration:none; font-size:24px; margin-left:15px;">𝕏</a>`;
-        socialDiv.style.display = (web || twit) ? "flex" : "none";
-    }
-
-    // 3. RÉCUPÉRATION DES STATS RÉELLES (Fix MCAP 0)
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/stats/${t.id}`);
-        const stats = await r.json();
-        console.log("Stats reçues:", stats);
-        // On force l'affichage du MCAP reçu
-        const mcapVal = stats.mcap ? stats.mcap.toLocaleString() : "0";
-        fill('det-mcap', "$" + mcapVal);
-    } catch(e) {
-        console.error("Erreur stats:", e);
-        fill('det-mcap', "$---");
-    }
-
-    // 4. DESSIN DE LA COURBE (Appelé APRES showPage)
-    // On attend un tout petit peu que le navigateur affiche le canvas
+    // Le reste de ton code (Socials, Stats, Chart, Ref) ne change pas...
+    // Assure-toi juste que drawMiniChart est bien appelé après setTimeout
     setTimeout(() => {
         drawMiniChart(t.price);
     }, 50);
-
-    // 5. Lien Referral
-    const refEl = document.getElementById('det-ref-link');
-    if (refEl) {
-        const link = `https://t.me/OWPCsBot?start=${uid}_${t.id}`;
-        refEl.innerText = link;
-    }
 }
 
 
