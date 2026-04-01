@@ -147,8 +147,22 @@ async def get_token_stats(tid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
+        # On compte les holders et la somme totale des tokens possédés
+        c.execute("SELECT COUNT(user_id), SUM(amount) FROM user_community_assets WHERE token_id = %s", (tid,))
+        res = c.fetchone()
+        holders = res[0] or 0
+        circulating_supply = float(res[1] or 0)
+        
         c.execute("SELECT price FROM community_tokens WHERE id = %s", (tid,))
-        p = float(c.fetchone()[0] or 0.0001)
-        return {"holders": 1, "mcap": round(p * 1000000000, 2)}
+        price = float(c.fetchone()[0] or 0.0001)
+        
+        # MCAP Réel = Ce qui appartient aux gens * le prix
+        real_mcap = circulating_supply * price
+        
+        return {
+            "holders": holders, 
+            "mcap": round(real_mcap, 2),
+            "supply": circulating_supply
+        }
     finally:
         c.close(); conn.close()
