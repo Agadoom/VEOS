@@ -514,7 +514,7 @@
 
 
 
-                <div id="p-wallet" class="page">
+                        <div id="p-wallet" class="page" style="display:none;">
             <h2 style="text-align:center; letter-spacing: 2px; font-weight: 800;">💼 MY WALLET</h2>
             
             <div class="card" style="flex-direction:column; text-align:center; padding:35px; background: linear-gradient(145deg, #1a1a1c, #0a0a0b); border: 1px solid #333; box-shadow: 0 15px 35px rgba(0,0,0,0.4);">
@@ -528,40 +528,40 @@
                 <h3 style="margin: 0; letter-spacing: 1px;">WPT PREMIUM STORE</h3>
             </div>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; padding: 0 10px;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; padding: 0 10px; margin-bottom: 20px;">
                 <div class="card" style="flex-direction:column; text-align:center; padding: 20px; gap: 10px; border-color: #222;">
                     <div style="font-size: 30px;">⭐️</div>
                     <b style="font-size: 16px;">50 Stars</b>
-                    <small style="color:var(--text);">Receive 10k WPT</small>
-                    <button class="btn btn-buy-stars" style="width:100%; background: #fff; color: #000;" onclick="buyStarsPack(50)">BUY</button>
+                    <small style="color:var(--text); font-size: 10px;">Receive 10k WPT</small>
+                    <button class="btn" style="width:100%; background: #fff; color: #000; font-size: 12px;" onclick="buyStarsPack(50)">BUY</button>
                 </div>
 
                 <div class="card" style="flex-direction:column; text-align:center; padding: 20px; gap: 10px; border: 1px solid var(--gold); position: relative; overflow: hidden;">
-                    <div style="position: absolute; top: 8px; right: -25px; background: var(--blue); color: #fff; font-size: 9px; padding: 2px 30px; transform: rotate(45deg); font-weight: 900;">BEST</div>
                     <div style="font-size: 30px;">🌟</div>
                     <b style="font-size: 16px; color: var(--gold);">250 Stars</b>
-                    <small style="color:var(--text);">Receive 60k WPT</small>
-                    <button class="btn btn-buy-stars" style="width:100%; background: var(--gold); color: #000;" onclick="buyStarsPack(250)">BUY</button>
+                    <small style="color:var(--text); font-size: 10px;">Receive 60k WPT</small>
+                    <button class="btn" style="width:100%; background: var(--gold); color: #000; font-size: 12px;" onclick="buyStarsPack(250)">BUY</button>
                 </div>
             </div>
 
-            <div style="display: grid; gap: 15px; margin-top: 20px; padding: 0 10px;">
-                <div class="card" style="border: 2px solid var(--gold); background: rgba(255, 215, 0, 0.05); flex-direction: column; padding: 25px;">
-                    <div style="font-size: 40px;">💎</div>
-                    <b style="font-size: 20px; color: var(--gold);">LEGEND PACK</b>
-                    <p style="font-size: 12px; margin: 5px 0;">300,000 WPT + exclusive Badge</p>
-                    <button class="btn" onclick="buyStarsPack(1000)">1000 ⭐</button>
-                </div>
-
-                <div class="card" style="border: 1px solid var(--purple); background: rgba(162, 89, 255, 0.05); padding: 20px;">
+            <div style="display: grid; gap: 15px; padding: 0 10px; margin-bottom: 80px;">
+                <div class="card" style="border: 2px solid var(--gold); background: rgba(255, 215, 0, 0.05); padding: 20px; justify-content: space-between;">
                     <div style="text-align: left;">
-                        <b style="color: var(--purple); font-size: 16px;">⚡ TURBO x3</b><br>
-                        <small style="opacity: 0.7;">Refill energy 3x faster (24h)</small>
+                        <b style="color: var(--gold); font-size: 16px;">💎 LEGEND PACK</b>
+                        <p style="font-size: 10px; opacity: 0.7; margin: 5px 0;">300,000 WPT + exclusive Badge</p>
                     </div>
-                    <button class="btn" onclick="buyStarsPack(99)">99 ⭐</button>
+                    <button class="btn" style="padding: 10px 20px;" onclick="buyStarsPack(1000)">1000 ⭐</button>
+                </div>
+
+                <div class="card" style="border: 1px solid var(--purple); background: rgba(162, 89, 255, 0.05); padding: 20px; justify-content: space-between;">
+                    <div style="text-align: left;">
+                        <b style="color: var(--purple); font-size: 16px;">⚡ TURBO x3</b>
+                        <p style="font-size: 10px; opacity: 0.7; margin: 5px 0;">3x Energy Recovery (24h)</p>
+                    </div>
+                    <button class="btn" style="background: var(--purple); color: white; padding: 10px 20px;" onclick="buyStarsPack(99)">99 ⭐</button>
                 </div>
             </div>
-        </div> <div id="p-profil" class="page">
+        </div> <div id="p-profil" class="page" style="display:none;">
             <div class="prof-header" style="position: relative; overflow: hidden; padding: 40px 20px; background: linear-gradient(180deg, rgba(255,204,0,0.1) 0%, transparent 100%);">
                 <div id="magnet-status-badge" style="position: absolute; top: 15px; right: 15px; backdrop-filter: blur(5px); background: rgba(0, 236, 255, 0.1); border: 1px solid #00ecff; color: #00ecff; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 900; letter-spacing: 1px;">
                     <span id="mining-multiplier-prof">x1.0</span> MAGNET ACTIVE
@@ -569,154 +569,54 @@
 
                 <div id="prof-initials" style="width:90px; height:90px; background: linear-gradient(135deg, var(--gold), #b8860b); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:36px; border: 4px solid #1a1a1c; box-shadow: 0 0 30px rgba(255, 204, 0, 0.3);">U</div>
                 
-                <h2 id="prof-name" style="margin: 0; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">Username</h2>
+                <h2 id="prof-name" style="margin: 0; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; text-align: center;">Username</h2>
                 
-                <div style="margin-top: 10px;">
+                <div style="margin-top: 10px; text-align: center;">
                      <span style="font-size: 12px; opacity: 0.5; font-weight: bold;">ESTIMATED NET WORTH</span>
                      <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
                         <h1 id="usd-val" style="color:var(--green); margin:0; font-size: 40px; font-family: 'monospace';">$0.00</h1>
                         <span style="font-size: 14px; opacity: 0.6; color: var(--green);">USD</span>
                      </div>
                 </div>
-                <small id="wpt-price" style="background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 10px; color:var(--text); opacity:0.8; font-weight: bold; font-size: 11px;">📊 1 WPT = $0.0001</small>
             </div>
 
             <div style="display: flex; justify-content: center; gap: 10px; margin: -15px 0 20px 0; position: relative; z-index: 10;">
-                <div id="streak-container" style="display:none; background: #1a1a1c; border: 1px solid #FF8C00; padding: 8px 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(255, 140, 0, 0.2);">
+                <div id="streak-container" style="display:none; background: #1a1a1c; border: 1px solid #FF8C00; padding: 8px 15px; border-radius: 15px;">
                     <span style="color: #FF8C00; font-weight: 900; font-size: 12px;">🔥 <span id="streak-val">0</span> DAYS</span>
                 </div>
-                <div style="background: #1a1a1c; border: 1px solid #00ecff; padding: 8px 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0, 236, 255, 0.2);">
+                <div style="background: #1a1a1c; border: 1px solid #00ecff; padding: 8px 15px; border-radius: 15px;">
                     <span style="color: #00ecff; font-weight: 900; font-size: 12px;">⚡ BOOST: <span id="boost-val-prof">1.0</span>x</span>
                 </div>
             </div>
 
             <div style="padding: 0 15px;">
-                <div class="card" style="background: rgba(255,255,255,0.03); border: 1px solid #333;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <small style="opacity:0.6; font-weight: bold;">TON WALLET ADDRESS</small>
-                        <span style="font-size: 10px; color: var(--gold);">SECURE 🔒</span>
-                    </div>
-                    <div style="display:flex; gap:10px;">
-                        <input type="text" id="wallet-addr" placeholder="UQAv...NTYi" 
-                               style="flex:1; background:#000; border:1px solid #444; color:white; padding:10px; border-radius:10px; font-size:12px; font-family: monospace;">
-                        <button onclick="saveWallet()" style="background:var(--gold); border:none; border-radius:10px; padding:0 20px; color:black; font-weight:900; transition: 0.3s;">SAVE</button>
+                <div class="card" style="background: rgba(255,255,255,0.03); border: 1px solid #333; flex-direction: column; padding: 15px; margin-bottom: 15px;">
+                    <small style="opacity:0.6; font-weight: bold; margin-bottom: 10px;">TON WALLET ADDRESS</small>
+                    <div style="display:flex; gap:10px; width: 100%;">
+                        <input type="text" id="wallet-addr" placeholder="UQAv...NTYi" style="flex:1; background:#000; border:1px solid #444; color:white; padding:10px; border-radius:10px; font-size:12px; font-family: monospace;">
+                        <button onclick="saveWallet()" style="background:var(--gold); border:none; border-radius:10px; padding:0 15px; color:black; font-weight:900;">SAVE</button>
                     </div>
                 </div>
 
-                <div class="card" style="background: linear-gradient(135deg, #111, #000); border: 1px dashed var(--gold); padding: 20px; margin-top: 15px;">
-                    <div style="display: flex; justify-content: space-between;">
-                        <h3 style="margin: 0; font-size: 16px; color: var(--gold);">🎁 REFERRAL PROGRAM</h3>
-                    </div>
-                    <div id="ref-link-display" style="background:rgba(0,0,0,0.5); padding:12px; border-radius:12px; font-size:11px; margin: 10px 0; color:#fff; word-break:break-all; text-align:center; border: 1px solid #222;">Loading...</div>
-                    <button class="btn" style="width:100%; height: 45px; font-weight: 900;" onclick="copyRef()">📋 COPY INVITE LINK</button>
+                <div class="card" style="background: linear-gradient(135deg, #111, #000); border: 1px dashed var(--gold); padding: 20px; flex-direction: column;">
+                    <h3 style="margin: 0; font-size: 16px; color: var(--gold);">🎁 REFERRAL PROGRAM</h3>
+                    <div id="ref-link-display" style="background:rgba(0,0,0,0.5); padding:12px; border-radius:12px; font-size:11px; margin: 15px 0; color:#fff; word-break:break-all; text-align:center; border: 1px solid #222;">Loading...</div>
+                    <button class="btn" style="width:100%; height: 45px; font-weight: 900;" onclick="copyRef()">📋 COPY LINK</button>
                 </div>
 
                 <div style="margin: 25px 0 10px 5px;">
-                    <h3 style="margin: 0; font-size: 14px; text-transform: uppercase;">Digital Assets</h3>
+                    <h3 style="margin: 0; font-size: 14px; text-transform: uppercase; color: var(--gold);">Digital Assets</h3>
                 </div>
-                <div id="user-portfolio"></div>
+                <div id="user-portfolio" style="margin-bottom: 20px;"></div>
 
-                <div class="card" style="background: linear-gradient(145deg, #1a0a0a, #050505); border: 1px solid #eb4034; padding: 25px; margin-top: 25px; text-align: center; border-radius: 20px;">
-                    <h3 style="margin: 0; color: #eb4034;">WPT BURN PORTAL</h3>
-                    <input type="number" id="burn-amount" placeholder="0.00" style="width: 80%; text-align: center; background: #000; border: 2px solid #400000; color: #eb4034; font-size: 24px; padding: 12px; margin: 15px 0;">
-                    <button class="btn" style="background: #eb4034; color: white; width: 100%;" onclick="executeBurn()">EXECUTE SACRIFICE</button>
+                <div style="margin: 25px 0 10px 5px;">
+                    <h3 style="margin: 0; font-size: 14px; text-transform: uppercase;">Global Leaderboard</h3>
                 </div>
-
-                <div id="leaderboard" style="padding-bottom: 80px; margin-top: 20px;"></div>
+                <div id="leaderboard" style="padding-bottom: 100px;"></div>
             </div>
         </div> 
 
 
-
-
-
-        <div id="p-profil" class="page">
-    <div class="prof-header" style="position: relative; overflow: hidden; padding: 40px 20px; background: linear-gradient(180deg, rgba(255,204,0,0.1) 0%, transparent 100%);">
-        
-        <div id="magnet-status-badge" style="position: absolute; top: 15px; right: 15px; backdrop-filter: blur(5px); background: rgba(0, 236, 255, 0.1); border: 1px solid #00ecff; color: #00ecff; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 900; letter-spacing: 1px;">
-            <span id="mining-multiplier-prof">x1.0</span> MAGNET ACTIVE
-        </div>
-
-        <div id="prof-initials" style="width:90px; height:90px; background: linear-gradient(135deg, var(--gold), #b8860b); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:36px; border: 4px solid #1a1a1c; box-shadow: 0 0 30px rgba(255, 204, 0, 0.3);">U</div>
-        
-        <h2 id="prof-name" style="margin: 0; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;">Username</h2>
-        
-        <div style="margin-top: 10px;">
-             <span style="font-size: 12px; opacity: 0.5; font-weight: bold;">ESTIMATED NET WORTH</span>
-             <div style="display: flex; justify-content: center; align-items: center; gap: 8px;">
-                <h1 id="usd-val" style="color:var(--green); margin:0; font-size: 40px; font-family: 'monospace';">$0.00</h1>
-                <span style="font-size: 14px; opacity: 0.6; color: var(--green);">USD</span>
-             </div>
-        </div>
-        <small id="wpt-price" style="background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 10px; color:var(--text); opacity:0.8; font-weight: bold; font-size: 11px;">📊 1 WPT = $0.0001</small>
-    </div>
-
-    <div style="display: flex; justify-content: center; gap: 10px; margin: -15px 0 20px 0; position: relative; z-index: 10;">
-        <div id="streak-container" style="display:none; background: #1a1a1c; border: 1px solid #FF8C00; padding: 8px 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(255, 140, 0, 0.2);">
-            <span style="color: #FF8C00; font-weight: 900; font-size: 12px;">🔥 <span id="streak-val">0</span> DAYS</span>
-        </div>
-        <div style="background: #1a1a1c; border: 1px solid #00ecff; padding: 8px 15px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0, 236, 255, 0.2);">
-            <span style="color: #00ecff; font-weight: 900; font-size: 12px;">⚡ BOOST: <span id="boost-val-prof">1.0</span>x</span>
-        </div>
-    </div>
-
-    <div style="padding: 0 15px;">
-        <div class="card" style="background: rgba(255,255,255,0.03); border: 1px solid #333;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <small style="opacity:0.6; font-weight: bold;">TON WALLET ADDRESS</small>
-                <span style="font-size: 10px; color: var(--gold);">SECURE 🔒</span>
-            </div>
-            <div style="display:flex; gap:10px;">
-                <input type="text" id="wallet-addr" placeholder="UQAv...NTYi" 
-                       style="flex:1; background:#000; border:1px solid #444; color:white; padding:10px; border-radius:10px; font-size:12px; font-family: monospace;">
-                <button onclick="saveWallet()" style="background:var(--gold); border:none; border-radius:10px; padding:0 20px; color:black; font-weight:900; transition: 0.3s;" onmousedown="this.style.transform='scale(0.95)'">SAVE</button>
-            </div>
-        </div>
-
-        <div class="card" style="background: linear-gradient(135deg, #111, #000); border: 1px dashed var(--gold); padding: 20px; margin-top: 15px;">
-            <div style="display: flex; justify-content: space-between;">
-                <h3 style="margin: 0; font-size: 16px; color: var(--gold);">🎁 REFERRAL PROGRAM</h3>
-                <span style="background: var(--gold); color: black; font-size: 9px; padding: 2px 6px; border-radius: 5px; font-weight: 900;">+500 WPT</span>
-            </div>
-            <p style="font-size: 11px; opacity: 0.7; margin: 10px 0;">Share your link and earn commissions on every friend's mine.</p>
-            <div id="ref-link-display" style="background:rgba(0,0,0,0.5); padding:12px; border-radius:12px; font-size:11px; margin-bottom:12px; color:#fff; word-break:break-all; text-align:center; border: 1px solid #222; font-family: monospace;">Loading...</div>
-            <button class="btn" style="width:100%; height: 45px; font-weight: 900;" onclick="copyRef()">📋 COPY INVITE LINK</button>
-        </div>
-    </div>
-
-    <div style="padding: 0 15px;">
-        <div style="display: flex; align-items: center; margin: 25px 0 10px 5px;">
-            <div style="width: 4px; height: 18px; background: var(--gold); border-radius: 10px; margin-right: 10px;"></div>
-            <h3 style="margin: 0; letter-spacing: 1px; font-size: 14px; text-transform: uppercase;">Digital Assets</h3>
-        </div>
-        <div id="user-portfolio" style="background: rgba(255,255,255,0.02); border-radius: 15px; padding: 5px;"></div>
-    </div>
-
-    <div style="padding: 0 15px;">
-        <div class="card" style="background: linear-gradient(145deg, #1a0a0a, #050505); border: 1px solid #eb4034; padding: 25px; margin-top: 25px; text-align: center; border-radius: 20px; position: relative;">
-            <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #eb4034; color: white; padding: 2px 15px; border-radius: 10px; font-size: 10px; font-weight: 900; z-index: 10;">DANGER ZONE</div>
-            <div style="font-size: 32px; margin-bottom: 5px;">🔥</div>
-            <h3 style="margin: 0; color: #eb4034; letter-spacing: 2px; font-weight: 900;">WPT BURN PORTAL</h3>
-            <p style="font-size: 11px; color: #888; margin: 5px 0 20px 0;">Destroy WPT to increase scarcity.</p>
-            
-            <input type="number" id="burn-amount" placeholder="0.00" 
-                   style="width: 80%; text-align: center; background: #000; border: 2px solid #400000; color: #eb4034; font-size: 24px; font-family: monospace; padding: 12px; border-radius: 12px; margin-bottom: 15px; outline: none; -webkit-appearance: none;">
-            
-            <button class="btn" style="background: #eb4034; color: white; width: 100%; font-weight: 900; height: 50px; box-shadow: 0 4px 15px rgba(235, 64, 52, 0.4);" onclick="executeBurn()">
-                EXECUTE SACRIFICE
-            </button>
-        </div>
-    </div>
-
-    <div style="padding: 0 15px;">
-        <div style="display: flex; align-items: center; margin: 35px 0 10px 5px;">
-            <div style="width: 4px; height: 18px; background: var(--purple); border-radius: 10px; margin-right: 10px;"></div>
-            <h3 style="margin: 0; letter-spacing: 1px; font-size: 14px; text-transform: uppercase;">Global Leaderboard</h3>
-        </div>
-        <div id="leaderboard" style="padding-bottom: 80px;"></div>
-    </div>
-</div>
-</div>
 
 
 
