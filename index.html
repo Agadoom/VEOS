@@ -882,52 +882,70 @@ async function updateBurnStats() {
     // --- MINING ---
     // --- FONCTION DE MINAGE CORRIGÉE ---
 async function mine(type, event) {
-    if (!uid) return;
-
-    // --- OPTIMISATION : Update visuel immédiat ---
-    const eBar = document.getElementById('e-f');
-    const eText = document.getElementById('e-t');
-    let currentE = parseInt(eText.innerText.split('/')[0].split(':')[1]);
-    
-    if (currentE <= 0) {
-        tg.showAlert("🪫 Out of energy!");
+    if (!uid) {
+        console.error("UID manquant");
         return;
     }
 
-    // On baisse l'énergie visuellement tout de suite
-    currentE -= 1; 
-    if(eBar) eBar.style.width = currentE + "%";
-    if(eText) eText.innerText = `Energy: ${currentE}/100`;
-
     try {
+        // 1. Appel API (On envoie juste l'ID et le Type, le serveur fait le reste)
         const response = await fetch(`${BASE_URL}/api/mine`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ user_id: uid, token_type: type })
+            body: JSON.stringify({ 
+                user_id: uid, 
+                token_type: type // "genesis", "unity" ou "veo"
+            })
         });
+
         const res = await response.json();
 
         if (res.ok) {
-            // Animation + Vibration
+    // Force l'affichage du badge si le serveur confirme le multiplier > 1
+    if (res.multiplier > 1) {
+        document.getElementById('boost-badge').style.display = 'inline-flex';
+        document.getElementById('mining-multiplier').innerText = res.multiplier.toFixed(1);
+}
+            // --- ANIMATION DU TEXTE FLOTTANT ---
             const x = event.clientX || (event.touches ? event.touches[0].clientX : 0);
             const y = event.clientY || (event.touches ? event.touches[0].clientY : 0);
-            createFloatingText(x, y, `+${parseFloat(res.reward).toFixed(2)}`);
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
             
-            // Sync finale avec les vraies valeurs du serveur
-            refresh(); 
-        }
-    } catch (e) { console.error("Mine Error", e); }
-}
+            const ft = document.createElement('div');
+            ft.className = 'floating-text';
+            ft.innerText = "+" + parseFloat(res.reward).toFixed(2);
+            ft.style.left = x + "px";
+            ft.style.top = (y - 40) + "px";
+            document.body.appendChild(ft);
+            setTimeout(() => ft.remove(), 800);
 
-function createFloatingText(x, y, text) {
-    const ft = document.createElement('div');
-    ft.className = 'floating-text';
-    ft.innerText = text;
-    ft.style.left = x + "px";
-    ft.style.top = (y - 40) + "px";
-    document.body.appendChild(ft);
-    setTimeout(() => ft.remove(), 800);
+            // Vibreur Telegram
+            if (window.Telegram.WebApp.HapticFeedback) {
+                window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+            }
+
+            // --- MISE À JOUR LOCALE ---
+            // On met à jour l'énergie avec la valeur exacte renvoyée par le serveur
+            const eBar = document.getElementById('e-f');
+            if (eBar) {
+                const percent = (res.new_energy / 100) * 100; // 100 = MAX_ENERGY
+                eBar.style.width = percent + "%";
+            }
+            const eText = document.getElementById('e-t');
+            if (eText) eText.innerText = `Energy: ${res.new_energy}/100`;
+
+            // On rafraîchit les soldes
+            refresh(); 
+
+        } else {
+            console.warn("API Error:", res.error);
+            if (res.error.includes("Insufficient") || res.error.includes("Low energy")) {
+                window.Telegram.WebApp.showAlert("🪫 No energy left! Wait for recharge.");
+            }
+        }
+
+    } catch (e) {
+        console.error("❌ Erreur réseau Minage:", e);
+    }
 }
 
 
