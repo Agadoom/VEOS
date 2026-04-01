@@ -814,8 +814,7 @@ async function updateBurnStats() {
             safeSet('gv', parseFloat(d.g || 0).toLocaleString());
             safeSet('uv', parseFloat(d.u || 0).toLocaleString());
             safeSet('vv', parseFloat(d.v || 0).toLocaleString());
-            safeSet('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
-        } catch(e) { console.log("Erreur soldes"); }
+            
 
         // 2. L'Énergie
         try {
@@ -1317,61 +1316,89 @@ async function executeTrade() {
 
 
          async function loadPortfolio() {
+    const container = document.getElementById('user-portfolio');
+    if (!container) return;
+
     try {
+        // 1. Récupération des données du serveur
         const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        if (!r.ok) throw new Error("Portfolio fetch failed");
         const assets = await r.json();
-        const container = document.getElementById('user-portfolio');
-        if (!container) return;
         
         container.innerHTML = "";
         let grandTotalUsd = 0;
 
-        // Filtrer les jetons vides
+        // 2. Filtrage des jetons vides (Nettoyage de l'écran)
         const myAssets = assets.filter(a => parseFloat(a.amount) > 0);
 
         if (myAssets.length === 0) {
-            container.innerHTML = "<p style='opacity:0.5; text-align:center; padding:20px;'>No assets yet.</p>";
+            container.innerHTML = "<p style='opacity:0.5; text-align:center; padding:20px; font-size:12px;'>No active assets yet.</p>";
+            // Même si pas de tokens, on met à jour le Net Worth avec juste les WPT
+            updateGlobalNetWorth(0);
             return;
         }
 
+        // 3. Boucle de rendu et calcul
         myAssets.forEach(asset => {
-            const qty = parseFloat(asset.amount);
-            const price = parseFloat(asset.price);
-            // CALCUL RÉEL : Ma quantité * Le prix actuel
+            const qty = parseFloat(asset.amount || 0);
+            const price = parseFloat(asset.price || 0.0001);
+            
+            // CALCUL MATHÉMATIQUE EXACT
             const myValue = qty * price;
             grandTotalUsd += myValue;
 
+            // Création de l'élément DOM (Plus robuste pour le clic)
             const div = document.createElement('div');
             div.className = "portfolio-item";
-            div.style = "display:flex; align-items:center; justify-content:space-between; padding:12px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.05);";
-            div.onclick = () => openTokenDetails(asset);
+            div.style = "display:flex; align-items:center; justify-content:space-between; padding:12px; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.05); transition: 0.2s;";
+            
+            // Fix du Clic pour p-details
+            div.onclick = () => {
+                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+                openTokenDetails(asset);
+            };
 
             div.innerHTML = `
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${asset.logo}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
-                    <div>
-                        <div style="font-weight:bold; font-size:14px;">${asset.name}</div>
+                <div style="display:flex; align-items:center; gap:12px; pointer-events:none;">
+                    <img src="${asset.logo || ''}" style="width:38px; height:38px; border-radius:50%; object-fit:cover; border:1px solid #333; background:#111;">
+                    <div style="text-align:left;">
+                        <div style="font-weight:bold; font-size:14px; color:#fff;">${asset.name}</div>
                         <div style="font-size:11px; opacity:0.6;">${qty.toLocaleString()} ${asset.symbol}</div>
                     </div>
                 </div>
-                <div style="text-align:right;">
-                    <div style="color:var(--green); font-weight:bold; font-size:14px;">$${myValue.toFixed(2)}</div>
-                    <div style="font-size:10px; opacity:0.5;">@ ${price.toFixed(6)}</div>
+                <div style="text-align:right; pointer-events:none;">
+                    <div style="color:var(--green); font-weight:bold; font-size:14px;">$${myValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    <div style="font-size:9px; opacity:0.4;">@ ${price.toFixed(6)}</div>
                 </div>
             `;
             container.appendChild(div);
         });
 
-        // Mise à jour du Net Worth en haut du profil
-        // On ajoute tes WPT (Genesis) au total des tokens
-        const wptValue = (window.userWptBalance || 0) * 0.0001;
-        const finalNetWorth = grandTotalUsd + wptValue;
-        
-        const netWorthEl = document.getElementById('usd-val');
-        if (netWorthEl) netWorthEl.innerText = `$${finalNetWorth.toFixed(2)}`;
+        // 4. Mise à jour du Net Worth Global (Centralisé)
+        updateGlobalNetWorth(grandTotalUsd);
 
-    } catch (e) { console.error("Portfolio Error:", e); }
+        console.log("✅ Portfolio & Net Worth synchronisés.");
+
+    } catch (e) { 
+        console.error("Portfolio Error:", e);
+        container.innerHTML = "<p style='text-align:center; color:#eb4034; font-size:11px;'>Sync Error 📡</p>";
+    }
 }
+
+// Fonction utilitaire pour éviter les conflits avec refresh()
+function updateGlobalNetWorth(tokensValue) {
+    // Calcul : (Solde WPT * Prix WPT) + Valeur totale des tokens
+    const wptBalance = window.userWptBalance || 0;
+    const wptValue = wptBalance * 0.0001;
+    const finalWorth = wptValue + tokensValue;
+
+    const netWorthEl = document.getElementById('usd-val');
+    if (netWorthEl) {
+        netWorthEl.innerText = `$${finalWorth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        netWorthEl.style.color = "var(--green)";
+    }
+}
+
 
 
 
@@ -1670,35 +1697,6 @@ async function handleMine() {
 
 
 
-function updateNetWorth(wptBalance, assets) {
-    const wptPrice = 0.0001; // Ton prix fixe
-    let totalUsd = wptBalance * wptPrice;
-
-    // On ajoute la valeur des autres tokens du portfolio
-    if(assets && assets.length > 0) {
-        assets.forEach(asset => {
-            totalUsd += (asset.amount * asset.price);
-        });
-    }
-
-    // Animation de compteur fluide
-    const el = document.getElementById('usd-val');
-    const startVal = parseFloat(el.innerText.replace('$', '')) || 0;
-    animateValue(el, startVal, totalUsd, 1000);
-}
-
-function animateValue(obj, start, end, duration) {
-    let startTimestamp = null;
-    const step = (timestamp) => {
-        if (!startTimestamp) startTimestamp = timestamp;
-        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-        obj.innerHTML = "$" + (progress * (end - start) + start).toFixed(2);
-        if (progress < 1) {
-            window.requestAnimationFrame(step);
-        }
-    };
-    window.requestAnimationFrame(step);
-}
 
 
 
