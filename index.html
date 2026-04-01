@@ -355,93 +355,67 @@
 
 
         <div id="p-launcher" class="page">
-    <h2 style="text-align:center; letter-spacing: 2px; font-weight: 800; color: #fff;">🚀 LAUNCHPAD</h2>
-    
+        <h2 style="text-align:center; letter-spacing: 2px; font-weight: 800; color: #fff;">🚀 LAUNCHPAD</h2>
 
-<div style="padding: 10px; margin-bottom: 10px;">
-    <div style="position: relative;">
-        <span style="position: absolute; left: 12px; top: 12px; opacity: 0.5;">🔍</span>
-        <input type="text" id="token-search" oninput="filterTokens()" 
-               placeholder="Search by name or $symbol..." 
-               style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 15px; border: 1px solid #333; background: rgba(255,255,255,0.03); color: white; outline: none; font-size: 14px;">
-    </div>
-</div>
-
-
-
-    <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #0a0a0b, #121214); padding:25px; border: 1px solid #222; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-        
-        <div style="text-align:center; margin-bottom: 5px;">
-            <b style="color:var(--gold); font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Create Ecosystem Token</b>
-            <p style="color:var(--text); font-size: 11px; margin: 5px 0 0 0;">Deploy your project on WPT Network</p>
+        <div style="padding: 10px; margin-bottom: 10px;">
+            <div style="position: relative;">
+                <span style="position: absolute; left: 12px; top: 12px; opacity: 0.5;">🔍</span>
+                <input type="text" id="token-search" oninput="loadMarket()" 
+                       placeholder="Search by name or $symbol..." 
+                       style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 15px; border: 1px solid #333; background: rgba(255,255,255,0.03); color: white; outline: none; font-size: 14px;">
+            </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <input type="text" id="tk-name" class="l-input" placeholder="Token Name" style="margin-bottom:0; border-color: #333;">
-            <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL" style="margin-bottom:0; border-color: #333; text-transform: uppercase;">
+        <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #0a0a0b, #121214); padding:25px; border: 1px solid #222; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <div style="text-align:center; margin-bottom: 5px;">
+                <b style="color:var(--gold); font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">Create Ecosystem Token</b>
+                <p style="color:var(--text); font-size: 11px; margin: 5px 0 0 0;">Deploy your project on WPT Network</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <input type="text" id="tk-name" class="l-input" placeholder="Token Name" style="margin-bottom:0; border-color: #333;">
+                <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL" style="margin-bottom:0; border-color: #333; text-transform: uppercase;">
+            </div>
+
+            <div style="position: relative;">
+                <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; opacity: 0.5;">🌐</span>
+                <input type="url" id="tk-url" class="l-input" placeholder="Website URL" style="padding-left: 35px; border-color: #222;">
+            </div>
+            
+            <div style="position: relative;">
+                <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; opacity: 0.5;">𝕏</span>
+                <input type="text" id="tk-x" class="l-input" placeholder="Twitter username" style="padding-left: 35px; border-color: #222;">
+            </div>
+
+            <textarea id="tk-desc" class="l-input" style="height:70px; resize: none; border-color: #222;" placeholder="Describe your project vision..."></textarea>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <label class="upload-box" style="background:#1a1a1c; border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:12px; cursor:pointer;">
+                    <span id="label-logo">🖼️ Add Logo</span>
+                    <input type="file" id="f-logo" hidden onchange="processFile('logo')">
+                </label>
+                <label class="upload-box" style="background:#1a1a1c; border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:12px; cursor:pointer;">
+                    <span id="label-banner">🌅 Add Banner</span>
+                    <input type="file" id="f-banner" hidden onchange="processFile('banner')">
+                </label>
+            </div>
+
+            <button class="btn btn-launch" style="background:var(--gold); width:100%; color:#000; margin-top:10px; height: 55px;" onclick="deployToken()">
+                <span style="font-weight: 900;">LAUNCH TOKEN</span>
+            </button>
         </div>
 
-        <div style="position: relative;">
-            <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; opacity: 0.5;">🌐</span>
-            <input type="url" id="tk-url" class="l-input" placeholder="Website URL" style="padding-left: 35px; border-color: #222;">
-        </div>
-        
-        <div style="position: relative;">
-            <span style="position: absolute; left: 12px; top: 12px; font-size: 14px; opacity: 0.5;">𝕏</span>
-            <input type="text" id="tk-x" class="l-input" placeholder="Twitter username or link" style="padding-left: 35px; border-color: #222;">
+        <div style="display: flex; gap: 10px; margin: 20px 0 15px 0; overflow-x: auto;">
+            <div onclick="setFilter('new', this)" class="tab-btn active-tab">✨ New</div>
+            <div onclick="setFilter('hot', this)" class="tab-btn">🔥 Hot</div>
+            <div onclick="setFilter('my', this)" class="tab-btn">👤 My Tokens</div>
         </div>
 
-        <textarea id="tk-desc" class="l-input" style="height:70px; resize: none; border-color: #222;" placeholder="Describe your project vision..."></textarea>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-            <label class="upload-box" style="background:#1a1a1c; border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:12px; cursor:pointer; transition: 0.3s;">
-                <span id="label-logo">🖼️ Add Logo</span>
-                <input type="file" id="f-logo" hidden onchange="processFile('logo'); document.getElementById('label-logo').innerText='✅ Logo Ready';">
-            </label>
-            <label class="upload-box" style="background:#1a1a1c; border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:12px; cursor:pointer; transition: 0.3s;">
-                <span id="label-banner">🌅 Add Banner</span>
-                <input type="file" id="f-banner" hidden onchange="processFile('banner'); document.getElementById('label-banner').innerText='✅ Banner Ready';">
-            </label>
-        </div>
-
-        <button class="btn btn-launch" style="background:var(--gold); width:100%; color:#000; margin-top:10px; height: 55px; font-size: 16px; box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);" onclick="deployToken()">
-            <span style="font-weight: 900;">LAUNCH TOKEN</span>
-            <br><span style="font-size: 10px; opacity: 0.7;">COST: 5,000 WPT</span>
-        </button>
-    </div>
-
-    <div style="display: flex; gap: 10px; margin: 20px 0 15px 0; overflow-x: auto; padding-bottom: 5px; scrollbar-width: none;">
-    <div onclick="setFilter('new', this)" class="tab-btn active-tab">✨ New</div>
-    <div onclick="setFilter('hot', this)" class="tab-btn">🔥 Hot</div>
-    <div onclick="setFilter('my', this)" class="tab-btn">👤 My Tokens</div>
-</div>
-
-<style>
-    .tab-btn {
-        background: #1a1a1c;
-        padding: 8px 16px;
-        border-radius: 12px;
-        font-size: 13px;
-        font-weight: bold;
-        color: var(--text);
-        white-space: nowrap;
-        cursor: pointer;
-        border: 1px solid #333;
-        transition: 0.3s;
-    }
-    .active-tab {
-        background: var(--gold);
-        color: #000;
-        border-color: var(--gold);
-        box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
-    }
-</style>
-
-    
-    <div id="token-list" style="padding-bottom: 20px;"></div>
+        <div id="token-list" style="padding-bottom: 20px;"></div>
+    </div> <div id="p-details" class="page" style="display:none;">
 </div>
 </div>
-</div>
+
 
 
 
