@@ -1,117 +1,164 @@
-{% extends "base.html" %}
-
-{% block content %}
-
-<div id="p-mine" class="page active-page">
-    <div class="prof-header" style="text-align: center; padding: 20px 0;">
-        <small id="prof-rank" style="color:var(--gold); font-weight:900;">RANK: #---</small>
-        <h1 id="tot" style="font-size:48px; margin:10px 0; font-family:monospace;">0.00</h1>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
+    <title>WPT Network Hub</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* --- VARIABLES & DESIGN SYSTEM --- */
+        :root { 
+            --gold: #FFD700; --purple: #A259FF; --green: #4caf50; 
+            --red: #eb4034; --bg: #000; --card-bg: #111; 
+        }
+        body { background: var(--bg); color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; overflow-x: hidden; }
+        .container { padding: 15px; padding-bottom: 100px; max-width: 500px; margin: auto; min-height: 100vh; }
         
-        <div style="padding: 0 20px;">
-            <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden;">
-                <div id="e-f" style="background: linear-gradient(90deg, var(--gold), #ffaa00); height:100%; width:0%; transition:0.4s;"></div>
-            </div>
-            <small id="e-t" style="opacity: 0.8;">Energy: 0/100</small>
-        </div>
+        /* --- PAGES --- */
+        .page { display: none; animation: fadeIn 0.3s ease-out; }
+        .active-page { display: block !important; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- UI ELEMENTS --- */
+        .card { background: linear-gradient(145deg, #1a1a1c, #0a0a0b); border: 1px solid #333; padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: var(--gold); color: black; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 900; cursor: pointer; transition: 0.2s; border-bottom: 3px solid #b8860b; }
+        .btn:active { transform: translateY(2px); border-bottom: 0px solid transparent; }
+        .l-input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #333; background: #000; color: white; margin-bottom: 5px; box-sizing: border-box; }
+
+        /* --- NAVIGATION --- */
+        .nav { position: fixed; bottom: 0; width: 100%; background: rgba(5, 5, 5, 0.9); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #222; backdrop-filter: blur(10px); z-index: 9999; }
+        .n-i { font-size: 24px; cursor: pointer; opacity: 0.4; transition: 0.3s; }
+        .n-i.active { opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 10px var(--gold)); }
+
+        .ticker { background: var(--gold); color: black; font-size: 10px; font-weight: 800; padding: 5px 0; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div class="ticker">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN</div>
+
+    <div class="container">
+        {% block content %}{% endblock %}
     </div>
 
-    <div style="display: grid; gap: 10px;">
-        <div class="card">
-            <div><b>Genesis (WPT)</b><br><small id="gv">0.00</small></div>
-            <button class="btn" onclick="mine('genesis', event)">MINE</button>
-        </div>
-        <div class="card">
-            <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
-            <button class="btn" style="background: #eee; color: #000;" onclick="mine('unity', event)">SYNC</button>
-        </div>
-        <div class="card" style="border-color: #A259FF;">
-            <div><b style="color:#A259FF;">Veo AI</b><br><small id="vv">0.00</small></div>
-            <button class="btn" style="background:#A259FF; color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
-        </div>
-    </div>
+    <nav class="nav">
+        <div onclick="showPage('p-mine')" id="n-mine" class="n-i active">🏠</div>
+        <div onclick="showPage('p-launcher')" id="n-launcher" class="n-i">🚀</div>
+        <div onclick="showPage('p-lottery')" id="n-lottery" class="n-i">🎰</div>
+        <div onclick="showPage('p-wallet')" id="n-wallet" class="n-i">💼</div>
+        <div onclick="showPage('p-profil')" id="n-profil" class="n-i">👤</div>
+    </nav>
 
-    <div class="coin-container" style="text-align:center; margin-top:30px;">
-        <img src="/static/genesis.png" class="main-coin" style="width:160px; cursor:pointer;" onclick="mine('genesis', event)">
-    </div>
-</div>
+    <script>
+        const tg = window.Telegram.WebApp;
+        const uid = tg.initDataUnsafe?.user?.id || 12345;
+        const BASE_URL = window.location.origin;
 
-<div id="p-launcher" class="page" style="display:none;">
-    <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
-    
-    <div class="card" style="flex-direction:column; gap:10px; background: rgba(255,215,0,0.05);">
-        <b style="color:var(--gold);">CREATE NEW TOKEN</b>
-        <input type="text" id="tk-name" placeholder="Token Name" style="width:95%; padding:12px; border-radius:10px; border:1px solid #333; background:#000; color:#fff;">
-        <input type="text" id="tk-sym" placeholder="$SYMBOL" style="width:95%; padding:12px; border-radius:10px; border:1px solid #333; background:#000; color:#fff;">
-        <button class="btn" style="width:100%;" onclick="deployToken()">DEPLOY (5,000 WPT)</button>
-    </div>
+        // 1. NAVIGATION PRINCIPALE
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+            const target = document.getElementById(pageId);
+            if (target) target.classList.add('active-page');
+            
+            // Update Icons
+            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+            const navId = pageId.startsWith('p-details') ? 'n-launcher' : pageId.replace('p-', 'n-');
+            const navEl = document.getElementById(navId);
+            if (navEl) navEl.classList.add('active');
 
-    <h3 style="margin: 20px 0 10px;">Trending Tokens</h3>
-    <div id="token-list">
-        </div>
-</div>
+            // Chargement automatique des données
+            if (pageId === 'p-launcher') loadMarket();
+            if (pageId === 'p-profil') { loadPortfolio(); loadLeaderboard(); }
+            if (pageId === 'p-lottery') loadLottery();
+            
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        }
 
-<div id="p-details" class="page" style="display:none;">
-    <button onclick="showPage('p-launcher')" style="background:none; border:none; color:var(--gold); cursor:pointer; padding:10px 0;">← Back to Market</button>
-    
-    <div class="card" style="flex-direction:column; align-items:center; padding:30px;">
-        <h1 id="det-sym" style="font-size:40px; margin:0;">$---</h1>
-        <h2 id="det-name" style="opacity:0.6; margin:0;">Token Name</h2>
-        <h1 id="det-price" style="color:var(--gold); font-size:32px; margin:20px 0;">0.00 WPT</h1>
-    </div>
+        // 2. SYNCHRONISATION (Le "Refresh")
+        async function refresh() {
+            if (!uid) return;
+            try {
+                const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+                if (!r.ok) return;
+                const d = await r.json();
 
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <button class="btn" onclick="openTrade('buy')" style="padding:20px; font-size:18px;">BUY</button>
-        <button class="btn" onclick="openTrade('sell')" style="background:#333; color:white; padding:20px; font-size:18px;">SELL</button>
-    </div>
+                const safeSet = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
+                
+                safeSet('tot', parseFloat(d.score || 0).toLocaleString());
+                safeSet('gv', parseFloat(d.g || 0).toLocaleString());
+                safeSet('uv', parseFloat(d.u || 0).toLocaleString());
+                safeSet('vv', parseFloat(d.v || 0).toLocaleString());
+                safeSet('wallet-balance', parseFloat(d.g || 0).toLocaleString());
+                safeSet('prof-name', (d.name || "CITIZEN").toUpperCase());
+                safeSet('prof-rank', `RANK: #${d.rank || '---'}`);
+                
+                if (document.getElementById('e-f')) {
+                    document.getElementById('e-f').style.width = (d.energy || 0) + "%";
+                }
+                safeSet('e-t', `Energy: ${Math.floor(d.energy || 0)}/100`);
 
-    <div class="card" style="margin-top:20px; flex-direction:column; align-items:start;">
-        <b>Holders Info:</b>
-        <small id="det-supply">Supply: ---</small>
-        <small id="det-burn">Burned: ---</small>
-    </div>
-</div>
+            } catch (e) { console.error("Sync Error", e); }
+        }
 
-<div id="p-wallet" class="page" style="display:none;">
-    <h2 style="text-align:center;">💼 MY WALLET</h2>
-    
-    <div class="card" style="flex-direction:column; text-align:center; padding:40px; background: linear-gradient(145deg, #111, #000);">
-        <small style="letter-spacing:2px; opacity:0.5;">TOTAL BALANCE</small>
-        <h1 id="wallet-balance" style="font-size:45px; color:var(--gold); margin:10px 0;">0.00</h1>
-        <button class="btn" style="background:#0088cc; color:white; box-shadow:none;" onclick="connectTon()">CONNECT TON WALLET</button>
-    </div>
+        // 3. MINAGE
+        async function mine(type, event) {
+            try {
+                const r = await fetch(`${BASE_URL}/api/mine`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: uid, token_type: type })
+                });
+                const res = await r.json();
+                if (res.ok) {
+                    refresh();
+                    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+                } else {
+                    tg.showAlert(res.error || "Low Energy!");
+                }
+            } catch (e) { console.error("Mine error", e); }
+        }
 
-    <h3 style="margin-top:30px;">Buy WPT Stars</h3>
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <div class="card" style="flex-direction:column; text-align:center; padding:20px;">
-            <b style="font-size:20px;">⭐ 50</b>
-            <small>10k WPT</small>
-            <button class="btn" style="width:100%; margin-top:10px;" onclick="buyStarsPack(50)">BUY</button>
-        </div>
-        <div class="card" style="flex-direction:column; text-align:center; padding:20px;">
-            <b style="font-size:20px;">⭐ 250</b>
-            <small>60k WPT</small>
-            <button class="btn" style="width:100%; margin-top:10px;" onclick="buyStarsPack(250)">BUY</button>
-        </div>
-    </div>
-</div>
+        // 4. LOGIQUE LAUNCHER / MARKET
+        async function loadMarket() {
+            const list = document.getElementById('token-list');
+            list.innerHTML = `<p style="text-align:center; opacity:0.5;">Loading market...</p>`;
+            try {
+                const r = await fetch(`${BASE_URL}/api/launcher/market`);
+                const tokens = await r.json();
+                list.innerHTML = tokens.map(t => `
+                    <div class="card" onclick="openTokenDetails('${t.symbol}')" style="cursor:pointer;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <img src="${t.logo || '/static/default-logo.png'}" style="width:40px; height:40px; border-radius:10px;">
+                            <div><b>${t.name}</b><br><small style="color:var(--gold);">$${t.symbol}</small></div>
+                        </div>
+                        <div style="text-align:right;">
+                            <b style="color:var(--green);">${t.price} WPT</b><br>
+                            <small style="opacity:0.5;">MCap: $${t.mcap || 0}</small>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { list.innerHTML = "Error loading market"; }
+        }
 
-<div id="p-profil" class="page" style="display:none;">
-    <div class="prof-header" style="text-align:center; padding:30px;">
-        <div id="prof-initials" style="width:80px; height:80px; background:var(--gold); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:32px; box-shadow: 0 0 20px rgba(255,215,0,0.2);">U</div>
-        <h2 id="prof-name" style="margin:0;">USERNAME</h2>
-        <h1 id="usd-val" style="color:#4caf50; margin:5px 0;">$0.00</h1>
-    </div>
+        // 5. STARS & PAIEMENTS
+        async function buyStarsPack(amount) {
+            try {
+                const r = await fetch(`${BASE_URL}/api/stars/create-invoice`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ user_id: uid, stars: amount })
+                });
+                const d = await r.json();
+                if (d.link) tg.openInvoice(d.link);
+            } catch (e) { tg.showAlert("Payment Error"); }
+        }
 
-    <div style="display:flex; justify-content: space-around; margin-bottom: 20px; border-bottom: 1px solid #222;">
-        <div onclick="toggleProfilTab('assets')" id="tab-assets" style="padding:10px; border-bottom: 2px solid var(--gold); cursor:pointer;">Assets</div>
-        <div onclick="toggleProfilTab('rank')" id="tab-rank" style="padding:10px; opacity:0.5; cursor:pointer;">Leaderboard</div>
-    </div>
-
-    <div id="user-portfolio">
-        </div>
-    
-    <div id="leaderboard" style="display:none;">
-        </div>
-</div>
-
-{% endblock %}
+        // --- INITIALISATION ---
+        window.onload = () => {
+            tg.expand();
+            tg.enableClosingConfirmation();
+            refresh();
+            setInterval(refresh, 10000);
+        };
+    </script>
+</body>
+</html>
