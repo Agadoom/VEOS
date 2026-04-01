@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from telegram import Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+
 
 import config, database
 from routes import mine, launcher, user, stars, lottery, premium, admin
@@ -38,11 +41,23 @@ async def serve_admin_page():
         with open("admin.html", "r", encoding="utf-8") as f: return f.read()
     return "<h1>❌ Admin Dashboard not found!</h1>"
 
-@app.get("/", response_class=HTMLResponse)
-async def serve_index():
-    if os.path.exists("index.html"):
-        with open("index.html", "r", encoding="utf-8") as f: return f.read()
-    return "<h1>Frontend index.html not found!</h1>"
+
+
+
+
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+async def home(request: Request):
+    # Python prend 'mine.html', voit qu'il dépend de 'base.html', 
+    # fusionne les deux et envoie le résultat au téléphone.
+    return templates.TemplateResponse("mine.html", {"request": request})
+
+
+
+
 
 # --- TELEGRAM HANDLERS ---
 
