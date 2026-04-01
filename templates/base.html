@@ -3,43 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
-    <title>WPT Network Hub</title>
+    <title>WPT Hub</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        /* --- VARIABLES & DESIGN SYSTEM --- */
-        :root { 
-            --gold: #FFD700; --purple: #A259FF; --green: #4caf50; 
-            --red: #eb4034; --bg: #000; --card-bg: #111; 
-        }
-        body { background: var(--bg); color: white; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; overflow-x: hidden; }
-        .container { padding: 15px; padding-bottom: 100px; max-width: 500px; margin: auto; min-height: 100vh; }
-        
-        /* --- PAGES --- */
-        .page { display: none; animation: fadeIn 0.3s ease-out; }
+        :root { --gold: #FFD700; --purple: #A259FF; --green: #4caf50; --red: #eb4034; --text: #eee; }
+        body { background: #000; color: white; font-family: sans-serif; margin: 0; overflow-x: hidden; }
+        .container { padding: 15px; padding-bottom: 100px; max-width: 500px; margin: auto; }
+        .page { display: none; animation: fadeIn 0.3s; }
         .active-page { display: block !important; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* --- UI ELEMENTS --- */
-        .card { background: linear-gradient(145deg, #1a1a1c, #0a0a0b); border: 1px solid #333; padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-        .btn { background: var(--gold); color: black; border: none; padding: 10px 18px; border-radius: 12px; font-weight: 900; cursor: pointer; transition: 0.2s; border-bottom: 3px solid #b8860b; }
-        .btn:active { transform: translateY(2px); border-bottom: 0px solid transparent; }
-        .l-input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #333; background: #000; color: white; margin-bottom: 5px; box-sizing: border-box; }
-
-        /* --- NAVIGATION --- */
-        .nav { position: fixed; bottom: 0; width: 100%; background: rgba(5, 5, 5, 0.9); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #222; backdrop-filter: blur(10px); z-index: 9999; }
-        .n-i { font-size: 24px; cursor: pointer; opacity: 0.4; transition: 0.3s; }
-        .n-i.active { opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 10px var(--gold)); }
-
-        .ticker { background: var(--gold); color: black; font-size: 10px; font-weight: 800; padding: 5px 0; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .card { background: #111; border: 1px solid #333; padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .btn { background: var(--gold); border: none; padding: 10px 18px; border-radius: 12px; font-weight: 900; cursor: pointer; }
+        .l-input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #333; background: #000; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
+        .nav { position: fixed; bottom: 0; width: 100%; background: rgba(5,5,5,0.9); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #222; backdrop-filter: blur(10px); z-index: 999; }
+        .n-i { font-size: 24px; opacity: 0.4; cursor: pointer; }
+        .n-i.active { opacity: 1; filter: drop-shadow(0 0 8px var(--gold)); }
     </style>
 </head>
 <body>
-    <div class="ticker">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE TO EARN</div>
-
     <div class="container">
         {% block content %}{% endblock %}
     </div>
-
     <nav class="nav">
         <div onclick="showPage('p-mine')" id="n-mine" class="n-i active">🏠</div>
         <div onclick="showPage('p-launcher')" id="n-launcher" class="n-i">🚀</div>
@@ -53,112 +37,49 @@
         const uid = tg.initDataUnsafe?.user?.id || 12345;
         const BASE_URL = window.location.origin;
 
-        // 1. NAVIGATION PRINCIPALE
-        function showPage(pageId) {
+        function showPage(pId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-            const target = document.getElementById(pageId);
-            if (target) target.classList.add('active-page');
-            
-            // Update Icons
-            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-            const navId = pageId.startsWith('p-details') ? 'n-launcher' : pageId.replace('p-', 'n-');
-            const navEl = document.getElementById(navId);
-            if (navEl) navEl.classList.add('active');
-
-            // Chargement automatique des données
-            if (pageId === 'p-launcher') loadMarket();
-            if (pageId === 'p-profil') { loadPortfolio(); loadLeaderboard(); }
-            if (pageId === 'p-lottery') loadLottery();
-            
-            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+            document.getElementById(pId).classList.add('active-page');
+            document.querySelectorAll('.n-i').forEach(i => i.classList.remove('active'));
+            const navId = pId.startsWith('p-details') ? 'n-launcher' : pId.replace('p-', 'n-');
+            document.getElementById(navId)?.classList.add('active');
+            if(pId === 'p-launcher') loadMarket();
+            if(pId === 'p-profil') { loadPortfolio(); loadLeaderboard(); }
+            tg.HapticFeedback?.impactOccurred('light');
         }
 
-        // 2. SYNCHRONISATION (Le "Refresh")
         async function refresh() {
-            if (!uid) return;
             try {
                 const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-                if (!r.ok) return;
                 const d = await r.json();
-
-                const safeSet = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
-                
-                safeSet('tot', parseFloat(d.score || 0).toLocaleString());
-                safeSet('gv', parseFloat(d.g || 0).toLocaleString());
-                safeSet('uv', parseFloat(d.u || 0).toLocaleString());
-                safeSet('vv', parseFloat(d.v || 0).toLocaleString());
-                safeSet('wallet-balance', parseFloat(d.g || 0).toLocaleString());
-                safeSet('prof-name', (d.name || "CITIZEN").toUpperCase());
-                safeSet('prof-rank', `RANK: #${d.rank || '---'}`);
-                
-                if (document.getElementById('e-f')) {
-                    document.getElementById('e-f').style.width = (d.energy || 0) + "%";
-                }
-                safeSet('e-t', `Energy: ${Math.floor(d.energy || 0)}/100`);
-
-            } catch (e) { console.error("Sync Error", e); }
+                document.getElementById('tot').innerText = d.score.toLocaleString();
+                document.getElementById('wallet-balance').innerText = d.g.toLocaleString();
+                document.getElementById('e-f').style.width = d.energy + "%";
+                document.getElementById('e-t').innerText = "Energy: " + Math.floor(d.energy) + "/100";
+            } catch(e) {}
         }
 
-        // 3. MINAGE
-        async function mine(type, event) {
-            try {
-                const r = await fetch(`${BASE_URL}/api/mine`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ user_id: uid, token_type: type })
-                });
-                const res = await r.json();
-                if (res.ok) {
-                    refresh();
-                    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-                } else {
-                    tg.showAlert(res.error || "Low Energy!");
-                }
-            } catch (e) { console.error("Mine error", e); }
+        async function mine(type) {
+            const r = await fetch(`${BASE_URL}/api/mine`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_id: uid, token_type: type})
+            });
+            const res = await r.json();
+            if(res.ok) { refresh(); tg.HapticFeedback?.impactOccurred('medium'); }
         }
 
-        // 4. LOGIQUE LAUNCHER / MARKET
         async function loadMarket() {
-            const list = document.getElementById('token-list');
-            list.innerHTML = `<p style="text-align:center; opacity:0.5;">Loading market...</p>`;
-            try {
-                const r = await fetch(`${BASE_URL}/api/launcher/market`);
-                const tokens = await r.json();
-                list.innerHTML = tokens.map(t => `
-                    <div class="card" onclick="openTokenDetails('${t.symbol}')" style="cursor:pointer;">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <img src="${t.logo || '/static/default-logo.png'}" style="width:40px; height:40px; border-radius:10px;">
-                            <div><b>${t.name}</b><br><small style="color:var(--gold);">$${t.symbol}</small></div>
-                        </div>
-                        <div style="text-align:right;">
-                            <b style="color:var(--green);">${t.price} WPT</b><br>
-                            <small style="opacity:0.5;">MCap: $${t.mcap || 0}</small>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (e) { list.innerHTML = "Error loading market"; }
+            const r = await fetch(`${BASE_URL}/api/launcher/market`);
+            const tokens = await r.json();
+            document.getElementById('token-list').innerHTML = tokens.map(t => `
+                <div class="card" onclick="openDetails('${t.symbol}')">
+                    <b>${t.name} ($${t.symbol})</b>
+                    <span>${t.price} WPT</span>
+                </div>
+            `).join('');
         }
 
-        // 5. STARS & PAIEMENTS
-        async function buyStarsPack(amount) {
-            try {
-                const r = await fetch(`${BASE_URL}/api/stars/create-invoice`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ user_id: uid, stars: amount })
-                });
-                const d = await r.json();
-                if (d.link) tg.openInvoice(d.link);
-            } catch (e) { tg.showAlert("Payment Error"); }
-        }
-
-        // --- INITIALISATION ---
-        window.onload = () => {
-            tg.expand();
-            tg.enableClosingConfirmation();
-            refresh();
-            setInterval(refresh, 10000);
-        };
+        window.onload = () => { tg.expand(); refresh(); setInterval(refresh, 10000); };
     </script>
 </body>
 </html>
