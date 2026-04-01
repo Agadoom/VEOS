@@ -769,39 +769,49 @@
     }
 
     async function refresh() {
-        if (!uid) return;
-        try {
-            // Synchro énergie
-            await fetch(`${BASE_URL}/api/mine/sync/${uid}`);
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            if (!r.ok) return;
-            const d = await r.json();
+    if (!uid) return;
+    try {
+        // On ne bloque pas tout avec await sur la synchro énergie
+        fetch(`${BASE_URL}/api/mine/sync/${uid}`).catch(e => console.log("Sync delay"));
 
-            const update = (id, val) => {
-                const el = document.getElementById(id);
-                if (el) el.innerText = val;
-            };
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) return;
+        const d = await r.json();
 
-            // Mise à jour des soldes
-            update('tot', parseFloat(d.score || 0).toLocaleString());
-            update('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
-            update('gv', parseFloat(d.g || 0).toLocaleString());
-            
-            // Energie
-            const eBar = document.getElementById('e-f');
-            const eText = document.getElementById('e-t');
-            if (d.max_energy > 0) {
-                const percent = (d.energy / d.max_energy) * 100;
-                if (eBar) eBar.style.width = percent + "%";
-                if (eText) eText.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
-            }
+        // Fonction d'update sécurisée qui ne crash pas si l'ID manque
+        const safeUpdate = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
+        };
 
-            // Lien parrainage (FIXÉ)
-            const refDisplay = document.getElementById('ref-link-display');
-            if (refDisplay) refDisplay.innerText = `https://t.me/${BOT_USERNAME}?start=${uid}`;
+        // On remplit les valeurs de base
+        safeUpdate('tot', parseFloat(d.score || 0).toLocaleString());
+        safeUpdate('wallet-balance', parseFloat(d.score || 0).toLocaleString());
+        safeUpdate('gv', parseFloat(d.g || 0).toLocaleString());
+        
+        // C'est ici que ça bloquait sûrement :
+        const usdVal = document.getElementById('usd-val');
+        if (usdVal) {
+            usdVal.innerText = `$${parseFloat(d.usd_value || 0).toFixed(2)}`;
+        }
 
-        } catch (e) { console.error("Refresh Error", e); }
+        // Energie
+        const eBar = document.getElementById('e-f');
+        const eText = document.getElementById('e-t');
+        if (d.max_energy > 0) {
+            const percent = (d.energy / d.max_energy) * 100;
+            if (eBar) eBar.style.width = percent + "%";
+            if (eText) eText.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
+        }
+
+        // On définit la balance globale pour le reste du script
+        window.userWptBalance = d.g || 0;
+
+    } catch (e) { 
+        console.error("Refresh Crash Prevented:", e);
     }
+}
+
 
  
 
