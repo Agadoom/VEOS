@@ -166,3 +166,54 @@ async def get_token_stats(tid: int):
         }
     finally:
         c.close(); conn.close()
+
+
+
+@router.post("/sell")
+async def sell_token(req: TradeRequest):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Vérifier si l'utilisateur possède vraiment les tokens
+        c.execute("SELECT amount FROM user_community_assets WHERE user_id = %s AND token_id = %s", (req.user_id, req.token_id))
+        res = c.fetchone()
+        
+        if not res or float(res[0]) < req.amount:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Insufficient token balance"})
+
+        # 2. Récupérer le prix actuel
+        c.execute("SELECT price FROM community_tokens WHERE id = %s", (req.token_id,))
+        t_res = c.fetchone()
+        if not t_res:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Token not found"})
+            
+        current_price = float(t_res[0])
+        gross_wpt = req.amount * current_price
+        
+        # 3. Taxe 1%
+        fee = gross_wpt * 0.01
+        net_wpt = gross_wpt - fee
+
+        # 4. EXÉCUTION DES MOUVEMENTS
+        # Retrait des assets
+        c.execute("UPDATE user_community_assets SET amount = amount - %s WHERE user_id = %s AND token_id = %s", 
+                  (req.amount, req.user_id, req.token_id))
+        
+        # Crédit WPT (Genesis) à l'utilisateur et taxe à l'Admin
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (net_wpt, req.user_id))
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (fee, ADMIN_ID))
+        
+        # Impact sur le prix (Baisse de 1% par vente pour simuler le marché)
+        new_price = current_price * 0.99
+        c.execute("UPDATE community_tokens SET price = %s WHERE id = %s", (new_price, req.token_id))
+
+        conn.commit()
+        return {"ok": True, "received": net_wpt}
+
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ SELL CRASH: {e}") # Regarde ça dans tes logs Railway !
+        return JSONResponse(status_code=500, content={"ok": False, "error": "Internal Server Error"})
+    finally:
+        c.close(); conn.close()
+
