@@ -730,87 +730,132 @@
     const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
     const BASE_URL = 'https://veos-production-a2de.up.railway.app';
-    const BOT_USERNAME = 'OWPCsBot'; // Vérifie que c'est le bon nom
+    const BOT_USERNAME = 'OWPCsBot'; // Ton bot Telegram
 
     let currentTokenId = null;
+    let b64_logo = "", b64_banner = "";
 
-    // --- INITIALISATION PROPRE ---
+    // --- LANCEMENT SÉCURISÉ ---
     window.addEventListener('DOMContentLoaded', () => {
-        showPage('p-mine'); // Affiche la page d'abord pour débloquer l'UI
+        console.log("🚀 Lancement Système...");
+        
+        // 1. On force l'affichage de la page d'accueil tout de suite
+        const startPage = document.getElementById('p-mine');
+        if(startPage) startPage.classList.add('active-page');
+        
+        // 2. On lance les chargements en parallèle (sans bloquer l'UI)
         refresh(); 
         loadMarket(); 
         updateBurnStats(); 
     });
 
-    // --- LE TIMER DOIT ÊTRE À L'EXTÉRIEUR ---
+    // --- TIMER DE SYNC (A L'EXTÉRIEUR) ---
     setInterval(() => {
-        const detPage = document.getElementById('p-details');
-        const modal = document.getElementById('trade-modal');
-        if ((!detPage || detPage.style.display !== 'block') && 
-            (!modal || modal.style.display !== 'flex')) {
+        const isDetailsOpen = document.getElementById('p-details').style.display === 'block';
+        const isModalOpen = document.getElementById('trade-modal').style.display === 'flex';
+        
+        if (!isDetailsOpen && !isModalOpen) {
             refresh();
         }
     }, 15000);
 
-    function showPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-        const target = document.getElementById(pageId);
-        if(target) target.classList.add('active-page');
 
+    
+
+        function showPage(pageId) {
+        // 1. On cache tout
+        document.querySelectorAll('.page').forEach(p => {
+            p.style.display = 'none';
+            p.classList.remove('active-page');
+        });
+
+        // 2. On affiche la cible
+        const target = document.getElementById(pageId);
+        if (target) {
+            target.style.display = 'block';
+            target.classList.add('active-page');
+        }
+
+        // 3. Mise à jour de la Nav Bar
         document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
         const navId = pageId.replace('p-', 'n-');
         const navIcon = document.getElementById(navId);
-        if(navIcon) navIcon.classList.add('active');
+        if (navIcon) navIcon.classList.add('active');
 
-        if(pageId === 'p-profil') { loadPortfolio(); }
-        if(pageId === 'p-launcher') { loadMarket(); }
-        
-        if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        // 4. Chargements spécifiques selon la page
+        if (pageId === 'p-profil') { loadPortfolio(); loadLeaderboard(); }
+        if (pageId === 'p-launcher') { loadMarket(); }
+        if (pageId === 'p-lottery') { updateLotteryInfo(); }
+
+        // 5. Retour Haptique
+        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
     }
 
-    async function refresh() {
-    if (!uid) return;
-    try {
-        // On ne bloque pas tout avec await sur la synchro énergie
-        fetch(`${BASE_URL}/api/mine/sync/${uid}`).catch(e => console.log("Sync delay"));
 
-        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) return;
-        const d = await r.json();
+        async function refresh() {
+        if (!uid) return;
 
-        // Fonction d'update sécurisée qui ne crash pas si l'ID manque
-        const safeUpdate = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = val;
-        };
+        try {
+            // Synchro énergie rapide (On n'attend pas la réponse pour la suite)
+            fetch(`${BASE_URL}/api/mine/sync/${uid}`).catch(() => {});
 
-        // On remplit les valeurs de base
-        safeUpdate('tot', parseFloat(d.score || 0).toLocaleString());
-        safeUpdate('wallet-balance', parseFloat(d.score || 0).toLocaleString());
-        safeUpdate('gv', parseFloat(d.g || 0).toLocaleString());
-        
-        // C'est ici que ça bloquait sûrement :
-        const usdVal = document.getElementById('usd-val');
-        if (usdVal) {
-            usdVal.innerText = `$${parseFloat(d.usd_value || 0).toFixed(2)}`;
+            // Récupération des données utilisateur
+            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+            if (!r.ok) return;
+            const d = await r.json();
+
+            // --- FONCTION D'UPDATE SÉCURISÉE ---
+            const safeUpdate = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = val;
+            };
+
+            // 1. Soldes WPT (Genesis)
+            const score = parseFloat(d.score || 0);
+            safeUpdate('tot', score.toLocaleString());
+            safeUpdate('wallet-balance', score.toLocaleString());
+            safeUpdate('gv', parseFloat(d.g || 0).toLocaleString());
+
+            // 2. Valeur USD (Net Worth)
+            const usd = parseFloat(d.usd_value || 0);
+            safeUpdate('usd-val', `$${usd.toFixed(2)}`);
+
+            // 3. Infos Profil
+            safeUpdate('prof-name', d.name || 'Citizen');
+            safeUpdate('prof-rank', "RANK: #" + (d.rank || '---'));
+            
+            const initials = document.getElementById('prof-initials');
+            if (initials && d.name) initials.innerText = d.name[0].toUpperCase();
+
+            // 4. Boost & Multiplier
+            const m = parseFloat(d.multiplier || 1.0);
+            safeUpdate('mining-multiplier', m.toFixed(1));
+            safeUpdate('mining-multiplier-prof', `x${m.toFixed(1)}`);
+            safeUpdate('boost-val-prof', m.toFixed(1));
+
+            // 5. Énergie (Barre et Texte)
+            const eBar = document.getElementById('e-f');
+            const eText = document.getElementById('e-t');
+            if (d.max_energy > 0) {
+                const energyVal = parseFloat(d.energy || 0);
+                const percent = (energyVal / d.max_energy) * 100;
+                if (eBar) eBar.style.width = percent + "%";
+                if (eText) eText.innerText = `Energy: ${Math.floor(energyVal)}/${d.max_energy}`;
+            }
+
+            // 6. Referral Link
+            const refDisplay = document.getElementById('ref-link-display');
+            if (refDisplay) refDisplay.innerText = `https://t.me/${BOT_USERNAME}?start=${uid}`;
+
+            // Stockage Global pour usage interne
+            window.userWptBalance = d.g || 0;
+            console.log("✅ UI Sync OK");
+
+        } catch (e) {
+            console.error("❌ Erreur de rafraîchissement:", e);
         }
-
-        // Energie
-        const eBar = document.getElementById('e-f');
-        const eText = document.getElementById('e-t');
-        if (d.max_energy > 0) {
-            const percent = (d.energy / d.max_energy) * 100;
-            if (eBar) eBar.style.width = percent + "%";
-            if (eText) eText.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
-        }
-
-        // On définit la balance globale pour le reste du script
-        window.userWptBalance = d.g || 0;
-
-    } catch (e) { 
-        console.error("Refresh Crash Prevented:", e);
     }
-}
+
 
 
  
