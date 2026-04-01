@@ -1,19 +1,103 @@
 {% extends "base.html" %}
 
 {% block content %}
+
 <div id="p-mine" class="page active-page">
-    <h1>MON SCORE : <span id="tot">0.00</span></h1>
-    <div class="card">
-        <span>Genesis WPT</span>
-        <button class="btn" onclick="mine('genesis', event)">MINE</button>
+    <div class="prof-header" style="text-align: center; padding: 20px 0;">
+        <small id="prof-rank" style="color:var(--gold); font-weight:900;">RANK: #---</small>
+        <h1 id="tot" style="font-size:48px; margin:10px 0; font-family:monospace;">0.00</h1>
+        
+        <div style="padding: 0 20px;">
+            <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden;">
+                <div id="e-f" style="background: linear-gradient(90deg, var(--gold), #ffaa00); height:100%; width:0%; transition:0.4s;"></div>
+            </div>
+            <small id="e-t" style="opacity: 0.8;">Energy: 0/100</small>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <span style="background: rgba(235, 64, 52, 0.1); color: #eb4034; padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid rgba(235, 64, 52, 0.2);">
+            🔥 TOTAL BURNED: <span id="global-burned-val">0.00</span> WPT
+        </span>
+    </div>
+
+    <div style="display: grid; gap: 10px;">
+        <div class="card">
+            <div><b>Genesis (WPT)</b><br><small id="gv">0.00</small></div>
+            <button class="btn" onclick="mine('genesis', event)">MINE</button>
+        </div>
+        <div class="card">
+            <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
+            <button class="btn" style="background: #eee; color: #000;" onclick="mine('unity', event)">SYNC</button>
+        </div>
+        <div class="card" style="border-color: #A259FF;">
+            <div><b style="color:#A259FF;">Veo AI</b><br><small id="vv">0.00</small></div>
+            <button class="btn" style="background:#A259FF; color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
+        </div>
+    </div>
+
+    <div class="coin-container" style="text-align:center; margin-top:30px;">
+        <img src="/static/genesis.png" class="main-coin" style="width:160px; cursor:pointer;" onclick="mine('genesis', event)">
     </div>
 </div>
 
 <div id="p-launcher" class="page">
-    <h1>LAUNCHPAD 🚀</h1>
+    <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
+    <div class="card" style="flex-direction:column; gap:10px;">
+        <input type="text" id="tk-name" placeholder="Token Name" style="width:90%; padding:10px; border-radius:8px; border:1px solid #333; background:#000; color:#fff;">
+        <input type="text" id="tk-sym" placeholder="$SYMBOL" style="width:90%; padding:10px; border-radius:8px; border:1px solid #333; background:#000; color:#fff;">
+        <button class="btn" style="width:100%;" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
+    </div>
+    <div id="token-list" style="margin-top:20px;"></div>
+</div>
+
+<div id="p-lottery" class="page">
+    <h2 style="text-align:center; color:var(--gold);">🎰 JACKPOT</h2>
+    <div class="card" style="flex-direction:column; text-align:center; padding:30px;">
+        <small>PRIZE POOL</small>
+        <h1 id="jackpot-amount" style="font-size:40px;">0</h1>
+        <button class="btn" onclick="buyLotteryTicket()">BUY TICKET (1k WPT)</button>
+    </div>
 </div>
 
 <div id="p-wallet" class="page">
-    <h1>MON WALLET 💼</h1>
+    <h2 style="text-align:center;">💼 WALLET</h2>
+    <div class="card" style="flex-direction:column; text-align:center; padding:40px;">
+        <small>Available Balance</small>
+        <h1 id="wallet-balance" style="font-size:40px; color:var(--gold);">0.00</h1>
+        <div id="ton-connect-button"></div>
+    </div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">
+        <div class="card" style="flex-direction:column; text-align:center;">
+            <b>50 Stars</b>
+            <button class="btn" onclick="buyStarsPack(50)">BUY</button>
+        </div>
+        <div class="card" style="flex-direction:column; text-align:center;">
+            <b>250 Stars</b>
+            <button class="btn" onclick="buyStarsPack(250)">BUY</button>
+        </div>
+    </div>
 </div>
+
+<div id="p-profil" class="page">
+    <div class="prof-header" style="text-align:center; padding:30px;">
+        <div id="prof-initials" style="width:80px; height:80px; background:var(--gold); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:32px;">U</div>
+        <h2 id="prof-name">Username</h2>
+        <h1 id="usd-val" style="color:#4caf50;">$0.00</h1>
+    </div>
+    <div id="user-portfolio" style="padding:10px;"></div>
+    <div id="leaderboard" style="padding:10px;"></div>
+</div>
+
+<div id="trade-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; align-items:center; justify-content:center;">
+    <div class="card" style="flex-direction:column; width:80%; text-align:center;">
+        <h2 id="modal-title">TRADE</h2>
+        <input type="number" id="trade-amount" placeholder="0.00" style="width:80%; padding:10px; margin-bottom:20px;">
+        <div style="display:flex; gap:10px; width:100%;">
+            <button class="btn" style="background:#333; flex:1;" onclick="closeTrade()">Cancel</button>
+            <button class="btn" style="flex:1;" onclick="executeTrade()">Confirm</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
