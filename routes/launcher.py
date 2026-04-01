@@ -309,3 +309,75 @@ async def get_total_burned():
         return {"total_burned": 0.0}
     finally:
         c.close(); conn.close()
+
+
+# --- 🔄 SWAP (WPT -> TOKEN) ---
+@router.post("/swap")
+async def swap_wpt_to_token(req: TradeRequest):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # 1. Vérifier le solde WPT de l'user
+        c.execute("SELECT p_genesis FROM users WHERE user_id = %s", (req.user_id,))
+        user_wpt = c.fetchone()
+        if not user_wpt or float(user_wpt[0]) < req.amount:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Insufficient WPT balance for Swap"})
+
+        # 2. Prendre le prix actuel du Token
+        c.execute("SELECT price, symbol FROM community_tokens WHERE id = %s", (req.token_id,))
+        t = c.fetchone()
+        if not t: return JSONResponse(status_code=404, content={"ok": False, "error": "Token not found"})
+        
+        current_price = float(t[0])
+        fee = req.amount * 0.01  # Taxe de 1%
+        net_wpt = req.amount - fee
+        qty_to_receive = net_wpt / current_price
+
+        # 3. Mouvements financiers
+        c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount, req.user_id))
+        c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (fee, ADMIN_ID))
+
+        # 4. Créditer les assets
+        c.execute("""
+            INSERT INTO user_community_assets (user_id, token_id, amount) 
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, token_id) 
+            DO UPDATE SET amount = user_community_assets.amount + %s
+        """, (req.user_id, req.token_id, qty_to_receive, qty_to_receive))
+
+        # 5. Faire Pumper le prix (Impact de marché du Swap)
+        new_price = current_price * 1.005 # Petit pump de 0.5%
+        c.execute("UPDATE community_tokens SET price = %s WHERE id = %s", (new_price, req.token_id))
+
+        conn.commit()
+        return {"ok": True, "swapped": qty_to_receive, "new_price": new_price}
+
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+    finally:
+        c.close(); conn.close()
+
+# --- 📋 PORTFOLIO (Version Nettoyée pour le JS) ---
+@router.get("/portfolio/{uid}")
+async def get_user_portfolio(uid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # On ne sélectionne QUE les tokens où l'utilisateur a un solde > 0
+        c.execute("""
+            SELECT t.id, t.name, t.symbol, t.logo, a.amount, t.price, 
+                   t.description, t.website_url, t.twitter_url 
+            FROM user_community_assets a
+            JOIN community_tokens t ON a.token_id = t.id
+            WHERE a.user_id = %s AND a.amount > 0.00000001
+            ORDER BY (a.amount * t.price) DESC
+        """, (uid,))
+        res = c.fetchall()
+        return [{
+            "id": r[0], "name": r[1], "symbol": r[2], "logo": r[3], 
+            "amount": float(r[4]), "price": float(r[5]),
+            "description": r[6], "website_url": r[7], "twitter_url": r[8]
+        } for r in res]
+    finally:
+        c.close(); conn.close()
