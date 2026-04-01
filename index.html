@@ -562,18 +562,28 @@ async function updateBurnStats() {
     async function refresh() {
     if (!uid) return;
     try {
+        // Petit ping de sync pour le minage
         fetch(`${BASE_URL}/api/mine/sync/${uid}`).catch(() => {});
+        
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) return;
         const d = await r.json();
 
-        // --- UTILISE LE MÊME NOM PARTOUT ---
         const safeSet = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.innerText = val;
         };
 
-        // Mise à jour des prix et soldes
+        // --- 1. IDENTITÉ (Ce qui te manquait !) ---
+        const name = d.first_name || d.name || "CITIZEN";
+        safeSet('prof-name', name.toUpperCase());
+        
+        const initialEl = document.getElementById('prof-initials');
+        if (initialEl) initialEl.innerText = name.charAt(0).toUpperCase();
+        
+        safeSet('prof-rank', `RANK: #${d.rank || '---'}`);
+
+        // --- 2. SOLDES ---
         safeSet('tot', parseFloat(d.score || 0).toLocaleString());
         safeSet('gv', parseFloat(d.g || 0).toLocaleString());
         safeSet('uv', parseFloat(d.u || 0).toLocaleString());
@@ -582,7 +592,7 @@ async function updateBurnStats() {
         // Stockage du solde global pour le calcul du Portfolio
         window.userWptBalance = parseFloat(d.g || 0);
 
-        // --- ENERGIE ---
+        // --- 3. ENERGIE ---
         const eBar = document.getElementById('e-f');
         const eText = document.getElementById('e-t');
         if (eBar && d.max_energy) {
@@ -591,13 +601,19 @@ async function updateBurnStats() {
             if(eText) eText.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
         }
 
-        // --- MULTIPLIER ---
+        // --- 4. MULTIPLIER ---
         const m = parseFloat(d.multiplier || 1.0);
         safeSet('mining-multiplier', m.toFixed(1));
         safeSet('mining-multiplier-prof', `x${m.toFixed(1)}`);
 
-    } catch (e) { console.error("Refresh Error:", e); }
+        // --- 5. WALLET BALANCE (Pour la page Wallet) ---
+        safeSet('wallet-balance', parseFloat(d.g || 0).toLocaleString());
+
+    } catch (e) { 
+        console.error("Refresh Error:", e); 
+    }
 }
+
 
 
 
