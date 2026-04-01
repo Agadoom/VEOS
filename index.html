@@ -869,6 +869,21 @@ async function updateBurnStats() {
             }
         }
 
+
+
+
+setInterval(() => {
+    // On ne refresh pas si un modal est ouvert ou si on est dans les détails
+    if (document.getElementById('p-details').style.display !== 'block' && 
+        document.getElementById('trade-modal').style.display !== 'flex') {
+        refresh();
+    }
+}, 15000);
+
+
+
+
+
         // 8. STREAK
         const sContainer = document.getElementById('streak-container');
         if (d.streak > 0) {
