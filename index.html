@@ -1486,22 +1486,6 @@ async function executeBurn() {
 
 
 
-async function updateBurnStats() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/total-burned`);
-        const data = await r.json();
-        
-        const el = document.getElementById('global-burned-val');
-        if (el) {
-            // Petit effet d'animation de compteur si tu veux être pro
-            el.innerText = parseFloat(data.total_burned || 0).toLocaleString();
-        }
-    } catch (e) {
-        console.error("Burn Stats Error:", e);
-    }
-}
-
-
 
 
 
