@@ -717,138 +717,23 @@
     </div>
 
     <script>
-    const tg = window.Telegram.WebApp;
+      const tg = window.Telegram.WebApp;
     const uid = tg.initDataUnsafe.user?.id || 0;
     const BASE_URL = 'https://veos-production-a2de.up.railway.app';
-    const BOT_USERNAME = 'OWPCsBot'; // Ton bot Telegram
 
-    let currentTokenId = null;
-    let b64_logo = "", b64_banner = "";
+    let currentTokenId = null, userWptBalance = 0, userTokenBalance = 0;
+    let b64_logo = "", b64_banner = "", tradeType = 'buy', sourcePage = 'p-mine';
 
-    // --- LANCEMENT SÉCURISÉ ---
-    window.addEventListener('DOMContentLoaded', () => {
-        console.log("🚀 Lancement Système...");
-        
-        // 1. On force l'affichage de la page d'accueil tout de suite
-        const startPage = document.getElementById('p-mine');
-        if(startPage) startPage.classList.add('active-page');
-        
-        // 2. On lance les chargements en parallèle (sans bloquer l'UI)
-        refresh(); 
-        loadMarket(); 
-        updateBurnStats(); 
-    });
-
-    // --- TIMER DE SYNC (A L'EXTÉRIEUR) ---
-    setInterval(() => {
-        const isDetailsOpen = document.getElementById('p-details').style.display === 'block';
-        const isModalOpen = document.getElementById('trade-modal').style.display === 'flex';
-        
-        if (!isDetailsOpen && !isModalOpen) {
-            refresh();
-        }
-    }, 15000);
-
-
-    
-
-        function showPage(pageId) {
-        // 1. On cache tout
-        document.querySelectorAll('.page').forEach(p => {
-            p.style.display = 'none';
-            p.classList.remove('active-page');
-        });
-
-        // 2. On affiche la cible
-        const target = document.getElementById(pageId);
-        if (target) {
-            target.style.display = 'block';
-            target.classList.add('active-page');
-        }
-
-        // 3. Mise à jour de la Nav Bar
-        document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-        const navId = pageId.replace('p-', 'n-');
-        const navIcon = document.getElementById(navId);
-        if (navIcon) navIcon.classList.add('active');
-
-        // 4. Chargements spécifiques selon la page
-        if (pageId === 'p-profil') { loadPortfolio(); loadLeaderboard(); }
-        if (pageId === 'p-launcher') { loadMarket(); }
-        if (pageId === 'p-lottery') { updateLotteryInfo(); }
-
-        // 5. Retour Haptique
-        if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    }
-
-
-        async function refresh() {
-        if (!uid) return;
-
-        try {
-            // Synchro énergie rapide (On n'attend pas la réponse pour la suite)
-            fetch(`${BASE_URL}/api/mine/sync/${uid}`).catch(() => {});
-
-            // Récupération des données utilisateur
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            if (!r.ok) return;
-            const d = await r.json();
-
-            // --- FONCTION D'UPDATE SÉCURISÉE ---
-            const safeUpdate = (id, val) => {
-                const el = document.getElementById(id);
-                if (el) el.innerText = val;
-            };
-
-            // 1. Soldes WPT (Genesis)
-            const score = parseFloat(d.score || 0);
-            safeUpdate('tot', score.toLocaleString());
-            safeUpdate('wallet-balance', score.toLocaleString());
-            safeUpdate('gv', parseFloat(d.g || 0).toLocaleString());
-
-            // 2. Valeur USD (Net Worth)
-            const usd = parseFloat(d.usd_value || 0);
-            safeUpdate('usd-val', `$${usd.toFixed(2)}`);
-
-            // 3. Infos Profil
-            safeUpdate('prof-name', d.name || 'Citizen');
-            safeUpdate('prof-rank', "RANK: #" + (d.rank || '---'));
-            
-            const initials = document.getElementById('prof-initials');
-            if (initials && d.name) initials.innerText = d.name[0].toUpperCase();
-
-            // 4. Boost & Multiplier
-            const m = parseFloat(d.multiplier || 1.0);
-            safeUpdate('mining-multiplier', m.toFixed(1));
-            safeUpdate('mining-multiplier-prof', `x${m.toFixed(1)}`);
-            safeUpdate('boost-val-prof', m.toFixed(1));
-
-            // 5. Énergie (Barre et Texte)
-            const eBar = document.getElementById('e-f');
-            const eText = document.getElementById('e-t');
-            if (d.max_energy > 0) {
-                const energyVal = parseFloat(d.energy || 0);
-                const percent = (energyVal / d.max_energy) * 100;
-                if (eBar) eBar.style.width = percent + "%";
-                if (eText) eText.innerText = `Energy: ${Math.floor(energyVal)}/${d.max_energy}`;
-            }
-
-            // 6. Referral Link
-            const refDisplay = document.getElementById('ref-link-display');
-            if (refDisplay) refDisplay.innerText = `https://t.me/${BOT_USERNAME}?start=${uid}`;
-
-            // Stockage Global pour usage interne
-            window.userWptBalance = d.g || 0;
-            console.log("✅ UI Sync OK");
-
-        } catch (e) {
-            console.error("❌ Erreur de rafraîchissement:", e);
-        }
-    }
-
-
-
- 
+    // --- INITIALISATION AU CHARGEMENT ---
+    // --- LANCEMENT AUTOMATIQUE ---
+window.addEventListener('DOMContentLoaded', () => {
+    // 1. On charge tes infos
+    refresh(); 
+    // 2. On charge les tokens
+    loadMarket(); 
+    // 3. ON CHARGE LE BURN GLOBAL (C'est ça qui manque !)
+    updateBurnStats(); 
+});
 
 async function updateBurnStats() {
     try {
@@ -865,10 +750,143 @@ async function updateBurnStats() {
 }
 
 
+    // --- NAVIGATION ---
+    function showPage(pageId) {
+    // 1. Gestion de l'affichage des pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+    const target = document.getElementById(pageId);
+    if(target) target.classList.add('active-page');
+
+    // 2. Gestion des icônes de la barre de navigation
+    document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
+    const navId = pageId.replace('p-', 'n-');
+    const navIcon = document.getElementById(navId);
+    if(navIcon) navIcon.classList.add('active');
+
+    // 3. DÉCLENCHEURS DE CHARGEMENT (API)
+    // On rafraîchit les données selon la page pour éviter de charger pour rien
+    if(pageId === 'p-mine' || pageId === 'p-profil') { 
+        refresh(); 
+        if(pageId === 'p-profil') { loadLeaderboard(); loadPortfolio(); }
+    }
     
+    if(pageId === 'p-launcher') {
+        loadMarket();
+    }
+
+    if(pageId === 'p-lottery') {
+        // Appelle tes futures fonctions pour charger le jackpot et tes tickets
+        updateLotteryInfo(); 
+    }
+
+    if(pageId === 'p-wallet') {
+        refresh(); // Pour être sûr que le solde WPT est à jour avant d'acheter
+    }
+    
+    // 4. Retour haptique Telegram
+    if(tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+}
 
 
+    // --- REFRESH DATA ---
+    async function refresh() {
+    if (!uid) {
+        console.warn("Refresh annulé : UID non défini.");
+        return;
+    }
 
+    try {
+        // --- 1. SYNCHRONISATION ÉNERGIE ---
+        await fetch(`${BASE_URL}/api/mine/sync/${uid}`);
+
+        // --- 2. RÉCUPÉRATION DES DONNÉES ---
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) throw new Error("Réponse serveur non OK : " + r.status);
+        
+        const d = await r.json();
+        console.log("📥 Données Profil reçues :", d);
+
+        // --- 3. LOGIQUE DU MULTIPLIER (Badge & Texte) ---
+        const m = parseFloat(d.multiplier || 1.0);
+        
+        // Mise à jour sur la page MINE (Badge bleu)
+        const badgeMine = document.getElementById('boost-badge');
+        const multTextMine = document.getElementById('mining-multiplier');
+        if (multTextMine) multTextMine.innerText = m.toFixed(1);
+        if (badgeMine) badgeMine.style.display = (m > 1.0) ? 'inline-block' : 'none';
+
+        // Mise à jour sur la page PROFIL (Nouveau design)
+        const magnetBadgeProf = document.getElementById('magnet-status-badge');
+        const multTextProf = document.getElementById('mining-multiplier-prof');
+        const boostValProf = document.getElementById('boost-val-prof');
+        
+        if (multTextProf) multTextProf.innerText = `x${m.toFixed(1)}`;
+        if (boostValProf) boostValProf.innerText = m.toFixed(1);
+        if (magnetBadgeProf) magnetBadgeProf.style.display = (m > 1.0) ? 'block' : 'none';
+
+        // --- 4. FONCTION DE MISE À JOUR SÉCURISÉE ---
+        const update = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
+        };
+
+        // 5. SOLDES & VALEURS
+        const total = parseFloat(d.score || 0);
+        update('tot', total.toLocaleString());
+        update('wallet-balance', total.toLocaleString());
+        update('gv', parseFloat(d.g || 0).toLocaleString());
+        update('uv', parseFloat(d.u || 0).toLocaleString());
+        update('vv', parseFloat(d.v || 0).toLocaleString());
+
+        const usdValue = parseFloat(d.usd_value || 0);
+        update('usd-val', `$${usdValue.toFixed(2)}`);
+        
+        // 6. INFOS UTILISATEUR
+        const userName = d.name || 'Citizen';
+        update('prof-name', userName);
+        update('prof-rank', "RANK: #" + (d.rank || '---'));
+        
+        const initEl = document.getElementById('prof-initials');
+        if (initEl) initEl.innerText = userName[0].toUpperCase();
+
+        // 7. ÉNERGIE
+        const eBar = document.getElementById('e-f');
+        const eText = document.getElementById('e-t');
+        if (d.max_energy > 0) {
+            const energyVal = parseFloat(d.energy || 0);
+            const percent = (energyVal / d.max_energy) * 100;
+            if (eBar) eBar.style.width = percent + "%";
+            if (eText) eText.innerText = `Energy: ${Math.floor(energyVal)}/${d.max_energy}`;
+            
+            // Couleur Turbo
+            if (d.turbo_active && eBar) {
+                eBar.style.background = "linear-gradient(90deg, #A259FF, #FFD700)";
+            } else if (eBar) {
+                eBar.style.background = "linear-gradient(90deg, var(--gold), #ffaa00)";
+            }
+        }
+
+        // 8. STREAK
+        const sContainer = document.getElementById('streak-container');
+        if (d.streak > 0) {
+            if (sContainer) sContainer.style.display = 'block';
+            update('streak-val', d.streak);
+        }
+
+        // 9. LIEN PARRAINAGE
+        const refDisplay = document.getElementById('ref-link-display');
+        if (refDisplay) refDisplay.innerText = `https://t.me/${BOT_USERNAME}?start=${uid}`;
+        
+        // Stockage global
+        window.userMiningBoost = m; // On utilise le multiplier comme boost
+        window.userWptBalance = d.g || 0;
+
+        console.log("✅ UI synchronisée (Design Pro).");
+
+    } catch (e) { 
+        console.error("❌ Erreur critique Refresh :", e);
+    }
+}
 
 
 
@@ -947,6 +965,42 @@ async function mine(type, event) {
         console.error("❌ Erreur réseau Minage:", e);
     }
 }
+
+
+ 
+
+async function updateBurnStats() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/total-burned`);
+        const data = await r.json();
+        const el = document.getElementById('global-burned-val');
+        if (el) {
+            // Affiche la valeur réelle stockée sur Railway
+            el.innerText = parseFloat(data.total_burned || 0).toLocaleString();
+        }
+    } catch (e) {
+        console.error("Impossible de charger le Burn global", e);
+    }
+}
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // --- MINING ---
+    // --- FONCTION DE MINAGE CORRIGÉE ---
+
 
 
 
