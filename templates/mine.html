@@ -1,4 +1,37 @@
 {% extends "base.html" %}
+
 {% block content %}
-    <h1 style="color:white;">TEST REUSSITE</h1>
+
+<div id="p-mine" class="page active-page">
+    <div class="prof-header" style="text-align: center; padding: 20px 0;">
+        <small id="prof-rank" style="color:var(--gold); font-weight:900;">RANK: #---</small>
+        <h1 id="tot" style="font-size:48px; margin:10px 0; font-family:monospace; font-weight:800;">0.00</h1>
+        
+        <div style="padding: 0 20px;">
+            <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden;">
+                <div id="e-f" style="background: linear-gradient(90deg, var(--gold), #ffaa00); height:100%; width:0%; transition:0.4s;"></div>
+            </div>
+            <div style="display:flex; justify-content: space-between;">
+                <small id="e-t" style="opacity: 0.8; font-size:11px;">Energy: 0/100</small>
+                <small style="color:var(--gold); font-size:10px; font-weight:900;">⚡ AUTO</small>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: grid; gap: 10px;">
+        <div class="card">
+            <div><b>Genesis (WPT)</b><br><small id="gv">0.00</small></div>
+            <button class="btn" onclick="mine('genesis', event)">MINE</button>
+        </div>
+        <div class="card">
+            <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
+            <button class="btn" style="background: #eee; color: #000;" onclick="mine('unity', event)">SYNC</button>
+        </div>
+    </div>
+
+    <div class="coin-container" style="text-align:center; margin-top:30px;">
+        <img src="/static/genesis.png" class="main-coin" style="width:160px; cursor:pointer;" onclick="mine('genesis', event)">
+    </div>
+</div>
+
 {% endblock %}
