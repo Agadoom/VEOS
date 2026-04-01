@@ -9,4 +9,5 @@ uvicorn
 psycopg2-binary
 httpx
 apscheduler
+jinja2
 
