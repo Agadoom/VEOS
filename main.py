@@ -45,12 +45,20 @@ app.include_router(admin.router)
 # --- ROUTE HOME ---
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    # La nouvelle règle : request doit être passé AVANT le contexte
-    return templates.TemplateResponse(
-        request=request, 
-        name="mine.html", 
-        context={} # Tu peux laisser vide ou mettre tes autres variables ici
-    )
+    try:
+        return templates.TemplateResponse(
+            request=request, 
+            name="mine.html", 
+            context={}
+        )
+    except Exception as e:
+        # Si ça crash, on affiche l'erreur Jinja2 sur le téléphone
+        return f"""
+        <body style="background:black; color:red; font-family:monospace; padding:20px;">
+            <h1>❌ JINJA2 ERROR</h1>
+            <p>{str(e)}</p>
+        </body>
+        """
 
 
 
