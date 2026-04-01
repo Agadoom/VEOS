@@ -45,12 +45,8 @@ app.include_router(admin.router)
 # --- ROUTE HOME ---
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    # ATTENTION : Si mine.html n'est pas dans /templates, ça donnera une Erreur 500
-    try:
-        return templates.TemplateResponse("mine.html", {"request": request})
-    except Exception as e:
-        return f"<h1>Dossier 'templates' ou fichier 'mine.html' manquant !</h1><p>{e}</p>"
-
+    # L'ordre est CRITIQUE : Nom du fichier d'abord, puis le dictionnaire
+    return templates.TemplateResponse("mine.html", {"request": request})
 
 
 
