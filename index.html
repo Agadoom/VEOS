@@ -807,13 +807,13 @@ async function updateBurnStats() {
             const el = document.getElementById(id);
             if (el) el.innerText = val;
         };
-
+safeUpdate('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
         // 1. Les Soldes (Priorité)
         try {
-            safeSet('tot', parseFloat(d.score || 0).toLocaleString());
-            safeSet('gv', parseFloat(d.g || 0).toLocaleString());
-            safeSet('uv', parseFloat(d.u || 0).toLocaleString());
-            safeSet('vv', parseFloat(d.v || 0).toLocaleString());
+           safeUpdate('tot', parseFloat(d.score || 0).toLocaleString());
+            safeUpdate('gv', parseFloat(d.g || 0).toLocaleString());
+            safeUpdate('uv', parseFloat(d.u || 0).toLocaleString());
+            safeUpdate('vv', parseFloat(d.v || 0).toLocaleString());
             
 
         // 2. L'Énergie
