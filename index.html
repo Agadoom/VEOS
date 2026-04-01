@@ -790,103 +790,55 @@ async function updateBurnStats() {
 
     // --- REFRESH DATA ---
     async function refresh() {
-    if (!uid) {
-        console.warn("Refresh annulé : UID non défini.");
-        return;
-    }
+    if (!uid) return;
+    console.log("🔄 Tentative de rafraîchissement...");
 
     try {
-        // --- 1. SYNCHRONISATION ÉNERGIE ---
-        await fetch(`${BASE_URL}/api/mine/sync/${uid}`);
-
-        // --- 2. RÉCUPÉRATION DES DONNÉES ---
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) throw new Error("Réponse serveur non OK : " + r.status);
-        
+        if (!r.ok) {
+            console.error("L'API User a renvoyé une erreur");
+            return;
+        }
         const d = await r.json();
-        console.log("📥 Données Profil reçues :", d);
 
-        // --- 3. LOGIQUE DU MULTIPLIER (Badge & Texte) ---
-        const m = parseFloat(d.multiplier || 1.0);
-        
-        // Mise à jour sur la page MINE (Badge bleu)
-        const badgeMine = document.getElementById('boost-badge');
-        const multTextMine = document.getElementById('mining-multiplier');
-        if (multTextMine) multTextMine.innerText = m.toFixed(1);
-        if (badgeMine) badgeMine.style.display = (m > 1.0) ? 'inline-block' : 'none';
-
-        // Mise à jour sur la page PROFIL (Nouveau design)
-        const magnetBadgeProf = document.getElementById('magnet-status-badge');
-        const multTextProf = document.getElementById('mining-multiplier-prof');
-        const boostValProf = document.getElementById('boost-val-prof');
-        
-        if (multTextProf) multTextProf.innerText = `x${m.toFixed(1)}`;
-        if (boostValProf) boostValProf.innerText = m.toFixed(1);
-        if (magnetBadgeProf) magnetBadgeProf.style.display = (m > 1.0) ? 'block' : 'none';
-
-        // --- 4. FONCTION DE MISE À JOUR SÉCURISÉE ---
-        const update = (id, val) => {
+        // FONCTION INTERNE POUR EVITER LES CRASHES
+        const safeSet = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.innerText = val;
         };
 
-        // 5. SOLDES & VALEURS
-        const total = parseFloat(d.score || 0);
-        update('tot', total.toLocaleString());
-        update('wallet-balance', total.toLocaleString());
-        update('gv', parseFloat(d.g || 0).toLocaleString());
-        update('uv', parseFloat(d.u || 0).toLocaleString());
-        update('vv', parseFloat(d.v || 0).toLocaleString());
+        // 1. Les Soldes (Priorité)
+        try {
+            safeSet('tot', parseFloat(d.score || 0).toLocaleString());
+            safeSet('gv', parseFloat(d.g || 0).toLocaleString());
+            safeSet('uv', parseFloat(d.u || 0).toLocaleString());
+            safeSet('vv', parseFloat(d.v || 0).toLocaleString());
+            safeSet('usd-val', `$${parseFloat(d.usd_value || 0).toFixed(2)}`);
+        } catch(e) { console.log("Erreur soldes"); }
 
-        const usdValue = parseFloat(d.usd_value || 0);
-        update('usd-val', `$${usdValue.toFixed(2)}`);
-        
-        // 6. INFOS UTILISATEUR
-        const userName = d.name || 'Citizen';
-        update('prof-name', userName);
-        update('prof-rank', "RANK: #" + (d.rank || '---'));
-        
-        const initEl = document.getElementById('prof-initials');
-        if (initEl) initEl.innerText = userName[0].toUpperCase();
-
-        // 7. ÉNERGIE
-        const eBar = document.getElementById('e-f');
-        const eText = document.getElementById('e-t');
-        if (d.max_energy > 0) {
-            const energyVal = parseFloat(d.energy || 0);
-            const percent = (energyVal / d.max_energy) * 100;
-            if (eBar) eBar.style.width = percent + "%";
-            if (eText) eText.innerText = `Energy: ${Math.floor(energyVal)}/${d.max_energy}`;
-            
-            // Couleur Turbo
-            if (d.turbo_active && eBar) {
-                eBar.style.background = "linear-gradient(90deg, #A259FF, #FFD700)";
-            } else if (eBar) {
-                eBar.style.background = "linear-gradient(90deg, var(--gold), #ffaa00)";
+        // 2. L'Énergie
+        try {
+            const eBar = document.getElementById('e-f');
+            const eText = document.getElementById('e-t');
+            if (eBar && d.max_energy) {
+                const percent = (d.energy / d.max_energy) * 100;
+                eBar.style.width = percent + "%";
+                if(eText) eText.innerText = `Energy: ${Math.floor(d.energy)}/${d.max_energy}`;
             }
-        }
+        } catch(e) { console.log("Erreur énergie"); }
 
-        // 8. STREAK
-        const sContainer = document.getElementById('streak-container');
-        if (d.streak > 0) {
-            if (sContainer) sContainer.style.display = 'block';
-            update('streak-val', d.streak);
-        }
+        // 3. Le Rank et Profil
+        safeSet('prof-rank', "RANK: #" + (d.rank || "---"));
+        safeSet('prof-name', d.name || "Citizen");
 
-        // 9. LIEN PARRAINAGE
-        const refDisplay = document.getElementById('ref-link-display');
-        if (refDisplay) refDisplay.innerText = `https://t.me/${BOT_USERNAME}?start=${uid}`;
-        
-        // Stockage global
-        window.userMiningBoost = m; // On utilise le multiplier comme boost
-        window.userWptBalance = d.g || 0;
+        console.log("✅ Refresh réussi, navigation débloquée !");
 
-        console.log("✅ UI synchronisée (Design Pro).");
-
-    } catch (e) { 
-        console.error("❌ Erreur critique Refresh :", e);
+    } catch (e) {
+        console.error("❌ CRASH REFRESH :", e);
+        // On ne bloque pas la navigation même en cas d'erreur
     }
 }
+
 
 
 
