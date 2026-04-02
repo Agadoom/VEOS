@@ -2,22 +2,262 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
-    <title>WPT Hub</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WPT Hub - One World Peace Coins</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
     <style>
-        :root { --gold: #FFD700; --purple: #A259FF; --green: #4caf50; --red: #eb4034; --text: #eee; }
-        body { background: #000; color: white; font-family: sans-serif; margin: 0; overflow-x: hidden; }
-        .container { padding: 15px; padding-bottom: 100px; max-width: 500px; margin: auto; }
-        .page { display: none; animation: fadeIn 0.3s; }
-        .active-page { display: block !important; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .card { background: #111; border: 1px solid #333; padding: 15px; border-radius: 18px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-        .btn { background: var(--gold); border: none; padding: 10px 18px; border-radius: 12px; font-weight: 900; cursor: pointer; }
-        .l-input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #333; background: #000; color: #fff; margin-bottom: 10px; box-sizing: border-box; }
-        .nav { position: fixed; bottom: 0; width: 100%; background: rgba(5,5,5,0.9); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #222; backdrop-filter: blur(10px); z-index: 999; }
-        .n-i { font-size: 24px; opacity: 0.4; cursor: pointer; }
-        .n-i.active { opacity: 1; filter: drop-shadow(0 0 8px var(--gold)); }
+        :root { 
+            --bg: #050505; --card: #121214; --gold: #FFD700; 
+            --blue: #007AFF; --green: #34C759; --purple: #A259FF; 
+            --red: #eb4034; --text: #8E8E8E; 
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            background: var(--bg); color: #FFF; font-family: -apple-system, sans-serif; 
+            margin: 0; padding: 0; overflow: hidden; 
+        }
+    
+        /* Ticker */
+        .ticker { background: #1a1a1c; padding: 8px 0; border-bottom: 1px solid #333; overflow: hidden; white-space: nowrap; font-size: 11px; z-index: 1001; position: relative; }
+        .t-wrap { display: inline-block; animation: scroll 20s linear infinite; }
+        @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+        
+        /* Layout */
+        .container { padding: 15px; padding-bottom: 150px; height: 100vh; overflow-y: auto; box-sizing: border-box; position: relative; }
+
+        .prof-header { 
+            background: linear-gradient(135deg, #1c1c1e 0%, #050505 100%); 
+            border-radius: 30px; padding: 25px 20px; border: 1px solid #222; 
+            margin-bottom: 20px; text-align: center; 
+        }
+        
+        .card { 
+            background: var(--card); border-radius: 20px; padding: 15px; 
+            margin-bottom: 12px; border: 1px solid #1c1c1e; 
+            display: flex; justify-content: space-between; align-items: center; 
+        }
+
+        .btn { 
+            background: #FFF; color: #000; border: none; padding: 12px 20px; 
+            border-radius: 14px; font-weight: 800; cursor: pointer; transition: 0.2s; 
+        }
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Navigation */
+        .nav { 
+            position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); 
+            background: rgba(15,15,15,0.95); backdrop-filter: blur(15px); 
+            padding: 12px 35px; border-radius: 50px; display: flex; gap: 40px; 
+            border: 1px solid #333; z-index: 999; 
+        }
+        .n-i { font-size: 24px; opacity: 0.3; transition: 0.3s; cursor:pointer; }
+        .n-i.active { opacity: 1; color: var(--gold); transform: scale(1.1); }
+        
+        .page { display: none; }
+        .active-page { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .l-input { 
+            background: #000; border: 1px solid #333; color: #fff; 
+            padding: 12px; border-radius: 12px; width: 100%; margin-bottom: 8px; 
+        }
+
+        #p-details {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg); z-index: 2000; overflow-y: auto; display: none;
+        }
+
+        .floating-text { 
+            position: absolute; color: var(--green); font-weight: bold; font-size: 22px; 
+            pointer-events: none; animation: moveUpFade 0.8s ease-out forwards; z-index: 1500; 
+        }
+        @keyframes moveUpFade { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
+        
+        .bottom-logo { max-width: 80px; opacity: 0.5; margin: 30px auto; display: block; }
+        
+        /* Modal Trade */
+        #trade-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 3000;
+            display: none; align-items: center; justify-content: center;
+        }
+
+.coin-container img {
+    transition: transform 0.1s active;
+}
+
+.coin-container img:active {
+    transform: scale(0.92); /* Effet d'enfoncement quand on clique */
+}
+
+.main-coin {
+    filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+    animation: coinFloat 3s ease-in-out infinite;
+}
+
+@keyframes coinFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.btn:active {
+    box-shadow: none !important;
+    transform: translateY(3px) !important;
+}
+
+
+
+.l-input:focus {
+    border-color: var(--gold) !important;
+    outline: none;
+    background: #080808;
+}
+
+.upload-box:active {
+    background: #222 !important;
+    transform: scale(0.98);
+}
+
+.btn-launch {
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.btn-launch:active {
+    transform: scale(0.96);
+    box-shadow: none;
+    background: #e6c200;
+}
+
+/* Style pour les cartes dans la liste des tokens */
+#token-list .card {
+    transition: transform 0.2s ease;
+}
+
+#token-list .card:active {
+    transform: scale(0.98);
+    background: #161618;
+}
+
+/* Style pour les lignes du Leaderboard */
+#leaderboard .card {
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 15px;
+}
+
+#leaderboard b {
+    font-family: monospace;
+    color: var(--gold);
+}
+
+/* Effet sur les boutons Buy Stars */
+.btn-buy-stars {
+    border-radius: 10px !important;
+    font-size: 12px !important;
+    padding: 8px !important;
+}
+
+/* Scrollbar invisible pour un look plus "App native" */
+.container::-webkit-scrollbar {
+    display: none;
+}
+
+
+.leader-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    border-left: 4px solid transparent;
+}
+.rank-1 { border-left-color: #FFD700; background: rgba(255, 215, 0, 0.1); }
+.rank-2 { border-left-color: #C0C0C0; }
+.rank-3 { border-left-color: #CD7F32; }
+
+
+
+
+
+@keyframes pulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+
+
+
+.page {
+    display: none; /* Cache par défaut */
+    width: 100%;
+    min-height: 100vh;
+}
+
+.active-page {
+    display: block !important; /* Force l'affichage quand active */
+}
+
+
+
+
+/* DESIGN PREMIUM POUR LA LOTERIE */
+#p-lottery {
+    background: #000; /* Fond noir profond */
+    color: white;
+}
+
+#p-lottery .card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+
+/* Effet de lueur sur le Jackpot */
+#jackpot-amount {
+    background: linear-gradient(180deg, #fff 0%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 900;
+    text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+
+/* Style de l'input quantité */
+#ticket-qty {
+    background: #111;
+    border: 1px solid var(--gold);
+    color: white;
+    border-radius: 10px;
+    padding: 10px;
+    font-family: monospace;
+    outline: none;
+}
+
+/* Bouton d'achat */
+.btn-buy-lotto {
+    background: var(--gold);
+    color: black;
+    font-weight: 900;
+    border: none;
+    border-radius: 15px;
+    height: 55px;
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
+    transition: 0.2s;
+}
+
+.btn-buy-lotto:active {
+    transform: scale(0.96);
+}
+
+
+
     </style>
 </head>
 <body>
