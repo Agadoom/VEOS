@@ -281,6 +281,25 @@ function connectTonWallet() {
 
 
 
+
+
+async function loadLeaderboard() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/leaderboard`);
+        const data = await r.json();
+        const container = document.getElementById('leaderboard');
+        
+        container.innerHTML = data.map((user, index) => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #111; ${user.id == uid ? 'background:rgba(255,215,0,0.1);' : ''}">
+                <span style="font-size:14px;">#${index + 1} ${user.username}</span>
+                <b style="color:var(--gold); font-family:monospace;">${parseFloat(user.score).toLocaleString()}</b>
+            </div>
+        `).join('');
+    } catch (e) { console.error("Leaderboard error", e); }
+}
+
+
+
     // Initialisation
     window.onload = () => {
         tg.expand();
