@@ -688,102 +688,93 @@ async function setFilter(filter, el) {
 // --- VARIABLES ÉTAT ---
 let ticketPrice = 1000;
 
-// --- INITIALISATION / REFRESH ---
+// --- 1. CHARGEMENT INITIAL (Jackpot + Tes Tickets) ---
 async function loadLottery() {
     if (!uid) return;
-
     try {
-        // 1. CHARGEMENT DES STATS GLOBALES (Jackpot & Dernier Gagnant)
+        // A. Stats Globales
         const resStats = await fetch(`${BASE_URL}/api/lottery/status`);
         if (resStats.ok) {
             const d = await resStats.json();
-            
-            // Mise à jour du gros chiffre (Jackpot)
             const jackEl = document.getElementById('jackpot-amount');
-            if (jackEl) {
-                // On utilise toLocaleString() pour avoir les espaces (ex: 12 000)
-                jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
-            }
-
-            // Mise à jour du dernier gagnant
-            const winnerEl = document.getElementById('last-winner');
-            const winAmountEl = document.getElementById('last-win-amount');
+            if (jackEl) jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
             
-            if (winnerEl) winnerEl.innerText = d.last_winner || "@NoOne";
-            if (winAmountEl) winAmountEl.innerText = parseFloat(d.last_prize || 0).toLocaleString() + " WPT";
+            if (document.getElementById('last-winner')) 
+                document.getElementById('last-winner').innerText = d.last_winner || "@NoOne";
+            if (document.getElementById('last-win-amount')) 
+                document.getElementById('last-win-amount').innerText = parseFloat(d.last_prize || 0).toLocaleString() + " WPT";
         }
 
-        // 2. CHARGEMENT DES TICKETS DE L'UTILISATEUR (Pour afficher "VOS TICKETS")
-        // On crée une petite route rapide en Python pour ça
+        // B. Tes Tickets personnels
         const resUser = await fetch(`${BASE_URL}/api/lottery/user-tickets/${uid}`);
         if (resUser.ok) {
             const du = await resUser.json();
             const myTicketsEl = document.getElementById('user-tickets-count');
-            if (myTicketsEl) {
-                myTicketsEl.innerText = du.count || 0;
-            }
+            if (myTicketsEl) myTicketsEl.innerText = du.count || 0;
         }
-
-    } catch (e) {
-        console.error("Erreur Synchro Loterie :", e);
-        // En cas d'erreur, on laisse les valeurs par défaut du HTML
-    }
+    } catch (e) { console.error("Erreur Synchro Loterie :", e); }
 }
 
-// --- PETITE FONCTION BONUS POUR CHANGER LA QUANTITÉ ---
+// --- 2. GESTION QUANTITÉ (+ / -) ---
 function changeQty(delta) {
     const input = document.getElementById('ticket-qty');
     const costDisplay = document.getElementById('total-cost');
     if (!input || !costDisplay) return;
 
     let val = parseInt(input.value) + delta;
-    if (val < 1) val = 1; // Minimum 1 ticket
+    if (val < 1) val = 1; 
     
     input.value = val;
-    costDisplay.innerText = (val * 1000).toLocaleString(); // 1000 WPT par ticket
+    costDisplay.innerText = (val * ticketPrice).toLocaleString();
 
-    // Petite vibration Telegram
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.selectionChanged();
-    }
+    if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
 }
 
-
-
-
-
+// --- 3. L'ACHAT (FONCTION CORRIGÉE) ---
 async function buyTicket() {
     const qtyInput = document.getElementById('ticket-qty');
     const qty = qtyInput ? parseInt(qtyInput.value) : 1;
-    
-    // On récupère l'ID utilisateur proprement
-    const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
+    const userId = tg.initDataUnsafe?.user?.id || uid;
 
-
-// Dans ta fonction loadLottery() existante
-try {
-    // uid est ton id telegram
-    const r_u = await fetch(`${BASE_URL}/api/lottery/user-tickets/${uid}`);
-    const d_u = await r_u.json();
-    document.getElementById('user-tickets-count').innerText = d_u.count || 0;
-} catch(e) { console.log("Pas encore de tickets pour ce user"); }
-
+    try {
+        const r = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: userId,
+                quantity: qty
+            })
+        });
 
         const res = await r.json();
 
         if (res.ok) {
             tg.showAlert("🎟️ Bonne chance ! Tickets achetés.");
-            refresh();      // Update balance
-            loadLottery();  // Update jackpot
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            refresh();      // Met à jour ton solde (les 400k)
+            loadLottery();  // Met à jour le jackpot et tes tickets
         } else {
-            // Si res.error n'existe pas, on affiche un message par défaut
-            tg.showAlert("❌ " + (res.error || "Erreur inconnue du serveur"));
+            tg.showAlert("❌ " + (res.error || "Erreur inconnue"));
         }
     } catch (e) {
         console.error(e);
-        tg.showAlert("❌ Erreur de connexion : Vérifie l'URL de l'API");
+        tg.showAlert("❌ Erreur de connexion API");
     }
 }
+
+// --- 4. INITIALISATION AU DÉMARRAGE ---
+window.onload = () => {
+    tg.expand();
+    // On définit l'URL de base dynamiquement pour éviter le "0"
+    if (typeof BASE_URL === 'undefined' || BASE_URL.includes("ton-app")) {
+        window.BASE_URL = window.location.origin;
+    }
+    
+    showPage('p-mine'); // Affiche la mine au début
+    refresh();          // Charge le solde 400k
+    setInterval(refresh, 10000); // Rafraîchit toutes les 10 sec (plus calme)
+};
+
 
 
 
