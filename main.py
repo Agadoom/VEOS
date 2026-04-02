@@ -1,5 +1,4 @@
-from routes import mine, launcher, user, stars, lottery, premium, admin dans main.py ? 
-import asyncio, uvicorn, os, time
+ import asyncio, uvicorn, os, time
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
