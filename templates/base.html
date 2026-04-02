@@ -261,17 +261,24 @@ async function loadLottery() {
         const r = await fetch(`${BASE_URL}/api/lottery/status`);
         const d = await r.json();
         
-        const jackEl = document.getElementById('jackpot-amount');
-        if(jackEl) {
-            // On s'assure que d.jackpot existe, sinon on garde l'ancien chiffre
-            jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
+        console.log("Données Loterie reçues:", d); // Pour debugger dans la console
+
+        if (d.jackpot !== undefined) {
+            // Mise à jour du gros chiffre
+            document.getElementById('jackpot-amount').innerText = parseFloat(d.jackpot).toLocaleString();
         }
         
-        document.getElementById('last-winner').innerText = d.last_winner || "@None";
-        document.getElementById('last-win-amount').innerText = (d.last_prize || 0).toLocaleString() + " WPT";
-        
-    } catch (e) { console.error("Lottery Sync Error", e); }
+        // Mise à jour du dernier gagnant
+        if (d.last_winner) {
+            document.getElementById('last-winner').innerText = d.last_winner;
+            document.getElementById('last-win-amount').innerText = parseFloat(d.last_prize || 0).toLocaleString() + " WPT";
+        }
+
+    } catch (e) { 
+        console.error("Erreur synchro Loterie:", e); 
+    }
 }
+
 
 
 
@@ -546,22 +553,6 @@ async function loadMarket() {
 
 
 
-async function loadLottery() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/lottery/status`);
-        const d = await r.json();
-        
-        const jackEl = document.getElementById('jackpot-amount');
-        if(jackEl) {
-            // On s'assure que d.jackpot existe, sinon on garde l'ancien chiffre
-            jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
-        }
-        
-        document.getElementById('last-winner').innerText = d.last_winner || "@None";
-        document.getElementById('last-win-amount').innerText = (d.last_prize || 0).toLocaleString() + " WPT";
-        
-    } catch (e) { console.error("Lottery Sync Error", e); }
-}
 
 
 
