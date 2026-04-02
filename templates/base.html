@@ -235,6 +235,43 @@ async function openDetails(symbol) {
 
 
 
+
+
+
+// 1. ACHAT DE STARS (Paiement Telegram)
+async function buyStarsPack(amount) {
+    try {
+        const response = await fetch(`${BASE_URL}/api/stars/create-invoice`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, stars: amount })
+        });
+        const data = await response.json();
+        
+        if (data.link) {
+            // Ouvre la fenêtre de paiement officielle de Telegram
+            tg.openInvoice(data.link, function(status) {
+                if (status === 'paid') {
+                    tg.showAlert("✅ Payment Success! WPT credited.");
+                    refresh(); // Met à jour le solde
+                } else if (status === 'cancelled') {
+                    tg.showAlert("❌ Payment cancelled.");
+                }
+            });
+        }
+    } catch (e) {
+        tg.showAlert("Error creating invoice.");
+    }
+}
+
+// 2. CONNECTION TON (Simulée pour l'instant)
+function connectTonWallet() {
+    tg.showAlert("TON Connect Coming Soon! 💎\nStay tuned for the next update.");
+    tg.HapticFeedback?.notificationOccurred('warning');
+}
+
+
+
     // Initialisation
     window.onload = () => {
         tg.expand();
