@@ -426,19 +426,84 @@ function connectTonWallet() {
 
 
 
+// --- 1. CHARGER LE LEADERBOARD ---
 async function loadLeaderboard() {
+    const container = document.getElementById('leaderboard');
+    if (!container) return;
+
     try {
         const r = await fetch(`${BASE_URL}/api/leaderboard`);
         const data = await r.json();
-        const container = document.getElementById('leaderboard');
-        
-        container.innerHTML = data.map((user, index) => `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #111; ${user.id == uid ? 'background:rgba(255,215,0,0.1);' : ''}">
-                <span style="font-size:14px;">#${index + 1} ${user.username}</span>
-                <b style="color:var(--gold); font-family:monospace;">${parseFloat(user.score).toLocaleString()}</b>
+
+        if (!data || data.length === 0) {
+            container.innerHTML = `<p style="padding:20px; opacity:0.3; text-align:center;">No players yet.</p>`;
+            return;
+        }
+
+        container.innerHTML = data.map((u, i) => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #111; ${u.user_id == uid ? 'background:rgba(255,215,0,0.05);' : ''}">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="opacity:0.4; font-family:monospace; width:20px;">#${i+1}</span>
+                    <b style="font-size:14px;">${u.username || 'Citizen'}</b>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--gold); font-family:monospace;">${parseFloat(u.p_genesis || 0).toLocaleString()}</b>
+                    <small style="display:block; font-size:8px; opacity:0.4; text-transform:uppercase;">WPT</small>
+                </div>
             </div>
         `).join('');
     } catch (e) { console.error("Leaderboard error", e); }
+}
+
+// --- 2. CHARGER LES DIGITAL ASSETS (PORTFOLIO) ---
+async function loadPortfolio() {
+    const container = document.getElementById('digital-assets-list');
+    if (!container) return;
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/portfolio/${uid}`);
+        const assets = await r.json();
+
+        if (!assets || assets.length === 0) {
+            container.innerHTML = `<p style="padding:20px; opacity:0.3; text-align:center;">No assets found.</p>`;
+            return;
+        }
+
+        container.innerHTML = assets.map(a => `
+            <div class="card" onclick="openDetails('${a.symbol}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:15px; background:#0a0a0b; border:1px solid #1a1a1c;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <img src="${a.logo || '/static/genesis.png'}" style="width:40px; height:40px; border-radius:50%; object-fit:cover; background:#111;">
+                    <div>
+                        <b style="font-size:14px;">${a.name}</b><br>
+                        <small style="opacity:0.5;">${parseFloat(a.amount).toLocaleString()} ${a.symbol}</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green); font-family:monospace;">$${(a.amount * a.price).toFixed(2)}</b><br>
+                    <small style="opacity:0.4; font-size:9px;">@ ${parseFloat(a.price).toFixed(6)}</small>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) { console.error("Portfolio error", e); }
+}
+
+// --- 3. MISE À JOUR DU PROFIL DANS REFRESH ---
+// Ajoute ceci dans ta fonction refresh() existante :
+function updateProfilUI(d) {
+    const totalWPT = d.p_genesis || 0;
+    
+    // 1. Dollars (Estimation)
+    const usdEl = document.getElementById('usd-val');
+    if (usdEl) {
+        const valUSD = totalWPT * 0.0001;
+        usdEl.innerHTML = `$${valUSD.toLocaleString(undefined, {minimumFractionDigits: 2})} <span style="font-size: 14px; opacity: 0.6;">USD</span>`;
+    }
+
+    // 2. Initiale & Nom
+    if (document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.username || "ONE WORLD PEACE COINS";
+    if (document.getElementById('prof-initials') && d.username) {
+        document.getElementById('prof-initials').innerText = d.username.charAt(0).toUpperCase();
+    }
 }
 
 
