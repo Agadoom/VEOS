@@ -49,52 +49,17 @@
 
 
 
-<div id="p-launcher" class="page" style="display:none;">
-    <h2 style="text-align:center; font-weight: 800; color: #fff; margin-bottom: 20px;">🚀 LAUNCHPAD</h2>
-
-    <div style="padding: 0 10px 15px 10px;">
-        <div style="position: relative;">
-            <span style="position: absolute; left: 12px; top: 12px; opacity: 0.5;">🔍</span>
-            <input type="text" id="token-search" oninput="loadMarket()" placeholder="Search tokens..." style="width: 100%; padding: 12px 12px 12px 40px; border-radius: 15px; border: 1px solid #333; background: rgba(255,255,255,0.03); color: white; box-sizing: border-box;">
-        </div>
+<div id="p-launcher" class="page" style="display:none; padding:20px;">
+    <h2 style="text-align:center; color:var(--gold);">🚀 LAUNCHPAD</h2>
+    <div class="card" style="flex-direction:column; gap:10px; padding:20px;">
+        <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
+        <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL">
+        <button class="btn" style="width:100%;" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
     </div>
-
-    <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #0a0a0b, #121214); padding:20px; border: 1px solid #222;">
-        <div style="text-align:center;">
-            <b style="color:var(--gold); text-transform: uppercase; font-size: 12px; letter-spacing: 1px;">Create Ecosystem Token</b>
+    <div id="token-list" style="margin-top:20px;">
         </div>
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
-            <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL">
-        </div>
-        
-        <textarea id="tk-desc" class="l-input" style="height:65px; resize: none;" placeholder="Project description..."></textarea>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-            <label class="upload-box" style="border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:11px; cursor:pointer; background: rgba(255,255,255,0.02);">
-                <span id="label-logo">🖼️ Add Logo</span>
-                <input type="file" id="f-logo" hidden onchange="document.getElementById('label-logo').innerText='✅ Logo OK'">
-            </label>
-            <label class="upload-box" style="border: 1px dashed #444; padding:12px; border-radius:12px; text-align:center; font-size:11px; cursor:pointer; background: rgba(255,255,255,0.02);">
-                <span id="label-banner">🌅 Add Banner</span>
-                <input type="file" id="f-banner" hidden onchange="document.getElementById('label-banner').innerText='✅ Banner OK'">
-            </label>
-        </div>
-        
-        <button class="btn" style="background:var(--gold); color:#000; width:100%; font-weight:900; height: 45px; margin-top: 5px;" onclick="deployToken()">LAUNCH TOKEN (5,000 WPT)</button>
-    </div>
-
-    <div style="display: flex; gap: 10px; margin: 25px 0 15px 0; overflow-x: auto; padding-bottom: 5px;">
-        <div onclick="setFilter('new', this)" class="tab-btn active-tab" style="padding: 8px 15px; background: var(--gold); color: black; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer;">✨ New</div>
-        <div onclick="setFilter('hot', this)" class="tab-btn" style="padding: 8px 15px; background: #111; color: white; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer; border: 1px solid #222;">🔥 Hot</div>
-        <div onclick="setFilter('my', this)" class="tab-btn" style="padding: 8px 15px; background: #111; color: white; border-radius: 10px; font-size: 12px; font-weight: 800; cursor: pointer; border: 1px solid #222;">👤 My</div>
-    </div>
-
-    <div id="token-list" style="padding-bottom: 30px; display: grid; gap: 12px;">
-        <p style="text-align:center; opacity:0.3; padding:20px;">Scanning network for tokens...</p>
-    </div>
 </div>
+
 
 
 
