@@ -1,54 +1,56 @@
 {% extends "base.html" %}
 {% block content %}
 
- <div id="p-mine" class="page active-page">
-            <div class="prof-header" style="background: linear-gradient(180deg, rgba(255,204,0,0.05) 0%, transparent 100%);">
-                <small id="prof-rank" style="color:var(--gold); font-weight:900; letter-spacing: 1px;">RANK: #---</small>
-                <h1 id="tot" style="font-size:48px; margin:5px 0; font-family: 'monospace'; font-weight: 800; text-shadow: 0 0 15px rgba(255,255,255,0.1);">0.00</h1>
-                
-                <div style="padding: 0 20px;">
-                    <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden; position: relative;">
-                        <div id="e-f" style="background: linear-gradient(90deg, var(--gold), #ffaa00); height:100%; width:0%; transition:0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); position: relative;">
-                            <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 100%);"></div>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <small id="e-t" style="color:var(--text); font-weight: bold; font-size: 11px; opacity: 0.8;">Energy: 0/100</small>
-                        <div style="display: flex; gap: 5px; align-items: center;">
-                            <span id="turbo-status" style="display:none; background:#A259FF; color:white; font-size:9px; padding:2px 6px; border-radius:10px; font-weight:900; animation: pulse 1.5s infinite;">⚡ TURBO</span>
-                            <span id="boost-badge" style="display:none; background: linear-gradient(90deg, #00ecff, #0044ff); color: white; font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 900;">🚀 x<span id="mining-multiplier">1.0</span></span>
-                        </div>
-                        <small style="color:var(--gold); font-size: 10px; font-weight: 900;">⚡ AUTO</small>
-                    </div>
+ {% extends "base.html" %}
+
+{% block content %}
+
+<div id="p-mine" class="page active-page">
+    <div class="prof-header" style="background: linear-gradient(180deg, rgba(255,204,0,0.05) 0%, transparent 100%); padding: 20px 0; text-align: center;">
+        <small id="prof-rank" style="color:var(--gold); font-weight:900; letter-spacing: 1px;">RANK: #---</small>
+        <h1 id="tot" style="font-size:48px; margin:5px 0; font-family: 'monospace'; font-weight: 800; text-shadow: 0 0 15px rgba(255,255,255,0.1);">0.00</h1>
+        
+        <div style="padding: 0 20px;">
+            <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden; position: relative;">
+                <div id="e-f" style="background: linear-gradient(90deg, var(--gold), #ffaa00); height:100%; width:0%; transition:0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); position: relative;">
+                    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 100%);"></div>
                 </div>
             </div>
-
-            <div id="burn-stats-header" style="text-align: center; margin-top: -10px; margin-bottom: 20px; opacity: 0.9;">
-                <span style="background: rgba(235, 64, 52, 0.1); color: #eb4034; padding: 5px 15px; border-radius: 20px; font-size: 11px; font-weight: 800; border: 1px solid rgba(235, 64, 52, 0.2);">
-                    🔥 TOTAL BURNED: <span id="global-burned-val">0.00</span> WPT
-                </span>
-            </div>
-
-            <div style="display: grid; gap: 10px; margin-top: 10px;">
-                <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
-                    <div><b>Genesis <span style="color:var(--gold)">(WPT)</span></b><br><small id="gv">0.00</small></div>
-                    <button class="btn" onclick="mine('genesis', event)">MINE</button>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <small id="e-t" style="color:var(--text); font-weight: bold; font-size: 11px; opacity: 0.8;">Energy: 0/100</small>
+                <div style="display: flex; gap: 5px; align-items: center;">
+                    <span id="turbo-status" style="display:none; background:#A259FF; color:white; font-size:9px; padding:2px 6px; border-radius:10px; font-weight:900; animation: pulse 1.5s infinite;">⚡ TURBO</span>
                 </div>
-                <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
-                    <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
-                    <button class="btn" style="background: #eee;" onclick="mine('unity', event)">SYNC</button>
-                </div>
-                <div class="card" style="margin-bottom: 0; padding: 12px 18px; border-color: rgba(162, 89, 255, 0.3);">
-                    <div><b style="color:var(--purple);">Veo AI</b><br><small id="vv">0.00</small></div>
-                    <button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
-                </div>
-            </div>
-
-            <div class="coin-container" style="text-align:center; margin-top:35px; position: relative;">
-                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 140px; background: var(--gold); filter: blur(40px); opacity: 0.15; border-radius: 50%; pointer-events: none;"></div>
-                <img src="static/genesis.png" class="main-coin" style="width:170px; height: 170px; cursor:pointer;" onclick="mine('genesis', event)">
+                <small style="color:var(--gold); font-size: 10px; font-weight: 900;">⚡ AUTO</small>
             </div>
         </div>
+    </div>
+
+    <div style="display: grid; gap: 10px; margin-top: 10px;">
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
+            <div><b>Genesis <span style="color:var(--gold)">(WPT)</span></b><br><small id="gv">0.00</small></div>
+            <button class="btn" onclick="mine('genesis', event)">MINE</button>
+        </div>
+        
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
+            <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
+            <button class="btn" style="background: #eee; color:#000;" onclick="mine('unity', event)">SYNC</button>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px; border-color: rgba(162, 89, 255, 0.3);">
+            <div><b style="color:var(--purple);">Veo AI</b><br><small id="vv">0.00</small></div>
+            <button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
+        </div>
+    </div>
+
+    <div class="coin-container" style="text-align:center; margin-top:35px; position: relative;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 140px; background: var(--gold); filter: blur(40px); opacity: 0.15; border-radius: 50%; pointer-events: none;"></div>
+        <img src="/static/genesis.png" class="main-coin" style="width:170px; height: 170px; cursor:pointer;" onclick="mine('genesis', event)">
+    </div>
+</div>
+
+
+
 
 <div id="p-launcher" class="page">
     <h2 style="text-align:center;">🚀 LAUNCHPAD</h2>
