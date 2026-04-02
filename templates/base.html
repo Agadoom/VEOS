@@ -541,6 +541,27 @@ async function loadMarket() {
 
 
 
+async function loadLottery() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/lottery/status`);
+        const d = await r.json();
+        
+        const jackEl = document.getElementById('jackpot-amount');
+        if(jackEl) {
+            // On s'assure que d.jackpot existe, sinon on garde l'ancien chiffre
+            jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
+        }
+        
+        document.getElementById('last-winner').innerText = d.last_winner || "@None";
+        document.getElementById('last-win-amount').innerText = (d.last_prize || 0).toLocaleString() + " WPT";
+        
+    } catch (e) { console.error("Lottery Sync Error", e); }
+}
+
+
+
+
+
 
 
     // Initialisation
