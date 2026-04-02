@@ -83,7 +83,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != config.ADMIN_ID: return 
     v = int(time.time())
-    admin_url = f"https://veos-production-a2de.up.railway.app/admin?v={v}"
+    admin_url = f"https://veos-production-a2de.up.railway.app/secret-admin-dashboard?v={v}"
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🖥️ COMMAND CENTER", web_app=WebAppInfo(url=admin_url))]])
     await update.message.reply_text("🛰️ <b>Admin Access Granted.</b>", parse_mode="HTML", reply_markup=keyboard)
 
