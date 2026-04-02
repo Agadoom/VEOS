@@ -100,6 +100,45 @@
         } catch (e) { console.error("Erreur mine:", e); }
     }
 
+
+
+
+
+
+async function loadMarket() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/market`);
+        const tokens = await r.json();
+        const list = document.getElementById('token-list');
+        
+        if (tokens.length === 0) {
+            list.innerHTML = "<p style='text-align:center; opacity:0.5;'>No tokens launched yet.</p>";
+            return;
+        }
+
+        list.innerHTML = tokens.map(t => `
+            <div class="card" onclick="openDetails('${t.symbol}')" style="cursor:pointer; transition: 0.2s;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <img src="${t.logo || '/static/genesis.png'}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; border: 1px solid #333;">
+                    <div>
+                        <b style="font-size:15px;">${t.name}</b><br>
+                        <small style="color:var(--gold); font-weight:900;">$${t.symbol}</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--green); font-family:monospace;">${parseFloat(t.price).toFixed(4)} WPT</b><br>
+                    <small style="opacity:0.5; font-size:10px;">MCap: $${Math.floor(t.mcap || 0).toLocaleString()}</small>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) { console.error("Market Error", e); }
+}
+
+
+
+
+
+
     // Initialisation
     window.onload = () => {
         tg.expand();
