@@ -69,35 +69,43 @@ img, button {
 
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
     async function refresh() {
+    if (!uid) return;
     try {
-        // uid est ton Telegram User ID récupéré au début
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        const data = await r.json();
+        if (!r.ok) return;
+        const d = await r.json();
 
-        // 1. Mise à jour du solde principal (WPT)
-        const balEl = document.getElementById('user-balance');
-        if (balEl) {
-            // On s'assure que data.p_genesis (ou le nom de ta colonne) est bien reçu
-            const balance = parseFloat(data.p_genesis || 0);
-            balEl.innerText = balance.toLocaleString();
+        // FONCTION MAGIQUE POUR ÉCRIRE SANS CRASH
+        const update = (id, value) => {
+            const el = document.getElementById(id);
+            if (el && value !== undefined) {
+                el.innerText = parseFloat(value).toLocaleString();
+            }
+        };
+
+        // On teste toutes les clés possibles venant du Python
+        const totalScore = d.p_genesis || d.score || d.balance || 0;
+        
+        // Mise à jour de TOUS les compteurs (Mine + Wallet + Profil)
+        update('tot', totalScore);          // Le gros chiffre en haut (Mine)
+        update('user-balance', totalScore); // Le chiffre dans le Wallet
+        update('gv', d.g || d.genesis || 0); // Genesis individuel
+        update('uv', d.u || d.unity || 0);   // Unity
+        update('vv', d.v || d.veo || 0);     // Veo AI
+        
+        // Mise à jour de l'énergie
+        if(document.getElementById('e-f')) {
+            const energy = d.energy || 0;
+            document.getElementById('e-f').style.width = energy + "%";
+            document.getElementById('e-t').innerText = `Energy: ${Math.floor(energy)}/100`;
         }
 
-        // 2. Mise à jour de la valeur en USD (Simulation)
-        const usdEl = document.getElementById('usd-val');
-        if (usdEl) {
-            const usdPrice = 0.0015; // Ton prix arbitraire
-            usdEl.innerText = "$" + (parseFloat(data.p_genesis || 0) * usdPrice).toFixed(2);
+        // Mise à jour du Rank (Profil)
+        if(d.rank && document.getElementById('prof-rank')) {
+            document.getElementById('prof-rank').innerText = "RANK: #" + d.rank;
         }
 
-        // 3. Mise à jour des initiales du profil si tu es sur la page Wallet/Profil
-        const profInit = document.getElementById('prof-initials');
-        if (profInit && data.username) {
-            profInit.innerText = data.username.charAt(0).toUpperCase();
-        }
-
-    } catch (e) {
-        console.error("Erreur Refresh Wallet:", e);
-    }
+    } catch (e) { console.error("Refresh Error:", e); }
 }
 
 
