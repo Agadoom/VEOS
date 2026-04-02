@@ -99,47 +99,6 @@
 
 
 
-<div id="p-wallet" class="page">
-    <h2 style="text-align:center;">💼 WALLET</h2>
-    <div class="card" style="flex-direction:column; text-align:center; padding:35px; border:1px solid var(--gold);">
-        <small style="opacity:0.6;">Available Balance</small>
-        <h1 id="wallet-balance" style="color:var(--gold); font-size:45px; margin:10px 0;">0.00</h1>
-        <button class="btn" style="background:#0088cc; color:white;" onclick="connectTon()">CONNECT TON</button>
-    </div>
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">
-        <div class="card" style="flex-direction:column; padding:20px; text-align:center;">
-            <b>⭐ 50 Stars</b><button class="btn" style="margin-top:10px;" onclick="buyStarsPack(50)">BUY</button>
-        </div>
-        <div class="card" style="flex-direction:column; padding:20px; text-align:center; border:1px solid var(--gold);">
-            <b>⭐ 250 Stars</b><button class="btn" style="margin-top:10px;" onclick="buyStarsPack(250)">BUY</button>
-        </div>
-    </div>
-</div>
 
-<div id="p-profil" class="page">
-    <div style="text-align:center; padding:30px;">
-        <div style="width:80px; height:80px; background:var(--gold); border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:30px;">U</div>
-        <h2 id="prof-name">USER</h2>
-        <h1 id="usd-val" style="color:var(--green);">$0.00</h1>
-    </div>
-    
-    <div class="card" style="background:rgba(235, 64, 52, 0.1); border:1px solid var(--red); flex-direction:column; padding:20px; text-align:center;">
-        <h3 style="color:var(--red); margin:0;">🔥 BURN PORTAL</h3>
-        <input type="number" id="burn-amount" placeholder="0.00" class="l-input" style="text-align:center; color:var(--red);">
-        <button class="btn" style="background:var(--red); color:white; width:100%;" onclick="executeBurn()">EXECUTE SACRIFICE</button>
-    </div>
-
-    <h3 style="margin:20px 0 10px;">🏆 Global Ranking</h3>
-    <div id="leaderboard" style="background:#0a0a0b; border-radius:20px; border:1px solid #222; min-height:100px;"></div>
-</div>
-
-<div id="p-lottery" class="page">
-    <h2 style="text-align:center; color:var(--gold);">🎰 JACKPOT</h2>
-    <div class="card" style="flex-direction:column; text-align:center; padding:40px; border:2px solid var(--gold);">
-        <small>PRIZE POOL</small>
-        <h1 id="jackpot-amount" style="font-size:50px; margin:10px 0;">0</h1>
-        <button class="btn" style="width:100%; height:50px; font-size:18px;" onclick="buyLotteryTicket()">BUY TICKET (1,000 WPT)</button>
-    </div>
-</div>
 
 {% endblock %}
