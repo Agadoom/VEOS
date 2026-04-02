@@ -141,28 +141,56 @@ function showPage(pageId) {
     async function refresh() {
     if (!uid) return;
     try {
+        // Appelle ta route /api/user/{uid}
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) return;
         const d = await r.json();
 
-        // VALEUR SÛRE
-        const score = d.p_genesis || 0;
+        // 1. MISE À JOUR DES SOLDES (Sync avec ton Python g, u, v, score)
+        const update = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = parseFloat(val || 0).toLocaleString();
+        };
 
-        // Mise à jour MINE (doit toujours marcher)
-        if(document.getElementById('tot')) document.getElementById('tot').innerText = score.toLocaleString();
+        update('tot', d.score);           // Page Mine (Gros chiffre)
+        update('user-balance', d.score);  // Page Wallet (Gros chiffre)
+        update('wallet-balance', d.score); // Backup ID Wallet
         
-        // Mise à jour PROFIL (USD)
-        const usdEl = document.getElementById('usd-val');
-        if(usdEl) usdEl.innerText = "$" + (score * 0.0001).toLocaleString(undefined, {minimumFractionDigits:2});
+        update('gv', d.g); // Petit compteur Genesis
+        update('uv', d.u); // Petit compteur Unity
+        update('vv', d.v); // Petit compteur Veo AI
 
-        // Initiale
-        if(document.getElementById('prof-initials') && d.username) {
-            document.getElementById('prof-initials').innerText = d.username.charAt(0).toUpperCase();
+        // 2. MISE À JOUR ESTIMATION USD (Sync avec usd_value)
+        const usdEl = document.getElementById('usd-val');
+        if (usdEl) {
+            usdEl.innerHTML = `$${parseFloat(d.usd_value || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} <span style="font-size: 14px; opacity: 0.6;">USD</span>`;
+        }
+
+        // 3. MISE À JOUR DU RANG (Sync avec rank)
+        const rankEl = document.getElementById('prof-rank');
+        if (rankEl) {
+            rankEl.innerText = "RANK: #" + (d.rank || "---");
+        }
+
+        // 4. ÉNERGIE & INFOS PROFIL
+        if (document.getElementById('e-f')) {
+            document.getElementById('e-f').style.width = d.energy + "%";
+            document.getElementById('e-t').innerText = `Energy: ${d.energy}/100`;
+        }
+        
+        if (document.getElementById('prof-name')) {
+            document.getElementById('prof-name').innerText = d.name || "Citizen";
+        }
+        
+        if (document.getElementById('prof-initials') && d.name) {
+            document.getElementById('prof-initials').innerText = d.name.charAt(0).toUpperCase();
         }
 
     } catch (e) {
-        console.log("Le refresh a échoué mais on ne bloque pas l'app :", e);
+        console.error("Erreur de rafraîchissement :", e);
     }
 }
+
 
 
 
@@ -385,28 +413,32 @@ async function loadLeaderboard() {
     if (!container) return;
 
     try {
-        const r = await fetch(`${BASE_URL}/api/leaderboard`);
+        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
         const data = await r.json();
 
         if (!data || data.length === 0) {
-            container.innerHTML = `<p style="padding:20px; opacity:0.3; text-align:center;">No players yet.</p>`;
+            container.innerHTML = `<p style="padding:20px; opacity:0.3; text-align:center;">No legends yet...</p>`;
             return;
         }
 
-        container.innerHTML = data.map((u, i) => `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #111; ${u.user_id == uid ? 'background:rgba(255,215,0,0.05);' : ''}">
+        container.innerHTML = data.map(u => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #111;">
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <span style="opacity:0.4; font-family:monospace; width:20px;">#${i+1}</span>
-                    <b style="font-size:14px;">${u.username || 'Citizen'}</b>
+                    <span style="opacity:0.4; font-family:monospace; width:20px;">#${u.rank}</span>
+                    <b style="font-size:14px;">${u.name}</b>
                 </div>
-                <div style="text-align:right;">
-                    <b style="color:var(--gold); font-family:monospace;">${parseFloat(u.p_genesis || 0).toLocaleString()}</b>
-                    <small style="display:block; font-size:8px; opacity:0.4; text-transform:uppercase;">WPT</small>
-                </div>
+                <b style="color:var(--gold); font-family:monospace;">${parseFloat(u.score).toLocaleString()}</b>
             </div>
         `).join('');
-    } catch (e) { console.error("Leaderboard error", e); }
+    } catch (e) {
+        container.innerHTML = `<p style="padding:20px; opacity:0.3; text-align:center;">API Error</p>`;
+    }
 }
+
+
+
+
+
 
 // --- 2. CHARGER LES DIGITAL ASSETS (PORTFOLIO) ---
 async function loadPortfolio() {
