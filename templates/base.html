@@ -503,16 +503,34 @@ let currentFilter = 'new';
 
 async function setFilter(filter, el) {
     currentFilter = filter;
-    // Gérer l'apparence des onglets
+
+    // 1. Mise à jour visuelle des boutons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.style.background = "#111";
-        btn.style.color = "white";
+        btn.style.color = "#fff";
+        btn.style.border = "1px solid #222";
     });
     el.style.background = "var(--gold)";
-    el.style.color = "black";
+    el.style.color = "#000";
+    el.style.border = "1px solid var(--gold)";
+
+    // 2. Mise à jour du titre
+    const titles = { 'new': 'NEW LISTINGS', 'hot': 'HOT TOKENS', 'my': 'MY PORTFOLIO' };
+    const emojis = { 'new': '✨', 'hot': '🔥', 'my': '👤' };
     
-    loadMarket(); // Recharger avec le nouveau filtre
+    document.getElementById('filter-title').innerText = titles[filter];
+    document.getElementById('filter-emoji').innerText = emojis[filter];
+
+    // 3. Charger les données filtrées
+    loadMarket();
 }
+
+
+
+
+
+
+
 
 async function loadMarket() {
     const list = document.getElementById('token-list');
