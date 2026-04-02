@@ -95,33 +95,7 @@
             <div id="token-list" style="padding-bottom: 20px;"></div>
         </div>
 
-        <div id="p-details" class="page" style="display:none; padding: 0; background: #000; min-height: 100vh;">
-            <div style="position: relative; width: 100%; height: 180px; background: #111;">
-                <img id="det-banner" src="" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.5;">
-                <div onclick="showPage('p-launcher')" style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 10px; cursor: pointer; color: var(--gold); z-index: 10;">⬅️ Back</div>
-                <div style="position: absolute; bottom: -30px; left: 20px; width: 80px; height: 80px; background: #000; border-radius: 20px; border: 4px solid #000; overflow: hidden;">
-                    <img id="det-logo" src="" style="width: 100%; height: 100%; object-fit: cover;">
-                </div>
-            </div>
-            <div style="padding: 40px 20px 10px 20px; display: flex; justify-content: space-between;">
-                <div><h1 id="det-name" style="margin:0; font-size: 24px;">Token</h1><div id="det-sym" style="color:var(--gold);">$SYM</div></div>
-                <div id="det-socials" style="display:flex; gap:15px;"></div>
-            </div>
-            <div style="padding: 0 20px;">
-                <div style="background:#111; border:1px solid #222; border-radius:20px; padding:15px; margin-bottom:20px;">
-                    <canvas id="token-chart" width="300" height="120" style="width:100%; height:120px;"></canvas>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px; text-align:center;">
-                        <div><small style="opacity:0.5; font-size:9px;">PRICE</small><b id="det-price-top" style="color:#4caf50; display:block;">0.00</b></div>
-                        <div><small style="opacity:0.5; font-size:9px;">MARKET CAP</small><b id="det-mcap" style="display:block;">$0</b></div>
-                    </div>
-                </div>
-                <p id="det-desc" style="font-size:12px; color:#aaa; background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px;">---</p>
-                <div style="display:flex; gap:10px; margin-top:20px;">
-                    <button onclick="openTrade('buy')" style="flex:1; height:55px; background:#4caf50; border-radius:15px; color:white; font-weight:900;">BUY</button>
-                    <button onclick="openTrade('sell')" style="flex:1; height:55px; background:#f44336; border-radius:15px; color:white; font-weight:900;">SELL</button>
-                </div>
-            </div>
-        </div>
+       
 
         <div id="p-wallet" class="page" style="display:none;">
             <h2 style="text-align:center; font-weight: 800;">💼 MY WALLET</h2>
@@ -181,6 +155,40 @@
         </div>
 
    
+
+
+
+<div id="p-profil" class="page" style="display:none;">
+    <div class="prof-header" style="text-align:center; padding: 30px 20px; background: linear-gradient(180deg, rgba(255,215,0,0.1) 0%, transparent 100%);">
+        <div id="prof-initials" style="width:80px; height:80px; background:var(--gold); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:32px; box-shadow: 0 0 20px rgba(255,215,0,0.2);">U</div>
+        <h2 id="prof-name" style="margin:0; letter-spacing:-1px;">Username</h2>
+        <div style="margin-top:10px;">
+            <small style="opacity:0.5; font-size:10px; text-transform:uppercase;">Estimation Net Worth</small>
+            <h1 id="usd-val" style="color:var(--green); margin:0; font-family:monospace;">$0.00</h1>
+        </div>
+    </div>
+    
+    <div style="padding: 0 20px;">
+        <div id="user-portfolio" style="margin-top:20px;"></div>
+        
+        <div style="margin-top:30px;">
+            <h3 style="font-size:14px; color:var(--gold); margin-bottom:15px;">🏆 GLOBAL RANKING</h3>
+            <div id="leaderboard" style="background: #0a0a0b; border-radius: 20px; border: 1px solid #222; overflow: hidden;">
+                </div>
+        </div>
+    </div>
+</div>
+
+<div id="p-lottery" class="page" style="display:none; padding:20px;">
+    <div class="card" style="flex-direction:column; padding:30px; text-align:center; border: 2px solid var(--gold); background: radial-gradient(circle at top, rgba(255,215,0,0.1), transparent);">
+        <div style="font-size:50px; margin-bottom:10px;">🎰</div>
+        <h2 style="margin:0; color:var(--gold);">JACKPOT</h2>
+        <h1 id="jackpot-amount" style="font-size:55px; margin:15px 0; font-family:monospace; text-shadow: 0 0 20px rgba(255,215,0,0.3);">0</h1>
+        <p style="font-size:12px; opacity:0.6;">Tickets possédés: <span id="user-tickets" style="color:white; font-weight:bold;">0</span></p>
+        <button class="btn" style="width:100%; height:55px; font-size:18px;" onclick="buyLotteryTicket()">ACHETER TICKET (1k WPT)</button>
+    </div>
+</div>
+
     <div id="trade-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; align-items:center; justify-content:center; padding:20px;">
         <div style="background:#111; border:2px solid var(--gold); border-radius:25px; padding:25px; width:100%; max-width:350px; text-align:center;">
             <h2 id="modal-title" style="color:var(--gold);">🚀 TRADE</h2>
