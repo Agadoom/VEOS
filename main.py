@@ -39,6 +39,13 @@ app.add_middleware(
 
 # Inclusion des routes de la loterie
 app.include_router(lottery_router)
+app.include_router(mine_router)
+app.include_router(stars_router)
+app.include_router(premium_router)
+app.include_router(admin_router)
+app.include_router(launcher_router)
+app.include_router(profile_router)
+
 
 # --- 1. ROUTES D'AFFICHAGE (FRONT-END) ---
 
