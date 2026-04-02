@@ -211,4 +211,51 @@
 
 
 
+
+
+
+// 1. VRAI PAIEMENT STARS
+async function buyStarsPack(amount) {
+    try {
+        // Appelle ton API Python qui génère le lien de facture Telegram
+        const r = await fetch(`${BASE_URL}/api/stars/create-invoice`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, stars: amount })
+        });
+        const d = await r.json();
+        
+        if (d.link) {
+            // Ouvre l'interface de paiement OFFICIELLE de Telegram
+            tg.openInvoice(d.link, (status) => {
+                if (status === 'paid') {
+                    tg.showAlert("✅ Merci Boss ! WPT crédités.");
+                    refresh(); // Recharge le solde immédiatement
+                }
+            });
+        } else {
+            tg.showAlert("Erreur: " + (d.error || "Lien de paiement indisponible"));
+        }
+    } catch (e) {
+        console.error("Stars Error:", e);
+        tg.showAlert("Impossible de contacter le serveur de paiement.");
+    }
+}
+
+// 2. VRAIE CONNEXION WALLET (Si tu utilises ton-connect)
+function connectTonWallet() {
+    // Si tu as déjà injecté le script TonConnectUI dans ton base.html :
+    if (window.tonConnectUI) {
+        window.tonConnectUI.openModal();
+    } else {
+        // Si tu n'as pas encore le SDK, on redirige vers ta fonction de sauvegarde manuelle
+        showPage('p-profil'); 
+        tg.showAlert("Ouvre le profil pour lier ton adresse UQ... manuellement !");
+    }
+}
+
+
+
+
+
 {% endblock %}
