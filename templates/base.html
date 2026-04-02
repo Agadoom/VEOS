@@ -756,30 +756,37 @@ async function buyTicket() {
 
 
 async function buyTicket() {
-    const qty = document.getElementById('ticket-qty').value;
-    // On s'assure d'envoyer l'ID Telegram réel
+    const qtyInput = document.getElementById('ticket-qty');
+    const qty = qtyInput ? parseInt(qtyInput.value) : 1;
+    
+    // On récupère l'ID utilisateur proprement
     const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
 
     try {
+        // --- ⚠️ ATTENTION À L'URL ICI ---
+        // Si ton router a un prefix "/api/lottery", l'URL doit être :
         const r = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 user_id: userId,
-                quantity: parseInt(qty)
+                quantity: qty
             })
         });
-        
+
         const res = await r.json();
+
         if (res.ok) {
-            tg.showAlert("🎟️ Good luck ! Ticket valid.");
-            refresh();      // Pour mettre à jour tes 400k (-1000)
-            loadLottery();  // Pour mettre à jour le Jackpot (12k + 1k)
+            tg.showAlert("🎟️ Bonne chance ! Tickets achetés.");
+            refresh();      // Update balance
+            loadLottery();  // Update jackpot
         } else {
-            tg.showAlert("❌ " + res.error);
+            // Si res.error n'existe pas, on affiche un message par défaut
+            tg.showAlert("❌ " + (res.error || "Erreur inconnue du serveur"));
         }
     } catch (e) {
-        tg.showAlert("Erreur de connexion au serveur.");
+        console.error(e);
+        tg.showAlert("❌ Erreur de connexion : Vérifie l'URL de l'API");
     }
 }
 
