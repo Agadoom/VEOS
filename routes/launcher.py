@@ -225,7 +225,7 @@ async def sell_token(req: TradeRequest):
 
 
 
-@app.get("/api/launcher/market")
+@router.get("/market")
 async def get_market(filter: str = "new", search: str = ""):
     try:
         query = {}
