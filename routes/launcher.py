@@ -20,10 +20,11 @@ class DeployRequest(BaseModel):
     name: str
     symbol: str
     description: str = ""
-    website_url: str = ""
-    twitter_url: str = ""
-    logo_b64: str
-    banner_b64: str = ""
+    website: str = ""  # Vérifie si le JS envoie 'website' ou 'website_url'
+    twitter: str = ""
+    logo: str = ""     # Si tu envoies une URL et non du base64
+    banner: str = ""
+
 
 # --- 📋 LISTE DES TOKENS ---
 @router.get("/list")
