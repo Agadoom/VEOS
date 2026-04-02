@@ -15,6 +15,21 @@ from routes import mine, launcher, user, stars, lottery, premium, admin
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routes.lottery import draw_lottery 
 
+
+
+
+from telegram import Bot
+import os
+
+# 1. Récupère ton TOKEN de BotFather (mis dans tes variables d'environnement Railway)
+BOT_TOKEN = os.getenv("TOKEN") 
+
+# 2. INITIALISATION DE L'OBJET BOT
+# C'est cette ligne qui manquait !
+bot = Bot(token=BOT_TOKEN)
+
+
+
 # --- INITIALIZATION ---
 # --- INITIALIZATION ---
 database.init_db_structure()
