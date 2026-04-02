@@ -97,6 +97,64 @@
 </div>
 
 
+<div id="p-details" class="page" style="display:none; padding: 0; background: #000; min-height: 100vh;">
+    <div style="position: relative; width: 100%; height: 180px; background: #111;">
+        <img id="det-banner" src="/static/default-banner.png" style="width: 100%; height: 100%; object-fit: cover; opacity: 0.5;">
+        
+        <div onclick="showPage('p-launcher')" style="position: absolute; top: 15px; left: 15px; background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 10px; cursor: pointer; color: var(--gold); z-index: 10; font-weight: bold;">
+            ⬅️ Back
+        </div>
+
+        <div style="position: absolute; bottom: -30px; left: 20px; width: 80px; height: 80px; background: #000; border-radius: 20px; border: 4px solid #000; overflow: hidden;">
+            <img id="det-logo" src="/static/genesis.png" style="width: 100%; height: 100%; object-fit: cover;">
+        </div>
+    </div>
+
+    <div style="padding: 40px 20px 10px 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+            <h1 id="det-name" style="margin:0; font-size: 24px; font-weight: 800;">Token Name</h1>
+            <div id="det-sym" style="color:var(--gold); font-weight: bold;">$SYM</div>
+        </div>
+        <div id="det-socials" style="display:flex; gap:15px;">
+            </div>
+    </div>
+
+    <div style="padding: 0 20px;">
+        <div style="background:#111; border:1px solid #222; border-radius:20px; padding:15px; margin-bottom:20px; margin-top:10px;">
+            <div style="height: 100px; display: flex; align-items: flex-end; gap: 2px; margin-bottom: 10px; opacity: 0.5;">
+                <div style="flex:1; background:var(--green); height:30%;"></div>
+                <div style="flex:1; background:var(--green); height:50%;"></div>
+                <div style="flex:1; background:var(--green); height:40%;"></div>
+                <div style="flex:1; background:var(--green); height:70%;"></div>
+                <div style="flex:1; background:var(--green); height:90%;"></div>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; text-align:center;">
+                <div>
+                    <small style="opacity:0.5; font-size:9px; text-transform: uppercase;">Price WPT</small>
+                    <b id="det-price-top" style="color:var(--green); display:block; font-size: 18px;">0.0000</b>
+                </div>
+                <div>
+                    <small style="opacity:0.5; font-size:9px; text-transform: uppercase;">Market Cap</small>
+                    <b id="det-mcap" style="display:block; font-size: 18px;">$0</b>
+                </div>
+            </div>
+        </div>
+
+        <p id="det-desc" style="font-size:13px; color:#aaa; background: rgba(255,255,255,0.03); padding: 15px; border-radius: 15px; border: 1px solid #1a1a1a;">
+            No description available for this project.
+        </p>
+
+        <div style="display:flex; gap:12px; margin-top:20px; padding-bottom: 30px;">
+            <button onclick="openTrade('buy')" style="flex:1; height:55px; background:var(--green); border:none; border-radius:15px; color:white; font-weight:900; font-size: 16px;">
+                BUY
+            </button>
+            <button onclick="openTrade('sell')" style="flex:1; height:55px; background:var(--red); border:none; border-radius:15px; color:white; font-weight:900; font-size: 16px;">
+                SELL
+            </button>
+        </div>
+    </div>
+</div>
 
 
 
