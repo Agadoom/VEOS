@@ -152,54 +152,60 @@
 
 
 
-<div id="p-lottery" class="page" style="display:none; padding: 20px;">
-    <div style="text-align:center; margin-bottom: 25px;">
-        <div style="font-size: 60px; filter: drop-shadow(0 0 15px var(--gold)); animation: pulse 2s infinite;">🎰</div>
-        <h2 style="color:var(--gold); font-weight: 900; letter-spacing: 2px; margin-top: 10px;">GLOBAL JACKPOT</h2>
-        <div style="display: flex; justify-content: center; gap: 10px; margin-top: 5px;">
-            <span style="background: rgba(255,255,255,0.1); padding: 2px 10px; border-radius: 10px; font-size: 10px; opacity: 0.7;">PROCHAIN TIRAGE: <span id="lottery-timer">--:--</span></span>
+<div id="p-lottery" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; padding-bottom: 100px;">
+    
+    <div style="text-align:center; margin-bottom: 30px;">
+        <div style="font-size: 50px; margin-bottom: 10px; filter: drop-shadow(0 0 10px var(--gold));">🎰</div>
+        <h2 style="margin:0; letter-spacing: 2px; color: var(--gold); font-weight: 900;">GLOBAL JACKPOT</h2>
+        <div style="font-size: 10px; opacity: 0.5; margin-top: 5px;">PROCHAIN TIRAGE : <span id="draw-timer" style="color:white;">DIMANCHE 20H</span></div>
+    </div>
+
+    <div class="card" style="flex-direction:column; text-align:center; padding:40px 20px; border: 2px solid var(--gold); background: radial-gradient(circle, #1a1a1c 0%, #000 100%); box-shadow: 0 0 30px rgba(255,215,0,0.15); border-radius: 30px; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(255,215,0,0.02) 40px, rgba(255,215,0,0.02) 80px); animation: move-bg 20s linear infinite;"></div>
+
+        <small style="text-transform: uppercase; letter-spacing: 3px; opacity: 0.6; font-weight: 800; position: relative;">PRIZE POOL</small>
+        <h1 id="jackpot-amount" style="font-size: 65px; margin: 15px 0; color: white; font-family: 'Monospace', sans-serif; text-shadow: 0 0 20px rgba(255,255,255,0.3); position: relative;">12,000</h1>
+        <div style="display: inline-block; background: var(--gold); color: black; padding: 6px 20px; border-radius: 20px; font-weight: 900; font-size: 14px; position: relative; box-shadow: 0 4px 15px rgba(255,215,0,0.3);">WPT TO WIN</div>
+    </div>
+
+    <div style="margin-top: 30px; background: #111; border-radius: 25px; padding: 25px; border: 1px solid #222;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">🎟️</span>
+                <b style="font-size: 14px;">VOS TICKETS</b>
+            </div>
+            <div id="user-tickets-count" style="font-size: 24px; font-weight: 900; color: var(--gold);">0</div>
+        </div>
+
+        <div style="display: flex; gap: 15px; align-items: center; background: #000; padding: 10px; border-radius: 18px; border: 1px solid #333;">
+            <button onclick="changeQty(-1)" style="width: 50px; height: 50px; border-radius: 12px; background: #1a1a1c; color: white; border: none; font-size: 20px; font-weight: bold;">-</button>
+            <input type="number" id="ticket-qty" value="1" min="1" readonly style="flex: 1; background: transparent; border: none; color: white; text-align: center; font-size: 22px; font-weight: 900; outline: none;">
+            <button onclick="changeQty(1)" style="width: 50px; height: 50px; border-radius: 12px; background: #1a1a1c; color: white; border: none; font-size: 20px; font-weight: bold;">+</button>
+        </div>
+
+        <button onclick="buyTicket()" class="btn" style="width: 100%; margin-top: 20px; height: 60px; background: var(--gold); color: black; font-weight: 900; font-size: 16px; border-radius: 18px; box-shadow: 0 10px 20px rgba(255,215,0,0.1);">
+            ACHETER TICKETS (<span id="total-cost">1,000</span> WPT)
+        </button>
+    </div>
+
+    <div style="margin-top: 20px; display: flex; align-items: center; gap: 15px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 20px; border: 1px dashed #333;">
+        <div style="font-size: 30px;">🏆</div>
+        <div style="line-height: 1.4;">
+            <small style="opacity: 0.5; font-size: 10px; text-transform: uppercase;">Dernier Gagnant</small><br>
+            <b id="last-winner" style="color: white;">@NoBody</b>
+            <span id="last-win-amount" style="color: var(--gold); font-weight: bold; margin-left: 5px;">0 WPT</span>
         </div>
     </div>
 
-    <<div class="card" style="flex-direction:column; text-align:center; padding:40px; border: 2px solid var(--gold);">
-    <small style="text-transform: uppercase; letter-spacing: 2px; opacity: 0.6;">PRIZE POOL</small>
-    <h1 id="jackpot-amount" style="font-size: 60px; margin: 15px 0; color: white;">12,000</h1>
-    <div style="background: var(--gold); color: black; padding: 5px 15px; border-radius: 20px; font-weight: 900;">WPT TO WIN</div>
-</div>
-
-
-    <div style="margin-top: 30px;">
-        <div class="card" style="flex-direction:column; padding: 25px; gap: 15px; border-color: #222;">
-            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                <div>
-                    <b style="font-size: 16px;">🎟️ Vos Tickets</b><br>
-                    <small style="opacity:0.5;">Chance de gain: <span id="win-chance" style="color:var(--gold);">0%</span></small>
-                </div>
-                <h2 id="user-tickets" style="margin:0; color:var(--gold); font-size: 32px;">0</h2>
-            </div>
-
-            <div style="display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px;">
-                <input type="number" id="ticket-qty" value="1" min="1" class="l-input" style="flex: 1; text-align: center; margin-bottom: 0; font-size: 18px; border-color: var(--gold);">
-                <button class="btn" style="flex: 2; height: 50px; font-size: 16px;" onclick="buyLotteryTicket()">BUY (1k WPT/ea)</button>
-            </div>
-        </div>
-    </div>
-
-    <div class="card" style="margin-top: 15px; padding: 15px; background: rgba(0,0,0,0.3); border: 1px dashed #444;">
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <div style="font-size: 24px;">🏆</div>
-            <div>
-                <small style="opacity: 0.5; text-transform: uppercase; font-size: 9px;">Dernier Gagnant</small><br>
-                <b id="last-winner">@NoBody</b> <small id="last-win-amount" style="color:var(--gold);">0 WPT</small>
-            </div>
-        </div>
-    </div>
 </div>
 
 <style>
-@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+@keyframes move-bg {
+    0% { transform: translate(0, 0); }
+    100% { transform: translate(40px, 40px); }
+}
 </style>
+
 
 
 
