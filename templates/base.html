@@ -779,7 +779,19 @@ window.onload = () => {
 
 
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
+async def admin_command(update, context):
+    # L'URL DOIT CORRESPONDRE À TA ROUTE FASTAPI
+    # Si ta route dans main.py est @app.get("/admin"), l'url est BASE_URL + "/admin"
+    admin_url = f"{CONFIG.BASE_URL}/admin" 
+    
+    keyboard = [[
+        InlineKeyboardButton("💻 COMMAND CENTER", web_app=WebAppInfo(url=admin_url))
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text("🛰️ **Admin Access Granted.**", reply_markup=reply_markup, parse_mode="Markdown")
 
 
 
