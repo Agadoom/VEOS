@@ -61,6 +61,28 @@ async def home(request: Request):
         """
 
 
+@app.post("/api/stars/create-invoice")
+async def create_invoice(data: dict):
+    user_id = data.get("user_id")
+    stars_amount = data.get("stars") # Ex: 50 ou 250
+    
+    # Calcul du prix en WPT (facultatif pour la facture, c'est pour ta base de données)
+    # Pour Telegram Stars, la monnaie est toujours "XTR"
+    
+    try:
+        # Utilisation de la méthode createInvoiceLink du Bot Telegram
+        invoice_link = await bot.create_invoice_link(
+            title=f"Pack {stars_amount} Stars",
+            description=f"Achat de {stars_amount} Telegram Stars pour WPT Network",
+            payload=f"user_{user_id}_{stars_amount}",
+            provider_token="", # DOIT RESTER VIDE pour les Telegram Stars !
+            currency="XTR",    # CODE CRITIQUE : XTR = Telegram Stars
+            prices=[{"label": "Stars", "amount": stars_amount}] 
+        )
+        return {"link": invoice_link}
+    except Exception as e:
+        print(f"Erreur Facture: {e}")
+        return {"error": str(e)}
 
 
 
