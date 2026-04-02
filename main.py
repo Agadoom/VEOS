@@ -1,4 +1,3 @@
-Il manque imprt templet import comme ici 
 from routes import mine, launcher, user, stars, lottery, premium, admin dans main.py ? 
 import asyncio, uvicorn, os, time
 from datetime import datetime, timedelta
