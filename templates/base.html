@@ -72,28 +72,51 @@ img, button {
     if (!uid) return;
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!r.ok) {
+            console.error("Serveur ne répond pas");
+            return;
+        }
         const d = await r.json();
+        console.log("Données reçues :", d); // Vérifie ça dans ta console F12
 
-        // 1. On récupère la valeur (p_genesis est le nom dans ta base Postgres)
-        const totalWPT = d.p_genesis || 0;
+        // On définit la valeur de base (on teste tous les noms possibles)
+        const totalWPT = d.p_genesis || d.score || 0;
 
-        // 2. On met à jour l'ID de la page d'accueil (Capture 3471)
-        const mineEl = document.getElementById('tot');
-        if (mineEl) mineEl.innerText = parseFloat(totalWPT).toLocaleString();
+        // --- MISE À JOUR SÉCURISÉE ---
+        const safeUpdate = (id, val, isLocale = true) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.innerText = isLocale ? parseFloat(val).toLocaleString() : val;
+            }
+        };
 
-        // 3. On met à jour l'ID du Wallet (Capture 3470) - LE FIX EST ICI
-        const walletEl = document.getElementById('wallet-balance');
-        if (walletEl) walletEl.innerText = parseFloat(totalWPT).toLocaleString();
+        // 1. Accueil & Wallet (Les gros chiffres)
+        safeUpdate('tot', totalWPT);            // Page Mine
+        safeUpdate('wallet-balance', totalWPT); // Page Wallet
+        safeUpdate('user-balance', totalWPT);   // Backup ID Wallet
 
-        // 4. Update des sous-compteurs
-        if(document.getElementById('gv')) document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString();
-        if(document.getElementById('uv')) document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString();
-        if(document.getElementById('vv')) document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString();
+        // 2. Sous-compteurs (Les petites stats)
+        safeUpdate('gv', d.g || 0); // Genesis
+        safeUpdate('uv', d.u || 0); // Unity
+        safeUpdate('vv', d.v || 0); // Veo AI
+
+        // 3. Barre d'énergie
+        const energy = d.energy || 0;
+        const eBar = document.getElementById('e-f');
+        if (eBar) eBar.style.width = energy + "%";
+        safeUpdate('e-t', `Energy: ${Math.floor(energy)}/100`, false);
+
+        // 4. Profil Initials
+        if (d.username && document.getElementById('prof-initials')) {
+            document.getElementById('prof-initials').innerText = d.username.charAt(0).toUpperCase();
+            safeUpdate('prof-name', d.username, false);
+        }
 
     } catch (e) {
-        console.error("Erreur de synchronisation Wallet:", e);
+        console.error("Crash du Refresh :", e);
     }
 }
+
 
 
 
