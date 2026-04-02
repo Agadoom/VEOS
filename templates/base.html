@@ -145,6 +145,10 @@ function showPage(pageId) {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) return;
         const d = await r.json();
+if (d.error || !d.score) { 
+    console.log("Données invalides, on ne met pas à jour à 0");
+    return; 
+}
 
         // 1. MISE À JOUR DES SOLDES (Sync avec ton Python g, u, v, score)
         const update = (id, val) => {
