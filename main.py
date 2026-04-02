@@ -1,149 +1,56 @@
-import asyncio, uvicorn, os, time
+import asyncio
+import uvicorn
+import database
+import config  # <--- CRITIQUE : Assure-toi que ce fichier existe !
 from datetime import datetime, timedelta
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from telegram import Bot, Update, WebAppInfo, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-
-
-import config, database
-from routes import mine, launcher, user, stars, lottery, premium, admin
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from routes.lottery import draw_lottery 
 
+# Import de ta fonction de loterie depuis ton autre fichier
+from routes.lottery import draw_lottery 
 
 app = FastAPI()
 
-
-@app.get("/admin") # Doit être EXACTEMENT le même nom que dans admin_url
+# --- 1. ROUTE POUR SERVIR L'ADMIN HTML ---
+@app.get("/admin")
 async def serve_admin():
+    # On renvoie le fichier admin.html pour que le bouton Telegram marche
     return FileResponse("admin.html")
 
-
-
-# 1. Récupère ton TOKEN de BotFather (mis dans tes variables d'environnement Railway)
-BOT_TOKEN = os.getenv("TOKEN") 
-
-# 2. INITIALISATION DE L'OBJET BOT
-# C'est cette ligne qui manquait !
-bot = Bot(token=BOT_TOKEN)
-
-
-
-# --- INITIALIZATION ---
-# --- INITIALIZATION ---
-database.init_db_structure()
-
-# UNE SEULE INSTANCE DE APP
-app = FastAPI(title="WPT Hub API")
-
-# CONFIGURATION JINJA2
-templates = Jinja2Templates(directory="templates")
-
-app.add_middleware(
-    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
-)
-
-# MONTAGE STATIC (UNE SEULE FOIS)
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# --- ROUTES API ---
-app.include_router(user.router)
-app.include_router(mine.router)
-app.include_router(launcher.router)
-app.include_router(stars.router)
-app.include_router(lottery.router)
-app.include_router(premium.router)
-app.include_router(admin.router)
-
-# --- ROUTE HOME ---
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    try:
-        return templates.TemplateResponse(
-            request=request, 
-            name="mine.html", 
-            context={}
-        )
-    except Exception as e:
-        # Si ça crash, on affiche l'erreur Jinja2 sur le téléphone
-        return f"""
-        <body style="background:black; color:red; font-family:monospace; padding:20px;">
-            <h1>❌ JINJA2 ERROR</h1>
-            <p>{str(e)}</p>
-        </body>
-        """
-
-
-
-
-
-
-
-
-@app.post("/api/stars/create-invoice")
-async def create_invoice(data: dict):
-    user_id = data.get("user_id")
-    stars_amount = data.get("stars") # Ex: 50 ou 250
-    
-    # Calcul du prix en WPT (facultatif pour la facture, c'est pour ta base de données)
-    # Pour Telegram Stars, la monnaie est toujours "XTR"
-    
-    try:
-        # Utilisation de la méthode createInvoiceLink du Bot Telegram
-        invoice_link = await bot.create_invoice_link(
-            title=f"Pack {stars_amount} Stars",
-            description=f"Achat de {stars_amount} Telegram Stars pour WPT Network",
-            payload=f"user_{user_id}_{stars_amount}",
-            provider_token="", # DOIT RESTER VIDE pour les Telegram Stars !
-            currency="XTR",    # CODE CRITIQUE : XTR = Telegram Stars
-            prices=[{"label": "Stars", "amount": stars_amount}] 
-        )
-        return {"link": invoice_link}
-    except Exception as e:
-        print(f"Erreur Facture: {e}")
-        return {"error": str(e)}
-
-
-
-
-# --- TELEGRAM HANDLERS ---
-
+# --- 2. COMMANDES TELEGRAM ---
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
     name = update.effective_user.first_name
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
+    # On utilise config.WEBAPP_URL défini dans ton config.py
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))
+    ]])
     await update.message.reply_text(f"Welcome {name}!", reply_markup=keyboard)
 
-
-async def admin_command(update, context):
-    # Utilise 'config' en minuscule si c'est le nom de ton import
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Correction : On utilise config en minuscules comme ton import
     admin_url = f"{config.BASE_URL}/admin" 
     
-    keyboard = [[
+    keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton("💻 COMMAND CENTER", web_app=WebAppInfo(url=admin_url))
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    ]])
     
-    await update.message.reply_text("🛰️ **Admin Access Granted.**", reply_markup=reply_markup, parse_mode="Markdown")
+    await update.message.reply_text("🛰️ <b>Admin Access Granted.</b>", reply_markup=keyboard, parse_mode="HTML")
 
-
+# --- 3. GESTION DES PAIEMENTS STARS ---
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # --- ICI LE CODE QUI ÉTAIT MANQUANT ---
     payment = update.message.successful_payment
     payload = payment.invoice_payload
     parts = payload.split("_")
     uid = int(parts[-1])
     
-    conn = database.get_db_conn(); c = conn.cursor()
+    conn = database.get_db_conn()
+    c = conn.cursor()
     msg = ""
     try:
         if "stars_pack_" in payload:
@@ -171,28 +78,47 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     
     if msg: await update.message.reply_text(msg, parse_mode="HTML")
 
-# --- MAIN RUNNER ---
+# --- 4. MAIN RUNNER (LE CŒUR) ---
 async def main():
+    # Initialisation du Bot
     bot_app = ApplicationBuilder().token(config.TOKEN).build()
+    
+    # CRITIQUE : On stocke le bot pour que FastAPI puisse envoyer des notifs
     app.state.bot = bot_app.bot 
 
+    # Scheduler pour la loterie le Dimanche à 21h
     scheduler = AsyncIOScheduler()
     scheduler.add_job(draw_lottery, 'cron', day_of_week='sun', hour=21, minute=0)
-
     scheduler.start()
 
+    # Handlers Telegram
     bot_app.add_handler(CommandHandler("start", start_command))
     bot_app.add_handler(CommandHandler("admin", admin_command))
     bot_app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     bot_app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
 
+    # Lancement du Bot en mode polling
     await bot_app.initialize()
     await bot_app.start()
-    asyncio.create_task(bot_app.updater.start_polling()) 
     
-    uv_config = uvicorn.Config(app, host="0.0.0.0", port=config.PORT, loop="asyncio")
+    # Démarrage du polling dans une tâche séparée
+    polling_task = asyncio.create_task(bot_app.updater.start_polling()) 
+    
+    # Lancement du serveur FastAPI (Uvicorn)
+    uv_config = uvicorn.Config(app, host="0.0.0.0", port=int(config.PORT), loop="asyncio")
     server = uvicorn.Server(uv_config)
-    await server.serve()
+    
+    try:
+        await server.serve()
+    finally:
+        # Nettoyage en cas d'arrêt
+        await bot_app.updater.stop()
+        await bot_app.stop()
+        await bot_app.shutdown()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Correction : On utilise une gestion d'exception pour éviter les erreurs d'event loop
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
