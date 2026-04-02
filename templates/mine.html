@@ -266,22 +266,60 @@
 <div id="p-profil" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; padding-bottom: 100px;">
     
     <div style="text-align:center; padding-bottom: 20px;">
-        <div id="prof-initials" style="width:85px; height:85px; background: var(--gold); border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:35px; border: 4px solid #1a1a1c;">?</div>
-        <h2 id="prof-name" style="margin: 15px 0 5px 0; font-size: 22px; color: white;">ONE WORLD PEACE COINS</h2>
-        <small style="opacity:0.5; font-size:10px;">ESTIMATED NET WORTH</small>
-        <h1 id="usd-val" style="color:var(--green); margin:0; font-size: 45px;">$0.00</h1>
+        <div style="position: relative; display: inline-block;">
+            <div id="prof-initials" style="width:85px; height:85px; background: var(--gold); border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:35px; border: 4px solid #1a1a1c; box-shadow: 0 0 20px rgba(255,215,0,0.2);">U</div>
+            <div style="position: absolute; top: -5px; right: -15px; background: #00ccff; color: #000; font-size: 8px; padding: 2px 8px; border-radius: 10px; font-weight: 900; border: 2px solid #000;">x1.0 MAGNET ACTIVE</div>
+        </div>
+        
+        <h2 id="prof-name" style="margin: 15px 0 5px 0; letter-spacing: 1px; text-transform: uppercase; font-size: 22px;">ONE WORLD PEACE COINS</h2>
+        
+        <small style="opacity:0.5; font-size:10px; letter-spacing: 1px;">ESTIMATED NET WORTH</small>
+        <h1 id="usd-val" style="color:var(--green); margin:0; font-size: 45px; font-weight: 900;">$0.00 <span style="font-size: 14px; opacity: 0.6;">USD</span></h1>
+        <div style="display: inline-block; background: #1a1a1c; padding: 4px 12px; border-radius: 8px; margin-top: 5px; border: 1px solid #333;">
+            <small style="font-size: 10px; opacity: 0.7;">📊 1 WPT = $0.0001</small>
+        </div>
+    </div>
+
+    <div class="card" style="background: #0a0a0b; border: 1px solid #222; padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+        <div style="font-size: 10px; line-height: 1.2;">
+            <b style="display:block; opacity:0.6;">TON WALLET</b>
+            <span style="color:var(--gold);">SECURE 🔒</span>
+        </div>
+        <input type="text" id="ton-address" placeholder="UQAv...NTYi" style="flex:1; background:#1a1a1c; border:1px solid #333; color:white; padding:8px; border-radius:8px; font-size:12px; font-family:monospace;">
+        <button class="btn" style="padding: 8px 15px; background: var(--gold); color: black; font-size: 12px; border-radius: 8px;" onclick="saveTonAddress()">SAVE</button>
     </div>
 
     <div style="margin-top: 25px;">
-        <h3 style="margin: 0 0 15px 0; font-size: 14px; color: var(--gold);">DIGITAL ASSETS</h3>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+            <div style="width: 4px; height: 18px; background: var(--gold); border-radius: 2px;"></div>
+            <h3 style="margin: 0; font-size: 14px; letter-spacing: 1px;">DIGITAL ASSETS</h3>
+        </div>
         <div id="digital-assets-list" style="display: flex; flex-direction: column; gap: 10px;">
+            <p style="text-align:center; opacity:0.3; padding:20px;">Scanning assets...</p>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px; position: relative; padding: 25px; background: rgba(235, 64, 52, 0.05); border: 1px solid rgba(235, 64, 52, 0.3); border-radius: 25px; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: #eb4034; color: white; font-size: 8px; padding: 2px 15px; border-radius: 0 0 10px 10px; font-weight: 900;">DANGER ZONE</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 15px;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 35px;">🔥</div>
+                <div style="line-height: 1.2;">
+                    <b style="color:#eb4034; font-size: 16px; display: block;">WPT BURN PORTAL</b>
+                    <small style="opacity:0.5; font-size: 9px;">Destroy WPT to increase scarcity.</small>
+                </div>
             </div>
+            <button class="btn" style="background:#eb4034; color:white; padding: 12px 20px; border-radius: 12px; font-weight: 900;" onclick="executeBurn()">EXECUTE SACRIFICE</button>
+        </div>
     </div>
 
     <div style="margin-top: 35px;">
-        <h3 style="margin: 0 0 15px 0; font-size: 14px; color: #a855f7;">GLOBAL LEADERBOARD</h3>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+            <div style="width: 4px; height: 18px; background: #a855f7; border-radius: 2px;"></div>
+            <h3 style="margin: 0; font-size: 14px; letter-spacing: 1px;">GLOBAL LEADERBOARD</h3>
+        </div>
         <div id="leaderboard" style="background:#0a0a0b; border-radius:20px; border:1px solid #222; overflow:hidden;">
-            <p style="text-align:center; padding:20px; opacity:0.3;">Chargement...</p>
+            <p style="text-align:center; padding:20px; opacity:0.3;">Loading legends...</p>
         </div>
     </div>
 </div>
