@@ -59,22 +59,13 @@ async def home(request: Request):
 
 
 # --- 🛰️ TA ROUTE ADMIN (CORRIGÉE) ---
-@app.get("/admin")
+# Dans main.py
+@app.get("/secret-admin-dashboard") # On change le nom ici !
 async def serve_admin_panel():
-    # On force le serveur à chercher admin.html à la racine
-    # Si tu l'as mis dans /templates, change le chemin en "templates/admin.html"
-    file_path = "admin.html" 
-    
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
-    
-    # Si le fichier est introuvable, on affiche une erreur visuelle
-    return HTMLResponse(content="<h1 style='color:red'>Erreur : admin.html est introuvable à la racine !</h1>", status_code=404)
+    if os.path.exists("admin.html"):
+        return FileResponse("admin.html")
+    return {"error": "Fichier admin.html introuvable"}
 
-# --- 💡 AJOUTE CETTE ROUTE AUSSI (Sécurité) ---
-@app.get("/admin/")
-async def serve_admin_panel_slash():
-    return await serve_admin_panel()
 
 
 
@@ -92,7 +83,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != config.ADMIN_ID: return 
     v = int(time.time())
-    admin_url = f"https://veos-production-a2de.up.railway.app/secret-admin-dashboard?v={v}"
+    admin_url = f"https://veos-production-a2de.up.railway.app/admin?v={v}"
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🖥️ COMMAND CENTER", web_app=WebAppInfo(url=admin_url))]])
     await update.message.reply_text("🛰️ <b>Admin Access Granted.</b>", parse_mode="HTML", reply_markup=keyboard)
 
