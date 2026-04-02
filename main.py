@@ -54,13 +54,20 @@ async def home(request: Request):
 
 
 
-@app.get("/admin", response_class=HTMLResponse)
-async def serve_admin(request: Request):
-    return templates.TemplateResponse(
-        request=request, 
-        name="admin.html", 
-        context={}
-    )
+@app.get("/admin")
+async def serve_admin():
+    # On utilise FileResponse car il est à la racine, pas dans /templates
+    file_path = "admin.html"
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    
+    # Message de secours si le fichier a disparu
+    return HTMLResponse(content="<h1>404: admin.html introuvable à la racine</h1>", status_code=404)
+
+# --- 💡 ASTUCE : ROUTE AVEC SLASH ---
+@app.get("/admin/")
+async def serve_admin_slash():
+    return await serve_admin()
 
 
 
