@@ -686,71 +686,64 @@ let ticketPrice = 1000;
 
 // --- INITIALISATION / REFRESH ---
 async function loadLottery() {
+    if (!uid) return;
+
     try {
-        const r = await fetch(`${BASE_URL}/api/lottery/status`);
-        const d = await r.json();
+        // 1. CHARGEMENT DES STATS GLOBALES (Jackpot & Dernier Gagnant)
+        const resStats = await fetch(`${BASE_URL}/api/lottery/status`);
+        if (resStats.ok) {
+            const d = await resStats.json();
+            
+            // Mise à jour du gros chiffre (Jackpot)
+            const jackEl = document.getElementById('jackpot-amount');
+            if (jackEl) {
+                // On utilise toLocaleString() pour avoir les espaces (ex: 12 000)
+                jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
+            }
 
-        // 1. Mise à jour du Jackpot
-        document.getElementById('jackpot-amount').innerText = parseFloat(d.jackpot || 12000).toLocaleString();
-        
-        // 2. Mise à jour du dernier gagnant
-        document.getElementById('last-winner').innerText = d.last_winner || "@NoOne";
-        document.getElementById('last-win-amount').innerText = parseFloat(d.last_prize || 0).toLocaleString() + " WPT";
+            // Mise à jour du dernier gagnant
+            const winnerEl = document.getElementById('last-winner');
+            const winAmountEl = document.getElementById('last-win-amount');
+            
+            if (winnerEl) winnerEl.innerText = d.last_winner || "@NoOne";
+            if (winAmountEl) winAmountEl.innerText = parseFloat(d.last_prize || 0).toLocaleString() + " WPT";
+        }
 
-        // 3. Charger le nombre de tickets de l'utilisateur (Optionnel : nécessite une route /my-tickets)
-        // loadUserTickets();
+        // 2. CHARGEMENT DES TICKETS DE L'UTILISATEUR (Pour afficher "VOS TICKETS")
+        // On crée une petite route rapide en Python pour ça
+        const resUser = await fetch(`${BASE_URL}/api/lottery/user-tickets/${uid}`);
+        if (resUser.ok) {
+            const du = await resUser.json();
+            const myTicketsEl = document.getElementById('user-tickets-count');
+            if (myTicketsEl) {
+                myTicketsEl.innerText = du.count || 0;
+            }
+        }
 
-    } catch (e) { console.error("Lottery Sync Error", e); }
+    } catch (e) {
+        console.error("Erreur Synchro Loterie :", e);
+        // En cas d'erreur, on laisse les valeurs par défaut du HTML
+    }
 }
 
-// --- GESTION QUANTITÉ ---
+// --- PETITE FONCTION BONUS POUR CHANGER LA QUANTITÉ ---
 function changeQty(delta) {
     const input = document.getElementById('ticket-qty');
+    const costDisplay = document.getElementById('total-cost');
+    if (!input || !costDisplay) return;
+
     let val = parseInt(input.value) + delta;
-    if (val < 1) val = 1;
+    if (val < 1) val = 1; // Minimum 1 ticket
+    
     input.value = val;
-    
-    // Mise à jour visuelle du coût
-    document.getElementById('total-cost').innerText = (val * ticketPrice).toLocaleString();
-    
-    // Petite vibration
-    if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    costDisplay.innerText = (val * 1000).toLocaleString(); // 1000 WPT par ticket
+
+    // Petite vibration Telegram
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.selectionChanged();
+    }
 }
 
-// --- ACHAT (Lien direct avec lottery.py) ---
-async function buyTicket() {
-    const qty = parseInt(document.getElementById('ticket-qty').value);
-    const cost = qty * ticketPrice;
-
-    // Confirmation visuelle Telegram
-    tg.showConfirm(`Confirmer l'achat de ${qty} ticket(s) pour ${cost.toLocaleString()} WPT ?`, async (ok) => {
-        if (!ok) return;
-
-        try {
-            const r = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    user_id: uid,
-                    quantity: qty
-                })
-            });
-
-            const res = await r.json();
-
-            if (res.ok) {
-                tg.showAlert("🎟️ Bonne chance ! Tes tickets sont validés.");
-                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                refresh(); // Met à jour ton solde WPT sur l'app
-                loadLottery(); // Met à jour le Jackpot global
-            } else {
-                tg.showAlert("❌ " + (res.error || "Erreur lors de l'achat"));
-            }
-        } catch (e) {
-            tg.showAlert("🚀 Serveur de loterie indisponible.");
-        }
-    });
-}
 
 
 
