@@ -54,20 +54,24 @@ async def home(request: Request):
 
 
 
+
+# --- 🛰️ TA ROUTE ADMIN (CORRIGÉE) ---
 @app.get("/admin")
-async def serve_admin():
-    # On utilise FileResponse car il est à la racine, pas dans /templates
-    file_path = "admin.html"
+async def serve_admin_panel():
+    # On force le serveur à chercher admin.html à la racine
+    # Si tu l'as mis dans /templates, change le chemin en "templates/admin.html"
+    file_path = "admin.html" 
+    
     if os.path.exists(file_path):
         return FileResponse(file_path)
     
-    # Message de secours si le fichier a disparu
-    return HTMLResponse(content="<h1>404: admin.html introuvable à la racine</h1>", status_code=404)
+    # Si le fichier est introuvable, on affiche une erreur visuelle
+    return HTMLResponse(content="<h1 style='color:red'>Erreur : admin.html est introuvable à la racine !</h1>", status_code=404)
 
-# --- 💡 ASTUCE : ROUTE AVEC SLASH ---
+# --- 💡 AJOUTE CETTE ROUTE AUSSI (Sécurité) ---
 @app.get("/admin/")
-async def serve_admin_slash():
-    return await serve_admin()
+async def serve_admin_panel_slash():
+    return await serve_admin_panel()
 
 
 
