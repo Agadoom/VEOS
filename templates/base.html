@@ -762,17 +762,15 @@ async function buyTicket() {
     // On récupère l'ID utilisateur proprement
     const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
 
-    try {
-        // --- ⚠️ ATTENTION À L'URL ICI ---
-        // Si ton router a un prefix "/api/lottery", l'URL doit être :
-        const r = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: userId,
-                quantity: qty
-            })
-        });
+
+// Dans ta fonction loadLottery() existante
+try {
+    // uid est ton id telegram
+    const r_u = await fetch(`${BASE_URL}/api/lottery/user-tickets/${uid}`);
+    const d_u = await r_u.json();
+    document.getElementById('user-tickets-count').innerText = d_u.count || 0;
+} catch(e) { console.log("Pas encore de tickets pour ce user"); }
+
 
         const res = await r.json();
 
