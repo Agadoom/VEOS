@@ -57,6 +57,15 @@ async def home(request: Request):
 
 
 
+@app.get("/tonconnect-manifest.json")
+async def get_manifest():
+    return FileResponse(
+        "tonconnect-manifest.json", 
+        media_type="application/json" # <--- CRITIQUE
+    )
+
+
+
 
 # --- 🛰️ TA ROUTE ADMIN (CORRIGÉE) ---
 # Dans main.py
