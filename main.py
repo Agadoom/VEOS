@@ -19,23 +19,10 @@ from routes.lottery import draw_lottery
 app = FastAPI()
 
 
-@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin") # Doit être EXACTEMENT le même nom que dans admin_url
 async def serve_admin():
-    # On cherche le fichier admin.html à la racine
-    file_path = "admin.html"
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
-    
-    # Si le fichier n'est pas trouvé, on affiche un message d'erreur stylé
-    return """
-    <html>
-        <body style="background:#000; color:gold; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;">
-            <h1 style="font-size:50px;">🛰️</h1>
-            <h2>FICHIER ADMIN.HTML INTROUVABLE</h2>
-            <p style="color:white; opacity:0.6;">Vérifie qu'il est bien à la racine de ton projet Railway.</p>
-        </body>
-    </html>
-    """
+    return FileResponse("admin.html")
+
 
 
 # 1. Récupère ton TOKEN de BotFather (mis dans tes variables d'environnement Railway)
@@ -135,9 +122,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_command(update, context):
-    # L'URL DOIT CORRESPONDRE À TA ROUTE FASTAPI
-    # Si ta route dans main.py est @app.get("/admin"), l'url est BASE_URL + "/admin"
-    admin_url = f"{CONFIG.BASE_URL}/admin" 
+    # Utilise 'config' en minuscule si c'est le nom de ton import
+    admin_url = f"{config.BASE_URL}/admin" 
     
     keyboard = [[
         InlineKeyboardButton("💻 COMMAND CENTER", web_app=WebAppInfo(url=admin_url))
