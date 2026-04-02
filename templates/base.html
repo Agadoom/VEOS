@@ -62,33 +62,49 @@ img, button {
     const uid = tg.initDataUnsafe?.user?.id || 12345; 
     const BASE_URL = window.location.origin;
 
+
+
+
+
+
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
     async function refresh() {
-        if (!uid) return;
-        try {
-            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-            if (!r.ok) return;
-            const d = await r.json();
+    try {
+        // uid est ton Telegram User ID récupéré au début
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        const data = await r.json();
 
-            // Mise à jour des textes
-            document.getElementById('tot').innerText = parseFloat(d.score || 0).toLocaleString();
-            document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString();
-            document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString();
-            document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString();
-            
-            // Mise à jour du RANK (C'est ça qui te manque !)
-            if (d.rank) {
-                document.getElementById('prof-rank').innerText = "RANK: #" + d.rank;
-            }
+        // 1. Mise à jour du solde principal (WPT)
+        const balEl = document.getElementById('user-balance');
+        if (balEl) {
+            // On s'assure que data.p_genesis (ou le nom de ta colonne) est bien reçu
+            const balance = parseFloat(data.p_genesis || 0);
+            balEl.innerText = balance.toLocaleString();
+        }
 
-            // Énergie
-            if (document.getElementById('e-f')) {
-                document.getElementById('e-f').style.width = (d.energy || 0) + "%";
-            }
-            document.getElementById('e-t').innerText = "Energy: " + Math.floor(d.energy || 0) + "/100";
+        // 2. Mise à jour de la valeur en USD (Simulation)
+        const usdEl = document.getElementById('usd-val');
+        if (usdEl) {
+            const usdPrice = 0.0015; // Ton prix arbitraire
+            usdEl.innerText = "$" + (parseFloat(data.p_genesis || 0) * usdPrice).toFixed(2);
+        }
 
-        } catch (e) { console.error("Erreur de synchro:", e); }
+        // 3. Mise à jour des initiales du profil si tu es sur la page Wallet/Profil
+        const profInit = document.getElementById('prof-initials');
+        if (profInit && data.username) {
+            profInit.innerText = data.username.charAt(0).toUpperCase();
+        }
+
+    } catch (e) {
+        console.error("Erreur Refresh Wallet:", e);
     }
+}
+
+
+
+
+
+
 
     // Fonction de Minage (Le clic sur le bouton ou la pièce)
     async function mine(type, event) {
