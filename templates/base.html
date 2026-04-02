@@ -165,6 +165,27 @@ async function loadMarket() {
     } catch (e) { console.error("Market Error", e); }
 }
 
+async function openDetails(symbol) {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/token/${symbol}`);
+        const t = await r.json();
+
+        // Remplissage des données
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = t.price;
+        document.getElementById('det-mcap').innerText = "$" + Math.floor(t.mcap || 0).toLocaleString();
+        document.getElementById('det-desc').innerText = t.description || "No description provided.";
+        
+        // Photos
+        if(t.logo) document.getElementById('det-logo').src = t.logo;
+        if(t.banner) document.getElementById('det-banner').src = t.banner;
+
+        // Affichage de la page
+        showPage('p-details');
+        
+    } catch(e) { console.error("Erreur détails:", e); }
+}
 
 
 
