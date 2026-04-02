@@ -76,13 +76,29 @@ async def home(request: Request):
 
 
 
-@app.get("/admin")
-async def get_admin_page():
-    # On vérifie si le fichier est à la racine ou dans un dossier
-    path = "admin.html" 
-    if os.path.exists(path):
-        return FileResponse(path)
-    return {"error": "Fichier admin.html introuvable sur le serveur Railway"}
+@app.get("/admin", response_class=HTMLResponse)
+async def get_admin():
+    # Liste des endroits possibles où tu as pu ranger ton fichier
+    possible_paths = [
+        "admin.html", 
+        "static/admin.html", 
+        "templates/admin.html"
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            return FileResponse(path)
+            
+    # Si on ne le trouve pas, on affiche un message d'erreur propre au lieu d'un JSON moche
+    return """
+    <body style='background:#000;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;'>
+        <div style='text-align:center;border:1px solid #333;padding:40px;border-radius:20px;'>
+            <h1 style='color:#ff4444;'>🛰️ ADMIN ERROR</h1>
+            <p>Le fichier <b>admin.html</b> est introuvable sur le serveur Railway.</p>
+            <small style='opacity:0.5;'>Vérifie que le fichier est bien à la racine de ton GitHub.</small>
+        </div>
+    </body>
+    """
 
 
 
