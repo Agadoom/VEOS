@@ -15,6 +15,9 @@ from routes import mine, launcher, user, stars, lottery, premium, admin
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routes.lottery import draw_lottery 
 
+
+app = FastAPI()
+
 # --- INITIALIZATION ---
 # --- INITIALIZATION ---
 database.init_db_structure()
