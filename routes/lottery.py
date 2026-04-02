@@ -2,7 +2,7 @@ import random
 import database
 from fastapi import APIRouter, Request
 
-router = APIRouter()
+router = APIRouter(prefix="/api/lottery", tags=["Lottery"])
 
 # --- 1. ACHAT DE TICKETS ---
 # DANS routes/lottery.py
