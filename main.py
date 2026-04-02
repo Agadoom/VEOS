@@ -16,7 +16,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routes.lottery import draw_lottery 
 
 
-
+app = FastAPI()
 
 
 # 1. Récupère ton TOKEN de BotFather (mis dans tes variables d'environnement Railway)
@@ -78,11 +78,11 @@ async def home(request: Request):
 
 @app.get("/admin")
 async def get_admin_page():
-    # Vérifie que le fichier admin.html est bien à la racine ou dans /static
-    if os.path.exists("admin.html"):
-        return FileResponse("admin.html")
-    return {"error": "Fichier admin.html introuvable sur le serveur"}
-
+    # On vérifie si le fichier est à la racine ou dans un dossier
+    path = "admin.html" 
+    if os.path.exists(path):
+        return FileResponse(path)
+    return {"error": "Fichier admin.html introuvable sur le serveur Railway"}
 
 
 
