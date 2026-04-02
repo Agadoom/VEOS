@@ -45,62 +45,68 @@
     </nav>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        const uid = tg.initDataUnsafe?.user?.id || 12345;
-        const BASE_URL = window.location.origin;
+    const tg = window.Telegram.WebApp;
+    // CRITIQUE : Récupérer l'ID réel de l'utilisateur Telegram
+    const uid = tg.initDataUnsafe?.user?.id || 12345; 
+    const BASE_URL = window.location.origin;
 
-        // NAVIGATION & CHARGEMENT
-        function showPage(pId) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
-            document.getElementById(pId).classList.add('active-page');
-            document.querySelectorAll('.n-i').forEach(ni => ni.classList.remove('active'));
-            const navId = pId.startsWith('p-details') ? 'n-launcher' : pId.replace('p-', 'n-');
-            document.getElementById(navId)?.classList.add('active');
+    // Fonction de rafraîchissement (Remplit le Rank et les Scores)
+    async function refresh() {
+        if (!uid) return;
+        try {
+            const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+            if (!r.ok) return;
+            const d = await r.json();
 
-            if(pId === 'p-launcher') loadMarket();
-            if(pId === 'p-profil') loadLeaderboard();
-            if(pId === 'p-lottery') loadLottery();
-            tg.HapticFeedback?.impactOccurred('light');
-        }
+            // Mise à jour des textes
+            document.getElementById('tot').innerText = parseFloat(d.score || 0).toLocaleString();
+            document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString();
+            document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString();
+            document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString();
+            
+            // Mise à jour du RANK (C'est ça qui te manque !)
+            if (d.rank) {
+                document.getElementById('prof-rank').innerText = "RANK: #" + d.rank;
+            }
 
-        // SYNC DATA (Scores, Energy)
-        async function refresh() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        const d = await r.json();
+            // Énergie
+            if (document.getElementById('e-f')) {
+                document.getElementById('e-f').style.width = (d.energy || 0) + "%";
+            }
+            document.getElementById('e-t').innerText = "Energy: " + Math.floor(d.energy || 0) + "/100";
 
-        // Les lignes magiques pour mettre à jour les compteurs individuels :
-        const safeSet = (id, val) => { 
-            const el = document.getElementById(id); 
-            if(el) el.innerText = parseFloat(val).toLocaleString(); 
-        };
+        } catch (e) { console.error("Erreur de synchro:", e); }
+    }
 
-        safeSet('tot', d.score); // Le gros chiffre en haut
-        safeSet('gv', d.g);      // Genesis
-        safeSet('uv', d.u);      // Unity
-        safeSet('vv', d.v);      // VEO AI (C'est celle-ci qui te manque !)
+    // Fonction de Minage (Le clic sur le bouton ou la pièce)
+    async function mine(type, event) {
+        // Empêche le clignotement bleu bizarre du navigateur
+        if (event) event.preventDefault(); 
         
-        // Energie
-        if(document.getElementById('e-f')) {
-            document.getElementById('e-f').style.width = (d.energy || 0) + "%";
-        }
-        
-    } catch(e) { console.error("Sync Error", e); }
-}
+        try {
+            const r = await fetch(`${BASE_URL}/api/mine`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, token_type: type })
+            });
+            const res = await r.json();
+            
+            if (res.ok) {
+                refresh(); // On recharge les scores après le clic
+                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+            } else {
+                tg.showAlert(res.error || "Énergie vide !");
+            }
+        } catch (e) { console.error("Erreur mine:", e); }
+    }
 
+    // Initialisation
+    window.onload = () => {
+        tg.expand();
+        refresh();
+        setInterval(refresh, 5000); // Rafraîchit toutes les 5 secondes
+    };
+</script>
 
-        async function openDetails(sym) {
-            const r = await fetch(`${BASE_URL}/api/launcher/token/${sym}`);
-            const t = await r.json();
-            document.getElementById('det-name').innerText = t.name;
-            document.getElementById('det-sym').innerText = "$" + t.symbol;
-            document.getElementById('det-price-top').innerText = t.price;
-            document.getElementById('det-mcap').innerText = "$" + t.mcap.toLocaleString();
-            document.getElementById('det-desc').innerText = t.description || "No description.";
-            showPage('p-details');
-        }
-
-        window.onload = () => { tg.expand(); refresh(); setInterval(refresh, 10000); };
-    </script>
 </body>
 </html>
