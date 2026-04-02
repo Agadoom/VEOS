@@ -19,6 +19,25 @@ from routes.lottery import draw_lottery
 app = FastAPI()
 
 
+@app.get("/admin", response_class=HTMLResponse)
+async def serve_admin():
+    # On cherche le fichier admin.html à la racine
+    file_path = "admin.html"
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    
+    # Si le fichier n'est pas trouvé, on affiche un message d'erreur stylé
+    return """
+    <html>
+        <body style="background:#000; color:gold; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; font-family:sans-serif;">
+            <h1 style="font-size:50px;">🛰️</h1>
+            <h2>FICHIER ADMIN.HTML INTROUVABLE</h2>
+            <p style="color:white; opacity:0.6;">Vérifie qu'il est bien à la racine de ton projet Railway.</p>
+        </body>
+    </html>
+    """
+
+
 # 1. Récupère ton TOKEN de BotFather (mis dans tes variables d'environnement Railway)
 BOT_TOKEN = os.getenv("TOKEN") 
 
@@ -76,29 +95,7 @@ async def home(request: Request):
 
 
 
-@app.get("/admin", response_class=HTMLResponse)
-async def get_admin():
-    # Liste des endroits possibles où tu as pu ranger ton fichier
-    possible_paths = [
-        "admin.html", 
-        "static/admin.html", 
-        "templates/admin.html"
-    ]
-    
-    for path in possible_paths:
-        if os.path.exists(path):
-            return FileResponse(path)
-            
-    # Si on ne le trouve pas, on affiche un message d'erreur propre au lieu d'un JSON moche
-    return """
-    <body style='background:#000;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;'>
-        <div style='text-align:center;border:1px solid #333;padding:40px;border-radius:20px;'>
-            <h1 style='color:#ff4444;'>🛰️ ADMIN ERROR</h1>
-            <p>Le fichier <b>admin.html</b> est introuvable sur le serveur Railway.</p>
-            <small style='opacity:0.5;'>Vérifie que le fichier est bien à la racine de ton GitHub.</small>
-        </div>
-    </body>
-    """
+
 
 
 
