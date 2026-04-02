@@ -756,8 +756,8 @@ async function buyTicket() {
 
 
 async function buyTicket() {
-    const qty = parseInt(document.getElementById('ticket-qty').value);
-    // ON RÉCUPÈRE L'ID SÛR DE TELEGRAM
+    const qty = document.getElementById('ticket-qty').value;
+    // On s'assure d'envoyer l'ID Telegram réel
     const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
 
     try {
@@ -765,20 +765,24 @@ async function buyTicket() {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                user_id: userId, // On envoie l'ID propre
-                quantity: qty
+                user_id: userId,
+                quantity: parseInt(qty)
             })
         });
+        
         const res = await r.json();
-        if(res.ok) {
-            tg.showAlert("🎟️ Ticket validé !");
-            refresh();
-            loadLottery();
+        if (res.ok) {
+            tg.showAlert("🎟️ Good luck ! Ticket valid.");
+            refresh();      // Pour mettre à jour tes 400k (-1000)
+            loadLottery();  // Pour mettre à jour le Jackpot (12k + 1k)
         } else {
             tg.showAlert("❌ " + res.error);
         }
-    } catch(e) { tg.showAlert("Connexion API échouée"); }
+    } catch (e) {
+        tg.showAlert("Erreur de connexion au serveur.");
+    }
 }
+
 
 
 
