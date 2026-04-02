@@ -222,3 +222,26 @@ async def sell_token(req: TradeRequest):
     finally:
         c.close(); conn.close()
 
+
+
+
+@app.get("/api/launcher/market")
+async def get_market(filter: str = "new", search: str = ""):
+    try:
+        query = {}
+        if search:
+            query["name"] = {"$regex": search, "$options": "i"}
+            
+        # On récupère les tokens. 
+        # Si filter == 'my', il faudrait ajouter une condition sur l'user_id
+        tokens = list(db.tokens.find(query).sort("created_at", -1))
+        
+        for t in tokens:
+            t["_id"] = str(t["_id"]) # Convertit l'ID MongoDB en texte pour le JS
+            
+        return tokens # Doit retourner une liste [{}, {}]
+    except Exception as e:
+        print(f"Erreur DB: {e}")
+        return []
+
+
