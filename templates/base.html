@@ -65,43 +65,29 @@
 
         // SYNC DATA (Scores, Energy)
         async function refresh() {
-            try {
-                const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-                const d = await r.json();
-                document.getElementById('tot').innerText = parseFloat(d.score).toLocaleString();
-                document.getElementById('wallet-balance').innerText = parseFloat(d.g).toLocaleString();
-                document.getElementById('e-f').style.width = d.energy + "%";
-                document.getElementById('e-t').innerText = "Energy: " + Math.floor(d.energy) + "/100";
-                document.getElementById('prof-name').innerText = d.name || "CITIZEN";
-                // On met à jour le rank si disponible
-                if(d.rank) document.getElementById('prof-rank').innerText = "RANK: #" + d.rank;
-            } catch(e) {}
-        }
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
+        const d = await r.json();
 
-        // MINAGE
-        async function mine(type, event) {
-            const r = await fetch(`${BASE_URL}/api/mine`, {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({user_id: uid, token_type: type})
-            });
-            const res = await r.json();
-            if(res.ok) { refresh(); tg.HapticFeedback?.impactOccurred('medium'); }
-        }
+        // Les lignes magiques pour mettre à jour les compteurs individuels :
+        const safeSet = (id, val) => { 
+            const el = document.getElementById(id); 
+            if(el) el.innerText = parseFloat(val).toLocaleString(); 
+        };
 
-        // MARKET & DETAILS
-        async function loadMarket() {
-            const r = await fetch(`${BASE_URL}/api/launcher/market`);
-            const tokens = await r.json();
-            document.getElementById('token-list').innerHTML = tokens.map(t => `
-                <div class="card" onclick="openDetails('${t.symbol}')">
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <img src="${t.logo || '/static/genesis.png'}" style="width:40px; border-radius:10px;">
-                        <div><b>${t.name}</b><br><small style="color:var(--gold);">$${t.symbol}</small></div>
-                    </div>
-                    <div style="text-align:right;"><b>${t.price} WPT</b></div>
-                </div>
-            `).join('');
+        safeSet('tot', d.score); // Le gros chiffre en haut
+        safeSet('gv', d.g);      // Genesis
+        safeSet('uv', d.u);      // Unity
+        safeSet('vv', d.v);      // VEO AI (C'est celle-ci qui te manque !)
+        
+        // Energie
+        if(document.getElementById('e-f')) {
+            document.getElementById('e-f').style.width = (d.energy || 0) + "%";
         }
+        
+    } catch(e) { console.error("Sync Error", e); }
+}
+
 
         async function openDetails(sym) {
             const r = await fetch(`${BASE_URL}/api/launcher/token/${sym}`);
