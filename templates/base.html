@@ -722,38 +722,32 @@ async function setFilter(filter, el) {
 
 
 
-
-async function loadMarket() {
-    const list = document.getElementById('token-list');
-    if(!list) return;
+async function buyTicket() {
+    const qty = document.getElementById('ticket-qty').value;
+    const uid = window.Telegram.WebApp.initDataUnsafe.user.id; // Sécurité : on reprend l'ID direct
 
     try {
-        const response = await fetch(`/api/launcher/market?filter=${currentFilter}`);
-        const tokens = await response.json();
-
-        if (!Array.isArray(tokens) || tokens.length === 0) {
-            list.innerHTML = `<p style="text-align:center; opacity:0.3; padding:20px;">Aucun token trouvé (DB vide ou erreur)</p>`;
-            return;
+        const r = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid,
+                quantity: parseInt(qty)
+            })
+        });
+        const res = await r.json();
+        if(res.ok) {
+            tg.showAlert("🎟️ Ticket acheté avec succès !");
+            refresh(); // Pour mettre à jour ton solde de 400k
+        } else {
+            tg.showAlert(res.error); // Affichera le message détaillé du Python
         }
-
-        list.innerHTML = tokens.map(t => `
-            <div class="card" onclick="openDetails('${t.symbol}')" style="cursor:pointer;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${t.logo || '/static/genesis.png'}" style="width:45px; height:45px; border-radius:12px; object-fit:cover;">
-                    <div>
-                        <b>${t.name}</b><br>
-                        <small style="color:var(--gold);">$${t.symbol}</small>
-                    </div>
-                </div>
-                <div style="text-align:right;">
-                    <b style="color:var(--green);">${parseFloat(t.price).toFixed(4)} WPT</b>
-                </div>
-            </div>
-        `).join('');
-    } catch (e) {
-        list.innerHTML = `<p style="text-align:center; color:red;">Erreur de connexion API</p>`;
+    } catch(e) {
+        tg.showAlert("Erreur de connexion");
     }
 }
+
+
 
 
 
