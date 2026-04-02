@@ -261,18 +261,23 @@ async function loadLottery() {
         const r = await fetch(`${BASE_URL}/api/lottery/status`);
         const d = await r.json();
         
-        document.getElementById('jackpot-amount').innerText = d.jackpot.toLocaleString();
-        document.getElementById('last-winner').innerText = d.last_winner || "Attente...";
+        const jackEl = document.getElementById('jackpot-amount');
+        if(jackEl) {
+            // On s'assure que d.jackpot existe, sinon on garde l'ancien chiffre
+            jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
+        }
+        
+        document.getElementById('last-winner').innerText = d.last_winner || "@None";
         document.getElementById('last-win-amount').innerText = (d.last_prize || 0).toLocaleString() + " WPT";
         
-        // Charger tes propres tickets
-        const ur = await fetch(`${BASE_URL}/api/user/${uid}/tickets`);
-        const ud = await ur.json();
-        document.getElementById('user-tickets').innerText = ud.count || 0;
-        document.getElementById('win-chance').innerText = (ud.chance || 0) + "%";
-        
-    } catch (e) { console.error("Lottery error", e); }
+    } catch (e) { console.error("Lottery Sync Error", e); }
 }
+
+
+
+
+
+
 
 // 2. ACHETER UN TICKET
 async function buyLotteryTicket() {
