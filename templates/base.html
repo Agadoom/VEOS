@@ -755,6 +755,30 @@ async function buyTicket() {
 
 
 
+async function buyTicket() {
+    const qty = parseInt(document.getElementById('ticket-qty').value);
+    // ON RÉCUPÈRE L'ID SÛR DE TELEGRAM
+    const userId = window.Telegram.WebApp.initDataUnsafe.user.id;
+
+    try {
+        const r = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: userId, // On envoie l'ID propre
+                quantity: qty
+            })
+        });
+        const res = await r.json();
+        if(res.ok) {
+            tg.showAlert("🎟️ Ticket validé !");
+            refresh();
+            loadLottery();
+        } else {
+            tg.showAlert("❌ " + res.error);
+        }
+    } catch(e) { tg.showAlert("Connexion API échouée"); }
+}
 
 
 
