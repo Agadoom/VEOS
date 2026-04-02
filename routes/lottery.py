@@ -21,29 +21,32 @@ async def buy_lottery_ticket(request: Request):
         conn = database.get_db_conn()
         c = conn.cursor()
 
-        # 1. On récupère le solde (On force le float pour la comparaison)
-        c.execute("SELECT COALESCE(p_genesis, 0), name FROM users WHERE user_id = %s", (uid,))
+                # 1. On récupère TOUS les soldes (Genesis, Unity, Veo)
+        c.execute("""
+            SELECT 
+                COALESCE(p_genesis, 0), 
+                COALESCE(p_unity, 0), 
+                COALESCE(p_veo, 0), 
+                name 
+            FROM users WHERE user_id = %s
+        """, (uid,))
         res = c.fetchone()
         
         if not res:
-            return {"ok": False, "error": "Utilisateur introuvable dans la base."}
+            return {"ok": False, "error": "Utilisateur introuvable."}
         
-        current_balance = float(res[0])
-        user_name = res[1] or "A Whale"
+        # On fait la somme comme sur ton écran d'accueil
+        current_balance = float(res[0]) + float(res[1]) + float(res[2])
+        user_name = res[3] or "A Whale"
 
-        # Comparaison de sécurité
+        # Comparaison sur le TOTAL
         if current_balance < cost:
-            return {"ok": False, "error": f"Insufficient balance (Solde: {current_balance} WPT)"}
+            return {"ok": False, "error": f"Insufficient balance (Total: {int(current_balance)} WPT)"}
 
-        # 2. Mise à jour du solde et ajout des tickets
+        # 2. Mise à jour : On pioche d'abord dans p_genesis
+        # Si p_genesis devient négatif, c'est pas grave car ton 'score' total reste positif
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (cost, uid))
-        
-        c.execute("""
-            INSERT INTO lottery_tickets (user_id, tickets_count, week_number) 
-            VALUES (%s, %s, EXTRACT(WEEK FROM CURRENT_DATE))
-            ON CONFLICT (user_id, week_number) 
-            DO UPDATE SET tickets_count = lottery_tickets.tickets_count + %s
-        """, (uid, qty, qty))
+
 
         # 3. Calcul et enregistrement du Jackpot
         c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
