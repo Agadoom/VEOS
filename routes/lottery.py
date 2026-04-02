@@ -7,27 +7,37 @@ router = APIRouter()
 # --- 1. ACHAT DE TICKETS ---
 # DANS routes/lottery.py
 
-@router.post("/api/lottery/buy-ticket")
+# Retire le "/api/lottery" du décorateur si ton router a déjà le préfixe
+@router.post("/buy-ticket") 
 async def buy_lottery_ticket(request: Request):
+    conn = None
     try:
         data = await request.json()
-        uid = data.get("user_id")
+        # On force l'UID en entier pour être sûr de matcher la DB
+        uid = int(data.get("user_id")) 
         qty = int(data.get("quantity", 1))
-        cost = qty * 1000
+        cost = float(qty * 1000)
 
         conn = database.get_db_conn()
         c = conn.cursor()
 
-        # 1. Check balance & Name
-        c.execute("SELECT p_genesis, name FROM users WHERE user_id = %s", (uid,))
+        # 1. On récupère le solde (On force le float pour la comparaison)
+        c.execute("SELECT COALESCE(p_genesis, 0), name FROM users WHERE user_id = %s", (uid,))
         res = c.fetchone()
-        if not res or res[0] < cost:
-            return {"ok": False, "error": "Insufficient balance"}
         
+        if not res:
+            return {"ok": False, "error": "Utilisateur introuvable dans la base."}
+        
+        current_balance = float(res[0])
         user_name = res[1] or "A Whale"
 
-        # 2. Update DB
+        # Comparaison de sécurité
+        if current_balance < cost:
+            return {"ok": False, "error": f"Insufficient balance (Solde: {current_balance} WPT)"}
+
+        # 2. Mise à jour du solde et ajout des tickets
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (cost, uid))
+        
         c.execute("""
             INSERT INTO lottery_tickets (user_id, tickets_count, week_number) 
             VALUES (%s, %s, EXTRACT(WEEK FROM CURRENT_DATE))
@@ -35,46 +45,36 @@ async def buy_lottery_ticket(request: Request):
             DO UPDATE SET tickets_count = lottery_tickets.tickets_count + %s
         """, (uid, qty, qty))
 
-        # 3. Calcul du nouveau Jackpot pour le message
+        # 3. Calcul et enregistrement du Jackpot
         c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
-        new_jackpot = (c.fetchone()[0] or 0) * 1000
+        total_tickets = c.fetchone()[0] or 0
+        new_jackpot = total_tickets * 1000
 
-
-  # --- AJOUTE ÇA ICI ---
-        # On met à jour la table 'lottery_stats' pour que le GET /status affiche la bonne valeur
-        c.execute("""
-            UPDATE lottery_stats 
-            SET current_jackpot = %s 
-            WHERE id = 1
-        """, (new_jackpot,))
-        # ---------------------
+        c.execute("UPDATE lottery_stats SET current_jackpot = %s WHERE id = 1", (new_jackpot,))
         
         conn.commit()
 
         # --- 🚀 NOTIFICATION TELEGRAM ---
         try:
-            # On récupère l'instance du bot stockée dans app.state
             bot = request.app.state.bot
             text = (
                 f"🎟️ <b>New Tickets Purchased!</b>\n\n"
                 f"👤 <b>User:</b> {user_name}\n"
                 f"🎫 <b>Amount:</b> {qty} tickets\n"
-                f"💰 <b>Current Jackpot:</b> {new_jackpot:,} WPT\n\n"
-                f"🍀 <i>Check the App to try your luck!</i>"
+                f"💰 <b>Current Jackpot:</b> {new_jackpot:,} WPT"
             )
-            # Utilise l'ID de ton groupe/canal défini dans config.py
             import config
             await bot.send_message(chat_id=config.LOTTERY_CHANNEL_ID, text=text, parse_mode="HTML")
-        except Exception as e:
-            print(f"⚠️ Telegram Notify Error: {e}")
+        except: pass 
 
         return {"ok": True}
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        if conn: conn.rollback()
+        print(f"❌ Erreur Achat Ticket: {e}")
         return {"ok": False, "error": str(e)}
     finally:
-        c.close(); conn.close()
+        if conn: c.close(); conn.close()
 
 
 
