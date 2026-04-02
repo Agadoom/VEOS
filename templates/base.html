@@ -1278,6 +1278,52 @@ async function updateLotteryUI() {
 
 
 
+// Fonction pour charger le Leaderboard et ton propre RANG
+async function loadLeaderboard() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/leaderboard`);
+        const data = await r.json();
+        const container = document.getElementById('leaderboard');
+        
+        if (container) {
+            container.innerHTML = data.map((u, i) => `
+                <div style="display:flex; justify-content:space-between; padding:15px; border-bottom:1px solid #111; ${u.id == uid ? 'background:rgba(255,215,0,0.1);' : ''}">
+                    <span>#${i+1} ${u.username}</span>
+                    <b style="color:var(--gold);">${u.score.toLocaleString()}</b>
+                </div>
+            `).join('');
+        }
+
+        // MISE À JOUR DU RANK SUR LA HOME
+        const myPos = data.findIndex(u => u.id == uid) + 1;
+        const rankEl = document.getElementById('prof-rank');
+        if (rankEl) rankEl.innerText = `RANK: #${myPos > 0 ? myPos : '---'}`;
+        
+    } catch(e) { console.error("Erreur Leaderboard:", e); }
+}
+
+// Fonction pour afficher les détails du token
+async function openDetails(symbol) {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/token/${symbol}`);
+        const t = await r.json();
+        
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = `$${t.symbol}`;
+        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+        document.getElementById('det-mcap').innerText = `$${Math.floor(t.mcap).toLocaleString()}`;
+        document.getElementById('det-desc').innerText = t.description || "Aucune description.";
+        
+        // Bannières et Logos
+        if(t.banner) document.getElementById('det-banner').src = t.banner;
+        if(t.logo) document.getElementById('det-logo').src = t.logo;
+
+        showPage('p-details');
+    } catch(e) { console.error("Erreur Details:", e); }
+}
+
+
+
     // --- INIT ---
     const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({ manifestUrl: BASE_URL + '/tonconnect-manifest.json', buttonRootId: 'ton-connect-button' });
     tg.expand(); refresh(); setInterval(refresh, 15000);
