@@ -534,37 +534,36 @@ async function setFilter(filter, el) {
 
 async function loadMarket() {
     const list = document.getElementById('token-list');
-    const search = document.getElementById('token-search').value;
+    if(!list) return;
 
     try {
-        // On envoie le filtre et la recherche au serveur
-        const r = await fetch(`${BASE_URL}/api/launcher/market?filter=${currentFilter}&search=${search}`);
-        const tokens = await r.json();
+        const response = await fetch(`/api/launcher/market?filter=${currentFilter}`);
+        const tokens = await response.json();
 
-        if (tokens.length === 0) {
-            list.innerHTML = `<p style="text-align:center; opacity:0.3; padding:20px;">No tokens found in ${currentFilter}...</p>`;
+        if (!Array.isArray(tokens) || tokens.length === 0) {
+            list.innerHTML = `<p style="text-align:center; opacity:0.3; padding:20px;">Aucun token trouvé (DB vide ou erreur)</p>`;
             return;
         }
 
         list.innerHTML = tokens.map(t => `
-            <div class="card" onclick="openDetails('${t.symbol}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:0.2s; active:scale(0.98);">
+            <div class="card" onclick="openDetails('${t.symbol}')" style="cursor:pointer;">
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${t.logo || '/static/genesis.png'}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; border:1px solid #333;">
+                    <img src="${t.logo || '/static/genesis.png'}" style="width:45px; height:45px; border-radius:12px; object-fit:cover;">
                     <div>
-                        <b style="font-size:15px;">${t.name}</b><br>
-                        <small style="color:var(--gold); font-weight:900;">$${t.symbol}</small>
+                        <b>${t.name}</b><br>
+                        <small style="color:var(--gold);">$${t.symbol}</small>
                     </div>
                 </div>
                 <div style="text-align:right;">
-                    <b style="color:#4caf50; font-family:monospace;">${parseFloat(t.price).toFixed(4)} WPT</b><br>
-                    <small style="opacity:0.5; font-size:10px;">MCap: $${Math.floor(t.mcap || 0).toLocaleString()}</small>
+                    <b style="color:var(--green);">${parseFloat(t.price).toFixed(4)} WPT</b>
                 </div>
             </div>
         `).join('');
     } catch (e) {
-        console.error("Market Load Error:", e);
+        list.innerHTML = `<p style="text-align:center; color:red;">Erreur de connexion API</p>`;
     }
 }
+
 
 
 
