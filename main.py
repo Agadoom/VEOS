@@ -74,6 +74,18 @@ async def home(request: Request):
         """
 
 
+
+
+@app.get("/admin")
+async def get_admin_page():
+    # Vérifie que le fichier admin.html est bien à la racine ou dans /static
+    if os.path.exists("admin.html"):
+        return FileResponse("admin.html")
+    return {"error": "Fichier admin.html introuvable sur le serveur"}
+
+
+
+
 @app.post("/api/stars/create-invoice")
 async def create_invoice(data: dict):
     user_id = data.get("user_id")
