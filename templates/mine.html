@@ -267,6 +267,32 @@
 
 
 
+<div id="p-profil" class="page" style="display:none; min-height: 100vh; background: #000; color: white;">
+    <div style="text-align:center; padding: 40px 20px;">
+        <div id="prof-initials" style="width:80px; height:80px; background:var(--gold); border-radius:50%; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:32px; border: 3px solid #222;">U</div>
+        <h2 id="prof-name" style="margin:0;">Chargement...</h2>
+        <div style="margin-top:10px;">
+            <small style="opacity:0.5; font-size:10px; text-transform:uppercase;">Estimation Net Worth</small>
+            <h1 id="usd-val" style="color:var(--green); margin:0; font-family:monospace;">$0.00</h1>
+            <span id="prof-rank" style="background:var(--gold); color:black; padding:2px 10px; border-radius:10px; font-size:10px; font-weight:900;">RANK: #---</span>
+        </div>
+    </div>
+    
+    <div style="padding: 0 20px;">
+        <div class="card" style="background:rgba(235, 64, 52, 0.05); border:1px solid #eb4034; flex-direction:column; padding:15px; gap:10px;">
+            <b style="color:#eb4034;">🔥 BURN PORTAL</b>
+            <input type="number" id="burn-amount" placeholder="Quantité WPT" class="l-input" style="text-align:center; margin:0;">
+            <button class="btn" style="background:#eb4034; color:white; width:100%;" onclick="executeBurn()">BRÛLER</button>
+        </div>
+
+        <div style="margin-top:30px; padding-bottom:100px;">
+            <h3 style="font-size:12px; opacity:0.6; text-transform:uppercase; letter-spacing:1px;">🏆 Classement Mondial</h3>
+            <div id="leaderboard" style="background: #111; border-radius: 15px; border: 1px solid #222; margin-top:10px;">
+                <p style="text-align:center; padding:20px; opacity:0.3;">Chargement des légendes...</p>
+            </div>
+        </div>
+    </div>
+</div>
 
 
 
