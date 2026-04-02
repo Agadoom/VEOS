@@ -54,11 +54,14 @@ async def home(request: Request):
 
 
 
-# 🛰️ Page Admin (utilise FileResponse car c'est à la RACINE)
-@app.get("/admin")
-async def serve_admin():
-    # On va chercher directement à la racine du projet
-    return FileResponse("admin.html")
+@app.get("/admin", response_class=HTMLResponse)
+async def serve_admin(request: Request):
+    return templates.TemplateResponse(
+        request=request, 
+        name="admin.html", 
+        context={}
+    )
+
 
 
 
