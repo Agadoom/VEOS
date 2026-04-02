@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
     <title>One World Peace Coins</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
+
     <style>
         :root { --gold: #FFD700; --purple: #A259FF; --green: #34C759; --red: #FF3B30; --bg: #000; --card: #111; }
         body { background: var(--bg); color: white; font-family: -apple-system, sans-serif; margin: 0; overflow-x: hidden; }
@@ -779,6 +781,53 @@ window.onload = () => {
 
 
 
+// Initialisation de TON Connect
+const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
+    manifestUrl: 'https://ton-app.railway.app/tonconnect-manifest.json', // URL de ton manifest
+    buttonRootId: 'ton-connect-btn' // ID de l'élément HTML où le bouton s'affiche
+});
+
+async function handleWalletConnection() {
+    try {
+        // 1. Attendre la connexion
+        const connectedWallet = await tonConnectUI.connectWallet();
+        
+        if (connectedWallet) {
+            const walletAddress = connectedWallet.account.address;
+            const walletName = connectedWallet.device.appName;
+
+            console.log("Wallet Connected:", walletAddress);
+
+            // 2. Envoyer l'adresse au serveur Railway pour lier au User ID
+            const response = await fetch(`${BASE_URL}/api/user/link-wallet`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: uid, // Ton ID Telegram récupéré via tg.initDataUnsafe
+                    wallet_address: walletAddress,
+                    wallet_type: walletName
+                })
+            });
+
+            const result = await response.json();
+            if (result.ok) {
+                tg.showAlert("💎 Wallet Linked Successfully!");
+            }
+        }
+    } catch (error) {
+        console.error("Connection failed", error);
+        tg.showPopup({ message: "Connection cancelled or failed." });
+    }
+}
+
+// Écouter les changements d'état (déconnexion/connexion)
+tonConnectUI.onStatusChange(wallet => {
+    if (wallet) {
+        console.log("Wallet is active");
+    } else {
+        console.log("Wallet disconnected");
+    }
+});
 
 
 
