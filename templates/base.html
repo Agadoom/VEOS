@@ -65,6 +65,68 @@ img, button {
 
 
 
+function showPage(pageId) {
+    // 1. MASQUER TOUTES LES PAGES
+    document.querySelectorAll('.page').forEach(p => {
+        p.style.display = 'none';
+        p.classList.remove('active-page');
+    });
+
+    // 2. AFFICHER LA PAGE DEMANDÉE
+    const target = document.getElementById(pageId);
+    if (target) {
+        target.style.display = 'block';
+        target.classList.add('active-page');
+        window.scrollTo(0, 0); // Remonte en haut de page automatiquement
+    } else {
+        console.error("Page introuvable : " + pageId);
+        return;
+    }
+
+    // 3. GÉRER LES ICÔNES DE NAVIGATION (Actif/Inactif)
+    document.querySelectorAll('.n-i').forEach(icon => icon.classList.remove('active'));
+    
+    // On trouve l'icône correspondante (ex: p-launcher -> n-launcher)
+    let navId = pageId.replace('p-', 'n-');
+    if (pageId === 'p-details') navId = 'n-launcher'; // Si on est dans les détails, on laisse la fusée allumée
+    
+    const navIcon = document.getElementById(navId);
+    if (navIcon) navIcon.classList.add('active');
+
+    // 4. CHARGEMENT DYNAMIQUE DES DONNÉES (Le Cœur du Système)
+    switch(pageId) {
+        case 'p-mine':
+            refresh(); // Charge le solde et l'énergie
+            break;
+            
+        case 'p-launcher':
+            if (typeof loadMarket === "function") loadMarket(); // Charge les tokens
+            break;
+            
+        case 'p-lottery':
+            if (typeof loadLottery === "function") loadLottery(); // Charge le Jackpot
+            break;
+            
+        case 'p-wallet':
+            refresh(); // Met à jour le solde dans le Wallet
+            break;
+            
+        case 'p-profil':
+            refresh(); // Met à jour ton nom et ton estimation $
+            if (typeof loadLeaderboard === "function") loadLeaderboard(); // Charge le classement
+            break;
+    }
+
+    // 5. VIBRATION TELEGRAM (Haptic Feedback)
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
+}
+
+
+
+
+
 
 
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
