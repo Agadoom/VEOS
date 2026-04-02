@@ -1,19 +1,17 @@
 import random
 import database
+import time
 from fastapi import APIRouter, Request
+from datetime import datetime
 
 router = APIRouter(prefix="/api/lottery", tags=["Lottery"])
 
-# --- 1. ACHAT DE TICKETS ---
-# DANS routes/lottery.py
-
-# Retire le "/api/lottery" du décorateur si ton router a déjà le préfixe
+# --- 1. ACHAT DE TICKETS (CORRIGÉ) ---
 @router.post("/buy-ticket") 
 async def buy_lottery_ticket(request: Request):
     conn = None
     try:
         data = await request.json()
-        # On force l'UID en entier pour être sûr de matcher la DB
         uid = int(data.get("user_id")) 
         qty = int(data.get("quantity", 1))
         cost = float(qty * 1000)
@@ -21,7 +19,7 @@ async def buy_lottery_ticket(request: Request):
         conn = database.get_db_conn()
         c = conn.cursor()
 
-                # 1. On récupère TOUS les soldes (Genesis, Unity, Veo)
+        # A. Vérification du solde total (Genesis + Unity + Veo)
         c.execute("""
             SELECT 
                 COALESCE(p_genesis, 0), 
@@ -35,20 +33,24 @@ async def buy_lottery_ticket(request: Request):
         if not res:
             return {"ok": False, "error": "Utilisateur introuvable."}
         
-        # On fait la somme comme sur ton écran d'accueil
         current_balance = float(res[0]) + float(res[1]) + float(res[2])
         user_name = res[3] or "A Whale"
 
-        # Comparaison sur le TOTAL
         if current_balance < cost:
-            return {"ok": False, "error": f"Insufficient balance (Total: {int(current_balance)} WPT)"}
+            return {"ok": False, "error": f"Solde insuffisant (Total: {int(current_balance)} WPT)"}
 
-        # 2. Mise à jour : On pioche d'abord dans p_genesis
-        # Si p_genesis devient négatif, c'est pas grave car ton 'score' total reste positif
+        # B. DÉBIT DE L'ARGENT (On pioche dans p_genesis)
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (cost, uid))
 
+        # C. ENREGISTREMENT DES TICKETS (Le fix était ici !)
+        c.execute("""
+            INSERT INTO lottery_tickets (user_id, tickets_count, week_number) 
+            VALUES (%s, %s, EXTRACT(WEEK FROM CURRENT_DATE))
+            ON CONFLICT (user_id, week_number) 
+            DO UPDATE SET tickets_count = lottery_tickets.tickets_count + %s
+        """, (uid, qty, qty))
 
-        # 3. Calcul et enregistrement du Jackpot
+        # D. MISE À JOUR DU JACKPOT GLOBAL (Stats)
         c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
         total_tickets = c.fetchone()[0] or 0
         new_jackpot = total_tickets * 1000
@@ -57,7 +59,7 @@ async def buy_lottery_ticket(request: Request):
         
         conn.commit()
 
-        # --- 🚀 NOTIFICATION TELEGRAM ---
+        # E. NOTIFICATION TELEGRAM
         try:
             bot = request.app.state.bot
             text = (
@@ -79,43 +81,37 @@ async def buy_lottery_ticket(request: Request):
     finally:
         if conn: c.close(); conn.close()
 
-
-
-
-
-
-
-
-# --- 3. LE MOTEUR DE TIRAGE (Pour APScheduler) ---
+# --- 2. LE MOTEUR DE TIRAGE ---
 async def draw_lottery():
-    print("🎲 Lottery Draw started...")
+    print("🎲 Tirage de la Loterie en cours...")
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # Récupérer participants
+        # Récupérer tous les tickets de la semaine
         c.execute("SELECT user_id, tickets_count FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
         rows = c.fetchall()
         
         if not rows:
-            print("🎰 Draw: No tickets this week.")
+            print("🎰 Tirage annulé : Aucun ticket vendu cette semaine.")
             return
 
+        # Création de l'urne (un ID répété selon son nombre de tickets)
         participants = []
         for uid, count in rows:
             participants.extend([uid] * count)
 
-                # Tirage
+        # Désigner le gagnant
         winner_id = random.choice(participants)
         total_pool = len(participants) * 1000
 
-        # Payer le gagnant et mettre à jour les stats
+        # Payer le gagnant
         c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (total_pool, winner_id))
         
-        # On récupère le nom du gagnant pour les stats
+        # Récupérer son nom
         c.execute("SELECT name FROM users WHERE user_id = %s", (winner_id,))
         winner_name = c.fetchone()[0] or "A Lucky Citizen"
 
-        # Mettre à jour la table globale pour l'affichage
+        # Mettre à jour les stats historiques
         c.execute("""
             UPDATE lottery_stats 
             SET current_jackpot = 0, 
@@ -124,55 +120,40 @@ async def draw_lottery():
             WHERE id = 1
         """, (winner_name, total_pool))
         
-        # Reset des tickets pour la nouvelle semaine
+        # Supprimer les tickets pour la semaine prochaine
         c.execute("DELETE FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
-
         
         conn.commit()
-        print(f"🏆 WINNER: {winner_id} won {total_pool} WPT")
+        print(f"🏆 GAGNANT : {winner_name} ({winner_id}) a remporté {total_pool} WPT")
     except Exception as e:
-        print(f"❌ Draw Error: {e}")
+        print(f"❌ Erreur Tirage: {e}")
     finally:
         c.close(); conn.close()
 
-
-
-
-
+# --- 3. STATUS GLOBAL ---
 @router.get("/status")
 async def get_lottery_status():
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On calcule le Jackpot : soit une valeur fixe + les tickets, 
-        # soit on lit une table 'lottery'
-        c.execute("SELECT current_jackpot, last_winner, last_prize FROM lottery_stats LIMIT 1")
+        c.execute("SELECT current_jackpot, last_winner, last_prize FROM lottery_stats WHERE id = 1")
         res = c.fetchone()
-        
         if res:
             return {
                 "jackpot": float(res[0]),
                 "last_winner": res[1] or "@NoOne",
                 "last_prize": float(res[2] or 0)
             }
-        else:
-            # Si la table est vide, on renvoie une valeur par défaut au lieu de 0
-            return {"jackpot": 12000.0, "last_winner": "@Ghost", "last_prize": 5000}
+        return {"jackpot": 0.0, "last_winner": "@Ghost", "last_prize": 0}
     finally:
         c.close(); conn.close()
 
-
-
-
-
-
-
+# --- 4. TICKETS DE L'UTILISATEUR ---
 @router.get("/user-tickets/{uid}")
 async def get_user_tickets(uid: int):
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
-        # On cherche les tickets de la semaine actuelle
         c.execute("""
             SELECT tickets_count FROM lottery_tickets 
             WHERE user_id = %s AND week_number = EXTRACT(WEEK FROM CURRENT_DATE)
