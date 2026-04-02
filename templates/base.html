@@ -427,38 +427,73 @@ async function deployToken() {
     } catch (e) { tg.showAlert("Connection error."); }
 }
 
+
+
+
+
+
+
 // OUVRIR LES DÉTAILS D'UN TOKEN
 async function openDetails(symbol) {
+    // 1. On affiche la page immédiatement et on remonte en haut
+    showPage('p-details');
+    window.scrollTo(0,0);
+    
+    // 2. Placeholder pendant le chargement
+    document.getElementById('det-name').innerText = "Loading...";
+    document.getElementById('det-sym').innerText = "$" + symbol;
+    document.getElementById('det-socials').innerHTML = ""; // On vide les anciens liens
+
     try {
+        // 3. Récupération des données réelles depuis ton API Railway
         const r = await fetch(`${BASE_URL}/api/launcher/token/${symbol}`);
+        if (!r.ok) throw new Error("Token introuvable");
         const t = await r.json();
 
-        // Injection des données textes
+        // 4. Remplissage des textes et prix
         document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = "$" + t.symbol;
-        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+        document.getElementById('det-price-top').innerText = parseFloat(t.price || 0).toFixed(6);
         document.getElementById('det-mcap').innerText = "$" + Math.floor(t.mcap || 0).toLocaleString();
-        document.getElementById('det-desc').innerText = t.description || "Project under development.";
-
-        // Gestion des images
+        document.getElementById('det-desc').innerText = t.description || "Ecosystem project under development.";
+        
+        // 5. Gestion des images (Logo et Banner)
         document.getElementById('det-logo').src = t.logo || "/static/genesis.png";
-        document.getElementById('det-banner').src = t.banner || "";
+        document.getElementById('det-banner').src = t.banner || ""; // Vide si pas de bannière
 
-        // Gestion des réseaux sociaux
+        // 6. Gestion dynamique des Réseaux Sociaux (Website & Twitter)
         const socialBox = document.getElementById('det-socials');
-        socialBox.innerHTML = "";
-        if (t.website) socialBox.innerHTML += `<a href="${t.website}" target="_blank">🌐</a>`;
+        
+        if (t.website && t.website.startsWith('http')) {
+            socialBox.innerHTML += `
+                <a href="${t.website}" target="_blank" style="text-decoration:none; background:#222; width:35px; height:35px; display:flex; align-items:center; justify-content:center; border-radius:10px; font-size:18px;">🌐</a>
+            `;
+        }
+        
         if (t.twitter) {
-            const handle = t.twitter.replace('@', '');
-            socialBox.innerHTML += `<a href="https://x.com/${handle}" target="_blank">🚀</a>`;
+            const xHandle = t.twitter.replace('@', '');
+            socialBox.innerHTML += `
+                <a href="https://x.com/${xHandle}" target="_blank" style="text-decoration:none; background:#222; width:35px; height:35px; display:flex; align-items:center; justify-content:center; border-radius:10px; font-size:16px;">🚀</a>
+            `;
         }
 
-        showPage('p-details');
+        // Haptic Feedback Telegram
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+        }
+
     } catch (e) {
-        console.error("OpenDetails Error:", e);
-        tg.showAlert("Error loading token data.");
+        console.error("Erreur OpenDetails:", e);
+        tg.showAlert("Erreur : Impossible de charger les données du token.");
+        showPage('p-launcher'); // On renvoie au launcher en cas d'erreur
     }
 }
+
+// Fonction de secours pour les boutons Buy/Sell
+function openTrade(side) {
+    const symbol = document.getElementById('det-sym').innerText;
+    tg.showAlert(`Trading ${side} pour ${symbol} bientôt disponible ! 📈`);
+}
+
 
 
 
