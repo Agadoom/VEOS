@@ -238,6 +238,52 @@ async function openDetails(symbol) {
 
 
 
+
+
+// 1. CHARGER LES INFOS DE LA LOTERIE
+async function loadLottery() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/lottery/status`);
+        const d = await r.json();
+        
+        document.getElementById('jackpot-amount').innerText = d.jackpot.toLocaleString();
+        document.getElementById('last-winner').innerText = d.last_winner || "Attente...";
+        document.getElementById('last-win-amount').innerText = (d.last_prize || 0).toLocaleString() + " WPT";
+        
+        // Charger tes propres tickets
+        const ur = await fetch(`${BASE_URL}/api/user/${uid}/tickets`);
+        const ud = await ur.json();
+        document.getElementById('user-tickets').innerText = ud.count || 0;
+        document.getElementById('win-chance').innerText = (ud.chance || 0) + "%";
+        
+    } catch (e) { console.error("Lottery error", e); }
+}
+
+// 2. ACHETER UN TICKET
+async function buyLotteryTicket() {
+    const qty = document.getElementById('ticket-qty').value || 1;
+    try {
+        const r = await fetch(`${BASE_URL}/api/lottery/buy`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: uid, amount: qty })
+        });
+        const res = await r.json();
+        
+        if (res.ok) {
+            tg.showAlert(`🎟️ ${qty} Ticket(s) acheté(s) ! Bonne chance Boss.`);
+            loadLottery(); // Refresh les stats
+            refresh();     // Refresh ton solde WPT
+        } else {
+            tg.showAlert(res.error || "Solde insuffisant !");
+        }
+    } catch (e) { tg.showAlert("Erreur de connexion casino."); }
+}
+
+
+
+
+
 // 1. VRAI PAIEMENT STARS
 async function buyStarsPack(amount) {
     try {
