@@ -60,7 +60,10 @@ img, button {
     const tg = window.Telegram.WebApp;
     // CRITIQUE : Récupérer l'ID réel de l'utilisateur Telegram
     const uid = tg.initDataUnsafe?.user?.id || 12345; 
-    const BASE_URL = window.location.origin;
+    // REMPLACE PAR TON URL RÉELLE RAILWAY
+const BASE_URL = window.location.origin; 
+// OU SI TEST LOCAL :
+// const BASE_URL = "https://ton-app.railway.app"; 
 
 
 
