@@ -38,6 +38,16 @@ async def buy_lottery_ticket(request: Request):
         # 3. Calcul du nouveau Jackpot pour le message
         c.execute("SELECT SUM(tickets_count) FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
         new_jackpot = (c.fetchone()[0] or 0) * 1000
+
+
+  # --- AJOUTE ÇA ICI ---
+        # On met à jour la table 'lottery_stats' pour que le GET /status affiche la bonne valeur
+        c.execute("""
+            UPDATE lottery_stats 
+            SET current_jackpot = %s 
+            WHERE id = 1
+        """, (new_jackpot,))
+        # ---------------------
         
         conn.commit()
 
@@ -91,15 +101,29 @@ async def draw_lottery():
         for uid, count in rows:
             participants.extend([uid] * count)
 
-        # Tirage
+                # Tirage
         winner_id = random.choice(participants)
         total_pool = len(participants) * 1000
 
-        # Payer le gagnant
+        # Payer le gagnant et mettre à jour les stats
         c.execute("UPDATE users SET p_genesis = p_genesis + %s WHERE user_id = %s", (total_pool, winner_id))
         
-        # Reset
+        # On récupère le nom du gagnant pour les stats
+        c.execute("SELECT name FROM users WHERE user_id = %s", (winner_id,))
+        winner_name = c.fetchone()[0] or "A Lucky Citizen"
+
+        # Mettre à jour la table globale pour l'affichage
+        c.execute("""
+            UPDATE lottery_stats 
+            SET current_jackpot = 0, 
+                last_winner = %s, 
+                last_prize = %s 
+            WHERE id = 1
+        """, (winner_name, total_pool))
+        
+        # Reset des tickets pour la nouvelle semaine
         c.execute("DELETE FROM lottery_tickets WHERE week_number = EXTRACT(WEEK FROM CURRENT_DATE)")
+
         
         conn.commit()
         print(f"🏆 WINNER: {winner_id} won {total_pool} WPT")
