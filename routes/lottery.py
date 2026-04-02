@@ -162,3 +162,22 @@ async def get_lottery_status():
         c.close(); conn.close()
 
 
+
+
+
+
+
+@router.get("/user-tickets/{uid}")
+async def get_user_tickets(uid: int):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # On cherche les tickets de la semaine actuelle
+        c.execute("""
+            SELECT tickets_count FROM lottery_tickets 
+            WHERE user_id = %s AND week_number = EXTRACT(WEEK FROM CURRENT_DATE)
+        """, (uid,))
+        res = c.fetchone()
+        return {"count": res[0] if res else 0}
+    finally:
+        c.close(); conn.close()
