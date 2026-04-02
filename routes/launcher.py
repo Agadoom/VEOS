@@ -276,3 +276,43 @@ async def get_market(filter: str = "new", search: str = "", uid: int = 0):
         return []
     finally:
         c.close(); conn.close()
+
+
+
+
+
+# --- 🔍 DÉTAILS D'UN TOKEN UNIQUE ---
+@router.get("/token/{symbol}")
+async def get_token_details(symbol: str):
+    conn = database.get_db_conn()
+    c = conn.cursor()
+    try:
+        # On cherche le token par son symbole
+        c.execute("""
+            SELECT id, name, symbol, logo, banner, price, description, website_url, twitter_url 
+            FROM community_tokens WHERE symbol = %s
+        """, (symbol,))
+        r = c.fetchone()
+        
+        if not r:
+            raise HTTPException(status_code=404, detail="Token non trouvé")
+            
+        # Calcul du MCAP (Prix * Supply totale théorique, ex: 1 milliard)
+        price = float(r[5] or 0.0001)
+        mcap = price * 1000000000 
+
+        return {
+            "id": r[0],
+            "name": r[1],
+            "symbol": r[2],
+            "logo": r[3],
+            "banner": r[4],
+            "price": price,
+            "description": r[6] or "Projet de l'écosystème WPT.",
+            "website": r[7],
+            "twitter": r[8],
+            "mcap": mcap
+        }
+    finally:
+        c.close(); conn.close()
+
