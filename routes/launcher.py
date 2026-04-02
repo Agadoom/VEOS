@@ -226,22 +226,52 @@ async def sell_token(req: TradeRequest):
 
 
 @router.get("/market")
-async def get_market(filter: str = "new", search: str = ""):
+async def get_market(filter: str = "new", search: str = "", uid: int = 0):
+    conn = database.get_db_conn()
+    c = conn.cursor()
     try:
-        query = {}
+        # On utilise la table community_tokens (Postgres) et non MongoDB
+        query = "SELECT id, name, symbol, logo, banner, price, description, website_url, twitter_url FROM community_tokens"
+        params = []
+        where_clauses = []
+
         if search:
-            query["name"] = {"$regex": search, "$options": "i"}
-            
-        # On récupère les tokens. 
-        # Si filter == 'my', il faudrait ajouter une condition sur l'user_id
-        tokens = list(db.tokens.find(query).sort("created_at", -1))
+            where_clauses.append("(name ILIKE %s OR symbol ILIKE %s)")
+            params.extend([f"%{search}%", f"%{search}%"])
         
-        for t in tokens:
-            t["_id"] = str(t["_id"]) # Convertit l'ID MongoDB en texte pour le JS
-            
-        return tokens # Doit retourner une liste [{}, {}]
+        if filter == "my" and uid > 0:
+            where_clauses.append("creator_id = %s")
+            params.append(uid)
+
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+
+        # Tri selon le filtre
+        if filter == "hot":
+            query += " ORDER BY price DESC" # Ou selon le volume si tu as
+        else:
+            query += " ORDER BY id DESC"
+
+        query += " LIMIT 50"
+        
+        c.execute(query, tuple(params))
+        res = c.fetchall()
+        
+        # Retourne le format JSON que ton JavaScript attend
+        return [{
+            "id": r[0], 
+            "name": r[1], 
+            "symbol": r[2], 
+            "logo": r[3], 
+            "banner": r[4], 
+            "price": float(r[5] or 0.0001), 
+            "description": r[6], 
+            "website": r[7], # On harmonise les noms
+            "twitter": r[8],
+            "mcap": float(r[5] or 0.0001) * 1000000000 # Simulation simple du MCap
+        } for r in res]
     except Exception as e:
-        print(f"Erreur DB: {e}")
+        print(f"❌ Market Error: {e}")
         return []
-
-
+    finally:
+        c.close(); conn.close()
