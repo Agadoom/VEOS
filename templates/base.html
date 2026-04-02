@@ -68,53 +68,25 @@ img, button {
 
 
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
-    async function refresh() {
-    if (!uid) return;
-    try {
-        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) {
-            console.error("Serveur ne répond pas");
-            return;
-        }
-        const d = await r.json();
-        console.log("Données reçues :", d); // Vérifie ça dans ta console F12
+    // Dans ta fonction refresh(), après avoir récupéré 'd' (les datas) :
 
-        // On définit la valeur de base (on teste tous les noms possibles)
-        const totalWPT = d.p_genesis || d.score || 0;
+const totalWPT = d.p_genesis || d.score || 0;
 
-        // --- MISE À JOUR SÉCURISÉE ---
-        const safeUpdate = (id, val, isLocale = true) => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.innerText = isLocale ? parseFloat(val).toLocaleString() : val;
-            }
-        };
+// Mise à jour Nom et Initiale
+if(document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.username || "Citizen";
+if(document.getElementById('prof-initials') && d.username) {
+    document.getElementById('prof-initials').innerText = d.username.charAt(0).toUpperCase();
+}
 
-        // 1. Accueil & Wallet (Les gros chiffres)
-        safeUpdate('tot', totalWPT);            // Page Mine
-        safeUpdate('wallet-balance', totalWPT); // Page Wallet
-        safeUpdate('user-balance', totalWPT);   // Backup ID Wallet
+// Mise à jour Dollars ($0.001 par WPT par exemple)
+if(document.getElementById('usd-val')) {
+    const valUSD = totalWPT * 0.0001; 
+    document.getElementById('usd-val').innerText = "$" + valUSD.toLocaleString(undefined, {minimumFractionDigits: 2});
+}
 
-        // 2. Sous-compteurs (Les petites stats)
-        safeUpdate('gv', d.g || 0); // Genesis
-        safeUpdate('uv', d.u || 0); // Unity
-        safeUpdate('vv', d.v || 0); // Veo AI
-
-        // 3. Barre d'énergie
-        const energy = d.energy || 0;
-        const eBar = document.getElementById('e-f');
-        if (eBar) eBar.style.width = energy + "%";
-        safeUpdate('e-t', `Energy: ${Math.floor(energy)}/100`, false);
-
-        // 4. Profil Initials
-        if (d.username && document.getElementById('prof-initials')) {
-            document.getElementById('prof-initials').innerText = d.username.charAt(0).toUpperCase();
-            safeUpdate('prof-name', d.username, false);
-        }
-
-    } catch (e) {
-        console.error("Crash du Refresh :", e);
-    }
+// Mise à jour du Rank si présent dans le JSON
+if(d.rank && document.getElementById('prof-rank')) {
+    document.getElementById('prof-rank').innerText = "RANK: #" + d.rank;
 }
 
 
