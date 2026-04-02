@@ -72,41 +72,29 @@ img, button {
     if (!uid) return;
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) return;
         const d = await r.json();
 
-        // FONCTION MAGIQUE POUR ÉCRIRE SANS CRASH
-        const update = (id, value) => {
-            const el = document.getElementById(id);
-            if (el && value !== undefined) {
-                el.innerText = parseFloat(value).toLocaleString();
-            }
-        };
+        // 1. On récupère la valeur (p_genesis est le nom dans ta base Postgres)
+        const totalWPT = d.p_genesis || 0;
 
-        // On teste toutes les clés possibles venant du Python
-        const totalScore = d.p_genesis || d.score || d.balance || 0;
-        
-        // Mise à jour de TOUS les compteurs (Mine + Wallet + Profil)
-        update('tot', totalScore);          // Le gros chiffre en haut (Mine)
-        update('user-balance', totalScore); // Le chiffre dans le Wallet
-        update('gv', d.g || d.genesis || 0); // Genesis individuel
-        update('uv', d.u || d.unity || 0);   // Unity
-        update('vv', d.v || d.veo || 0);     // Veo AI
-        
-        // Mise à jour de l'énergie
-        if(document.getElementById('e-f')) {
-            const energy = d.energy || 0;
-            document.getElementById('e-f').style.width = energy + "%";
-            document.getElementById('e-t').innerText = `Energy: ${Math.floor(energy)}/100`;
-        }
+        // 2. On met à jour l'ID de la page d'accueil (Capture 3471)
+        const mineEl = document.getElementById('tot');
+        if (mineEl) mineEl.innerText = parseFloat(totalWPT).toLocaleString();
 
-        // Mise à jour du Rank (Profil)
-        if(d.rank && document.getElementById('prof-rank')) {
-            document.getElementById('prof-rank').innerText = "RANK: #" + d.rank;
-        }
+        // 3. On met à jour l'ID du Wallet (Capture 3470) - LE FIX EST ICI
+        const walletEl = document.getElementById('wallet-balance');
+        if (walletEl) walletEl.innerText = parseFloat(totalWPT).toLocaleString();
 
-    } catch (e) { console.error("Refresh Error:", e); }
+        // 4. Update des sous-compteurs
+        if(document.getElementById('gv')) document.getElementById('gv').innerText = parseFloat(d.g || 0).toLocaleString();
+        if(document.getElementById('uv')) document.getElementById('uv').innerText = parseFloat(d.u || 0).toLocaleString();
+        if(document.getElementById('vv')) document.getElementById('vv').innerText = parseFloat(d.v || 0).toLocaleString();
+
+    } catch (e) {
+        console.error("Erreur de synchronisation Wallet:", e);
+    }
 }
+
 
 
 
