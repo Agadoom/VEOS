@@ -8,6 +8,7 @@ from telegram import Bot, Update, WebAppInfo, InlineKeyboardButton, InlineKeyboa
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 
 import config, database
@@ -133,12 +134,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🚀 OPEN APP", web_app=WebAppInfo(url=config.WEBAPP_URL))]])
     await update.message.reply_text(f"Welcome {name}!", reply_markup=keyboard)
 
-async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != config.ADMIN_ID: return 
-    v = int(time.time())
-    admin_url = f"https://veos-production-a2de.up.railway.app/secret-admin-dashboard?v={v}"
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🖥️ COMMAND CENTER", web_app=WebAppInfo(url=admin_url))]])
-    await update.message.reply_text("🛰️ <b>Admin Access Granted.</b>", parse_mode="HTML", reply_markup=keyboard)
+
+async def admin_command(update, context):
+    # L'URL DOIT CORRESPONDRE À TA ROUTE FASTAPI
+    # Si ta route dans main.py est @app.get("/admin"), l'url est BASE_URL + "/admin"
+    admin_url = f"{CONFIG.BASE_URL}/admin" 
+    
+    keyboard = [[
+        InlineKeyboardButton("💻 COMMAND CENTER", web_app=WebAppInfo(url=admin_url))
+    ]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.message.reply_text("🛰️ **Admin Access Granted.**", reply_markup=reply_markup, parse_mode="Markdown")
+
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
