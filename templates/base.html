@@ -347,6 +347,65 @@ async function loadLeaderboard() {
 
 
 
+
+
+async function openDetails(symbol) {
+    try {
+        const r = await fetch(`${BASE_URL}/api/launcher/token/${symbol}`);
+        const t = await r.json();
+
+        // 1. Remplir les textes
+        document.getElementById('det-name').innerText = t.name;
+        document.getElementById('det-sym').innerText = "$" + t.symbol;
+        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
+        document.getElementById('det-mcap').innerText = "$" + Math.floor(t.mcap || 0).toLocaleString();
+        document.getElementById('det-desc').innerText = t.description || "No description.";
+        
+        // 2. Gérer les liens sociaux (Website & Twitter)
+        const socialBox = document.getElementById('det-socials');
+        socialBox.innerHTML = ""; // On vide
+        
+        if(t.website) {
+            socialBox.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none;">🌐</a>`;
+        }
+        if(t.twitter) {
+            const xUser = t.twitter.replace('@', '');
+            socialBox.innerHTML += `<a href="https://x.com/${xUser}" target="_blank" style="text-decoration:none;">🚀</a>`;
+        }
+
+        // 3. Images
+        if(t.logo) document.getElementById('det-logo').src = t.logo;
+        if(t.banner) document.getElementById('det-banner').src = t.banner;
+
+        showPage('p-details');
+        
+    } catch(e) { 
+        console.error("Détails Error:", e);
+        tg.showAlert("Impossible de charger les données du token.");
+    }
+}
+
+
+
+
+
+
+async function deployToken() {
+    const data = {
+        user_id: uid,
+        name: document.getElementById('tk-name').value,
+        symbol: document.getElementById('tk-sym').value,
+        description: document.getElementById('tk-desc').value,
+        website: document.getElementById('tk-url').value, // Nouveau
+        twitter: document.getElementById('tk-x').value    // Nouveau
+    };
+
+    // Ton code fetch habituel ici...
+}
+
+
+
+
     // Initialisation
     window.onload = () => {
         tg.expand();
