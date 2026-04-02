@@ -334,6 +334,60 @@ async function loadLottery() {
 
 
 
+// 1. OUVRE LA BOITE DE DIALOGUE
+function openTrade(side) {
+    const symbol = document.getElementById('det-sym').innerText.replace('$', '');
+    const action = side === 'buy' ? 'ACHETER' : 'VENDRE';
+    
+    // On demande la quantité à l'utilisateur via un prompt Telegram propre
+    tg.showScanQrPopup({ text: `Quantité de ${symbol} à ${action} :` }, (result) => {
+        // Note: showScanQrPopup est un détournement, l'idéal est un simple prompt ou un input sur la page
+    });
+
+    // VERSION SIMPLE POUR LE TEST :
+    const amount = prompt(`Combien de ${symbol} voulez-vous ${side} ?`, "100");
+    if (amount && !isNaN(amount)) {
+        executeTrade(side, symbol, parseFloat(amount));
+    }
+}
+
+// 2. ENVOIE L'ORDRE AU SERVEUR (API)
+async function executeTrade(side, symbol, amount) {
+    try {
+        const endpoint = side === 'buy' ? '/api/launcher/swap' : '/api/launcher/sell';
+        
+        // On récupère l'ID du token (caché dans un attribut ou via une API)
+        // Pour faire simple, on envoie le symbole et le serveur gère
+        const r = await fetch(`${BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid,
+                symbol: symbol, // Ton Python doit accepter 'symbol' ou tu dois stocker 'token_id'
+                amount: amount
+            })
+        });
+
+        const res = await r.json();
+        if (res.ok) {
+            tg.showAlert(`✅ Transaction réussie ! Reçu : ${res.received.toFixed(2)}`);
+            refresh(); // Met à jour ton solde WPT
+            openDetails(symbol); // Rafraîchit le prix sur la page détails
+        } else {
+            tg.showAlert("❌ Erreur : " + (res.error || "Transaction échouée"));
+        }
+    } catch (e) {
+        tg.showAlert("🚀 Serveur occupé, réessayez...");
+    }
+}
+
+
+
+
+
+
+
+
 
 
 // 2. ACHETER UN TICKET
