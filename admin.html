@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WPT COMMAND CENTER</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root { --gold: #bf953f; --cyber: #00ecff; --burn: #ff4d4d; --bg: #0a0a0a; }
+        body { background: var(--bg); color: #fff; font-family: sans-serif; padding: 15px; margin: 0; }
+        h1 { color: var(--gold); font-size: 18px; text-align: center; text-transform: uppercase; letter-spacing: 2px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .card { background: #151515; padding: 15px; border-radius: 10px; border-left: 4px solid var(--gold); }
+        .card h3 { margin: 0; font-size: 10px; opacity: 0.6; text-transform: uppercase; }
+        .card p { margin: 5px 0 0; font-size: 18px; font-weight: bold; }
+
+        .broadcast-zone { background: #151515; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+        textarea { width: 100%; height: 80px; background: #000; color: var(--cyber); border: 1px solid #444; border-radius: 5px; padding: 10px; box-sizing: border-box; font-family: monospace; }
+        button { width: 100%; background: var(--cyber); color: #000; border: none; padding: 12px; border-radius: 5px; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        
+        .activity-log { margin-top: 20px; font-size: 12px; background: #111; padding: 10px; border-radius: 8px; border: 1px solid #222; }
+        .log-item { border-bottom: 1px solid #222; padding: 8px 0; display: flex; justify-content: space-between; }
+        .status-msg { text-align: center; font-size: 11px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>🛰️ WPT COMMAND CENTER</h1>
+
+    <div class="grid">
+        <div class="card"><h3>Online (5m)</h3><p id="val-online">0</p></div>
+        <div class="card"><h3>Total Users</h3><p id="val-users">0</p></div>
+        <div class="card"><h3>WPT Price</h3><p id="val-price" style="color:var(--cyber)">$0.00</p></div>
+        <div class="card"><h3>Jackpot</h3><p id="val-jackpot" class="gold">0</p></div>
+    </div>
+
+    <div class="broadcast-zone">
+        <h3 style="margin:0 0 10px 0; font-size:12px; color:var(--cyber)">📢 BROADCAST SYSTEM</h3>
+        <textarea id="bc-msg" placeholder="Write your announcement here..."></textarea>
+        <button onclick="doBroadcast()" id="bc-btn">SEND TO ALL USERS 🚀</button>
+        <div id="bc-status" class="status-msg"></div>
+    </div>
+
+    <div class="activity-log">
+        <h3 style="margin:0 0 10px 0; font-size:11px; color:var(--gold)">⚡ RECENT ACTIVITY</h3>
+        <div id="log-list">Loading events...</div>
+    </div>
+
+<script>
+    const ADMIN_ID = 1414016840;
+
+    async function loadData() {
+        try {
+            const r = await fetch(`/api/admin/stats/${ADMIN_ID}`);
+            if(!r.ok) return; // Si pas autorisé, on ne fait rien
+            
+            const d = await r.json();
+
+            // Remplissage sécurisé des données
+            document.getElementById('val-online').innerText = d.online || 0;
+            document.getElementById('val-users').innerText = d.users || 0;
+            document.getElementById('val-price').innerText = `$${(d.wpt_price || 0).toFixed(8)}`;
+            document.getElementById('val-jackpot').innerText = (d.jackpot || 0).toLocaleString();
+
+            // Logs d'activité
+            if (d.activity && d.activity.length > 0) {
+                const html = d.activity.map(a => `
+                    <div class="log-item">
+                        <span>👤 ${a.name}</span>
+                        <span style="color:var(--gold)">Bought ${a.qty} Tickets 🎟️</span>
+                    </div>
+                `).join('');
+                document.getElementById('log-list').innerHTML = html;
+            } else {
+                document.getElementById('log-list').innerHTML = "No recent activity.";
+            }
+
+        } catch(e) {
+            console.error("Fetch error:", e);
+        }
+    }
+
+    async function doBroadcast() {
+        const msg = document.getElementById('bc-msg').value;
+        const btn = document.getElementById('bc-btn');
+        const status = document.getElementById('bc-status');
+        
+        if(!msg) return alert("Message vide !");
+        
+        btn.disabled = true;
+        status.innerText = "Processing broadcast...";
+
+        try {
+            const r = await fetch(`/api/admin/broadcast/${ADMIN_ID}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({message: msg})
+            });
+            const res = await r.json();
+            if(res.ok) {
+                status.innerHTML = `<span style="color:var(--cyber)">✅ Sent to ${res.sent} users</span>`;
+                document.getElementById('bc-msg').value = "";
+            } else {
+                status.innerHTML = `<span style="color:var(--burn)">❌ Error: ${res.error}</span>`;
+            }
+        } catch(e) {
+            status.innerHTML = `<span style="color:var(--burn)">❌ Connection failed</span>`;
+        }
+        btn.disabled = false;
+    }
+
+    loadData();
+    setInterval(loadData, 15000); // Update every 15s
+</script>
+</body>
+</html>
