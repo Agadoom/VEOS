@@ -45,15 +45,12 @@ app.include_router(admin.router)
 # --- ROUTE HOME ---
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    try:
-        # Syntaxe explicite pour éviter le bug du dictionnaire
-        return templates.TemplateResponse(
-            name="mine.html", 
-            context={"request": request}
-        )
-    except Exception as e:
-        # On garde le détecteur au cas où le fichier serait quand même mal placé
-        return f"<h1>⚠️ Erreur : {str(e)}</h1>"
+    # La nouvelle règle : request doit être passé AVANT le contexte
+    return templates.TemplateResponse(
+        request=request, 
+        name="mine.html", 
+        context={} # Tu peux laisser vide ou mettre tes autres variables ici
+    )
 
 
 
