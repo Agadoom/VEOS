@@ -114,24 +114,68 @@ img, button {
 
 
 function showPage(pageId) {
-    // 1. Cacher toutes les pages
-    function showPage(pageId) {
-    // Cache toutes les pages
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-    
-    // Affiche la page visée
+    // 1. CACHER TOUTES LES PAGES
+    // On cherche tous les éléments avec la classe 'page' et on les masque
+    document.querySelectorAll('.page').forEach(p => {
+        p.style.display = 'none';
+        p.classList.remove('active-page');
+    });
+
+    // 2. AFFICHER LA PAGE DEMANDÉE
     const target = document.getElementById(pageId);
-    if(target) {
+    if (target) {
         target.style.display = 'block';
+        target.classList.add('active-page');
+        
+        // Petit effet de scroll vers le haut quand on change de page
+        window.scrollTo(0, 0);
+    } else {
+        console.error("La page " + pageId + " n'existe pas dans le HTML !");
+        return;
     }
 
-    // Si c'est le launcher, on demande au serveur de charger les tokens
-    if(pageId === 'p-launcher') {
-        loadMarket(); 
+    // 3. METTRE À JOUR LA BARRE DE NAVIGATION (Icônes)
+    document.querySelectorAll('.n-i').forEach(icon => icon.classList.remove('active'));
+    
+    // On détermine quelle icône doit être allumée
+    // Si c'est p-details, on allume l'icône du launcher (fusée)
+    let navId = "";
+    if (pageId === 'p-details') {
+        navId = 'n-launcher';
+    } else {
+        navId = pageId.replace('p-', 'n-');
     }
     
-    tg.HapticFeedback?.impactOccurred('light');
+    const activeIcon = document.getElementById(navId);
+    if (activeIcon) {
+        activeIcon.classList.add('active');
+    }
+
+    // 4. CHARGEMENT DYNAMIQUE DES DONNÉES (Le plus important !)
+    // On ne charge les données que si l'utilisateur est sur la page concernée
+    switch(pageId) {
+        case 'p-launcher':
+            if (typeof loadMarket === "function") loadMarket();
+            break;
+        case 'p-profil':
+            if (typeof loadLeaderboard === "function") loadLeaderboard();
+            if (typeof loadPortfolio === "function") loadPortfolio();
+            break;
+        case 'p-lottery':
+            if (typeof loadLottery === "function") loadLottery();
+            break;
+        case 'p-wallet':
+            // Rafraîchir le solde WPT quand on ouvre le wallet
+            if (typeof refresh === "function") refresh();
+            break;
+    }
+
+    // 5. RETOUR HAPTIQUE (Vibration Telegram)
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
 }
+
 
 
 
