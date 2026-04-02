@@ -464,6 +464,58 @@ async function openDetails(symbol) {
 
 
 
+let currentFilter = 'new';
+
+async function setFilter(filter, el) {
+    currentFilter = filter;
+    // Gérer l'apparence des onglets
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.style.background = "#111";
+        btn.style.color = "white";
+    });
+    el.style.background = "var(--gold)";
+    el.style.color = "black";
+    
+    loadMarket(); // Recharger avec le nouveau filtre
+}
+
+async function loadMarket() {
+    const list = document.getElementById('token-list');
+    const search = document.getElementById('token-search').value;
+
+    try {
+        // On envoie le filtre et la recherche au serveur
+        const r = await fetch(`${BASE_URL}/api/launcher/market?filter=${currentFilter}&search=${search}`);
+        const tokens = await r.json();
+
+        if (tokens.length === 0) {
+            list.innerHTML = `<p style="text-align:center; opacity:0.3; padding:20px;">No tokens found in ${currentFilter}...</p>`;
+            return;
+        }
+
+        list.innerHTML = tokens.map(t => `
+            <div class="card" onclick="openDetails('${t.symbol}')" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:0.2s; active:scale(0.98);">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <img src="${t.logo || '/static/genesis.png'}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; border:1px solid #333;">
+                    <div>
+                        <b style="font-size:15px;">${t.name}</b><br>
+                        <small style="color:var(--gold); font-weight:900;">$${t.symbol}</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:#4caf50; font-family:monospace;">${parseFloat(t.price).toFixed(4)} WPT</b><br>
+                    <small style="opacity:0.5; font-size:10px;">MCap: $${Math.floor(t.mcap || 0).toLocaleString()}</small>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error("Market Load Error:", e);
+    }
+}
+
+
+
+
     // Initialisation
     window.onload = () => {
         tg.expand();
