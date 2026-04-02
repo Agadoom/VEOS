@@ -8,7 +8,6 @@ from telegram import Bot, Update, WebAppInfo, InlineKeyboardButton, InlineKeyboa
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, PreCheckoutQueryHandler, MessageHandler, filters
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 
 import config, database
