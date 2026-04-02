@@ -112,7 +112,7 @@ async def draw_lottery():
 
 
 
-@router.get("/api/lottery/info")
+@router.get("/api/lottery/status")
 async def get_lottery_info(user_id: int):
     conn = database.get_db_conn()
     c = conn.cursor()
