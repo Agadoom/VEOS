@@ -166,18 +166,23 @@ function showPage(pageId) {
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) return;
-        const d = await r.json();
+        const d = await r.json(); // Données reçues de Python
 
-        if (d.error) { 
-            console.log("Données invalides");
-            return; 
-        }
+// Mise à jour du solde principal du Wallet
+const walletBalEl = document.getElementById('wallet-balance');
+if (walletBalEl) {
+    // On utilise d.score (qui est p_gen + p_uni + p_veo dans ton Python)
+    walletBalEl.innerText = parseFloat(d.score || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
 
-        // --- 1. LES SOLDES CLASSIQUES ---
-        const update = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) el.innerText = parseFloat(val || 0).toLocaleString();
-        };
+// Optionnel : Si tu veux que le bouton "TOTAL" en haut du wallet 
+// soit aussi synchronisé avec les assets du profil :
+if (typeof updateProfilUI === "function") {
+    updateProfilUI(d);
+}
 
         update('tot', d.score);           
         update('user-balance', d.score);  
