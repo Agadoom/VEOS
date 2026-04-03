@@ -280,38 +280,65 @@ async function loadMarket() {
 }
 
 async function openDetails(symbol) {
+    showPage('p-details');
+    window.scrollTo(0,0);
+    
     try {
         const r = await fetch(`${BASE_URL}/api/launcher/token/${symbol}`);
         const t = await r.json();
 
-        // 1. Remplir les textes
+        // On stocke l'ID interne du token dans l'attribut data-tid
+        document.getElementById('p-details').setAttribute('data-tid', t.id);
+
         document.getElementById('det-name').innerText = t.name;
         document.getElementById('det-sym').innerText = "$" + t.symbol;
         document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
         document.getElementById('det-mcap').innerText = "$" + Math.floor(t.mcap || 0).toLocaleString();
         document.getElementById('det-desc').innerText = t.description || "No description.";
+        document.getElementById('det-logo').src = t.logo || "/static/genesis.png";
+        document.getElementById('det-banner').src = t.banner || "";
         
-        // 2. Gérer les liens sociaux (Website & Twitter)
-        const socialBox = document.getElementById('det-socials');
-        socialBox.innerHTML = ""; // On vide
-        
-        if(t.website) {
-            socialBox.innerHTML += `<a href="${t.website}" target="_blank" style="text-decoration:none;">🌐</a>`;
-        }
-        if(t.twitter) {
-            const xUser = t.twitter.replace('@', '');
-            socialBox.innerHTML += `<a href="https://x.com/${xUser}" target="_blank" style="text-decoration:none;">🚀</a>`;
-        }
+        // Label pour savoir ce qu'on achète
+        document.getElementById('trade-label').innerText = t.symbol.toUpperCase();
 
-        // 3. Images
-        if(t.logo) document.getElementById('det-logo').src = t.logo;
-        if(t.banner) document.getElementById('det-banner').src = t.banner;
+    } catch (e) { tg.showAlert("Erreur de chargement."); }
+}
 
-        showPage('p-details');
+// EXÉCUTER LE TRADE (Vraie version)
+async function executeTrade(side) {
+    const tid = document.getElementById('p-details').getAttribute('data-tid');
+    const amount = document.getElementById('trade-amount').value;
+    const symbol = document.getElementById('det-sym').innerText.replace('$', '');
+
+    if (!amount || amount <= 0) return tg.showAlert("Saisis un montant valide !");
+
+    // Vibration de confirmation
+    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+
+    try {
+        const endpoint = side === 'buy' ? '/api/launcher/swap' : '/api/launcher/sell';
         
-    } catch(e) { 
-        console.error("Détails Error:", e);
-        tg.showAlert("Impossible de charger les données du token.");
+        const r = await fetch(`${BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid,
+                token_id: parseInt(tid),
+                amount: parseFloat(amount)
+            })
+        });
+
+        const res = await r.json();
+
+        if (res.ok) {
+            tg.showAlert(`✅ Succès ! ${side === 'buy' ? 'Achat' : 'Vente'} terminé.`);
+            refresh(); // Met à jour ton solde WPT
+            openDetails(symbol); // Rafraîchit les prix du token
+        } else {
+            tg.showAlert("❌ " + (res.error || "Erreur de transaction"));
+        }
+    } catch (e) {
+        tg.showAlert("🚀 Connexion perdue avec le marché.");
     }
 }
 
