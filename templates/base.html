@@ -41,6 +41,27 @@ img, button {
     -webkit-user-drag: none;
 }
 
+
+
+
+.profit { color: #00ff88; font-weight: bold; } /* Vert Neon */
+.loss { color: #ff4d4d; font-weight: bold; }   /* Rouge Burn */
+
+.asset-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #151515;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 12px;
+    cursor: pointer; /* Garde le clic vers le détail */
+    transition: 0.3s;
+}
+
+.asset-card:active { transform: scale(0.98); background: #202020; }
+
+
     </style>
 </head>
 <body>
