@@ -631,68 +631,6 @@ async function deployToken() {
 
 // OUVRIR LES DÉTAILS D'UN TOKEN
 // OUVRIR LES DÉTAILS
-async function openDetails(symbol) {
-    showPage('p-details');
-    window.scrollTo(0,0);
-    
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/token/${symbol}`);
-        const t = await r.json();
-
-        // On stocke l'ID interne du token dans l'attribut data-tid
-        document.getElementById('p-details').setAttribute('data-tid', t.id);
-
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = "$" + t.symbol;
-        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-        document.getElementById('det-mcap').innerText = "$" + Math.floor(t.mcap || 0).toLocaleString();
-        document.getElementById('det-desc').innerText = t.description || "No description.";
-        document.getElementById('det-logo').src = t.logo || "/static/genesis.png";
-        document.getElementById('det-banner').src = t.banner || "";
-        
-        // Label pour savoir ce qu'on achète
-        document.getElementById('trade-label').innerText = t.symbol.toUpperCase();
-
-    } catch (e) { tg.showAlert("Erreur de chargement."); }
-}
-
-// EXÉCUTER LE TRADE (Vraie version)
-async function executeTrade(side) {
-    const tid = document.getElementById('p-details').getAttribute('data-tid');
-    const amount = document.getElementById('trade-amount').value;
-    const symbol = document.getElementById('det-sym').innerText.replace('$', '');
-
-    if (!amount || amount <= 0) return tg.showAlert("Saisis un montant valide !");
-
-    // Vibration de confirmation
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-
-    try {
-        const endpoint = side === 'buy' ? '/api/launcher/swap' : '/api/launcher/sell';
-        
-        const r = await fetch(`${BASE_URL}${endpoint}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: uid,
-                token_id: parseInt(tid),
-                amount: parseFloat(amount)
-            })
-        });
-
-        const res = await r.json();
-
-        if (res.ok) {
-            tg.showAlert(`✅ Succès ! ${side === 'buy' ? 'Achat' : 'Vente'} terminé.`);
-            refresh(); // Met à jour ton solde WPT
-            openDetails(symbol); // Rafraîchit les prix du token
-        } else {
-            tg.showAlert("❌ " + (res.error || "Erreur de transaction"));
-        }
-    } catch (e) {
-        tg.showAlert("🚀 Connexion perdue avec le marché.");
-    }
-}
 
 
 
@@ -902,6 +840,60 @@ async function executeBurn() {
         }
     });
 }
+
+
+
+
+
+// --- 🔥 FONCTION DE SACRIFICE (BURN) ---
+async function executeBurn() {
+    const burnInput = document.getElementById('burn-amount');
+    const amount = parseFloat(burnInput.value);
+
+    // 1. Vérifications de sécurité
+    if (!amount || amount <= 0) {
+        return tg.showAlert("Please enter a valid amount of WPT to sacrifice! 🔥");
+    }
+
+    // 2. Fenêtre de confirmation Telegram
+    tg.showConfirm(`WARNING: You are about to BURN ${amount.toLocaleString()} WPT forever. This action is irreversible and will increase token scarcity. Do you accept the sacrifice?`, async (ok) => {
+        if (ok) {
+            try {
+                // On montre un petit loader ou on désactive le bouton
+                tg.MainButton.setText("BURNING IN PROGRESS...");
+                tg.MainButton.showProgress();
+
+                const response = await fetch(`${BASE_URL}/api/user/burn`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: uid,
+                        amount: amount
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.ok) {
+                    // Succès !
+                    tg.showAlert(`🔥 SACRIFICE ACCEPTED!\n\n${amount.toLocaleString()} WPT have been destroyed. Global scarcity increased!`);
+                    burnInput.value = ''; // On vide le champ
+                    refresh(); // On actualise les soldes et le prix
+                } else {
+                    tg.showAlert("❌ Error: " + (result.error || "Insufficient balance."));
+                }
+            } catch (error) {
+                console.error("Burn error:", error);
+                tg.showAlert("❌ Connection failed. The fire is out!");
+            } finally {
+                tg.MainButton.hideProgress();
+            }
+        }
+    });
+}
+
+
+
 
 
 
