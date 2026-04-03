@@ -14,9 +14,10 @@ import config, database
 from routes import mine, launcher, user, stars, lottery, premium, admin
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from routes.lottery import draw_lottery 
-
+from routes import stars # Importation du fichier
 
 app = FastAPI()
+
 
 # --- INITIALIZATION ---
 # --- INITIALIZATION ---
