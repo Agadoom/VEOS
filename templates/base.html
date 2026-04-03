@@ -161,54 +161,64 @@ function showPage(pageId) {
 
 
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
-    async function refresh() {
+  async function refresh() {
     if (!uid) return;
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) return;
-        const d = await r.json(); // Données reçues de Python
+        const d = await r.json(); 
 
-// Mise à jour du solde principal du Wallet
-const walletBalEl = document.getElementById('wallet-balance');
-if (walletBalEl) {
-    // On utilise d.score (qui est p_gen + p_uni + p_veo dans ton Python)
-    walletBalEl.innerText = parseFloat(d.score || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
+        // --- 1. FONCTION HELPER POUR ÉVITER LES ERREURS ---
+        const update = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) {
+                // Si c'est un nombre, on le formate, sinon on affiche tel quel
+                el.innerText = isNaN(val) ? (val || "---") : parseFloat(val || 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+        };
 
-// Optionnel : Si tu veux que le bouton "TOTAL" en haut du wallet 
-// soit aussi synchronisé avec les assets du profil :
-if (typeof updateProfilUI === "function") {
-    updateProfilUI(d);
-}
-
+        // --- 2. MISE À JOUR DES SOLDES (WALLET & MINE) ---
+        update('tot', d.score);           // Gros compteur page Mine
+        update('wallet-balance', d.score); // Gros chiffre page Wallet
+        update('user-balance', d.score);   // Autre ID si utilisé
         
-        // --- 2. APPEL DE LA MISE À JOUR PROFIL/WALLET (CRITIQUE) ---
-        // Cette fonction va calculer le "Net Worth" réel basé sur tes tokens
+        // Sous-jetons
+        update('gv', d.g); 
+        update('uv', d.u); 
+        update('vv', d.v); 
+
+        // --- 3. CALCUL DU NET WORTH (PROFIL) ---
+        // Cette fonction va remplir la liste des assets et le total USD ($40,05)
         if (typeof updateProfilUI === "function") {
             updateProfilUI(d); 
         }
 
-        // --- 3. RANG & INFOS PROFIL ---
+        // --- 4. RANG, ÉNERGIE & INFOS ---
         if (document.getElementById('prof-rank')) {
             document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || "---");
         }
 
         if (document.getElementById('e-f')) {
-            document.getElementById('e-f').style.width = d.energy + "%";
-            document.getElementById('e-t').innerText = `Energy: ${d.energy}/100`;
+            document.getElementById('e-f').style.width = (d.energy || 0) + "%";
+            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/100`;
         }
         
         if (document.getElementById('prof-name')) {
             document.getElementById('prof-name').innerText = d.name || "Citizen";
         }
 
+        if (document.getElementById('prof-initials') && d.name) {
+            document.getElementById('prof-initials').innerText = d.name.charAt(0).toUpperCase();
+        }
+
     } catch (e) {
-        console.error("Erreur de rafraîchissement :", e);
+        console.error("❌ Erreur de rafraîchissement :", e);
     }
 }
+
 
 
 
