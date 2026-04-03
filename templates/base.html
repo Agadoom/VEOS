@@ -184,12 +184,7 @@ if (typeof updateProfilUI === "function") {
     updateProfilUI(d);
 }
 
-        update('tot', d.score);           
-        update('user-balance', d.score);  
-        update('gv', d.g); 
-        update('uv', d.u); 
-        update('vv', d.v); 
-
+        
         // --- 2. APPEL DE LA MISE À JOUR PROFIL/WALLET (CRITIQUE) ---
         // Cette fonction va calculer le "Net Worth" réel basé sur tes tokens
         if (typeof updateProfilUI === "function") {
