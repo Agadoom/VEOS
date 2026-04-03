@@ -432,31 +432,49 @@ async function executeTrade(side, symbol, amount) {
 
 // 1. VRAI PAIEMENT STARS
 async function buyStarsPack(amount) {
-    tg.MainButton.setText(`BUYING ${amount} STARS...`);
+    console.log("Achat de Stars lancé :", amount);
+    
+    // On change le texte du bouton principal de Telegram pour montrer que ça charge
+    tg.MainButton.setText(`PREPARING ${amount} STARS...`);
+    tg.MainButton.show();
     tg.MainButton.showProgress();
 
     try {
-        const r = await fetch(`${BASE_URL}/api/user/create-invoice`, {
+        const response = await fetch(`${BASE_URL}/api/user/create-invoice`, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ user_id: uid, stars: amount })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: uid, 
+                stars: amount 
+            })
         });
-        const d = await r.json();
-        
-        if (d.invoice_link) {
-            tg.openInvoice(d.invoice_link, (status) => {
+
+        const data = await response.json();
+
+        if (data.invoice_link) {
+            // C'est ici que la magie opère : Telegram ouvre l'interface de paiement
+            tg.openInvoice(data.invoice_link, function(status) {
                 if (status === 'paid') {
-                    tg.showAlert("🚀 SUCCESS! WPT added to your balance.");
-                    refresh();
+                    tg.showAlert("🌟 SUCCESS! Your account has been credited.");
+                    refresh(); // On actualise pour voir les nouveaux WPT
+                } else if (status === 'cancelled') {
+                    tg.showAlert("Payment cancelled.");
+                } else {
+                    tg.showAlert("Payment failed or pending.");
                 }
+                tg.MainButton.hide();
             });
+        } else {
+            tg.showAlert("❌ Error: Could not generate invoice.");
+            tg.MainButton.hide();
         }
-    } catch (e) {
-        tg.showAlert("❌ Payment system offline.");
-    } finally {
-        tg.MainButton.hideProgress();
+    } catch (error) {
+        console.error("Erreur Invoice:", error);
+        tg.showAlert("❌ Server offline or connection error.");
+        tg.MainButton.hide();
     }
 }
+
 
 
 
