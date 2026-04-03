@@ -868,6 +868,40 @@ async function handleWalletConnection() {
 }
 
 
+// 1. SAUVEGARDER L'ADRESSE TON
+async function saveTonAddress() {
+    const addr = document.getElementById('ton-address').value;
+    if(!addr) return tg.showAlert("Please enter an address!");
+    
+    const r = await fetch(`${BASE_URL}/api/user/update-wallet`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ user_id: uid, wallet_address: addr })
+    });
+    const d = await r.json();
+    if(d.ok) tg.showAlert("✅ Wallet Address Saved!");
+}
+
+// 2. EXECUTER LE BURN
+async function executeBurn() {
+    const amount = document.getElementById('burn-amount').value;
+    if(!amount || amount <= 0) return tg.showAlert("Enter a valid amount to sacrifice!");
+    
+    tg.showConfirm(`Are you sure you want to BURN ${amount} WPT forever? 🔥`, async (ok) => {
+        if(ok) {
+            const r = await fetch(`${BASE_URL}/api/admin/burn`, { // Route à adapter selon ton Python
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user_id: uid, amount: amount })
+            });
+            const d = await r.json();
+            if(d.ok) {
+                tg.showAlert("🔥 SACRIFICE ACCEPTED! Scarcity increased.");
+                refresh();
+            }
+        }
+    });
+}
 
 
 
