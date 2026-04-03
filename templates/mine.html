@@ -274,20 +274,20 @@
         <h2 id="prof-name" style="margin: 15px 0 5px 0; letter-spacing: 1px; text-transform: uppercase; font-size: 22px;">ONE WORLD PEACE COINS</h2>
         
         <small style="opacity:0.5; font-size:10px; letter-spacing: 1px;">ESTIMATED NET WORTH</small>
-        <h2 id="total-net-worth">$0,00</h2> 
+        <h2 id="total-net-worth" style="color:#00ff88; font-size: 32px; margin: 5px 0;">$0,00</h2> 
 
         <div style="display: inline-block; background: #1a1a1c; padding: 4px 12px; border-radius: 8px; margin-top: 5px; border: 1px solid #333;">
-            <small style="font-size: 10px; opacity: 0.7;">📊 1 WPT = $0.0001</small>
+            <small id="current-wpt-price" style="font-size: 10px; opacity: 0.7;">📊 1 WPT = $0.0001</small>
         </div>
     </div>
 
-    <div class="card" style="background: #0a0a0b; border: 1px solid #222; padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+    <div class="card" style="background: #0a0a0b; border: 1px solid #222; padding: 15px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-radius:15px;">
         <div style="font-size: 10px; line-height: 1.2;">
             <b style="display:block; opacity:0.6;">TON WALLET</b>
             <span style="color:var(--gold);">SECURE 🔒</span>
         </div>
         <input type="text" id="ton-address" placeholder="UQAv...NTYi" style="flex:1; background:#1a1a1c; border:1px solid #333; color:white; padding:8px; border-radius:8px; font-size:12px; font-family:monospace;">
-        <button class="btn" style="padding: 8px 15px; background: var(--gold); color: black; font-size: 12px; border-radius: 8px;" onclick="saveTonAddress()">SAVE</button>
+        <button class="btn" style="padding: 8px 15px; background: var(--gold); color: black; font-size: 12px; border-radius: 8px; font-weight:bold;" onclick="saveTonAddress()">SAVE</button>
     </div>
 
     <div style="margin-top: 25px;">
@@ -295,22 +295,25 @@
             <div style="width: 4px; height: 18px; background: var(--gold); border-radius: 2px;"></div>
             <h3 style="margin: 0; font-size: 14px; letter-spacing: 1px;">DIGITAL ASSETS</h3>
         </div>
-        <div id="digital-assets-list" style="display: flex; flex-direction: column; gap: 10px;">
+        <div id="asset-list" style="display: flex; flex-direction: column; gap: 10px;">
             <p style="text-align:center; opacity:0.3; padding:20px;">Scanning assets...</p>
         </div>
     </div>
 
     <div style="margin-top: 30px; position: relative; padding: 25px; background: rgba(235, 64, 52, 0.05); border: 1px solid rgba(235, 64, 52, 0.3); border-radius: 25px; overflow: hidden;">
         <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: #eb4034; color: white; font-size: 8px; padding: 2px 15px; border-radius: 0 0 10px 10px; font-weight: 900;">DANGER ZONE</div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 15px;">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div style="font-size: 35px;">🔥</div>
-                <div style="line-height: 1.2;">
-                    <b style="color:#eb4034; font-size: 16px; display: block;">WPT BURN PORTAL</b>
-                    <small style="opacity:0.5; font-size: 9px;">Destroy WPT to increase scarcity.</small>
-                </div>
+        
+        <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px;">
+            <div style="font-size: 30px;">🔥</div>
+            <div style="line-height: 1.2;">
+                <b style="color:#eb4034; font-size: 16px; display: block;">WPT BURN PORTAL</b>
+                <small style="opacity:0.5; font-size: 9px;">Destroy WPT to increase scarcity.</small>
             </div>
-            <button class="btn" style="background:#eb4034; color:white; padding: 12px 20px; border-radius: 12px; font-weight: 900;" onclick="executeBurn()">EXECUTE SACRIFICE</button>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="burn-amount" placeholder="Amount to burn..." style="flex:1; background: #000; border: 1px solid #eb4034; color: #eb4034; padding: 12px; border-radius: 12px; font-weight: bold;">
+            <button class="btn" style="background:#eb4034; color:white; padding: 12px 20px; border-radius: 12px; font-weight: 900;" onclick="executeBurn()">BURN</button>
         </div>
     </div>
 
@@ -324,6 +327,7 @@
         </div>
     </div>
 </div>
+
 
 
 
