@@ -15,27 +15,24 @@ class InvoiceRequest(BaseModel):
 # 2. La route en POST
 @router.post("/create-invoice")
 async def create_invoice(req: InvoiceRequest):
-    token = os.getenv("BOT_TOKEN") # Ton token BotFather
-    
+    token = os.getenv("BOT_TOKEN")
     url = f"https://api.telegram.org/bot{token}/createInvoiceLink"
     
     payload = {
-        "title": f"Pack {req.stars} Stars",
-        "description": f"Créditez votre compte OWPC avec {req.stars} Stars !",
-        "payload": f"user_{req.user_id}_pack_{req.stars}",
-        "provider_token": "", # Vide pour les Telegram Stars (XTR)
+        "title": f"Buy {req.stars} Stars",
+        "description": f"Boost your OWPC account with {req.stars} Telegram Stars!",
+        "payload": f"user_id_{req.user_id}_stars_{req.stars}",
+        "provider_token": "", # DOIT rester vide pour les Stars (XTR)
         "currency": "XTR",
-        "prices": [{"label": "Stars", "amount": req.stars}]
+        "prices": [{"label": "Stars", "amount": int(req.stars)}]
     }
     
-    try:
-        r = requests.post(url, json=payload)
-        res = r.json()
+    r = requests.post(url, json=payload)
+    res = r.json()
+    
+    if not res.get("ok"):
+        print(f"❌ Telegram Error: {res.get('description')}") # Regarde tes logs Railway !
+        return JSONResponse(status_code=400, content={"error": res.get("description")})
         
-        if res.get("ok"):
-            return {"invoice_link": res["result"]}
-        else:
-            return JSONResponse(status_code=400, content={"error": res.get("description")})
-            
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    return {"invoice_link": res["result"]}
+": str(e)})
