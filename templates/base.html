@@ -164,42 +164,38 @@ function showPage(pageId) {
     async function refresh() {
     if (!uid) return;
     try {
-        // Appelle ta route /api/user/{uid}
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         if (!r.ok) return;
         const d = await r.json();
-if (d.error || !d.score) { 
-    console.log("Données invalides, on ne met pas à jour à 0");
-    return; 
-}
 
-        // 1. MISE À JOUR DES SOLDES (Sync avec ton Python g, u, v, score)
+        if (d.error) { 
+            console.log("Données invalides");
+            return; 
+        }
+
+        // --- 1. LES SOLDES CLASSIQUES ---
         const update = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.innerText = parseFloat(val || 0).toLocaleString();
         };
 
-        update('tot', d.score);           // Page Mine (Gros chiffre)
-        update('user-balance', d.score);  // Page Wallet (Gros chiffre)
-        update('wallet-balance', d.score); // Backup ID Wallet
-        
-        update('gv', d.g); // Petit compteur Genesis
-        update('uv', d.u); // Petit compteur Unity
-        update('vv', d.v); // Petit compteur Veo AI
+        update('tot', d.score);           
+        update('user-balance', d.score);  
+        update('gv', d.g); 
+        update('uv', d.u); 
+        update('vv', d.v); 
 
-        // 2. MISE À JOUR ESTIMATION USD (Sync avec usd_value)
-        const usdEl = document.getElementById('usd-val');
-        if (usdEl) {
-            usdEl.innerHTML = `$${parseFloat(d.usd_value || 0).toLocaleString(undefined, {minimumFractionDigits: 2})} <span style="font-size: 14px; opacity: 0.6;">USD</span>`;
+        // --- 2. APPEL DE LA MISE À JOUR PROFIL/WALLET (CRITIQUE) ---
+        // Cette fonction va calculer le "Net Worth" réel basé sur tes tokens
+        if (typeof updateProfilUI === "function") {
+            updateProfilUI(d); 
         }
 
-        // 3. MISE À JOUR DU RANG (Sync avec rank)
-        const rankEl = document.getElementById('prof-rank');
-        if (rankEl) {
-            rankEl.innerText = "RANK: #" + (d.rank || "---");
+        // --- 3. RANG & INFOS PROFIL ---
+        if (document.getElementById('prof-rank')) {
+            document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || "---");
         }
 
-        // 4. ÉNERGIE & INFOS PROFIL
         if (document.getElementById('e-f')) {
             document.getElementById('e-f').style.width = d.energy + "%";
             document.getElementById('e-t').innerText = `Energy: ${d.energy}/100`;
@@ -208,15 +204,12 @@ if (d.error || !d.score) {
         if (document.getElementById('prof-name')) {
             document.getElementById('prof-name').innerText = d.name || "Citizen";
         }
-        
-        if (document.getElementById('prof-initials') && d.name) {
-            document.getElementById('prof-initials').innerText = d.name.charAt(0).toUpperCase();
-        }
 
     } catch (e) {
         console.error("Erreur de rafraîchissement :", e);
     }
 }
+
 
 
 
