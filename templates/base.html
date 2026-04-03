@@ -781,29 +781,31 @@ window.onload = () => {
 
 
 
-// Initialisation de TON Connect
+// --- INITIALISATION TON CONNECT (CORRIGÉE) ---
 const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-    manifestUrl: '            "url": "https://veos-production-a2de.up.railway.app/tonconnect-manifest.json', // URL de ton manifest
-    buttonRootId: 'ton-connect-btn' // ID de l'élément HTML où le bouton s'affiche
+    // L'URL doit être UNIQUEMENT le lien vers ton fichier, sans texte autour
+    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
+    buttonRootId: 'ton-connect-btn'
 });
 
 async function handleWalletConnection() {
     try {
-        // 1. Attendre la connexion
+        // On vérifie si l'utilisateur est déjà connecté
         const connectedWallet = await tonConnectUI.connectWallet();
         
         if (connectedWallet) {
+            // L'adresse TON arrive souvent en format brut (hex), on la récupère
             const walletAddress = connectedWallet.account.address;
             const walletName = connectedWallet.device.appName;
 
             console.log("Wallet Connected:", walletAddress);
 
-            // 2. Envoyer l'adresse au serveur Railway pour lier au User ID
+            // Envoi au backend Railway
             const response = await fetch(`${BASE_URL}/api/user/link-wallet`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    user_id: uid, // Ton ID Telegram récupéré via tg.initDataUnsafe
+                    user_id: uid, 
                     wallet_address: walletAddress,
                     wallet_type: walletName
                 })
@@ -816,18 +818,9 @@ async function handleWalletConnection() {
         }
     } catch (error) {
         console.error("Connection failed", error);
-        tg.showPopup({ message: "Connection cancelled or failed." });
     }
 }
 
-// Écouter les changements d'état (déconnexion/connexion)
-tonConnectUI.onStatusChange(wallet => {
-    if (wallet) {
-        console.log("Wallet is active");
-    } else {
-        console.log("Wallet disconnected");
-    }
-});
 
 
 
