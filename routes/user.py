@@ -169,6 +169,58 @@ async def request_withdraw(req: WithdrawRequest):
 
         c.execute("UPDATE users SET p_genesis = p_genesis - %s WHERE user_id = %s", (req.amount, req.user_id))
         c.execute("INSERT INTO withdrawals (user_id, address, amount, status, created_at) VALUES (%s, %s, %s, 'pending', %s)", (req.user_id, req.address, req.amount, int(time.time())))
+
+
+
+
+    # --- PRÉPARATION DES ASSETS POUR LE WALLET ---
+    # Ici on crée la liste que ton JavaScript va parcourir
+    user_assets = [
+        {
+            "name": "Genesis (WPT)",
+            "symbol": "WPT",
+            "balance": round(float(p_gen or 0), 2),
+            "current_price": current_price,
+            "change_24h": 2.5, # Tu peux lier ça à une vraie logique plus tard
+            "icon": "https://veos-production-a2de.up.railway.app/media/owpc_logo.png"
+        },
+        {
+            "name": "Unity",
+            "symbol": "UNT",
+            "balance": round(float(p_uni or 0), 2),
+            "current_price": 0.000089, 
+            "change_24h": -1.2,
+            "icon": "https://veos-production-a2de.up.railway.app/media/unity_icon.png"
+        },
+        {
+            "name": "Veo AI",
+            "symbol": "VEO",
+            "balance": round(float(p_veo or 0), 2),
+            "current_price": 0.000120,
+            "change_24h": 5.4,
+            "icon": "https://veos-production-a2de.up.railway.app/media/veo_icon.png"
+        }
+    ]
+
+    # --- LE RETURN FINAL COMPLET ---
+    return {
+        "uid": uid, 
+        "name": name or "Citizen", 
+        "g": round(float(p_gen or 0), 2),
+        "u": round(float(p_uni or 0), 2),
+        "v": round(float(p_veo or 0), 2),
+        "score": round(score_total, 2), 
+        "usd_value": round(usd_value, 2),
+        "energy": int(current_e),
+        "max_energy": 100,
+        "rank": rank_display,
+        "streak": current_streak,
+        "turbo_active": turbo_active,
+        "mining_boost": round(mining_boost, 2),
+        "assets": user_assets  # <--- CRITIQUE : C'est ça qui débloque le 0.00 !
+    }
+
+
         conn.commit()
         return {"ok": True}
     except Exception as e:
