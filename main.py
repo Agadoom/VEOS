@@ -59,9 +59,16 @@ async def home(request: Request):
 
 @app.get("/tonconnect-manifest.json")
 async def get_manifest():
-    return FileResponse(
-        "tonconnect-manifest.json", 
-        media_type="application/json" # <--- CRITIQUE
+    return JSONResponse(
+        content={
+            "url": "https://veos-production-a2de.up.railway.app",
+            "name": "One World Peace Coins",
+            "iconUrl": "https://veos-production-a2de.up.railway.app/media/owpc_logo.png"
+        },
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-cache"
+        }
     )
 
 
