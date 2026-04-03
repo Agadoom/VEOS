@@ -440,7 +440,7 @@ async function buyStarsPack(amount) {
     tg.MainButton.showProgress();
 
     try {
-        const response = await fetch(`${BASE_URL}/api/user/create-invoice`, {
+        const response = await fetch(`${BASE_URL}//api/stars/create-invoice`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
