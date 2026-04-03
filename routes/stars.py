@@ -7,38 +7,35 @@ router = APIRouter(prefix="/api/stars", tags=["Stars"])
 import os
 from pydantic import BaseModel
 
+# 1. Le modèle pour recevoir les données du JS
 class InvoiceRequest(BaseModel):
     user_id: int
     stars: int
 
+# 2. La route en POST
 @router.post("/create-invoice")
 async def create_invoice(req: InvoiceRequest):
-    # Remplace par ton TOKEN BOT Telegram (celui de BotFather)
-    BOT_TOKEN = os.getenv("BOT_TOKEN") 
+    token = os.getenv("BOT_TOKEN") # Ton token BotFather
     
-    # Configuration de la facture (Prix en Stars)
-    title = f"{req.stars} Stars Pack"
-    description = f"Get {req.stars} Stars and bonus WPT for your OWPC account!"
-    payload = f"stars_pack_{req.user_id}_{req.stars}"
-    currency = "XTR" # "XTR" est le code pour les Telegram Stars
-    prices = [{"label": "Stars", "amount": req.stars}] 
-
-    # Note: Tu dois appeler l'API Telegram 'createInvoiceLink' ici
-    # Pour simplifier, assure-toi d'utiliser une librairie comme 'python-telegram-bot' 
-    # ou de faire un requests.post vers https://api.telegram.org/bot{token}/createInvoiceLink
+    url = f"https://api.telegram.org/bot{token}/createInvoiceLink"
     
-    # Exemple rapide avec requests :
-    import requests
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/createInvoiceLink"
-    res = requests.post(url, json={
-        "title": title,
-        "description": description,
-        "payload": payload,
-        "currency": currency,
-        "prices": prices
-    })
+    payload = {
+        "title": f"Pack {req.stars} Stars",
+        "description": f"Créditez votre compte OWPC avec {req.stars} Stars !",
+        "payload": f"user_{req.user_id}_pack_{req.stars}",
+        "provider_token": "", # Vide pour les Telegram Stars (XTR)
+        "currency": "XTR",
+        "prices": [{"label": "Stars", "amount": req.stars}]
+    }
     
-    data = res.json()
-    if data.get("ok"):
-        return {"invoice_link": data["result"]}
-    return {"error": "Failed to create invoice"}
+    try:
+        r = requests.post(url, json=payload)
+        res = r.json()
+        
+        if res.get("ok"):
+            return {"invoice_link": res["result"]}
+        else:
+            return JSONResponse(status_code=400, content={"error": res.get("description")})
+            
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
