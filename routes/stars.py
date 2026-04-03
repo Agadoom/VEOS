@@ -11,7 +11,7 @@ class InvoiceRequest(BaseModel):
     user_id: int
     stars: int
 
-@router.post("/create-invoice")
+@router.get("/create-invoice")
 async def create_invoice(req: InvoiceRequest):
     # Remplace par ton TOKEN BOT Telegram (celui de BotFather)
     BOT_TOKEN = os.getenv("BOT_TOKEN") 
