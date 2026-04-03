@@ -514,17 +514,20 @@ async function loadPortfolio() {
 // --- 3. MISE À JOUR DU PROFIL DANS REFRESH ---
 // Ajoute ceci dans ta fonction refresh() existante :
     function updateProfilUI(d) {
+    // 1. Vérification de sécurité
+    if (!d || !d.assets) return;
+
     let globalTotal = 0;
-
-    // On vide la liste avant de la reconstruire
     const assetList = document.getElementById('asset-list');
-    assetList.innerHTML = '';
+    if (!assetList) return;
 
-    assets.forEach(asset => {
+    assetList.innerHTML = ''; // Reset de la liste
+
+    // 2. Boucle sur les assets reçus du serveur
+    d.assets.forEach(asset => {
         const assetValue = asset.balance * asset.current_price;
         globalTotal += assetValue;
 
-        // Calcul du profit/loss (ex: +2.5% ou -1.2%)
         const isPositive = asset.change_24h >= 0;
         const changeClass = isPositive ? 'profit' : 'loss';
         const changeSign = isPositive ? '+' : '';
@@ -532,10 +535,10 @@ async function loadPortfolio() {
         assetList.innerHTML += `
             <div class="asset-card" onclick="showTokenDetails('${asset.symbol}')">
                 <div class="asset-info">
-                    <img src="${asset.icon}" alt="${asset.name}">
+                    <img src="${asset.icon}" alt="${asset.name}" style="width:35px; border-radius:50%;">
                     <div>
-                        <h4>${asset.name}</h4>
-                        <small>${asset.balance.toLocaleString()} ${asset.symbol}</small>
+                        <h4 style="margin:0;">${asset.name}</h4>
+                        <small style="opacity:0.6;">${asset.balance.toLocaleString()} ${asset.symbol}</small>
                     </div>
                 </div>
                 <div class="asset-stats" style="text-align: right;">
@@ -546,9 +549,18 @@ async function loadPortfolio() {
         `;
     });
 
-    // Mise à jour du GROS TOTAL en haut
-    document.getElementById('total-net-worth').innerText = `$${globalTotal.toFixed(2).replace('.', ',')}`;
+    // 3. Mise à jour du GROS TOTAL ($40,05)
+    const totalEl = document.getElementById('total-net-worth');
+    if (totalEl) {
+        totalEl.innerText = `$${globalTotal.toFixed(2).replace('.', ',')}`;
+    }
+
+    // 4. Bonus : Mettre à jour d'autres infos profil si elles existent
+    if (d.username && document.getElementById('prof-name')) {
+        document.getElementById('prof-name').innerText = d.username;
+    }
 }
+
 
 
 
