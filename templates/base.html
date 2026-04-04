@@ -68,6 +68,40 @@ img, button {
     0% { transform: translate(0, 0); }
     100% { transform: translate(40px, 40px); }
 }
+
+
+
+
+.stat-card {
+    background: #111;
+    border: 1px solid #222;
+    padding: 12px;
+    border-radius: 12px;
+}
+.stat-card small {
+    font-size: 9px;
+    opacity: 0.5;
+    display: block;
+    margin-bottom: 4px;
+}
+.stat-card p {
+    margin: 0;
+    font-weight: bold;
+    font-family: monospace;
+}
+.trade-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 900;
+    font-size: 16px;
+    transition: 0.2s;
+}
+.trade-btn.buy { background: #00ff88; color: #000; }
+.trade-btn.sell { background: #ff4d4d; color: #fff; }
+.trade-btn:active { transform: scale(0.95); }
+
     </style>
 </head>
 <body>
