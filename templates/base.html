@@ -330,28 +330,53 @@ async function loadMarket() {
 }
 
 function showTokenDetails(symbol) {
-    // 1. On cache les autres pages et on montre p-details
+    // 1. On affiche la page de détails
     showPage('p-details');
+    tg.HapticFeedback.impactOccurred('medium');
 
-    // 2. On récupère les data de l'asset (on suppose que tu les as dans ton objet d.assets)
-    // Ici on simule pour l'exemple
-    document.getElementById('det-name').innerText = "Genesis World";
-    document.getElementById('det-symbol').innerText = "$" + symbol;
-    
-    // Mise à jour de la barre de progression (Simulé)
-    let collected = 3; 
-    let target = 1000;
-    let percent = (collected / target) * 100;
-    document.getElementById('det-progress-bar').style.width = percent + "%";
-    document.getElementById('det-progress-text').innerText = `${collected} / ${target} TON`;
+    // 2. On cherche les infos du token dans les données globales (d.assets)
+    // On suppose que 'lastData' est une variable globale qui stocke ton dernier d = await r.json()
+    const asset = lastData.assets.find(a => a.symbol === symbol);
 
-    // 3. Logique des onglets (Trade / About / Chat)
-    window.setDetTab = function(tab) {
-        console.log("Passage sur l'onglet :", tab);
-        // Ici tu peux masquer/afficher des sous-sections
-        tg.HapticFeedback.selectionChanged();
+    if (asset) {
+        // Mise à jour des textes
+        document.getElementById('det-name').innerText = asset.name;
+        document.getElementById('det-symbol').innerText = "$" + asset.symbol;
+        document.getElementById('det-icon').src = asset.icon;
+
+        // Mise à jour des prix et stats
+        const price = parseFloat(asset.current_price || 0);
+        const mcap = asset.balance * price; // Ou une autre logique de MCAP
+        
+        document.getElementById('det-price-usd').innerText = `$${price.toFixed(8)}`;
+        document.getElementById('det-mcap').innerText = `$${mcap.toLocaleString()}`;
+
+        // --- CAS SPÉCIAL POUR TON TOKEN GAS PUMP ($GWPC) ---
+        if (asset.symbol === 'GWPC' || asset.symbol === 'WPT') {
+            // On montre la barre de progression Gas Pump
+            let collected = 3; // À lier à ton API plus tard
+            let target = 1000;
+            let percent = (collected / target) * 100;
+            document.getElementById('det-progress-bar').style.width = percent + "%";
+            document.getElementById('det-progress-text').innerText = `${collected} / ${target} TON`;
+            
+            // On affiche l'iframe DexScreener (si elle est prête)
+            const chartBox = document.getElementById('det-chart-container');
+            chartBox.innerHTML = `<iframe src="https://dexscreener.com/ton/EQB6KPJ3W155V6iQH4ERfhfWtngZYTNvhMmpOkXea66hWhO6?embed=1&theme=dark&trades=0&info=0" style="width:100%; height:100%; border:none;"></iframe>`;
+        } else {
+            // Pour les autres tokens, on peut mettre un message "Coming Soon" ou un autre chart
+            document.getElementById('det-chart-container').innerHTML = `<div style="padding:100px; text-align:center; opacity:0.3;">Chart loading...</div>`;
+        }
     }
+
+    // 3. Navigation interne (Trade / About / Chat)
+    window.setDetTab = function(tab) {
+        tg.HapticFeedback.selectionChanged();
+        // Logique pour masquer/afficher les div correspondantes
+        console.log("Tab active:", tab);
+    };
 }
+
 
 
 
