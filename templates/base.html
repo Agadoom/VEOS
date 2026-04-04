@@ -329,30 +329,36 @@ async function loadMarket() {
     } catch (e) { console.error("Market Error", e); }
 }
 
-async function openDetails(symbol) {
+function showTokenDetails(symbol) {
+    // 1. On cache les autres pages et on montre p-details
     showPage('p-details');
-    window.scrollTo(0,0);
+
+    // 2. On récupère les data de l'asset (on suppose que tu les as dans ton objet d.assets)
+    // Ici on simule pour l'exemple
+    document.getElementById('det-name').innerText = "Genesis World";
+    document.getElementById('det-symbol').innerText = "$" + symbol;
     
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/token/${symbol}`);
-        const t = await r.json();
+    // Mise à jour de la barre de progression (Simulé)
+    let collected = 3; 
+    let target = 1000;
+    let percent = (collected / target) * 100;
+    document.getElementById('det-progress-bar').style.width = percent + "%";
+    document.getElementById('det-progress-text').innerText = `${collected} / ${target} TON`;
 
-        // On stocke l'ID interne du token dans l'attribut data-tid
-        document.getElementById('p-details').setAttribute('data-tid', t.id);
-
-        document.getElementById('det-name').innerText = t.name;
-        document.getElementById('det-sym').innerText = "$" + t.symbol;
-        document.getElementById('det-price-top').innerText = parseFloat(t.price).toFixed(6);
-        document.getElementById('det-mcap').innerText = "$" + Math.floor(t.mcap || 0).toLocaleString();
-        document.getElementById('det-desc').innerText = t.description || "No description.";
-        document.getElementById('det-logo').src = t.logo || "/static/genesis.png";
-        document.getElementById('det-banner').src = t.banner || "";
-        
-        // Label pour savoir ce qu'on achète
-        document.getElementById('trade-label').innerText = t.symbol.toUpperCase();
-
-    } catch (e) { tg.showAlert("Erreur de chargement."); }
+    // 3. Logique des onglets (Trade / About / Chat)
+    window.setDetTab = function(tab) {
+        console.log("Passage sur l'onglet :", tab);
+        // Ici tu peux masquer/afficher des sous-sections
+        tg.HapticFeedback.selectionChanged();
+    }
 }
+
+
+
+
+
+
+
 
 // EXÉCUTER LE TRADE (Vraie version)
 async function executeTrade(side) {
