@@ -186,3 +186,31 @@ async def update_wallet(req: WalletUpdate):
         return {"ok": False, "error": str(e)}
     finally:
         c.close(); conn.close()
+
+
+
+
+@router.get("/vault-status/{uid}")
+async def get_vault_status(uid: int):
+    user = database.get_user(uid)
+    # 1. On récupère son solde de jetons REEL sur la blockchain
+    # (Il faut une petite fonction helper qui interroge l'API TonCenter)
+    token_balance = await get_ton_balance(user['wallet_address'], "CONTRACT_GWPC")
+
+    # 2. On définit les paliers du coffre-fort
+    status = "Citizen"
+    multiplier = 1.0
+    
+    if token_balance >= 1000000: # 1 Million de GWPC
+        status = "LEGENDARY VAULT"
+        multiplier = 10.0 # x10 sur le minage !
+    elif token_balance >= 100000:
+        status = "GOLDEN VAULT"
+        multiplier = 3.0
+
+    return {
+        "status": status,
+        "multiplier": multiplier,
+        "balance": token_balance
+    }
+
