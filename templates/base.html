@@ -987,6 +987,23 @@ async function executeBurn() {
 
 
 
+function openSwap(type) {
+    // Ton code Base64 complet (celui qui commence par eyJy...)
+    const startParam = "eyJyZWZfdXNlcl9pZCI6MTQxNDAxNjg0MCwidG9rZW5fYWRkcmVzcyI6IkVRQjZLUEozVzE1NVY2aVFINEVSZmhmV3RuZ1pZVE52aE1tcE9rWGVhNjZoV2hPNiJ9";
+
+    // Vibration pour le feeling "Trading"
+    tg.HapticFeedback.impactOccurred('heavy');
+
+    // Lien direct vers la Mini App de Gas Pump
+    const url = `https://t.me/gasPump_bot/app?startapp=${startParam}`;
+
+    // On utilise openTelegramLink pour rester dans l'écosystème Telegram
+    tg.openTelegramLink(url);
+}
+
+
+
+
     // Initialisation
     window.onload = () => {
         tg.expand();
