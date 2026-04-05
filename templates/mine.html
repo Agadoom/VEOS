@@ -3,116 +3,103 @@
 {% block content %}
 <div id="main-scroller" style="overflow-y: auto; height: 100vh;">
 
-    <div id="p-mine" class="page active-page">
-        <div class="hero-section">
-            <div id="prof-rank-badge">RANK #<span id="prof-rank-val">---</span></div>
-            <h1 id="tot">0.00</h1>
-            <p id="total-net-worth-header">$0.00</p>
-            
-            <div class="energy-container">
-                <div class="energy-bar">
-                    <div id="e-f" class="energy-fill"></div>
-                </div>
-                <div class="energy-stats">
-                    <span id="e-t">Energy: 0/100</span>
-                    <span class="auto-badge">⚡ AUTO</span>
-                </div>
+    <<div id="p-mine" class="page active-page">
+    <div class="mining-header">
+        <div class="rank-chip">🏆 RANK #<span id="prof-rank-val">---</span></div>
+        <h1 id="tot">0.00</h1>
+        <div class="net-worth-sub">$<span id="header-usd">0.00</span></div>
+        
+        <div class="energy-box">
+            <div class="energy-bar-bg">
+                <div id="e-f" class="energy-fill"></div>
             </div>
-        </div>
-
-        <div class="mining-grid">
-            <div class="mine-card genesis" onclick="mine('genesis', event)">
-                <div class="card-icon">💎</div>
-                <div class="card-info"><b>Genesis</b><br><small id="gv">0.00</small></div>
-                <button class="mine-mini-btn">MINE</button>
+            <div class="energy-labels">
+                <small id="e-t">Energy: 0/100</small>
+                <small class="status-badge">⚡ AUTO-SYNC</small>
             </div>
-            <div class="mine-card unity" onclick="mine('unity', event)">
-                <div class="card-icon">🌀</div>
-                <div class="card-info"><b>Unity</b><br><small id="uv">0.00</small></div>
-                <button class="mine-mini-btn">SYNC</button>
-            </div>
-            <div class="mine-card veo" onclick="mine('veo', event)">
-                <div class="card-icon">🧠</div>
-                <div class="card-info"><b>Veo AI</b><br><small id="vv">0.00</small></div>
-                <button class="mine-mini-btn">COMPUTE</button>
-            </div>
-        </div>
-
-        <div class="main-tap-area">
-            <div class="glow-effect"></div>
-            <img src="/static/genesis.png" class="main-coin pulse" onclick="mine('genesis', event)">
         </div>
     </div>
 
-    <div id="p-trade" class="page" style="display:none;">
-        <div class="trade-header">
-            <div class="token-identity">
-                <img id="tr-icon" src="media/logo_genesis.png">
-                <div>
-                    <h2 id="tr-name">Genesis World</h2>
-                    <span id="tr-price">$0.0000000411</span>
-                </div>
-            </div>
-            <div id="tr-change" class="price-up">+5.4%</div>
+    <div class="mining-grid">
+        <div class="m-card g-glass" onclick="mine('genesis', event)">
+            <span class="m-icon">💎</span>
+            <div class="m-text"><b>Genesis</b><br><small id="gv">0.00</small></div>
         </div>
-
-        <div id="tr-chart-container">
-            <div class="chart-loader">
-                <div class="spinner">🛰️</div>
-                <small>Syncing Market Data...</small>
-            </div>
+        <div class="m-card u-glass" onclick="mine('unity', event)">
+            <span class="m-icon">🌀</span>
+            <div class="m-text"><b>Unity</b><br><small id="uv">0.00</small></div>
         </div>
-
-        <div class="trade-stats">
-            <div class="t-stat"><small>MCAP</small><b id="tr-mcap">$411K</b></div>
-            <div class="t-stat"><small>LIQUIDITY</small><b id="tr-liq">$328K</b></div>
-            <div class="t-stat"><small>VOLUME</small><b id="tr-vol">$12K</b></div>
-        </div>
-
-        <div class="swap-card">
-            <div class="swap-header">
-                <b>QUICK SWAP</b>
-                <span id="tr-balance">Bal: 0.00</span>
-            </div>
-            <div class="swap-modes">
-                <button id="mode-buy" class="active" onclick="setMode('buy')">BUY</button>
-                <button id="mode-sell" onclick="setMode('sell')">SELL</button>
-            </div>
-            <button class="btn-primary" onclick="executeTrade()">EXECUTE</button>
+        <div class="m-card v-glass" onclick="mine('veo', event)">
+            <span class="m-icon">🧠</span>
+            <div class="m-text"><b>Veo AI</b><br><small id="vv">0.00</small></div>
         </div>
     </div>
 
-    <div id="p-wallet" class="page" style="display:none;">
-        <div class="balance-card">
-            <small>TOTAL WPT BALANCE</small>
-            <h1 id="wallet-balance">0.00</h1>
-            <div id="ton-connect-btn"></div>
-        </div>
+    <div class="tap-zone">
+        <div class="tap-glow"></div>
+        <img src="/static/genesis.png" class="main-coin pulse-anim" onclick="mine('genesis', event)">
+    </div>
+</div>
 
-        <div class="lottery-preview" onclick="showSubPage('sub-lottery')">
-            <div class="lottery-info">
-                <span>🎰 GLOBAL JACKPOT</span>
-                <h2 id="jackpot-amount-preview">5,400,000 WPT</h2>
-            </div>
-            <button class="btn-purple">PLAY</button>
-        </div>
-
-        <div class="store-grid">
-            </div>
+<div id="p-wallet" class="page" style="display:none;">
+    <div class="wallet-card">
+        <small class="label">TOTAL WPT BALANCE</small>
+        <h1 id="wallet-balance">0.00</h1>
+        <div id="ton-connect-btn" style="margin: 0 auto;"></div>
     </div>
 
-    <div id="p-profil" class="page" style="display:none;">
-        <div class="profile-header">
+    <div class="jackpot-card" onclick="showSubPage('sub-lottery')">
+        <div class="j-content">
+            <div class="j-icon">🎰</div>
+            <div>
+                <b style="color:var(--purple);">GLOBAL JACKPOT</b>
+                <h3 id="jackpot-val">5,400,000 WPT</h3>
+            </div>
+        </div>
+        <button class="play-btn">JOIN</button>
+    </div>
+
+    <div class="store-section">
+        <h3 class="section-title">✨ PREMIUM STORE</h3>
+        <div class="stars-grid">
+            <div class="star-pack" onclick="buyStarsPack(50)">
+                <b>50 ⭐</b>
+                <small>+10k WPT</small>
+            </div>
+            <div class="star-pack gold-border" onclick="buyStarsPack(250)">
+                <b>250 ⭐</b>
+                <small>+60k WPT</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="p-profil" class="page" style="display:none;">
+    <div class="profile-card">
+        <div class="avatar-box">
             <div id="prof-initials">U</div>
-            <h2 id="prof-name">CITIZEN</h2>
-            <div id="vault-badge" style="display:none;">⚜️ VAULT HOLDER</div>
+            <div class="online-indicator"></div>
         </div>
-        <div class="asset-section">
-            <h3>DIGITAL ASSETS</h3>
-            <div id="asset-list"></div>
+        <h2 id="prof-name">CITIZEN</h2>
+        <div id="vault-badge" class="vault-chip" style="display:none;">⚜️ GENESIS VAULT</div>
+        
+        <div class="profile-stats">
+            <div class="p-stat">
+                <small>RANK</small>
+                <b id="prof-rank-big">#---</b>
+            </div>
+            <div class="p-stat">
+                <small>NET WORTH</small>
+                <b id="total-net-worth" style="color:#00ff88;">$0.00</b>
+            </div>
         </div>
     </div>
 
+    <div class="assets-container">
+        <h3 class="section-title">💼 DIGITAL ASSETS</h3>
+        <div id="asset-list">
+            </div>
+    </div>
 </div>
 
 <div id="launcher-drawer" class="drawer">
