@@ -11,78 +11,63 @@
         :root {
     --gold: #FFD700;
     --purple: #A259FF;
-    --bg: #000000;
-    --card: #0a0a0b;
+    --dark-card: #0a0a0b;
+    --border: rgba(255, 255, 255, 0.08);
 }
 
-.hero-section {
-    padding: 40px 20px;
-    text-align: center;
-    background: radial-gradient(circle at top, rgba(255,215,0,0.1) 0%, transparent 70%);
+body { background: #000; color: #fff; font-family: 'Inter', sans-serif; margin: 0; }
+
+/* Menu de Navigation en bas */
+.nav-bar {
+    position: fixed; bottom: 0; width: 100%; height: 70px;
+    background: rgba(10, 10, 11, 0.8); backdrop-filter: blur(20px);
+    display: flex; justify-content: space-around; align-items: center;
+    border-top: 1px solid var(--border); z-index: 100;
 }
 
-#tot {
-    font-size: 56px;
-    background: linear-gradient(to bottom, #fff, #888);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-weight: 900;
+/* Sections de l'App */
+.page { display: none; padding: 20px; padding-bottom: 100px; min-height: 100vh; box-sizing: border-box; }
+.active-page { display: block; animation: fadeIn 0.3s ease; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Cards de Minage & Assets */
+.card-pro {
+    background: var(--dark-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 15px; margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: space-between;
 }
 
-.mine-card {
-    background: var(--card);
-    border: 1px solid #1a1a1c;
-    border-radius: 20px;
-    padding: 15px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    transition: 0.3s;
+.btn-main {
+    background: var(--gold); color: #000; border: none;
+    padding: 10px 20px; border-radius: 12px; font-weight: 900;
+    cursor: pointer; transition: 0.2s;
 }
 
-.mine-card:active { transform: scale(0.95); }
+.btn-main:active { transform: scale(0.95); }
 
-/* LE DRAWER (Fenêtre coulissante) */
+/* Progress Bars */
+.bar-container { background: #1a1a1c; height: 8px; border-radius: 10px; overflow: hidden; margin: 10px 0; }
+.bar-fill { background: var(--gold); height: 100%; transition: 0.4s; }
+
+/* Launcher Drawer */
 .drawer {
-    position: fixed;
-    bottom: -100%;
-    left: 0;
-    width: 100%;
-    height: 85%;
-    background: #0a0a0a;
-    border-top: 2px solid var(--gold);
-    border-radius: 30px 30px 0 0;
-    z-index: 1000;
+    position: fixed; bottom: -100%; left: 0; width: 100%; height: 85vh;
+    background: #0a0a0b; border-radius: 30px 30px 0 0;
+    border-top: 2px solid var(--gold); z-index: 1000;
     transition: 0.5s cubic-bezier(0.32, 0.72, 0, 1);
-    padding: 20px;
-    box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
+    padding: 25px; box-sizing: border-box;
 }
-
 .drawer.active { bottom: 0; }
 
-#floating-launcher {
-    position: fixed;
-    right: 20px;
-    bottom: 80px;
-    width: 60px;
-    height: 60px;
-    background: var(--gold);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    box-shadow: 0 0 20px rgba(255,215,0,0.4);
-    z-index: 900;
-    cursor: pointer;
+/* Floating Button */
+#fab-launcher {
+    position: fixed; bottom: 90px; right: 20px; width: 60px; height: 60px;
+    background: var(--gold); border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 24px;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); z-index: 99;
 }
 
-.pulse { animation: pulse-gold 2s infinite; }
-@keyframes pulse-gold {
-    0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); }
-    70% { box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
-}
 
     </style>
 </head>
