@@ -152,36 +152,55 @@ function openTrade(symbol) {
 }
 
 // --- SYSTÈME DE REFRESH GLOBAL ---
+// Variable pour éviter les erreurs de undefined
+window.lastData = null;
+
 async function refresh() {
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         const d = await r.json();
         window.lastData = d;
 
-        // Update UI
+        // --- UPDATE MINE ---
         document.getElementById('tot').innerText = parseFloat(d.score).toLocaleString();
         document.getElementById('prof-rank-val').innerText = d.rank;
-        document.getElementById('wallet-balance').innerText = parseFloat(d.score).toLocaleString();
+        document.getElementById('header-usd').innerText = parseFloat(d.usd_value).toFixed(2);
         document.getElementById('e-f').style.width = d.energy + "%";
+        document.getElementById('e-t').innerText = `Energy: ${d.energy}/100`;
 
-        updateProfilAssets(d.assets);
-    } catch (e) { console.error("Refresh Error", e); }
+        // --- UPDATE WALLET ---
+        document.getElementById('wallet-balance').innerText = parseFloat(d.score).toLocaleString();
+
+        // --- UPDATE PROFIL ---
+        document.getElementById('prof-name').innerText = d.name || "CITIZEN";
+        document.getElementById('prof-rank-big').innerText = `#${d.rank}`;
+        document.getElementById('total-net-worth').innerText = `$${parseFloat(d.usd_value).toFixed(2)}`;
+        
+        updateAssetList(d.assets);
+
+    } catch (e) { console.error("Sync Error", e); }
 }
 
-// Update de la liste des assets dans le profil
-function updateProfilAssets(assets) {
+function updateAssetList(assets) {
     const list = document.getElementById('asset-list');
+    if (!list) return;
     list.innerHTML = assets.map(a => `
-        <div class="asset-card" onclick="openTrade('${a.symbol}')">
-            <img src="${a.icon}">
-            <div class="a-info">
-                <b>${a.name}</b>
-                <small>${parseFloat(a.balance).toFixed(2)} ${a.symbol}</small>
+        <div class="asset-card" onclick="openTrade('${a.symbol}')" style="display:flex; justify-content:space-between; align-items:center; background:var(--glass); padding:15px; border-radius:15px; margin-bottom:10px; border:1px solid #1a1a1c;">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <img src="${a.icon}" style="width:35px; height:35px; border-radius:10px;">
+                <div>
+                    <b style="display:block; font-size:14px;">${a.name}</b>
+                    <small style="opacity:0.4;">${parseFloat(a.balance).toFixed(2)} ${a.symbol}</small>
+                </div>
             </div>
-            <div class="a-val">$${(a.balance * a.current_price).toFixed(2)}</div>
+            <div style="text-align:right;">
+                <b style="display:block;">$${(a.balance * a.current_price).toFixed(2)}</b>
+                <small style="color:#00ff88; font-size:10px;">Trade ↗</small>
+            </div>
         </div>
     `).join('');
 }
+
 
 // Initialisation
 setInterval(refresh, 5000);
