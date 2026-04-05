@@ -95,103 +95,61 @@
 
 
 
-<div id="p-details" class="page" style="display:none; background: #000; color: white; min-height: 100vh; padding-bottom: 120px;">
-    <div style="padding: 20px; display: flex; align-items: center; gap: 15px; background: rgba(255,255,255,0.05);">
-        <img id="det-icon" src="" style="width: 50px; height: 50px; border-radius: 12px; border: 1px solid var(--gold);">
-        <div>
-            <h2 id="det-name" style="margin: 0; font-size: 18px;">---</h2>
-            <small id="det-symbol" style="color: var(--gold); font-weight: bold;">$---</small>
-        </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 15px;">
-        <div style="background:#111; padding:12px; border-radius:12px;">
-            <small style="opacity:0.5; font-size:9px;">PRICE USD</small>
-            <p id="det-price-usd" style="margin:0; font-size:12px;">$0.00</p>
-        </div>
-        <div style="background:#111; padding:12px; border-radius:12px;">
-            <small style="opacity:0.5; font-size:9px;">MARKET CAP</small>
-            <p id="det-mcap" style="margin:0; font-size:12px;">$0.00</p>
-        </div>
-    </div>
-
-    <div id="det-progress-area" style="padding: 0 15px; display:none;">
-        <div style="display:flex; justify-content:space-between; font-size:10px; margin-bottom:5px;">
-            <span>TON COLLECTED</span>
-            <span id="det-progress-text">3 / 1000 TON</span>
-        </div>
-        <div style="width:100%; height:6px; background:#222; border-radius:3px; overflow:hidden;">
-            <div id="det-progress-bar" style="width:0.3%; height:100%; background:var(--gold);"></div>
-        </div>
-    </div>
-
-    <div id="det-chart-container" style="width:calc(100% - 30px); height:300px; background:#0a0a0b; margin:15px; border-radius:15px; border:1px solid #222; position:relative; overflow:hidden;">
-        </div>
-
-    <div style="position: fixed; bottom: 70px; left: 0; width: 100%; background: #000; border-top: 1px solid #222; padding: 15px 0;">
-        <div style="display: flex; justify-content: center; gap: 10px; padding: 0 15px;">
-            <button class="trade-btn buy" style="background:#00ff88; color:black; flex:1; padding:12px; border-radius:10px; border:none; font-weight:900;" onclick="openSwap('buy')">Buy</button>
-            <button class="trade-btn sell" style="background:#ff4d4d; color:white; flex:1; padding:12px; border-radius:10px; border:none; font-weight:900;" onclick="openSwap('sell')">Sell</button>
-        </div>
-    </div>
-</div>
-
-
-
-
-
-
-
-
-
-
-
-<div id="p-lottery" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; padding-bottom: 100px;">
-    
-    <div style="text-align:center; margin-bottom: 30px;">
-        <div style="font-size: 50px; margin-bottom: 10px; filter: drop-shadow(0 0 10px var(--gold));">🎰</div>
-        <h2 style="margin:0; letter-spacing: 2px; color: var(--gold); font-weight: 900;">GLOBAL JACKPOT</h2>
-        <div style="font-size: 10px; opacity: 0.5; margin-top: 5px;">PROCHAIN TIRAGE : <span id="draw-timer" style="color:white;">DIMANCHE 20H</span></div>
-    </div>
-
-    <div class="card" style="flex-direction:column; text-align:center; padding:40px 20px; border: 2px solid var(--gold); background: radial-gradient(circle, #1a1a1c 0%, #000 100%); box-shadow: 0 0 30px rgba(255,215,0,0.15); border-radius: 30px; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: repeating-linear-gradient(45deg, transparent, transparent 40px, rgba(255,215,0,0.02) 40px, rgba(255,215,0,0.02) 80px); animation: move-bg 20s linear infinite;"></div>
-
-        <small style="text-transform: uppercase; letter-spacing: 3px; opacity: 0.6; font-weight: 800; position: relative;">PRIZE POOL</small>
-        <h1 id="jackpot-amount" style="font-size: 65px; margin: 15px 0; color: white; font-family: 'Monospace', sans-serif; text-shadow: 0 0 20px rgba(255,255,255,0.3); position: relative;">12,000</h1>
-        <div style="display: inline-block; background: var(--gold); color: black; padding: 6px 20px; border-radius: 20px; font-weight: 900; font-size: 14px; position: relative; box-shadow: 0 4px 15px rgba(255,215,0,0.3);">WPT TO WIN</div>
-    </div>
-
-    <div style="margin-top: 30px; background: #111; border-radius: 25px; padding: 25px; border: 1px solid #222;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 20px;">🎟️</span>
-                <b style="font-size: 14px;">VOS TICKETS</b>
+<div id="p-trade" class="page" style="display:none; background: #000; min-height: 100vh; padding-bottom: 100px;">
+    <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1c;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <img id="tr-icon" src="media/logo_genesis.png" style="width: 45px; height: 45px; border-radius: 12px; border: 1px solid var(--gold);">
+            <div>
+                <h2 id="tr-name" style="margin: 0; font-size: 18px;">Genesis World</h2>
+                <span id="tr-price" style="color: #00ff88; font-weight: 900; font-family: monospace;">$0.0000000411</span>
             </div>
-            <div id="user-tickets-count" style="font-size: 24px; font-weight: 900; color: var(--gold);">0</div>
         </div>
-
-        <div style="display: flex; gap: 15px; align-items: center; background: #000; padding: 10px; border-radius: 18px; border: 1px solid #333;">
-            <button onclick="changeQty(-1)" style="width: 50px; height: 50px; border-radius: 12px; background: #1a1a1c; color: white; border: none; font-size: 20px; font-weight: bold;">-</button>
-            <input type="number" id="ticket-qty" value="1" min="1" readonly style="flex: 1; background: transparent; border: none; color: white; text-align: center; font-size: 22px; font-weight: 900; outline: none;">
-            <button onclick="changeQty(1)" style="width: 50px; height: 50px; border-radius: 12px; background: #1a1a1c; color: white; border: none; font-size: 20px; font-weight: bold;">+</button>
-        </div>
-
-        <button onclick="buyTicket()" class="btn" style="width: 100%; margin-top: 20px; height: 60px; background: var(--gold); color: black; font-weight: 900; font-size: 16px; border-radius: 18px; box-shadow: 0 10px 20px rgba(255,215,0,0.1);">
-            ACHETER TICKETS (<span id="total-cost">1,000</span> WPT)
-        </button>
-    </div>
-
-    <div style="margin-top: 20px; display: flex; align-items: center; gap: 15px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 20px; border: 1px dashed #333;">
-        <div style="font-size: 30px;">🏆</div>
-        <div style="line-height: 1.4;">
-            <small style="opacity: 0.5; font-size: 10px; text-transform: uppercase;">Dernier Gagnant</small><br>
-            <b id="last-winner" style="color: white;">@NoBody</b>
-            <span id="last-win-amount" style="color: var(--gold); font-weight: bold; margin-left: 5px;">0 WPT</span>
+        <div style="text-align: right;">
+            <div id="tr-change" style="background: rgba(0, 255, 136, 0.1); color: #00ff88; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 900;">+5.4%</div>
         </div>
     </div>
 
+    <div id="tr-chart-container" style="width: 100%; height: 320px; background: #050505; position: relative;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; opacity: 0.3;">
+            <div class="spinner">🛰️</div>
+            <small>Loading Live Market Data...</small>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #1a1a1c; border-top: 1px solid #1a1a1c; border-bottom: 1px solid #1a1a1c;">
+        <div style="background: #000; padding: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 8px; display: block;">MARKET CAP</small>
+            <b id="tr-mcap" style="font-size: 11px;">$411K</b>
+        </div>
+        <div style="background: #000; padding: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 8px; display: block;">LIQUIDITY</small>
+            <b id="tr-liq" style="font-size: 11px;">$328K</b>
+        </div>
+        <div style="background: #000; padding: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 8px; display: block;">VOL 24H</small>
+            <b id="tr-vol" style="font-size: 11px;">$12K</b>
+        </div>
+    </div>
+
+    <div style="padding: 20px;">
+        <div style="background: #0a0a0b; border-radius: 16px; border: 1px solid #222; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <b style="font-size: 12px; opacity: 0.6;">QUICK SWAP</b>
+                <span id="tr-balance" style="font-size: 10px; color: var(--gold);">Bal: 0.00</span>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button onclick="setSwapMode('buy')" id="btn-buy-mode" style="flex: 1; padding: 12px; border-radius: 10px; background: #00ff88; color: #000; border: none; font-weight: 900;">BUY</button>
+                <button onclick="setSwapMode('sell')" id="btn-sell-mode" style="flex: 1; padding: 12px; border-radius: 10px; background: #1a1a1c; color: #fff; border: 1px solid #333; font-weight: 900;">SELL</button>
+            </div>
+
+            <button class="btn" style="width: 100%; padding: 16px; border-radius: 12px; font-size: 14px; letter-spacing: 1px;" onclick="executeTrade()">EXECUTE TRANSACTION</button>
+        </div>
+    </div>
 </div>
+
+
+
 
 
 
@@ -214,6 +172,34 @@
         <div id="ton-connect-btn" style="margin: 20px auto; width: fit-content;"></div>
 
     </div>
+
+
+
+
+
+
+
+<div id="sub-lottery" style="display: none; padding: 15px;">
+    <div style="background: linear-gradient(145deg, #1a0b2e, #0a0a0b); border: 1px solid #a855f7; border-radius: 20px; padding: 25px; text-align: center; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: -10px; right: -10px; font-size: 60px; opacity: 0.1;">🎰</div>
+        
+        <small style="color: #a855f7; font-weight: 900; letter-spacing: 2px;">GLOBAL WPT JACKPOT</small>
+        <h1 id="jackpot-amount" style="font-size: 45px; color: #fff; margin: 10px 0; text-shadow: 0 0 20px rgba(168, 85, 247, 0.5);">5,400,000</h1>
+        <p style="opacity: 0.5; font-size: 10px;">Next Draw in: <span id="draw-timer">04h 22m 10s</span></p>
+
+        <div style="margin-top: 25px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px;">
+            <b style="font-size: 12px; display: block; margin-bottom: 10px;">DONATE WPT TO ENTER</b>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="lottery-bid" placeholder="1000" style="flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 8px;">
+                <button class="btn" style="background: #a855f7; color: white;" onclick="enterLottery()">TICKET</button>
+            </div>
+            <small style="display: block; margin-top: 8px; font-size: 8px; opacity: 0.4;">10% of each donation is burned forever 🔥</small>
+        </div>
+    </div>
+</div>
+
+
+
 
 
 
@@ -257,33 +243,41 @@
 
 
 
-<div id="p-profil" class="page" style="display:none; padding: 20px; background: #000; min-height: 100vh; padding-bottom: 100px;">
-    <div style="text-align:center; padding-bottom: 20px;">
-        <div style="position: relative; display: inline-block;">
-            <div id="prof-initials" style="width:85px; height:85px; background: var(--gold); border-radius:50%; margin:0 auto; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:35px; border: 4px solid #1a1a1c;">U</div>
-            <div style="position: absolute; top: -5px; right: -15px; background: #00ccff; color: #000; font-size: 8px; padding: 2px 8px; border-radius: 10px; font-weight: 900; border: 2px solid #000;">MAGNET ACTIVE</div>
+<div id="p-profil" class="page" style="display:none; background: #000; padding-bottom: 100px;">
+    <div style="padding: 30px 20px; background: linear-gradient(0deg, #000, #0a0a0b);">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div style="position: relative;">
+                <div id="prof-initials" style="width:70px; height:70px; background: var(--gold); border-radius:18px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:28px; transform: rotate(-5deg);">U</div>
+                <div style="position: absolute; bottom: -5px; right: -5px; background: #00ff88; width: 15px; height: 15px; border-radius: 50%; border: 3px solid #000;"></div>
+            </div>
+            <div>
+                <h2 id="prof-name" style="margin: 0; font-size: 24px;">CITIZEN #441</h2>
+                <div id="vault-badge" style="display: none; color: var(--gold); font-size: 10px; font-weight: 900; letter-spacing: 1px;">⚜️ GENESIS VAULT ACTIVATED</div>
+            </div>
         </div>
-        <div id="vault-badge" style="display:none; margin: 15px auto 0; width:fit-content; background:linear-gradient(90deg, #ffd700, #b8860b); color:#000; padding:5px 15px; border-radius:20px; font-weight:900; font-size:10px;">
-            🏆 GENESIS VAULT HOLDER
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 30px;">
+            <div style="background: #0a0a0b; padding: 15px; border-radius: 12px; border-left: 3px solid var(--gold);">
+                <small style="opacity: 0.5; font-size: 9px;">NET WORTH</small>
+                <div id="total-net-worth" style="font-size: 18px; font-weight: 900; color: #fff;">$0.00</div>
+            </div>
+            <div style="background: #0a0a0b; padding: 15px; border-radius: 12px; border-left: 3px solid #00ccff;">
+                <small style="opacity: 0.5; font-size: 9px;">GLOBAL RANK</small>
+                <div id="prof-rank" style="font-size: 18px; font-weight: 900; color: #fff;">#---</div>
+            </div>
         </div>
-        <h2 id="prof-name" style="margin: 15px 0 5px 0; font-size: 22px;">---</h2>
-        <small style="opacity:0.5; font-size:10px;">ESTIMATED NET WORTH</small>
-        <h2 id="total-net-worth" style="color:#00ff88; font-size: 32px; margin: 5px 0;">$0.00</h2> 
     </div>
 
-    <div class="card" style="background: #0a0a0b; border: 1px solid #222; padding: 12px; display: flex; align-items: center; gap: 10px; border-radius:15px; margin-bottom:20px;">
-        <div style="font-size: 9px; min-width:60px;"><b style="opacity:0.5;">TON WALLET</b></div>
-        <input type="text" id="ton-address" placeholder="UQ...Connect" style="flex:1; background:transparent; border:none; color:white; font-size:11px;">
-        <button class="btn" style="padding: 5px 10px; font-size: 10px;" onclick="saveTonAddress()">SAVE</button>
-    </div>
-
-    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
-        <div style="width: 4px; height: 16px; background: var(--gold); border-radius: 2px;"></div>
-        <h3 style="margin: 0; font-size: 14px; text-transform: uppercase;">Digital Assets</h3>
-    </div>
-    <div id="asset-list">
+    <div style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; font-size: 14px; opacity: 0.6;">PORTFOLIO ASSETS</h3>
+            <span style="font-size: 10px; color: var(--gold);">LIVE PRICES 🟢</span>
         </div>
+        <div id="asset-list">
+            </div>
+    </div>
 </div>
+
 
 
 
