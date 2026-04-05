@@ -8,99 +8,81 @@
 <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
 
     <style>
-        :root { --gold: #FFD700; --purple: #A259FF; --green: #34C759; --red: #FF3B30; --bg: #000; --card: #111; }
-        body { background: var(--bg); color: white; font-family: -apple-system, sans-serif; margin: 0; overflow-x: hidden; }
-        .container { padding: 15px; padding-bottom: 100px; max-width: 500px; margin: auto; min-height: 100vh; }
-        
-        /* Navigation & Pages */
-        .page { display: none; animation: fadeIn 0.3s ease; }
-        .active-page { display: block !important; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* UI Elements */
-        .card { background: linear-gradient(145deg, #1a1a1c, #0a0a0b); border: 1px solid #333; padding: 15px; border-radius: 20px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .btn { background: var(--gold); color: black; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 900; cursor: pointer; transition: 0.2s; }
-        .btn:active { transform: scale(0.95); }
-        .l-input { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #333; background: #000; color: white; margin-bottom: 8px; box-sizing: border-box; }
-
-        /* Nav Bar */
-        .nav { position: fixed; bottom: 0; width: 100%; background: rgba(5,5,5,0.95); display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #222; backdrop-filter: blur(10px); z-index: 9999; }
-        .n-i { font-size: 24px; opacity: 0.4; transition: 0.3s; cursor: pointer; }
-        .n-i.active { opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 8px var(--gold)); }
-        
-        .ticker { background: var(--gold); color: black; font-size: 10px; font-weight: 900; padding: 5px 0; text-align: center; text-transform: uppercase; }
-
-
-* {
-    -webkit-tap-highlight-color: transparent; /* Enlève le flash bleu */
-    outline: none;
+        :root {
+    --gold: #FFD700;
+    --purple: #A259FF;
+    --bg: #000000;
+    --card: #0a0a0b;
 }
 
-img, button {
-    user-select: none;
-    -webkit-user-drag: none;
+.hero-section {
+    padding: 40px 20px;
+    text-align: center;
+    background: radial-gradient(circle at top, rgba(255,215,0,0.1) 0%, transparent 70%);
 }
 
+#tot {
+    font-size: 56px;
+    background: linear-gradient(to bottom, #fff, #888);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 900;
+}
 
-
-
-.profit { color: #00ff88; font-weight: bold; } /* Vert Neon */
-.loss { color: #ff4d4d; font-weight: bold; }   /* Rouge Burn */
-
-.asset-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #151515;
+.mine-card {
+    background: var(--card);
+    border: 1px solid #1a1a1c;
+    border-radius: 20px;
     padding: 15px;
-    margin-bottom: 10px;
-    border-radius: 12px;
-    cursor: pointer; /* Garde le clic vers le détail */
+    display: flex;
+    align-items: center;
+    gap: 15px;
     transition: 0.3s;
 }
 
-.asset-card:active { transform: scale(0.98); background: #202020; }
+.mine-card:active { transform: scale(0.95); }
 
-
-
-
-@keyframes move-bg {
-    0% { transform: translate(0, 0); }
-    100% { transform: translate(40px, 40px); }
+/* LE DRAWER (Fenêtre coulissante) */
+.drawer {
+    position: fixed;
+    bottom: -100%;
+    left: 0;
+    width: 100%;
+    height: 85%;
+    background: #0a0a0a;
+    border-top: 2px solid var(--gold);
+    border-radius: 30px 30px 0 0;
+    z-index: 1000;
+    transition: 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+    padding: 20px;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
 }
 
+.drawer.active { bottom: 0; }
 
+#floating-launcher {
+    position: fixed;
+    right: 20px;
+    bottom: 80px;
+    width: 60px;
+    height: 60px;
+    background: var(--gold);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 0 20px rgba(255,215,0,0.4);
+    z-index: 900;
+    cursor: pointer;
+}
 
-
-.stat-card {
-    background: #111;
-    border: 1px solid #222;
-    padding: 12px;
-    border-radius: 12px;
+.pulse { animation: pulse-gold 2s infinite; }
+@keyframes pulse-gold {
+    0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.4); }
+    70% { box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
 }
-.stat-card small {
-    font-size: 9px;
-    opacity: 0.5;
-    display: block;
-    margin-bottom: 4px;
-}
-.stat-card p {
-    margin: 0;
-    font-weight: bold;
-    font-family: monospace;
-}
-.trade-btn {
-    flex: 1;
-    padding: 15px;
-    border: none;
-    border-radius: 12px;
-    font-weight: 900;
-    font-size: 16px;
-    transition: 0.2s;
-}
-.trade-btn.buy { background: #00ff88; color: #000; }
-.trade-btn.sell { background: #ff4d4d; color: #fff; }
-.trade-btn:active { transform: scale(0.95); }
 
     </style>
 </head>
@@ -131,945 +113,80 @@ const BASE_URL = window.location.origin;
 
 
 
-function showPage(pageId) {
-    // 1. CACHER TOUTES LES PAGES
-    // On cherche tous les éléments avec la classe 'page' et on les masque
-    document.querySelectorAll('.page').forEach(p => {
-        p.style.display = 'none';
-        p.classList.remove('active-page');
-    });
-
-    // 2. AFFICHER LA PAGE DEMANDÉE
-    const target = document.getElementById(pageId);
+// --- GESTION DES PAGES ---
+function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    const target = document.getElementById(id);
     if (target) {
         target.style.display = 'block';
-        target.classList.add('active-page');
-        
-        // Petit effet de scroll vers le haut quand on change de page
-        window.scrollTo(0, 0);
-    } else {
-        console.error("La page " + pageId + " n'existe pas dans le HTML !");
-        return;
-    }
-
-    // 3. METTRE À JOUR LA BARRE DE NAVIGATION (Icônes)
-    document.querySelectorAll('.n-i').forEach(icon => icon.classList.remove('active'));
-    
-    // On détermine quelle icône doit être allumée
-    // Si c'est p-details, on allume l'icône du launcher (fusée)
-    let navId = "";
-    if (pageId === 'p-details') {
-        navId = 'n-launcher';
-    } else {
-        navId = pageId.replace('p-', 'n-');
-    }
-    
-    const activeIcon = document.getElementById(navId);
-    if (activeIcon) {
-        activeIcon.classList.add('active');
-    }
-
-    // 4. CHARGEMENT DYNAMIQUE DES DONNÉES (Le plus important !)
-    // On ne charge les données que si l'utilisateur est sur la page concernée
-    switch(pageId) {
-        case 'p-launcher':
-            if (typeof loadMarket === "function") loadMarket();
-            break;
-        case 'p-profil':
-            if (typeof loadLeaderboard === "function") loadLeaderboard();
-            if (typeof loadPortfolio === "function") loadPortfolio();
-            break;
-        case 'p-lottery':
-            if (typeof loadLottery === "function") loadLottery();
-            break;
-        case 'p-wallet':
-            // Rafraîchir le solde WPT quand on ouvre le wallet
-            if (typeof refresh === "function") refresh();
-            break;
-    }
-
-    // 5. RETOUR HAPTIQUE (Vibration Telegram)
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        tg.HapticFeedback.impactOccurred('medium');
     }
 }
 
-
-
-
-
-
-
-    // Fonction de rafraîchissement (Remplit le Rank et les Scores)
-  // 
-async function refresh() {
-    if (!uid) return;
-    
-    try {
-        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) throw new Error("Server Unreachable");
-        
-        const d = await r.json();
-        window.lastData = d; // CRITIQUE : On stocke tout ici pour le profil et le trade
-
-        // --- 1. TABLEAU DE BORD MINAGE ---
-        const balanceEl = document.getElementById('wallet-balance');
-        if (balanceEl) balanceEl.innerText = parseFloat(d.score || 0).toLocaleString();
-
-        const totalMinesEl = document.getElementById('total-mines'); // Vérifie cet ID dans ton HTML
-        if (totalMinesEl) totalMinesEl.innerText = parseFloat(d.total_mined || 0).toLocaleString();
-
-        const energyBar = document.getElementById('e-f');
-        if (energyBar) energyBar.style.width = (d.energy || 0) + "%";
-
-        // --- 2. TABLEAU DE BORD PROFIL & RANK ---
-        const rankEl = document.getElementById('prof-rank');
-        if (rankEl) rankEl.innerText = `#${d.rank || '---'}`;
-
-        const netWorthEl = document.getElementById('total-net-worth');
-        if (netWorthEl) netWorthEl.innerText = `$${parseFloat(d.usd_value || 0).toFixed(2)}`;
-
-        const nameEl = document.getElementById('prof-name');
-        if (nameEl) nameEl.innerText = d.name || "CITIZEN";
-
-        // --- 3. MISE À JOUR DES ASSETS (La liste pro) ---
-        updateProfilUI(d);
-
-        console.log("🛰️ System Sync : OK | Rank:", d.rank, "| Total Mined:", d.total_mined);
-
-    } catch (e) {
-        console.error("❌ Sync Error:", e);
-    }
+// --- GESTION DU LAUNCHER (Drawer) ---
+function toggleLauncher() {
+    const drawer = document.getElementById('launcher-drawer');
+    drawer.classList.toggle('active');
+    tg.HapticFeedback.selectionChanged();
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-function updateProfilUI(d) {
-    const list = document.getElementById('asset-list');
-    if (!list || !d.assets) return;
-
-    list.innerHTML = ''; // On vide pour reconstruire propre
-
-    d.assets.forEach(a => {
-        const balance = parseFloat(a.balance || 0);
-        const price = parseFloat(a.current_price || 0);
-        const usdVal = balance * price;
-
-        list.innerHTML += `
-            <div class="asset-card" onclick="openTradeSection('${a.symbol}')" style="background: rgba(255,255,255,0.03); border: 1px solid #1a1a1c; padding: 15px; border-radius: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; transition: 0.3s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#1a1a1c'">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="position: relative;">
-                        <img src="${a.icon}" style="width: 40px; height: 40px; border-radius: 10px; object-fit: cover;">
-                        <div style="position: absolute; -right: 5px; -bottom: 5px; background: #000; font-size: 8px; padding: 2px 4px; border-radius: 4px; border: 1px solid #333;">${a.symbol}</div>
-                    </div>
-                    <div>
-                        <b style="font-size: 14px; display: block;">${a.name}</b>
-                        <small style="opacity: 0.4; font-family: monospace;">${balance.toLocaleString()} ${a.symbol}</small>
-                    </div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-weight: 900; font-size: 15px;">$${usdVal.toFixed(2)}</div>
-                    <small style="color: ${a.change_24h >= 0 ? '#00ff88' : '#ff4d4d'}; font-size: 10px; font-weight: bold;">
-                        ${a.change_24h >= 0 ? '▲' : '▼'} ${Math.abs(a.change_24h)}%
-                    </small>
-                </div>
-            </div>
-        `;
-    });
-}
-
-
-   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // Fonction de Minage (Le clic sur le bouton ou la pièce)
-    async function mine(type, event) {
-        // Empêche le clignotement bleu bizarre du navigateur
-        if (event) event.preventDefault(); 
-        
-        try {
-            const r = await fetch(`${BASE_URL}/api/mine`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, token_type: type })
-            });
-            const res = await r.json();
-            
-            if (res.ok) {
-                refresh(); // On recharge les scores après le clic
-                if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-            } else {
-                tg.showAlert(res.error || "Énergie vide !");
-            }
-        } catch (e) { console.error("Erreur mine:", e); }
-    }
-
-
-
-
-
-
-
-
-async function loadMarket() {
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/market`);
-        const tokens = await r.json();
-        const list = document.getElementById('token-list');
-        
-        if (tokens.length === 0) {
-            list.innerHTML = "<p style='text-align:center; opacity:0.5;'>No tokens launched yet.</p>";
-            return;
-        }
-
-        list.innerHTML = tokens.map(t => `
-            <div class="card" onclick="openDetails('${t.symbol}')" style="cursor:pointer; transition: 0.2s;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${t.logo || '/static/genesis.png'}" style="width:45px; height:45px; border-radius:12px; object-fit:cover; border: 1px solid #333;">
-                    <div>
-                        <b style="font-size:15px;">${t.name}</b><br>
-                        <small style="color:var(--gold); font-weight:900;">$${t.symbol}</small>
-                    </div>
-                </div>
-                <div style="text-align:right;">
-                    <b style="color:var(--green); font-family:monospace;">${parseFloat(t.price).toFixed(4)} WPT</b><br>
-                    <small style="opacity:0.5; font-size:10px;">MCap: $${Math.floor(t.mcap || 0).toLocaleString()}</small>
-                </div>
-            </div>
-        `).join('');
-    } catch (e) { console.error("Market Error", e); }
-}
-
-function showTokenDetails(symbol) {
-    // 1. On affiche la page de détails
-    showPage('p-details');
-    tg.HapticFeedback.impactOccurred('medium');
-
-    // 2. On cherche les infos du token dans les données globales (d.assets)
-    // On suppose que 'lastData' est une variable globale qui stocke ton dernier d = await r.json()
-    const asset = lastData.assets.find(a => a.symbol === symbol);
-
-    if (asset) {
-        // Mise à jour des textes
-        document.getElementById('det-name').innerText = asset.name;
-        document.getElementById('det-symbol').innerText = "$" + asset.symbol;
-        document.getElementById('det-icon').src = asset.icon;
-
-        // Mise à jour des prix et stats
-        const price = parseFloat(asset.current_price || 0);
-        const mcap = asset.balance * price; // Ou une autre logique de MCAP
-        
-        document.getElementById('det-price-usd').innerText = `$${price.toFixed(8)}`;
-        document.getElementById('det-mcap').innerText = `$${mcap.toLocaleString()}`;
-
-        // --- CAS SPÉCIAL POUR TON TOKEN GAS PUMP ($GWPC) ---
-        if (asset.symbol === 'GWPC' || asset.symbol === 'WPT') {
-            // On montre la barre de progression Gas Pump
-            let collected = 3; // À lier à ton API plus tard
-            let target = 1000;
-            let percent = (collected / target) * 100;
-            document.getElementById('det-progress-bar').style.width = percent + "%";
-            document.getElementById('det-progress-text').innerText = `${collected} / ${target} TON`;
-            
-            // On affiche l'iframe DexScreener (si elle est prête)
-            const chartBox = document.getElementById('det-chart-container');
-            chartBox.innerHTML = `<iframe src="https://dexscreener.com/ton/EQB6KPJ3W155V6iQH4ERfhfWtngZYTNvhMmpOkXea66hWhO6?embed=1&theme=dark&trades=0&info=0" style="width:100%; height:100%; border:none;"></iframe>`;
-        } else {
-            // Pour les autres tokens, on peut mettre un message "Coming Soon" ou un autre chart
-            document.getElementById('det-chart-container').innerHTML = `<div style="padding:100px; text-align:center; opacity:0.3;">Chart loading...</div>`;
-        }
-    }
-
-    // 3. Navigation interne (Trade / About / Chat)
-    window.setDetTab = function(tab) {
-        tg.HapticFeedback.selectionChanged();
-        // Logique pour masquer/afficher les div correspondantes
-        console.log("Tab active:", tab);
-    };
-}
-
-
-
-
-
-
-
-
-
-// EXÉCUTER LE TRADE (Vraie version)
-async function executeTrade(side) {
-    const tid = document.getElementById('p-details').getAttribute('data-tid');
-    const amount = document.getElementById('trade-amount').value;
-    const symbol = document.getElementById('det-sym').innerText.replace('$', '');
-
-    if (!amount || amount <= 0) return tg.showAlert("Saisis un montant valide !");
-
-    // Vibration de confirmation
-    if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
-
-    try {
-        const endpoint = side === 'buy' ? '/api/launcher/swap' : '/api/launcher/sell';
-        
-        const r = await fetch(`${BASE_URL}${endpoint}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: uid,
-                token_id: parseInt(tid),
-                amount: parseFloat(amount)
-            })
-        });
-
-        const res = await r.json();
-
-        if (res.ok) {
-            tg.showAlert(`✅ Succès ! ${side === 'buy' ? 'Achat' : 'Vente'} terminé.`);
-            refresh(); // Met à jour ton solde WPT
-            openDetails(symbol); // Rafraîchit les prix du token
-        } else {
-            tg.showAlert("❌ " + (res.error || "Erreur de transaction"));
-        }
-    } catch (e) {
-        tg.showAlert("🚀 Connexion perdue avec le marché.");
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// 1. OUVRE LA BOITE DE DIALOGUE
-function openTrade(side) {
-    const symbol = document.getElementById('det-sym').innerText.replace('$', '');
-    const action = side === 'buy' ? 'ACHETER' : 'VENDRE';
-    
-    // On demande la quantité à l'utilisateur via un prompt Telegram propre
-    tg.showScanQrPopup({ text: `Quantité de ${symbol} à ${action} :` }, (result) => {
-        // Note: showScanQrPopup est un détournement, l'idéal est un simple prompt ou un input sur la page
-    });
-
-    // VERSION SIMPLE POUR LE TEST :
-    const amount = prompt(`Combien de ${symbol} voulez-vous ${side} ?`, "100");
-    if (amount && !isNaN(amount)) {
-        executeTrade(side, symbol, parseFloat(amount));
-    }
-}
-
-// 2. ENVOIE L'ORDRE AU SERVEUR (API)
-async function executeTrade(side, symbol, amount) {
-    try {
-        const endpoint = side === 'buy' ? '/api/launcher/swap' : '/api/launcher/sell';
-        
-        // On récupère l'ID du token (caché dans un attribut ou via une API)
-        // Pour faire simple, on envoie le symbole et le serveur gère
-        const r = await fetch(`${BASE_URL}${endpoint}`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: uid,
-                symbol: symbol, // Ton Python doit accepter 'symbol' ou tu dois stocker 'token_id'
-                amount: amount
-            })
-        });
-
-        const res = await r.json();
-        if (res.ok) {
-            tg.showAlert(`✅ Transaction réussie ! Reçu : ${res.received.toFixed(2)}`);
-            refresh(); // Met à jour ton solde WPT
-            openDetails(symbol); // Rafraîchit le prix sur la page détails
-        } else {
-            tg.showAlert("❌ Erreur : " + (res.error || "Transaction échouée"));
-        }
-    } catch (e) {
-        tg.showAlert("🚀 Serveur occupé, réessayez...");
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// 1. VRAI PAIEMENT STARS
-async function buyStarsPack(amount) {
-    console.log("Achat de Stars lancé :", amount);
-    
-    // On change le texte du bouton principal de Telegram pour montrer que ça charge
-    tg.MainButton.setText(`PREPARING ${amount} STARS...`);
-    tg.MainButton.show();
-    tg.MainButton.showProgress();
-
-    try {
-        const response = await fetch(`${BASE_URL}/api/stars/create-invoice`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                user_id: uid, 
-                stars: amount 
-            })
-        });
-
-        const data = await response.json();
-
-        if (data.invoice_link) {
-            // C'est ici que la magie opère : Telegram ouvre l'interface de paiement
-            tg.openInvoice(data.invoice_link, function(status) {
-                if (status === 'paid') {
-                    tg.showAlert("🌟 SUCCESS! Your account has been credited.");
-                    refresh(); // On actualise pour voir les nouveaux WPT
-                } else if (status === 'cancelled') {
-                    tg.showAlert("Payment cancelled.");
-                } else {
-                    tg.showAlert("Payment failed or pending.");
-                }
-                tg.MainButton.hide();
-            });
-        } else {
-            tg.showAlert("❌ Error: Could not generate invoice.");
-            tg.MainButton.hide();
-        }
-    } catch (error) {
-        console.error("Erreur Invoice:", error);
-        tg.showAlert("❌ Server offline or connection error.");
-        tg.MainButton.hide();
-    }
-}
-
-
-
-
-
-
-
-
-
-// --- 1. CHARGER LE LEADERBOARD ---
-async function loadLeaderboard() {
-    const container = document.getElementById('leaderboard');
-    if (!container) return;
-
-    try {
-        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
-        const data = await r.json();
-
-        if (!data || data.length === 0) {
-            container.innerHTML = `<p style="padding:20px; opacity:0.3; text-align:center;">No legends yet...</p>`;
-            return;
-        }
-
-        container.innerHTML = data.map(u => `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:15px; border-bottom:1px solid #111;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <span style="opacity:0.4; font-family:monospace; width:20px;">#${u.rank}</span>
-                    <b style="font-size:14px;">${u.name}</b>
-                </div>
-                <b style="color:var(--gold); font-family:monospace;">${parseFloat(u.score).toLocaleString()}</b>
-            </div>
-        `).join('');
-    } catch (e) {
-        container.innerHTML = `<p style="padding:20px; opacity:0.3; text-align:center;">API Error</p>`;
-    }
-}
-
-
-
-
-
-
-// --- 2. CHARGER LES DIGITAL ASSETS (PORTFOLIO) ---
-function showTokenDetails(symbol) {
-    if (!window.lastData) return;
+// --- SYSTÈME DE TRADE DYNAMIQUE ---
+function openTrade(symbol) {
     const asset = window.lastData.assets.find(a => a.symbol === symbol);
     if (!asset) return;
 
-    showPage('p-details');
-    
-    // Remplissage dynamique
-    document.getElementById('det-icon').src = asset.icon;
-    document.getElementById('det-name').innerText = asset.name;
-    document.getElementById('det-symbol').innerText = "$" + asset.symbol;
-    document.getElementById('det-price-usd').innerText = `$${parseFloat(asset.current_price).toFixed(8)}`;
-    document.getElementById('det-mcap').innerText = `$${(parseFloat(asset.balance) * parseFloat(asset.current_price)).toLocaleString()}`;
-
-    const chartBox = document.getElementById('det-chart-container');
-    const progArea = document.getElementById('det-progress-area');
-
-    if (symbol === 'GWPC') {
-        progArea.style.display = 'block';
-        chartBox.innerHTML = `
-            <div style="text-align:center; padding:40px;">
-                <div style="font-size:30px; margin-bottom:10px;">🛰️</div>
-                <b style="color:var(--gold); display:block;">CHART INITIALIZING</b>
-                <small style="opacity:0.4;">Syncing with Gas Pump...</small>
-                <br><br>
-                <button class="btn" style="font-size:10px; background:rgba(255,215,0,0.1); border:1px solid var(--gold); color:var(--gold); padding:5px 15px;" 
-                        onclick="window.open('https://t.me/gasPump_bot/app?startapp=eyJyZWZfdXNlcl9pZCI6MTQxNDAxNjg0MH0')">
-                    OPEN GAS PUMP ↗
-                </button>
-            </div>`;
-    } else {
-        progArea.style.display = 'none';
-        chartBox.innerHTML = `<div style="opacity:0.2; padding:100px; text-align:center;">Chart coming soon...</div>`;
-    }
-}
-
-
-
-
-
-
-// --- 3. MISE À JOUR DU PROFIL DANS REFRESH ---
-// Ajoute ceci dans ta fonction refresh() existante :
-   function updateProfilUI(d) {
-    const list = document.getElementById('asset-list');
-    if(!list || !d.assets) return;
-    list.innerHTML = '';
-
-    d.assets.forEach(a => {
-        list.innerHTML += `
-            <div class="asset-card" onclick="openTradeSection('${a.symbol}')" style="background:#0a0a0b; padding:15px; border-radius:15px; margin-bottom:10px; border:1px solid #1a1a1c; display:flex; justify-content:space-between;">
-                <div style="display:flex; gap:12px; align-items:center;">
-                    <img src="${a.icon}" style="width:35px; border-radius:8px;">
-                    <div>
-                        <b style="display:block;">${a.name}</b>
-                        <small style="opacity:0.4;">${parseFloat(a.balance).toFixed(2)} ${a.symbol}</small>
-                    </div>
-                </div>
-                <div style="text-align:right;">
-                    <b>$${(a.balance * a.current_price).toFixed(2)}</b>
-                    <div style="color:#00ff88; font-size:10px;">Trade ↗</div>
-                </div>
-            </div>
-        `;
-    });
-}
-
-
-
-
-
-
-function openTradeSection(symbol) {
-    showPage('p-trade');
-    // On met à jour les infos du Trade dynamiquement
-    const asset = window.lastData.assets.find(a => a.symbol === symbol);
+    // Remplissage des données
     document.getElementById('tr-name').innerText = asset.name;
+    document.getElementById('tr-icon').src = asset.icon;
     document.getElementById('tr-price').innerText = `$${parseFloat(asset.current_price).toFixed(8)}`;
-    document.getElementById('tr-balance').innerText = `Bal: ${parseFloat(asset.balance).toFixed(2)} ${symbol}`;
+    
+    showPage('p-trade');
+    
+    // Injection du Chart
+    const chartContainer = document.getElementById('tr-chart-container');
+    if (symbol === 'GWPC') {
+        chartContainer.innerHTML = `<iframe src="https://dexscreener.com/ton/EQB6KPJ3W155V6iQH4ERfhfWtngZYTNvhMmpOkXea66hWhO6?embed=1&theme=dark" style="width:100%; height:100%; border:none;"></iframe>`;
+    } else {
+        chartContainer.innerHTML = `<div class="chart-placeholder">Chart Coming Soon</div>`;
+    }
 }
 
-
-
-
-
-
-
-
-// VARIABLES GLOBALES POUR LES IMAGES
-let lastUploadedLogo = "";
-let lastUploadedBanner = "";
-
-// GESTION DES FICHIERS (LOGO/BANNER)
-async function processFile(type) {
-    const fileInput = document.getElementById('f-' + type);
-    const label = document.getElementById('label-' + type);
-    if (!fileInput.files[0]) return;
-
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-
+// --- SYSTÈME DE REFRESH GLOBAL ---
+async function refresh() {
     try {
-        label.innerText = "⏳ Upload...";
-        const r = await fetch(`${BASE_URL}/api/upload`, { method: 'POST', body: formData });
+        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
         const d = await r.json();
-        if (d.url) {
-            if (type === 'logo') lastUploadedLogo = d.url;
-            else lastUploadedBanner = d.url;
-            label.innerText = "✅ Done";
-            label.style.color = "var(--gold)";
-        }
-    } catch (e) { label.innerText = "❌ Error"; }
+        window.lastData = d;
+
+        // Update UI
+        document.getElementById('tot').innerText = parseFloat(d.score).toLocaleString();
+        document.getElementById('prof-rank-val').innerText = d.rank;
+        document.getElementById('wallet-balance').innerText = parseFloat(d.score).toLocaleString();
+        document.getElementById('e-f').style.width = d.energy + "%";
+
+        updateProfilAssets(d.assets);
+    } catch (e) { console.error("Refresh Error", e); }
 }
 
-// DÉPLOYER LE TOKEN
-async function deployToken() {
-    const name = document.getElementById('tk-name').value;
-    const symbol = document.getElementById('tk-sym').value;
-    const desc = document.getElementById('tk-desc').value;
-    const website = document.getElementById('tk-url').value;
-    const twitter = document.getElementById('tk-x').value;
-
-    if (!name || !symbol) return tg.showAlert("Name and Symbol are required!");
-
-    try {
-        const r = await fetch(`${BASE_URL}/api/launcher/deploy`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                user_id: uid,
-                name: name,
-                symbol: symbol,
-                description: desc,
-                website: website,
-                twitter: twitter,
-                logo: lastUploadedLogo,
-                banner: lastUploadedBanner
-            })
-        });
-        const res = await r.json();
-        if (res.ok) {
-            tg.showAlert("🚀 Token successfully launched!");
-            showPage('p-launcher');
-            loadMarket();
-            refresh(); // Pour déduire les 5000 WPT
-        } else {
-            tg.showAlert(res.error || "Launch failed.");
-        }
-    } catch (e) { tg.showAlert("Connection error."); }
+// Update de la liste des assets dans le profil
+function updateProfilAssets(assets) {
+    const list = document.getElementById('asset-list');
+    list.innerHTML = assets.map(a => `
+        <div class="asset-card" onclick="openTrade('${a.symbol}')">
+            <img src="${a.icon}">
+            <div class="a-info">
+                <b>${a.name}</b>
+                <small>${parseFloat(a.balance).toFixed(2)} ${a.symbol}</small>
+            </div>
+            <div class="a-val">$${(a.balance * a.current_price).toFixed(2)}</div>
+        </div>
+    `).join('');
 }
 
+// Initialisation
+setInterval(refresh, 5000);
+refresh();
 
-
-
-
-
-
-// OUVRIR LES DÉTAILS D'UN TOKEN
-// OUVRIR LES DÉTAILS
-
-
-
-
-
-
-
-let currentFilter = 'new';
-
-async function setFilter(filter, el) {
-    currentFilter = filter;
-
-    // 1. Mise à jour visuelle des boutons
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.style.background = "#111";
-        btn.style.color = "#fff";
-        btn.style.border = "1px solid #222";
-    });
-    el.style.background = "var(--gold)";
-    el.style.color = "#000";
-    el.style.border = "1px solid var(--gold)";
-
-    // 2. Mise à jour du titre
-    const titles = { 'new': 'NEW LISTINGS', 'hot': 'HOT TOKENS', 'my': 'MY PORTFOLIO' };
-    const emojis = { 'new': '✨', 'hot': '🔥', 'my': '👤' };
-    
-    document.getElementById('filter-title').innerText = titles[filter];
-    document.getElementById('filter-emoji').innerText = emojis[filter];
-
-    // 3. Charger les données filtrées
-    loadMarket();
-}
-
-
-
-
-
-
-
-
-// --- VARIABLES ÉTAT ---
-let ticketPrice = 1000;
-
-// --- 1. CHARGEMENT INITIAL (Jackpot + Tes Tickets) ---
-async function loadLottery() {
-    if (!uid) return;
-    try {
-        // A. Stats Globales
-        const resStats = await fetch(`${BASE_URL}/api/lottery/status`);
-        if (resStats.ok) {
-            const d = await resStats.json();
-            const jackEl = document.getElementById('jackpot-amount');
-            if (jackEl) jackEl.innerText = parseFloat(d.jackpot || 0).toLocaleString();
-            
-            if (document.getElementById('last-winner')) 
-                document.getElementById('last-winner').innerText = d.last_winner || "@NoOne";
-            if (document.getElementById('last-win-amount')) 
-                document.getElementById('last-win-amount').innerText = parseFloat(d.last_prize || 0).toLocaleString() + " WPT";
-        }
-
-        // B. Tes Tickets personnels
-        const resUser = await fetch(`${BASE_URL}/api/lottery/user-tickets/${uid}`);
-        if (resUser.ok) {
-            const du = await resUser.json();
-            const myTicketsEl = document.getElementById('user-tickets-count');
-            if (myTicketsEl) myTicketsEl.innerText = du.count || 0;
-        }
-    } catch (e) { console.error("Erreur Synchro Loterie :", e); }
-}
-
-// --- 2. GESTION QUANTITÉ (+ / -) ---
-function changeQty(delta) {
-    const input = document.getElementById('ticket-qty');
-    const costDisplay = document.getElementById('total-cost');
-    if (!input || !costDisplay) return;
-
-    let val = parseInt(input.value) + delta;
-    if (val < 1) val = 1; 
-    
-    input.value = val;
-    costDisplay.innerText = (val * ticketPrice).toLocaleString();
-
-    if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-}
-
-// --- 3. L'ACHAT (FONCTION CORRIGÉE) ---
-async function buyTicket() {
-    const qtyInput = document.getElementById('ticket-qty');
-    const qty = qtyInput ? parseInt(qtyInput.value) : 1;
-    const userId = tg.initDataUnsafe?.user?.id || uid;
-
-    try {
-        const r = await fetch(`${BASE_URL}/api/lottery/buy-ticket`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: userId,
-                quantity: qty
-            })
-        });
-
-        const res = await r.json();
-
-        if (res.ok) {
-            tg.showAlert("🎟️ Bonne chance ! Tickets achetés.");
-            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-            refresh();      // Met à jour ton solde (les 400k)
-            loadLottery();  // Met à jour le jackpot et tes tickets
-        } else {
-            tg.showAlert("❌ " + (res.error || "Erreur inconnue"));
-        }
-    } catch (e) {
-        console.error(e);
-        tg.showAlert("❌ Erreur de connexion API");
-    }
-}
-
-// --- 4. INITIALISATION AU DÉMARRAGE ---
-window.onload = () => {
-    tg.expand();
-    // On définit l'URL de base dynamiquement pour éviter le "0"
-    if (typeof BASE_URL === 'undefined' || BASE_URL.includes("ton-app")) {
-        window.BASE_URL = window.location.origin;
-    }
-    
-    showPage('p-mine'); // Affiche la mine au début
-    refresh();          // Charge le solde 400k
-    setInterval(refresh, 10000); // Rafraîchit toutes les 10 sec (plus calme)
-};
-
-
-
-
-
-// --- INITIALISATION TON CONNECT (CORRIGÉE) ---
-const tonConnectUI = new TON_CONNECT_UI.TonConnectUI({
-    // L'URL doit être UNIQUEMENT le lien vers ton fichier, sans texte autour
-    manifestUrl: 'https://veos-production-a2de.up.railway.app/tonconnect-manifest.json',
-    buttonRootId: 'ton-connect-btn'
-});
-
-async function handleWalletConnection() {
-    try {
-        // On vérifie si l'utilisateur est déjà connecté
-        const connectedWallet = await tonConnectUI.connectWallet();
-        
-        if (connectedWallet) {
-            // L'adresse TON arrive souvent en format brut (hex), on la récupère
-            const walletAddress = connectedWallet.account.address;
-            const walletName = connectedWallet.device.appName;
-
-            console.log("Wallet Connected:", walletAddress);
-
-            // Envoi au backend Railway
-            const response = await fetch(`${BASE_URL}/api/user/link-wallet`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    user_id: uid, 
-                    wallet_address: walletAddress,
-                    wallet_type: walletName
-                })
-            });
-
-            const result = await response.json();
-            if (result.ok) {
-                tg.showAlert("💎 Wallet Linked Successfully!");
-            }
-        }
-    } catch (error) {
-        console.error("Connection failed", error);
-    }
-}
-
-
-// 1. SAUVEGARDER L'ADRESSE TON
-async function saveTonAddress() {
-    const addr = document.getElementById('ton-address').value;
-    if(!addr) return tg.showAlert("Please enter an address!");
-    
-    const r = await fetch(`${BASE_URL}/api/user/update-wallet`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ user_id: uid, wallet_address: addr })
-    });
-    const d = await r.json();
-    if(d.ok) tg.showAlert("✅ Wallet Address Saved!");
-}
-
-// 2. EXECUTER LE BURN
-async function executeBurn() {
-    const amount = document.getElementById('burn-amount').value;
-    if(!amount || amount <= 0) return tg.showAlert("Enter a valid amount to sacrifice!");
-    
-    tg.showConfirm(`Are you sure you want to BURN ${amount} WPT forever? 🔥`, async (ok) => {
-        if(ok) {
-            const r = await fetch(`${BASE_URL}/api/admin/burn`, { // Route à adapter selon ton Python
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ user_id: uid, amount: amount })
-            });
-            const d = await r.json();
-            if(d.ok) {
-                tg.showAlert("🔥 SACRIFICE ACCEPTED! Scarcity increased.");
-                refresh();
-            }
-        }
-    });
-}
-
-
-
-
-
-// --- 🔥 FONCTION DE SACRIFICE (BURN) ---
-async function executeBurn() {
-    const burnInput = document.getElementById('burn-amount');
-    const amount = parseFloat(burnInput.value);
-
-    // 1. Vérifications de sécurité
-    if (!amount || amount <= 0) {
-        return tg.showAlert("Please enter a valid amount of WPT to sacrifice! 🔥");
-    }
-
-    // 2. Fenêtre de confirmation Telegram
-    tg.showConfirm(`WARNING: You are about to BURN ${amount.toLocaleString()} WPT forever. This action is irreversible and will increase token scarcity. Do you accept the sacrifice?`, async (ok) => {
-        if (ok) {
-            try {
-                // On montre un petit loader ou on désactive le bouton
-                tg.MainButton.setText("BURNING IN PROGRESS...");
-                tg.MainButton.showProgress();
-
-                const response = await fetch(`${BASE_URL}/api/user/burn`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: uid,
-                        amount: amount
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result.ok) {
-                    // Succès !
-                    tg.showAlert(`🔥 SACRIFICE ACCEPTED!\n\n${amount.toLocaleString()} WPT have been destroyed. Global scarcity increased!`);
-                    burnInput.value = ''; // On vide le champ
-                    refresh(); // On actualise les soldes et le prix
-                } else {
-                    tg.showAlert("❌ Error: " + (result.error || "Insufficient balance."));
-                }
-            } catch (error) {
-                console.error("Burn error:", error);
-                tg.showAlert("❌ Connection failed. The fire is out!");
-            } finally {
-                tg.MainButton.hideProgress();
-            }
-        }
-    });
-}
-
-
-
-
-
-
-function openSwap(type) {
-    // Ton code Base64 complet (celui qui commence par eyJy...)
-    const startParam = "eyJyZWZfdXNlcl9pZCI6MTQxNDAxNjg0MCwidG9rZW5fYWRkcmVzcyI6IkVRQjZLUEozVzE1NVY2aVFINEVSZmhmV3RuZ1pZVE52aE1tcE9rWGVhNjZoV2hPNiJ9";
-
-    // Vibration pour le feeling "Trading"
-    tg.HapticFeedback.impactOccurred('heavy');
-
-    // Lien direct vers la Mini App de Gas Pump
-    const url = `https://t.me/gasPump_bot/app?startapp=${startParam}`;
-
-    // On utilise openTelegramLink pour rester dans l'écosystème Telegram
-    tg.openTelegramLink(url);
-}
-
-
-
-
-    // Initialisation
-    window.onload = () => {
-        tg.expand();
-        refresh();
-        setInterval(refresh, 5000); // Rafraîchit toutes les 5 secondes
-    };
 </script>
 
 </body>
