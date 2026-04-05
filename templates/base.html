@@ -202,41 +202,46 @@ function showPage(pageId) {
 
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
   // 
-window.lastData = null; 
-
 async function refresh() {
     if (!uid) return;
+    
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) return;
+        if (!r.ok) throw new Error("Server Unreachable");
+        
         const d = await r.json();
-        
-        // CRITIQUE : On stocke les données pour que les autres fonctions y aient accès
-        window.lastData = d; 
+        window.lastData = d; // CRITIQUE : On stocke tout ici pour le profil et le trade
 
-        // Mise à jour des éléments simples
-        const update = (id, val, isPrice = false) => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.innerText = isPrice ? `$${parseFloat(val || 0).toFixed(2)}` : parseFloat(val || 0).toLocaleString();
-            }
-        };
+        // --- 1. TABLEAU DE BORD MINAGE ---
+        const balanceEl = document.getElementById('wallet-balance');
+        if (balanceEl) balanceEl.innerText = parseFloat(d.score || 0).toLocaleString();
 
-        update('wallet-balance', d.score);
-        update('total-net-worth', d.usd_value, true);
-        update('prof-name', d.name || "Citizen");
-        
-        if (document.getElementById('e-f')) {
-            document.getElementById('e-f').style.width = d.energy + "%";
-        }
+        const totalMinesEl = document.getElementById('total-mines'); // Vérifie cet ID dans ton HTML
+        if (totalMinesEl) totalMinesEl.innerText = parseFloat(d.total_mined || 0).toLocaleString();
 
-        // Appel de la mise à jour de la liste des assets
+        const energyBar = document.getElementById('e-f');
+        if (energyBar) energyBar.style.width = (d.energy || 0) + "%";
+
+        // --- 2. TABLEAU DE BORD PROFIL & RANK ---
+        const rankEl = document.getElementById('prof-rank');
+        if (rankEl) rankEl.innerText = `#${d.rank || '---'}`;
+
+        const netWorthEl = document.getElementById('total-net-worth');
+        if (netWorthEl) netWorthEl.innerText = `$${parseFloat(d.usd_value || 0).toFixed(2)}`;
+
+        const nameEl = document.getElementById('prof-name');
+        if (nameEl) nameEl.innerText = d.name || "CITIZEN";
+
+        // --- 3. MISE À JOUR DES ASSETS (La liste pro) ---
         updateProfilUI(d);
 
+        console.log("🛰️ System Sync : OK | Rank:", d.rank, "| Total Mined:", d.total_mined);
+
     } catch (e) {
-        console.error("Erreur Refresh:", e);
+        console.error("❌ Sync Error:", e);
     }
 }
+
 
 
 
