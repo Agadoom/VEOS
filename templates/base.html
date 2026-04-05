@@ -201,7 +201,7 @@ function showPage(pageId) {
 
 
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
-  // Variable globale pour stocker les infos du serveur
+  // 
 window.lastData = null; 
 
 async function refresh() {
@@ -238,38 +238,54 @@ async function refresh() {
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
 function updateProfilUI(d) {
-    const assetList = document.getElementById('asset-list');
-    if (!assetList || !d.assets) return;
+    const list = document.getElementById('asset-list');
+    if (!list || !d.assets) return;
 
-    assetList.innerHTML = ''; 
-    let hasVault = false;
+    list.innerHTML = ''; // On vide pour reconstruire propre
 
-    d.assets.forEach(asset => {
-        const val = parseFloat(asset.balance) * parseFloat(asset.current_price);
-        if (asset.symbol === 'GWPC' && asset.balance > 0) hasVault = true;
+    d.assets.forEach(a => {
+        const balance = parseFloat(a.balance || 0);
+        const price = parseFloat(a.current_price || 0);
+        const usdVal = balance * price;
 
-        assetList.innerHTML += `
-            <div class="asset-card" onclick="showTokenDetails('${asset.symbol}')" style="display:flex; justify-content:space-between; align-items:center; background:#0a0a0b; padding:12px; border-radius:12px; margin-bottom:8px; border:1px solid #1a1a1c;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${asset.icon}" style="width:35px; height:35px; border-radius:50%; border:1px solid #333;">
+        list.innerHTML += `
+            <div class="asset-card" onclick="openTradeSection('${a.symbol}')" style="background: rgba(255,255,255,0.03); border: 1px solid #1a1a1c; padding: 15px; border-radius: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; transition: 0.3s;" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#1a1a1c'">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="position: relative;">
+                        <img src="${a.icon}" style="width: 40px; height: 40px; border-radius: 10px; object-fit: cover;">
+                        <div style="position: absolute; -right: 5px; -bottom: 5px; background: #000; font-size: 8px; padding: 2px 4px; border-radius: 4px; border: 1px solid #333;">${a.symbol}</div>
+                    </div>
                     <div>
-                        <b style="display:block; font-size:14px;">${asset.name}</b>
-                        <small style="opacity:0.5;">${parseFloat(asset.balance).toLocaleString()} ${asset.symbol}</small>
+                        <b style="font-size: 14px; display: block;">${a.name}</b>
+                        <small style="opacity: 0.4; font-family: monospace;">${balance.toLocaleString()} ${a.symbol}</small>
                     </div>
                 </div>
-                <div style="text-align:right;">
-                    <b style="display:block; font-size:14px;">$${val.toFixed(2)}</b>
-                    <small style="color:${asset.change_24h >= 0 ? '#00ff88' : '#ff4d4d'};">${asset.change_24h >= 0 ? '+' : ''}${asset.change_24h}%</small>
+                <div style="text-align: right;">
+                    <div style="font-weight: 900; font-size: 15px;">$${usdVal.toFixed(2)}</div>
+                    <small style="color: ${a.change_24h >= 0 ? '#00ff88' : '#ff4d4d'}; font-size: 10px; font-weight: bold;">
+                        ${a.change_24h >= 0 ? '▲' : '▼'} ${Math.abs(a.change_24h)}%
+                    </small>
                 </div>
             </div>
         `;
     });
-
-    // Gestion du badge Vault
-    const vBadge = document.getElementById('vault-badge');
-    if (vBadge) vBadge.style.display = hasVault ? 'inline-block' : 'none';
 }
+
+
+   
 
 
 
