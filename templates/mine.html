@@ -1,119 +1,283 @@
 {% extends "base.html" %}
+
 {% block content %}
 
 <div id="p-mine" class="page active-page">
-    <div style="text-align: center; padding: 20px 0;">
-        <small id="prof-rank" style="color:var(--gold); font-weight:900;">RANK: #---</small>
-        <h1 id="tot" style="font-size: 52px; margin: 10px 0;">0.00</h1>
+    <div class="prof-header" style="background: linear-gradient(180deg, rgba(255,204,0,0.05) 0%, transparent 100%); padding: 20px 0; text-align: center;">
+        <small id="prof-rank" style="color:var(--gold); font-weight:900; letter-spacing: 1px;">RANK: #---</small>
+        <h1 id="tot" style="font-size:48px; margin:5px 0; font-family: 'monospace'; font-weight: 800; text-shadow: 0 0 15px rgba(255,255,255,0.1);">0.00</h1>
         
-        <div class="bar-container" style="margin: 0 20px;">
-            <div id="e-f" class="bar-fill" style="width: 0%;"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; padding: 0 25px;">
-            <small id="e-t" style="opacity: 0.6;">Energy: 0/100</small>
-            <small style="color: var(--gold); font-weight: 900;">⚡ AUTO</small>
+        <div style="padding: 0 20px;">
+            <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden; position: relative;">
+                <div id="e-f" style="background: linear-gradient(90deg, var(--gold), #ffaa00); height:100%; width:0%; transition:0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); position: relative;">
+                    <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: linear-gradient(180deg, rgba(255,255,255,0.3) 0%, transparent 100%);"></div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <small id="e-t" style="color:var(--text); font-weight: bold; font-size: 11px; opacity: 0.8;">Energy: 0/100</small>
+                <div style="display: flex; gap: 5px; align-items: center;">
+                    <span id="turbo-status" style="display:none; background:#A259FF; color:white; font-size:9px; padding:2px 6px; border-radius:10px; font-weight:900; animation: pulse 1.5s infinite;">⚡ TURBO</span>
+                </div>
+                <small style="color:var(--gold); font-size: 10px; font-weight: 900;">⚡ AUTO</small>
+            </div>
         </div>
     </div>
 
-    <div style="display: grid; gap: 10px; margin-top: 20px;">
-        <div class="card-pro">
-            <div><b>Genesis (WPT)</b><br><small id="gv">0.00</small></div>
-            <button class="btn-main" onclick="mine('genesis', event)">MINE</button>
+    <div style="display: grid; gap: 10px; margin-top: 10px;">
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
+            <div><b>Genesis <span style="color:var(--gold)">(WPT)</span></b><br><small id="gv">0.00</small></div>
+            <button class="btn" onclick="mine('genesis', event)">MINE</button>
         </div>
-        <div class="card-pro">
+        
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
             <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
-            <button class="btn-main" style="background:#eee;" onclick="mine('unity', event)">SYNC</button>
+            <button class="btn" style="background: #eee; color:#000;" onclick="mine('unity', event)">SYNC</button>
         </div>
-        <div class="card-pro">
+
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px; border-color: rgba(162, 89, 255, 0.3);">
             <div><b style="color:var(--purple);">Veo AI</b><br><small id="vv">0.00</small></div>
-            <button class="btn-main" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">AI</button>
+            <button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
         </div>
     </div>
 
-    <div style="text-align: center; margin-top: 40px;">
-        <img src="/static/genesis.png" style="width: 180px;" class="pulse" onclick="mine('genesis', event)">
+    <div class="coin-container" style="text-align:center; margin-top:35px; position: relative;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 140px; background: var(--gold); filter: blur(40px); opacity: 0.15; border-radius: 50%; pointer-events: none;"></div>
+        <img src="/static/genesis.png" class="main-coin" style="width:170px; height: 170px; cursor:pointer;" onclick="mine('genesis', event)">
     </div>
 </div>
 
-<div id="p-trade" class="page">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <div style="display: flex; gap: 10px;">
-            <img id="tr-icon" src="media/logo_genesis.png" style="width: 40px; border-radius: 10px;">
-            <div><b id="tr-name">---</b><br><small id="tr-price" style="color: #00ff88;">$0.00</small></div>
+
+
+
+<div id="p-launcher" class="page" style="display:none;">
+    <h2 style="text-align:center; font-weight: 800; color: #fff;">🚀 LAUNCHPAD</h2>
+    
+    <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #0a0a0b, #121214); padding:20px;">
+        <div style="text-align:center;"><b style="color:var(--gold);">Create Ecosystem Token</b></div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <input type="text" id="tk-name" class="l-input" placeholder="Name">
+            <input type="text" id="tk-sym" class="l-input" placeholder="$SYM">
         </div>
-        <div id="tr-change" style="background:rgba(0,255,136,0.1); color:#00ff88; padding:5px 10px; border-radius:8px;">+0%</div>
+        
+        <input type="url" id="tk-url" class="l-input" placeholder="Website URL (https://...)">
+        <input type="text" id="tk-x" class="l-input" placeholder="Twitter @username">
+        
+        <textarea id="tk-desc" class="l-input" style="height:60px;" placeholder="Description..."></textarea>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <label class="upload-box" style="border: 1px dashed #444; padding:10px; border-radius:10px; text-align:center; font-size:11px; cursor:pointer;">
+                <span id="label-logo">🖼️ Logo</span>
+                <input type="file" id="f-logo" hidden onchange="processFile('logo')">
+            </label>
+            <label class="upload-box" style="border: 1px dashed #444; padding:10px; border-radius:10px; text-align:center; font-size:11px; cursor:pointer;">
+                <span id="label-banner">🌅 Banner</span>
+                <input type="file" id="f-banner" hidden onchange="processFile('banner')">
+            </label>
+        </div>
+        <button class="btn" style="background:var(--gold); color:#000; width:100%; font-weight:900;" onclick="deployToken()">LAUNCH TOKEN (5,000 WPT)</button>
+    </div>
+
+      <div style="display: flex; gap: 10px; margin: 25px 0 15px 10px; overflow-x: auto; padding-right: 10px;">
+        <div onclick="setFilter('new', this)" class="tab-btn active-tab" style="padding: 8px 16px; background: var(--gold); color: #000; border-radius: 12px; font-size: 11px; font-weight: 900; cursor: pointer; white-space: nowrap; border: 1px solid var(--gold);">✨ NEW</div>
+        <div onclick="setFilter('hot', this)" class="tab-btn" style="padding: 8px 16px; background: #111; color: #fff; border-radius: 12px; font-size: 11px; font-weight: 900; cursor: pointer; white-space: nowrap; border: 1px solid #222;">🔥 HOT</div>
+        <div onclick="setFilter('my', this)" class="tab-btn" style="padding: 8px 16px; background: #111; color: #fff; border-radius: 12px; font-size: 11px; font-weight: 900; cursor: pointer; white-space: nowrap; border: 1px solid #222;">👤 MY TOKENS</div>
+    </div>
+
+    <div style="display: flex; align-items: center; margin: 10px 0 15px 10px;">
+        <span id="filter-emoji" style="font-size: 18px; margin-right: 8px;">✨</span>
+        <h3 id="filter-title" style="margin: 0; letter-spacing: 1px; font-size: 14px; text-transform: uppercase;">NEW LISTINGS</h3>
     </div>
     
-    <div id="tr-chart-container" style="height: 300px; background: #050505; border-radius: 15px; border: 1px solid #1a1a1c;">
-        </div>
+    <div id="token-list" style="padding-bottom: 20px;"></div>
+</div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px;">
-        <div class="card-pro" style="flex-direction: column; text-align: center; padding: 10px;">
-            <small style="opacity: 0.5;">MCAP</small><b id="tr-mcap">$0</b>
+
+
+
+<div id="p-trade" class="page" style="display:none; background: #000; min-height: 100vh; padding-bottom: 100px;">
+    <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1c;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <img id="tr-icon" src="media/logo_genesis.png" style="width: 45px; height: 45px; border-radius: 12px; border: 1px solid var(--gold);">
+            <div>
+                <h2 id="tr-name" style="margin: 0; font-size: 18px;">Genesis World</h2>
+                <span id="tr-price" style="color: #00ff88; font-weight: 900; font-family: monospace;">$0.0000000411</span>
+            </div>
         </div>
-        <div class="card-pro" style="flex-direction: column; text-align: center; padding: 10px;">
-            <small style="opacity: 0.5;">LIQ</small><b id="tr-liq">$0</b>
+        <div style="text-align: right;">
+            <div id="tr-change" style="background: rgba(0, 255, 136, 0.1); color: #00ff88; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 900;">+5.4%</div>
         </div>
-        <div class="card-pro" style="flex-direction: column; text-align: center; padding: 10px;">
-            <small style="opacity: 0.5;">VOL</small><b id="tr-vol">$0</b>
+    </div>
+
+    <div id="tr-chart-container" style="width: 100%; height: 320px; background: #050505; position: relative;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; opacity: 0.3;">
+            <div class="spinner">🛰️</div>
+            <small>Loading Live Market Data...</small>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #1a1a1c; border-top: 1px solid #1a1a1c; border-bottom: 1px solid #1a1a1c;">
+        <div style="background: #000; padding: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 8px; display: block;">MARKET CAP</small>
+            <b id="tr-mcap" style="font-size: 11px;">$411K</b>
+        </div>
+        <div style="background: #000; padding: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 8px; display: block;">LIQUIDITY</small>
+            <b id="tr-liq" style="font-size: 11px;">$328K</b>
+        </div>
+        <div style="background: #000; padding: 15px; text-align: center;">
+            <small style="opacity: 0.5; font-size: 8px; display: block;">VOL 24H</small>
+            <b id="tr-vol" style="font-size: 11px;">$12K</b>
+        </div>
+    </div>
+
+    <div style="padding: 20px;">
+        <div style="background: #0a0a0b; border-radius: 16px; border: 1px solid #222; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <b style="font-size: 12px; opacity: 0.6;">QUICK SWAP</b>
+                <span id="tr-balance" style="font-size: 10px; color: var(--gold);">Bal: 0.00</span>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button onclick="setSwapMode('buy')" id="btn-buy-mode" style="flex: 1; padding: 12px; border-radius: 10px; background: #00ff88; color: #000; border: none; font-weight: 900;">BUY</button>
+                <button onclick="setSwapMode('sell')" id="btn-sell-mode" style="flex: 1; padding: 12px; border-radius: 10px; background: #1a1a1c; color: #fff; border: 1px solid #333; font-weight: 900;">SELL</button>
+            </div>
+
+            <button class="btn" style="width: 100%; padding: 16px; border-radius: 12px; font-size: 14px; letter-spacing: 1px;" onclick="executeTrade()">EXECUTE TRANSACTION</button>
         </div>
     </div>
 </div>
 
-<div id="p-wallet" class="page">
-    <div class="card-pro" style="flex-direction: column; padding: 40px; border: 1px solid var(--gold);">
-        <small style="opacity: 0.6;">TOTAL WPT BALANCE</small>
-        <h1 id="wallet-balance" style="font-size: 48px; color: var(--gold); margin: 10px 0;">0.00</h1>
-        <div id="ton-connect-btn"></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div id="p-wallet" class="page" style="display:none; padding: 20px;">
+    <h2 style="text-align:center; font-weight: 800; letter-spacing: 1px;">💼 MY WALLET</h2>
+    
+    <div class="card" style="flex-direction:column; text-align:center; padding:40px; background: linear-gradient(145deg, #1a1a1c, #0a0a0b); border: 1px solid var(--gold); box-shadow: 0 10px 30px rgba(255,215,0,0.1);">
+        <small style="opacity:0.6; text-transform: uppercase; letter-spacing: 2px; font-size: 10px;">Total WPT Balance</small>
+        <h1 id="wallet-balance" style="color:var(--gold); font-size: 55px; margin:15px 0;">0.00</h1>
+
+        
+        <div id="ton-connect-btn" style="margin: 20px auto; width: fit-content;"></div>
+
     </div>
 
-    <div class="card-pro" style="margin-top: 20px; background: linear-gradient(90deg, #1a0b2e, #000); border: 1px solid var(--purple);" onclick="toggleLottery()">
-        <div style="display: flex; gap: 15px; align-items: center;">
-            <span style="font-size: 30px;">🎰</span>
-            <div><b style="color: var(--purple);">WPT JACKPOT</b><br><small id="jackpot-amount">5,400,000</small></div>
+
+
+
+
+
+
+<div id="sub-lottery" style="display: none; padding: 15px;">
+    <div style="background: linear-gradient(145deg, #1a0b2e, #0a0a0b); border: 1px solid #a855f7; border-radius: 20px; padding: 25px; text-align: center; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: -10px; right: -10px; font-size: 60px; opacity: 0.1;">🎰</div>
+        
+        <small style="color: #a855f7; font-weight: 900; letter-spacing: 2px;">GLOBAL WPT JACKPOT</small>
+        <h1 id="jackpot-amount" style="font-size: 45px; color: #fff; margin: 10px 0; text-shadow: 0 0 20px rgba(168, 85, 247, 0.5);">5,400,000</h1>
+        <p style="opacity: 0.5; font-size: 10px;">Next Draw in: <span id="draw-timer">04h 22m 10s</span></p>
+
+        <div style="margin-top: 25px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px;">
+            <b style="font-size: 12px; display: block; margin-bottom: 10px;">DONATE WPT TO ENTER</b>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="lottery-bid" placeholder="1000" style="flex: 1; background: #000; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 8px;">
+                <button class="btn" style="background: #a855f7; color: white;" onclick="enterLottery()">TICKET</button>
+            </div>
+            <small style="display: block; margin-top: 8px; font-size: 8px; opacity: 0.4;">10% of each donation is burned forever 🔥</small>
         </div>
-        <button class="btn-main" style="background: var(--purple); color: #fff;">PLAY</button>
-    </div>
-
-    <div id="sub-lottery" style="display: none; padding: 15px; background: #050505; border-radius: 15px; margin-top: 10px;">
-        <input type="number" id="lottery-bid" placeholder="1000 WPT..." style="width: 100%; padding: 12px; background: #000; border: 1px solid #333; color: #fff; border-radius: 10px; margin-bottom: 10px;">
-        <button class="btn-main" style="width: 100%; background: var(--purple); color: #fff;" onclick="enterLottery()">JOIN DRAW</button>
     </div>
 </div>
 
-<div id="p-profil" class="page">
-    <div style="text-align: center; padding: 30px 0;">
-        <div id="prof-initials" style="width: 80px; height: 80px; background: var(--gold); border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 32px; color: #000; font-weight: 900;">U</div>
-        <h2 id="prof-name" style="margin: 15px 0 5px 0;">USER</h2>
-        <div id="vault-badge" style="display: none; color: var(--gold); font-size: 10px; font-weight: 900;">🏆 GENESIS VAULT ACTIVATED</div>
-    </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div class="card-pro" style="flex-direction: column;">
-            <small style="opacity: 0.5;">RANK</small><b id="prof-rank-big">#---</b>
-        </div>
-        <div class="card-pro" style="flex-direction: column;">
-            <small style="opacity: 0.5;">NET WORTH</small><b id="total-net-worth" style="color: #00ff88;">$0.00</b>
-        </div>
-    </div>
+
+
+
+
+
+
 
     <div style="margin-top: 30px;">
-        <h3 style="font-size: 14px; opacity: 0.5;">DIGITAL ASSETS</h3>
-        <div id="asset-list"></div>
+        <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #fff; margin-bottom: 15px;">✨ WPT Premium Store</h3>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
+            <div class="card" style="flex-direction:column; padding:20px; text-align:center; gap: 10px; border-color: #222;">
+                <div style="font-size: 35px;">⭐️</div>
+                <b style="font-size: 18px;">50 Stars</b>
+                <small style="opacity:0.5;">+ 10,000 WPT</small>
+                <button class="btn" style="width:100%; background: #fff; color: #000; font-size: 12px;" onclick="buyStarsPack(50)">GET NOW</button>
+            </div>
+
+            <div class="card" style="flex-direction:column; padding:20px; text-align:center; gap: 10px; border: 1px solid var(--gold); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: 10px; right: -25px; background: var(--purple); color: #fff; font-size: 8px; padding: 2px 30px; transform: rotate(45deg); font-weight: 900;">BEST</div>
+                <div style="font-size: 35px;">🌟</div>
+                <b style="font-size: 18px; color: var(--gold);">250 Stars</b>
+                <small style="opacity:0.5;">+ 60,000 WPT</small>
+                <button class="btn" style="width:100%; background: var(--gold); color: #000; font-size: 12px;" onclick="buyStarsPack(250)">GET NOW</button>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 15px; background: linear-gradient(90deg, #1a1a1c, #0a0a0b); border: 1px solid var(--purple); padding: 20px;">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div style="font-size: 30px;">⚡</div>
+                <div>
+                    <b style="color:var(--purple); font-size: 16px;">TURBO MINING x2</b><br>
+                    <small style="opacity:0.5;">Recover energy 2x faster (24h)</small>
+                </div>
+            </div>
+            <button class="btn" style="background: var(--purple); color: #fff; padding: 10px 15px;" onclick="buyStarsPack(99)">99 ⭐</button>
+        </div>
     </div>
 </div>
 
-<div id="launcher-drawer" class="drawer">
-    <div style="width: 40px; height: 4px; background: #333; margin: 0 auto 20px; border-radius: 10px;" onclick="toggleLauncher()"></div>
-    <h2>🚀 LAUNCHPAD</h2>
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-        <input type="text" id="tk-name" placeholder="Token Name" style="padding: 12px; background: #111; border: 1px solid #333; color: #fff; border-radius: 10px;">
-        <input type="text" id="tk-sym" placeholder="Symbol ($)" style="padding: 12px; background: #111; border: 1px solid #333; color: #fff; border-radius: 10px;">
-        <textarea id="tk-desc" placeholder="Description..." style="padding: 12px; background: #111; border: 1px solid #333; color: #fff; border-radius: 10px; height: 80px;"></textarea>
-        <button class="btn-main" style="width: 100%; height: 50px;" onclick="deployToken()">LAUNCH TOKEN (5,000 WPT)</button>
+
+
+
+
+<div id="p-profil" class="page" style="display:none; background: #000; padding-bottom: 100px;">
+    <div style="padding: 30px 20px; background: linear-gradient(0deg, #000, #0a0a0b); text-align:center;">
+        <div id="prof-initials" style="width:70px; height:70px; background: var(--gold); border-radius:18px; display:inline-flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:28px; margin-bottom:15px;">U</div>
+        
+        <h2 id="prof-name" style="margin: 0; font-size: 24px; text-transform: uppercase;">---</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+            <div style="background: #111; padding: 15px; border-radius: 12px; border: 1px solid #222;">
+                <small style="opacity: 0.5; font-size: 8px; display:block; margin-bottom:5px;">GLOBAL RANK</small>
+                <b id="prof-rank" style="font-size: 18px; color: var(--gold);">#---</b>
+            </div>
+            <div style="background: #111; padding: 15px; border-radius: 12px; border: 1px solid #222;">
+                <small style="opacity: 0.5; font-size: 8px; display:block; margin-bottom:5px;">PORTFOLIO VALUE</small>
+                <b id="total-net-worth" style="font-size: 18px; color: #00ff88;">$0.00</b>
+            </div>
+        </div>
+    </div>
+
+    <div style="padding: 20px;">
+        <h3 style="font-size: 12px; opacity: 0.5; margin-bottom: 15px;">PORTFOLIO ASSETS</h3>
+        <div id="asset-list">
+            </div>
     </div>
 </div>
 
-<div id="fab-launcher" onclick="toggleLauncher()">🚀</div>
+
+
+
+
+
+
+
+
+
+
+
 
 {% endblock %}
