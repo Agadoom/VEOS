@@ -1,100 +1,116 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div id="main-wrapper" style="height: 100vh; overflow-y: auto; background: #000;">
 
-    <div id="p-mine" class="page active-page">
-        <div class="mine-hero">
-            <div class="rank-badge">🏆 RANK #<span id="prof-rank-val">---</span></div>
-            <h1 id="tot" class="glitch-text">0.00</h1>
-            <div class="usd-val">$<span id="header-usd">0.00</span></div>
-            
-            <div class="energy-section">
-                <div class="energy-bar">
-                    <div id="e-f" class="energy-fill"></div>
-                </div>
-                <div class="energy-info">
-                    <small id="e-t">Energy: 0/100</small>
-                    <small class="auto-tag">⚡ AUTO</small>
-                </div>
-            </div>
-        </div>
-
-        <div class="mining-grid">
-            <div class="m-card" onclick="mine('genesis', event)">
-                <div class="m-icon">💎</div>
-                <b>Genesis</b><br><small id="gv">0.00</small>
-            </div>
-            <div class="m-card" onclick="mine('unity', event)">
-                <div class="m-icon">🌀</div>
-                <b>Unity</b><br><small id="uv">0.00</small>
-            </div>
-            <div class="m-card" onclick="mine('veo', event)">
-                <div class="m-icon">🧠</div>
-                <b>Veo AI</b><br><small id="vv">0.00</small>
-            </div>
-        </div>
-
-        <div class="tap-area">
-            <div class="tap-glow"></div>
-            <img src="/static/genesis.png" class="main-coin" onclick="mine('genesis', event)">
-        </div>
-    </div>
-
-    <div id="p-wallet" class="page" style="display:none; padding: 20px;">
-        <div class="balance-card">
-            <small>WPT BALANCE</small>
-            <h1 id="wallet-balance">0.00</h1>
-            <div id="ton-connect-btn"></div>
-        </div>
-
-        <div class="jackpot-banner" onclick="toggleLottery()">
-            <div style="display:flex; gap:15px; align-items:center;">
-                <span style="font-size:30px;">🎰</span>
-                <div>
-                    <b style="color:#A259FF;">WPT JACKPOT</b>
-                    <div id="jackpot-val" style="font-size:20px; font-weight:900;">5,400,000</div>
-                </div>
-            </div>
-            <button class="btn-play">JOIN</button>
-        </div>
+<div id="p-mine" class="page active-page">
+    <div style="text-align: center; padding: 20px 0;">
+        <small id="prof-rank" style="color:var(--gold); font-weight:900;">RANK: #---</small>
+        <h1 id="tot" style="font-size: 52px; margin: 10px 0;">0.00</h1>
         
-        <div id="sub-lottery" style="display:none; margin-top:10px;">
-            <div class="lottery-box">
-                <input type="number" id="lottery-bid" placeholder="Amount to donate...">
-                <button onclick="enterLottery()" class="btn-purple">ENTER DRAW</button>
-            </div>
+        <div class="bar-container" style="margin: 0 20px;">
+            <div id="e-f" class="bar-fill" style="width: 0%;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 0 25px;">
+            <small id="e-t" style="opacity: 0.6;">Energy: 0/100</small>
+            <small style="color: var(--gold); font-weight: 900;">⚡ AUTO</small>
         </div>
     </div>
 
-    <div id="p-profil" class="page" style="display:none;">
-        <div class="profile-header">
-            <div id="prof-initials">U</div>
-            <h2 id="prof-name">USER</h2>
-            <div class="stats-row">
-                <div class="s-item"><small>RANK</small><b id="prof-rank-big">#---</b></div>
-                <div class="s-item"><small>NET WORTH</small><b id="total-net-worth" style="color:#00ff88;">$0.00</b></div>
-            </div>
+    <div style="display: grid; gap: 10px; margin-top: 20px;">
+        <div class="card-pro">
+            <div><b>Genesis (WPT)</b><br><small id="gv">0.00</small></div>
+            <button class="btn-main" onclick="mine('genesis', event)">MINE</button>
         </div>
-        <div class="asset-list-container">
-            <h3>ASSETS</h3>
-            <div id="asset-list"></div>
+        <div class="card-pro">
+            <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
+            <button class="btn-main" style="background:#eee;" onclick="mine('unity', event)">SYNC</button>
+        </div>
+        <div class="card-pro">
+            <div><b style="color:var(--purple);">Veo AI</b><br><small id="vv">0.00</small></div>
+            <button class="btn-main" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">AI</button>
         </div>
     </div>
 
+    <div style="text-align: center; margin-top: 40px;">
+        <img src="/static/genesis.png" style="width: 180px;" class="pulse" onclick="mine('genesis', event)">
+    </div>
+</div>
+
+<div id="p-trade" class="page">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="display: flex; gap: 10px;">
+            <img id="tr-icon" src="media/logo_genesis.png" style="width: 40px; border-radius: 10px;">
+            <div><b id="tr-name">---</b><br><small id="tr-price" style="color: #00ff88;">$0.00</small></div>
+        </div>
+        <div id="tr-change" style="background:rgba(0,255,136,0.1); color:#00ff88; padding:5px 10px; border-radius:8px;">+0%</div>
+    </div>
+    
+    <div id="tr-chart-container" style="height: 300px; background: #050505; border-radius: 15px; border: 1px solid #1a1a1c;">
+        </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px;">
+        <div class="card-pro" style="flex-direction: column; text-align: center; padding: 10px;">
+            <small style="opacity: 0.5;">MCAP</small><b id="tr-mcap">$0</b>
+        </div>
+        <div class="card-pro" style="flex-direction: column; text-align: center; padding: 10px;">
+            <small style="opacity: 0.5;">LIQ</small><b id="tr-liq">$0</b>
+        </div>
+        <div class="card-pro" style="flex-direction: column; text-align: center; padding: 10px;">
+            <small style="opacity: 0.5;">VOL</small><b id="tr-vol">$0</b>
+        </div>
+    </div>
+</div>
+
+<div id="p-wallet" class="page">
+    <div class="card-pro" style="flex-direction: column; padding: 40px; border: 1px solid var(--gold);">
+        <small style="opacity: 0.6;">TOTAL WPT BALANCE</small>
+        <h1 id="wallet-balance" style="font-size: 48px; color: var(--gold); margin: 10px 0;">0.00</h1>
+        <div id="ton-connect-btn"></div>
+    </div>
+
+    <div class="card-pro" style="margin-top: 20px; background: linear-gradient(90deg, #1a0b2e, #000); border: 1px solid var(--purple);" onclick="toggleLottery()">
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <span style="font-size: 30px;">🎰</span>
+            <div><b style="color: var(--purple);">WPT JACKPOT</b><br><small id="jackpot-amount">5,400,000</small></div>
+        </div>
+        <button class="btn-main" style="background: var(--purple); color: #fff;">PLAY</button>
+    </div>
+
+    <div id="sub-lottery" style="display: none; padding: 15px; background: #050505; border-radius: 15px; margin-top: 10px;">
+        <input type="number" id="lottery-bid" placeholder="1000 WPT..." style="width: 100%; padding: 12px; background: #000; border: 1px solid #333; color: #fff; border-radius: 10px; margin-bottom: 10px;">
+        <button class="btn-main" style="width: 100%; background: var(--purple); color: #fff;" onclick="enterLottery()">JOIN DRAW</button>
+    </div>
+</div>
+
+<div id="p-profil" class="page">
+    <div style="text-align: center; padding: 30px 0;">
+        <div id="prof-initials" style="width: 80px; height: 80px; background: var(--gold); border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 32px; color: #000; font-weight: 900;">U</div>
+        <h2 id="prof-name" style="margin: 15px 0 5px 0;">USER</h2>
+        <div id="vault-badge" style="display: none; color: var(--gold); font-size: 10px; font-weight: 900;">🏆 GENESIS VAULT ACTIVATED</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="card-pro" style="flex-direction: column;">
+            <small style="opacity: 0.5;">RANK</small><b id="prof-rank-big">#---</b>
+        </div>
+        <div class="card-pro" style="flex-direction: column;">
+            <small style="opacity: 0.5;">NET WORTH</small><b id="total-net-worth" style="color: #00ff88;">$0.00</b>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px;">
+        <h3 style="font-size: 14px; opacity: 0.5;">DIGITAL ASSETS</h3>
+        <div id="asset-list"></div>
+    </div>
 </div>
 
 <div id="launcher-drawer" class="drawer">
-    <div class="drawer-handle" onclick="toggleLauncher()"></div>
-    <div class="drawer-body">
-        <h2>🚀 LAUNCHPAD</h2>
-        <div class="form-group">
-            <input type="text" id="tk-name" placeholder="Token Name">
-            <input type="text" id="tk-sym" placeholder="Symbol ($)">
-            <textarea id="tk-desc" placeholder="Describe your vision..."></textarea>
-            <button class="btn-launch" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
-        </div>
-        <div id="token-list"></div>
+    <div style="width: 40px; height: 4px; background: #333; margin: 0 auto 20px; border-radius: 10px;" onclick="toggleLauncher()"></div>
+    <h2>🚀 LAUNCHPAD</h2>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        <input type="text" id="tk-name" placeholder="Token Name" style="padding: 12px; background: #111; border: 1px solid #333; color: #fff; border-radius: 10px;">
+        <input type="text" id="tk-sym" placeholder="Symbol ($)" style="padding: 12px; background: #111; border: 1px solid #333; color: #fff; border-radius: 10px;">
+        <textarea id="tk-desc" placeholder="Description..." style="padding: 12px; background: #111; border: 1px solid #333; color: #fff; border-radius: 10px; height: 80px;"></textarea>
+        <button class="btn-main" style="width: 100%; height: 50px;" onclick="deployToken()">LAUNCH TOKEN (5,000 WPT)</button>
     </div>
 </div>
 
