@@ -1,121 +1,103 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div id="main-scroller" style="overflow-y: auto; height: 100vh;">
+<div id="main-wrapper" style="height: 100vh; overflow-y: auto; background: #000;">
 
-    <<div id="p-mine" class="page active-page">
-    <div class="mining-header">
-        <div class="rank-chip">🏆 RANK #<span id="prof-rank-val">---</span></div>
-        <h1 id="tot">0.00</h1>
-        <div class="net-worth-sub">$<span id="header-usd">0.00</span></div>
+    <div id="p-mine" class="page active-page">
+        <div class="mine-hero">
+            <div class="rank-badge">🏆 RANK #<span id="prof-rank-val">---</span></div>
+            <h1 id="tot" class="glitch-text">0.00</h1>
+            <div class="usd-val">$<span id="header-usd">0.00</span></div>
+            
+            <div class="energy-section">
+                <div class="energy-bar">
+                    <div id="e-f" class="energy-fill"></div>
+                </div>
+                <div class="energy-info">
+                    <small id="e-t">Energy: 0/100</small>
+                    <small class="auto-tag">⚡ AUTO</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="mining-grid">
+            <div class="m-card" onclick="mine('genesis', event)">
+                <div class="m-icon">💎</div>
+                <b>Genesis</b><br><small id="gv">0.00</small>
+            </div>
+            <div class="m-card" onclick="mine('unity', event)">
+                <div class="m-icon">🌀</div>
+                <b>Unity</b><br><small id="uv">0.00</small>
+            </div>
+            <div class="m-card" onclick="mine('veo', event)">
+                <div class="m-icon">🧠</div>
+                <b>Veo AI</b><br><small id="vv">0.00</small>
+            </div>
+        </div>
+
+        <div class="tap-area">
+            <div class="tap-glow"></div>
+            <img src="/static/genesis.png" class="main-coin" onclick="mine('genesis', event)">
+        </div>
+    </div>
+
+    <div id="p-wallet" class="page" style="display:none; padding: 20px;">
+        <div class="balance-card">
+            <small>WPT BALANCE</small>
+            <h1 id="wallet-balance">0.00</h1>
+            <div id="ton-connect-btn"></div>
+        </div>
+
+        <div class="jackpot-banner" onclick="toggleLottery()">
+            <div style="display:flex; gap:15px; align-items:center;">
+                <span style="font-size:30px;">🎰</span>
+                <div>
+                    <b style="color:#A259FF;">WPT JACKPOT</b>
+                    <div id="jackpot-val" style="font-size:20px; font-weight:900;">5,400,000</div>
+                </div>
+            </div>
+            <button class="btn-play">JOIN</button>
+        </div>
         
-        <div class="energy-box">
-            <div class="energy-bar-bg">
-                <div id="e-f" class="energy-fill"></div>
-            </div>
-            <div class="energy-labels">
-                <small id="e-t">Energy: 0/100</small>
-                <small class="status-badge">⚡ AUTO-SYNC</small>
+        <div id="sub-lottery" style="display:none; margin-top:10px;">
+            <div class="lottery-box">
+                <input type="number" id="lottery-bid" placeholder="Amount to donate...">
+                <button onclick="enterLottery()" class="btn-purple">ENTER DRAW</button>
             </div>
         </div>
     </div>
 
-    <div class="mining-grid">
-        <div class="m-card g-glass" onclick="mine('genesis', event)">
-            <span class="m-icon">💎</span>
-            <div class="m-text"><b>Genesis</b><br><small id="gv">0.00</small></div>
-        </div>
-        <div class="m-card u-glass" onclick="mine('unity', event)">
-            <span class="m-icon">🌀</span>
-            <div class="m-text"><b>Unity</b><br><small id="uv">0.00</small></div>
-        </div>
-        <div class="m-card v-glass" onclick="mine('veo', event)">
-            <span class="m-icon">🧠</span>
-            <div class="m-text"><b>Veo AI</b><br><small id="vv">0.00</small></div>
-        </div>
-    </div>
-
-    <div class="tap-zone">
-        <div class="tap-glow"></div>
-        <img src="/static/genesis.png" class="main-coin pulse-anim" onclick="mine('genesis', event)">
-    </div>
-</div>
-
-<div id="p-wallet" class="page" style="display:none;">
-    <div class="wallet-card">
-        <small class="label">TOTAL WPT BALANCE</small>
-        <h1 id="wallet-balance">0.00</h1>
-        <div id="ton-connect-btn" style="margin: 0 auto;"></div>
-    </div>
-
-    <div class="jackpot-card" onclick="showSubPage('sub-lottery')">
-        <div class="j-content">
-            <div class="j-icon">🎰</div>
-            <div>
-                <b style="color:var(--purple);">GLOBAL JACKPOT</b>
-                <h3 id="jackpot-val">5,400,000 WPT</h3>
-            </div>
-        </div>
-        <button class="play-btn">JOIN</button>
-    </div>
-
-    <div class="store-section">
-        <h3 class="section-title">✨ PREMIUM STORE</h3>
-        <div class="stars-grid">
-            <div class="star-pack" onclick="buyStarsPack(50)">
-                <b>50 ⭐</b>
-                <small>+10k WPT</small>
-            </div>
-            <div class="star-pack gold-border" onclick="buyStarsPack(250)">
-                <b>250 ⭐</b>
-                <small>+60k WPT</small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div id="p-profil" class="page" style="display:none;">
-    <div class="profile-card">
-        <div class="avatar-box">
+    <div id="p-profil" class="page" style="display:none;">
+        <div class="profile-header">
             <div id="prof-initials">U</div>
-            <div class="online-indicator"></div>
+            <h2 id="prof-name">USER</h2>
+            <div class="stats-row">
+                <div class="s-item"><small>RANK</small><b id="prof-rank-big">#---</b></div>
+                <div class="s-item"><small>NET WORTH</small><b id="total-net-worth" style="color:#00ff88;">$0.00</b></div>
+            </div>
         </div>
-        <h2 id="prof-name">CITIZEN</h2>
-        <div id="vault-badge" class="vault-chip" style="display:none;">⚜️ GENESIS VAULT</div>
-        
-        <div class="profile-stats">
-            <div class="p-stat">
-                <small>RANK</small>
-                <b id="prof-rank-big">#---</b>
-            </div>
-            <div class="p-stat">
-                <small>NET WORTH</small>
-                <b id="total-net-worth" style="color:#00ff88;">$0.00</b>
-            </div>
+        <div class="asset-list-container">
+            <h3>ASSETS</h3>
+            <div id="asset-list"></div>
         </div>
     </div>
 
-    <div class="assets-container">
-        <h3 class="section-title">💼 DIGITAL ASSETS</h3>
-        <div id="asset-list">
-            </div>
-    </div>
 </div>
 
 <div id="launcher-drawer" class="drawer">
     <div class="drawer-handle" onclick="toggleLauncher()"></div>
-    <div class="drawer-content">
+    <div class="drawer-body">
         <h2>🚀 LAUNCHPAD</h2>
-        <div class="launcher-form">
+        <div class="form-group">
             <input type="text" id="tk-name" placeholder="Token Name">
             <input type="text" id="tk-sym" placeholder="Symbol ($)">
-            <textarea id="tk-desc" placeholder="Project Description..."></textarea>
-            <button class="btn-launch" onclick="deployToken()">DEPLOY (5,000 WPT)</button>
+            <textarea id="tk-desc" placeholder="Describe your vision..."></textarea>
+            <button class="btn-launch" onclick="deployToken()">LAUNCH (5,000 WPT)</button>
         </div>
         <div id="token-list"></div>
     </div>
 </div>
 
-<div id="floating-launcher" onclick="toggleLauncher()">🚀</div>
+<div id="fab-launcher" onclick="toggleLauncher()">🚀</div>
 
 {% endblock %}
