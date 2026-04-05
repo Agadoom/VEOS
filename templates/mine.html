@@ -244,39 +244,30 @@
 
 
 <div id="p-profil" class="page" style="display:none; background: #000; padding-bottom: 100px;">
-    <div style="padding: 30px 20px; background: linear-gradient(0deg, #000, #0a0a0b);">
-        <div style="display: flex; align-items: center; gap: 20px;">
-            <div style="position: relative;">
-                <div id="prof-initials" style="width:70px; height:70px; background: var(--gold); border-radius:18px; display:flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:28px; transform: rotate(-5deg);">U</div>
-                <div style="position: absolute; bottom: -5px; right: -5px; background: #00ff88; width: 15px; height: 15px; border-radius: 50%; border: 3px solid #000;"></div>
+    <div style="padding: 30px 20px; background: linear-gradient(0deg, #000, #0a0a0b); text-align:center;">
+        <div id="prof-initials" style="width:70px; height:70px; background: var(--gold); border-radius:18px; display:inline-flex; align-items:center; justify-content:center; color:#000; font-weight:900; font-size:28px; margin-bottom:15px;">U</div>
+        
+        <h2 id="prof-name" style="margin: 0; font-size: 24px; text-transform: uppercase;">---</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+            <div style="background: #111; padding: 15px; border-radius: 12px; border: 1px solid #222;">
+                <small style="opacity: 0.5; font-size: 8px; display:block; margin-bottom:5px;">GLOBAL RANK</small>
+                <b id="prof-rank" style="font-size: 18px; color: var(--gold);">#---</b>
             </div>
-            <div>
-                <h2 id="prof-name" style="margin: 0; font-size: 24px;">CITIZEN #441</h2>
-                <div id="vault-badge" style="display: none; color: var(--gold); font-size: 10px; font-weight: 900; letter-spacing: 1px;">⚜️ GENESIS VAULT ACTIVATED</div>
-            </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 30px;">
-            <div style="background: #0a0a0b; padding: 15px; border-radius: 12px; border-left: 3px solid var(--gold);">
-                <small style="opacity: 0.5; font-size: 9px;">NET WORTH</small>
-                <div id="total-net-worth" style="font-size: 18px; font-weight: 900; color: #fff;">$0.00</div>
-            </div>
-            <div style="background: #0a0a0b; padding: 15px; border-radius: 12px; border-left: 3px solid #00ccff;">
-                <small style="opacity: 0.5; font-size: 9px;">GLOBAL RANK</small>
-                <div id="prof-rank" style="font-size: 18px; font-weight: 900; color: #fff;">#---</div>
+            <div style="background: #111; padding: 15px; border-radius: 12px; border: 1px solid #222;">
+                <small style="opacity: 0.5; font-size: 8px; display:block; margin-bottom:5px;">PORTFOLIO VALUE</small>
+                <b id="total-net-worth" style="font-size: 18px; color: #00ff88;">$0.00</b>
             </div>
         </div>
     </div>
 
     <div style="padding: 20px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0; font-size: 14px; opacity: 0.6;">PORTFOLIO ASSETS</h3>
-            <span style="font-size: 10px; color: var(--gold);">LIVE PRICES 🟢</span>
-        </div>
+        <h3 style="font-size: 12px; opacity: 0.5; margin-bottom: 15px;">PORTFOLIO ASSETS</h3>
         <div id="asset-list">
             </div>
     </div>
 </div>
+
 
 
 
