@@ -145,20 +145,24 @@
 
 
 
-    <div style="margin-top: 20px; padding: 0 15px;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
-            <tr style="opacity: 0.5; border-bottom: 1px solid #222;">
-                <th style="padding: 10px 0;">TXNS</th>
-                <th>BUYS</th>
-                <th style="text-align: right;">SELLS</th>
-            </tr>
-            <tr>
-                <td id="det-txns" style="padding: 10px 0;">1</td>
-                <td id="det-buys" style="color: #00ff88;">1</td>
-                <td id="det-sells" style="color: #ff4d4d; text-align: right;">0</td>
-            </tr>
-        </table>
+    <div id="det-chart-container" style="width:100%; height:350px; background:#000; border-radius:15px; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid #222; position:relative; overflow:hidden;">
+    <img src="media/logo_genesis.png" style="position:absolute; width:150%; opacity:0.1; filter:blur(10px);">
+    
+    <div style="z-index:2; text-align:center; padding:20px;">
+        <div class="spinner" style="margin-bottom:15px;">🛰️</div>
+        <h4 style="margin:0; color:var(--gold);">CHART INITIALIZING</h4>
+        <p style="font-size:10px; opacity:0.6; margin-top:5px;">Waiting for first 10 TON volume to sync with DEX...</p>
+        
+        <button class="btn" style="margin-top:20px; font-size:10px; background:rgba(255,215,0,0.1); border:1px solid var(--gold); color:var(--gold);" 
+                onclick="window.open('https://t.me/gasPump_bot/app?startapp=eyJyZWZfdXNlcl9pZCI6MTQxNDAxNjg0MH0?embed=1&theme=dark&trades=0&info=0">
+            VIEW ON GAS PUMP ↗
+        </button>
     </div>
+</div>
+
+
+
+
 
     <div style="position: fixed; bottom: 65px; left: 0; width: 100%; background: #0a0a0a; border-top: 1px solid #222; padding: 15px 0;">
         <div style="display: flex; justify-content: center; gap: 10px; padding: 0 15px;">
