@@ -153,58 +153,65 @@ function openTrade(symbol) {
 
 // --- SYSTÈME DE REFRESH GLOBAL ---
 // Variable pour éviter les erreurs de undefined
+// GLOBAL SYNC DATA
 window.lastData = null;
 
+// REFRESH ENGINE
 async function refresh() {
     try {
-        const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        const d = await r.json();
-        window.lastData = d;
+        const response = await fetch(`${BASE_URL}/api/user/${uid}`);
+        const data = await response.json();
+        window.lastData = data;
 
-        // --- UPDATE MINE ---
-        document.getElementById('tot').innerText = parseFloat(d.score).toLocaleString();
-        document.getElementById('prof-rank-val').innerText = d.rank;
-        document.getElementById('header-usd').innerText = parseFloat(d.usd_value).toFixed(2);
-        document.getElementById('e-f').style.width = d.energy + "%";
-        document.getElementById('e-t').innerText = `Energy: ${d.energy}/100`;
+        // UI SYNC - MINE
+        document.getElementById('tot').innerText = parseFloat(data.score).toLocaleString();
+        document.getElementById('prof-rank-val').innerText = data.rank;
+        document.getElementById('header-usd').innerText = parseFloat(data.usd_value).toFixed(2);
+        document.getElementById('e-f').style.width = data.energy + "%";
 
-        // --- UPDATE WALLET ---
-        document.getElementById('wallet-balance').innerText = parseFloat(d.score).toLocaleString();
+        // UI SYNC - WALLET & PROFIL
+        document.getElementById('wallet-balance').innerText = parseFloat(data.score).toLocaleString();
+        document.getElementById('prof-name').innerText = data.name || "CITIZEN";
+        document.getElementById('prof-rank-big').innerText = "#" + data.rank;
+        document.getElementById('total-net-worth').innerText = "$" + parseFloat(data.usd_value).toFixed(2);
 
-        // --- UPDATE PROFIL ---
-        document.getElementById('prof-name').innerText = d.name || "CITIZEN";
-        document.getElementById('prof-rank-big').innerText = `#${d.rank}`;
-        document.getElementById('total-net-worth').innerText = `$${parseFloat(d.usd_value).toFixed(2)}`;
-        
-        updateAssetList(d.assets);
-
-    } catch (e) { console.error("Sync Error", e); }
+        updateAssets(data.assets);
+    } catch (e) { console.error("Sync Error:", e); }
 }
 
-function updateAssetList(assets) {
-    const list = document.getElementById('asset-list');
-    if (!list) return;
-    list.innerHTML = assets.map(a => `
-        <div class="asset-card" onclick="openTrade('${a.symbol}')" style="display:flex; justify-content:space-between; align-items:center; background:var(--glass); padding:15px; border-radius:15px; margin-bottom:10px; border:1px solid #1a1a1c;">
-            <div style="display:flex; align-items:center; gap:12px;">
-                <img src="${a.icon}" style="width:35px; height:35px; border-radius:10px;">
-                <div>
-                    <b style="display:block; font-size:14px;">${a.name}</b>
-                    <small style="opacity:0.4;">${parseFloat(a.balance).toFixed(2)} ${a.symbol}</small>
-                </div>
+// ASSET RENDERER
+function updateAssets(assets) {
+    const container = document.getElementById('asset-list');
+    if (!container) return;
+    container.innerHTML = assets.map(a => `
+        <div class="asset-row" onclick="openTrade('${a.symbol}')">
+            <img src="${a.icon}" class="a-icon">
+            <div class="a-info">
+                <b>${a.name}</b>
+                <small>${parseFloat(a.balance).toFixed(2)} ${a.symbol}</small>
             </div>
-            <div style="text-align:right;">
-                <b style="display:block;">$${(a.balance * a.current_price).toFixed(2)}</b>
-                <small style="color:#00ff88; font-size:10px;">Trade ↗</small>
-            </div>
+            <div class="a-price">$${(a.balance * a.current_price).toFixed(2)}</div>
         </div>
     `).join('');
 }
 
+// DRAWER CONTROLS
+function toggleLauncher() {
+    document.getElementById('launcher-drawer').classList.toggle('active');
+    tg.HapticFeedback.impactOccurred('medium');
+}
 
-// Initialisation
+function toggleLottery() {
+    const lot = document.getElementById('sub-lottery');
+    lot.style.display = lot.style.display === 'none' ? 'block' : 'none';
+}
+
+// START ENGINE
 setInterval(refresh, 5000);
 refresh();
+
+
+
 
 </script>
 
