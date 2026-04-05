@@ -201,63 +201,59 @@ function showPage(pageId) {
 
 
     // Fonction de rafraîchissement (Remplit le Rank et les Scores)
-  async function refresh() {
-    if (!uid) return;
+  // Variable globale pour stocker les infos du serveur
+window.lastData = null;
+
+async function refresh() {
     try {
         const r = await fetch(`${BASE_URL}/api/user/${uid}`);
-        if (!r.ok) return;
-        const d = await r.json(); 
-
-        // --- 1. FONCTION HELPER POUR ÉVITER LES ERREURS ---
-        const update = (id, val) => {
-            const el = document.getElementById(id);
-            if (el) {
-                // Si c'est un nombre, on le formate, sinon on affiche tel quel
-                el.innerText = isNaN(val) ? (val || "---") : parseFloat(val || 0).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-            }
-        };
-
-        // --- 2. MISE À JOUR DES SOLDES (WALLET & MINE) ---
-        update('tot', d.score);           // Gros compteur page Mine
-        update('wallet-balance', d.score); // Gros chiffre page Wallet
-        update('user-balance', d.score);   // Autre ID si utilisé
+        const d = await r.json();
+        window.lastData = d; // ON SAUVEGARDE ICI 🛰️
         
-        // Sous-jetons
-        update('gv', d.g); 
-        update('uv', d.u); 
-        update('vv', d.v); 
+        updateProfilUI(d);
+        // ... reste de ton code refresh
+    } catch (e) { console.error(e); }
+}
 
-        // --- 3. CALCUL DU NET WORTH (PROFIL) ---
-        // Cette fonction va remplir la liste des assets et le total USD ($40,05)
-        if (typeof updateProfilUI === "function") {
-            updateProfilUI(d); 
-        }
+function showTokenDetails(symbol) {
+    if (!window.lastData) return;
+    
+    // 1. On trouve l'asset cliqué
+    const asset = window.lastData.assets.find(a => a.symbol === symbol);
+    if (!asset) return;
 
-        // --- 4. RANG, ÉNERGIE & INFOS ---
-        if (document.getElementById('prof-rank')) {
-            document.getElementById('prof-rank').innerText = "RANK: #" + (d.rank || "---");
-        }
+    showPage('p-details');
+    tg.HapticFeedback.impactOccurred('medium');
 
-        if (document.getElementById('e-f')) {
-            document.getElementById('e-f').style.width = (d.energy || 0) + "%";
-            document.getElementById('e-t').innerText = `Energy: ${Math.floor(d.energy || 0)}/100`;
-        }
-        
-        if (document.getElementById('prof-name')) {
-            document.getElementById('prof-name').innerText = d.name || "Citizen";
-        }
+    // 2. On remplit dynamiquement la page p-details
+    document.getElementById('det-icon').src = asset.icon;
+    document.getElementById('det-name').innerText = asset.name;
+    document.getElementById('det-symbol').innerText = "$" + asset.symbol;
+    
+    const price = parseFloat(asset.current_price || 0);
+    document.getElementById('det-price-usd').innerText = `$${price.toFixed(8)}`;
+    document.getElementById('det-mcap').innerText = `$${(asset.balance * price).toLocaleString()}`;
+    
+    // 3. Logique spécifique au Token Genesis ($GWPC)
+    const chartContainer = document.getElementById('det-chart-container');
+    const progressBar = document.getElementById('det-progress-area'); // On va entourer la barre d'un ID
 
-        if (document.getElementById('prof-initials') && d.name) {
-            document.getElementById('prof-initials').innerText = d.name.charAt(0).toUpperCase();
-        }
-
-    } catch (e) {
-        console.error("❌ Erreur de rafraîchissement :", e);
+    if (symbol === 'GWPC') {
+        progressBar.style.display = 'block'; // On montre la barre de progression
+        chartContainer.innerHTML = `
+            <img src="media/logo_genesis.png" style="position:absolute; width:150%; opacity:0.1; filter:blur(10px);">
+            <div style="z-index:2; text-align:center; padding:20px;">
+                <div class="spinner">🛰️</div>
+                <h4 style="color:var(--gold);">CHART INITIALIZING</h4>
+                <p style="font-size:10px; opacity:0.6;">Waiting for liquidity sync...</p>
+                <button class="btn" onclick="window.open('https://t.me/gasPump_bot/app?startapp=eyJyZWZfdXNlcl9pZCI6MTQxNDAxNjg0MH0')">VIEW ON GAS PUMP ↗</button>
+            </div>`;
+    } else {
+        progressBar.style.display = 'none'; // On cache la barre pour les autres
+        chartContainer.innerHTML = `<div style="opacity:0.2; padding:100px;">Chart coming soon for ${symbol}</div>`;
     }
 }
+
 
 
 
