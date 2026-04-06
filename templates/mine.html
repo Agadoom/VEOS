@@ -4,8 +4,13 @@
 
 <div id="p-mine" class="page active-page">
     <div class="prof-header" style="background: linear-gradient(180deg, rgba(255,204,0,0.05) 0%, transparent 100%); padding: 20px 0; text-align: center;">
-        <small id="prof-rank" style="color:var(--gold); font-weight:900; letter-spacing: 1px;">RANK: #---</small>
+        <small id="prof-rank-val" style="color:var(--gold); font-weight:900; letter-spacing: 1px;">RANK: #---</small>
+        
         <h1 id="tot" style="font-size:48px; margin:5px 0; font-family: 'monospace'; font-weight: 800; text-shadow: 0 0 15px rgba(255,255,255,0.1);">0.00</h1>
+        
+        <div style="margin-bottom: 10px; opacity: 0.6; font-size: 14px;">
+            ≈ $<span id="header-usd">0.00</span>
+        </div>
         
         <div style="padding: 0 20px;">
             <div style="background:#1a1a1c; height:10px; border-radius:10px; margin:10px 0; border: 1px solid #333; overflow: hidden; position: relative;">
@@ -22,29 +27,8 @@
             </div>
         </div>
     </div>
-
-    <div style="display: grid; gap: 10px; margin-top: 10px;">
-        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
-            <div><b>Genesis <span style="color:var(--gold)">(WPT)</span></b><br><small id="gv">0.00</small></div>
-            <button class="btn" onclick="mine('genesis', event)">MINE</button>
-        </div>
-        
-        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
-            <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
-            <button class="btn" style="background: #eee; color:#000;" onclick="mine('unity', event)">SYNC</button>
-        </div>
-
-        <div class="card" style="margin-bottom: 0; padding: 12px 18px; border-color: rgba(162, 89, 255, 0.3);">
-            <div><b style="color:var(--purple);">Veo AI</b><br><small id="vv">0.00</small></div>
-            <button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
-        </div>
     </div>
 
-    <div class="coin-container" style="text-align:center; margin-top:35px; position: relative;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 140px; background: var(--gold); filter: blur(40px); opacity: 0.15; border-radius: 50%; pointer-events: none;"></div>
-        <img src="/static/genesis.png" class="main-coin" style="width:170px; height: 170px; cursor:pointer;" onclick="mine('genesis', event)">
-    </div>
-</div>
 
 
 
@@ -115,7 +99,10 @@
         <h3 id="filter-title" style="margin: 0; letter-spacing: 2px; font-size: 12px; text-transform: uppercase; opacity: 0.7;">LIVE LISTINGS</h3>
     </div>
     
-    <div id="token-list" style="padding: 0 15px 20px 15px;"></div>
+    <div id="token-list" style="padding: 0 15px 20px 15px; min-height: 50px;">
+    <p style="text-align:center; opacity:0.3; font-size:12px;">Chargement des protocoles...</p>
+</div>
+
 </div>
 
 
