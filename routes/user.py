@@ -78,16 +78,17 @@ async def get_user_data(uid: int):
         usd_value = score_total * current_price
 
         # Rank Logic
-        c.execute("""
-            SELECT position FROM (
-                SELECT user_id, 
-                       RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as position 
-                FROM users
-            ) AS ranking 
-            WHERE user_id = %s
-        """, (uid,))
-        res_rank = c.fetchone()
-        if res_rank: rank_display = res_rank[0]
+        # --- DANS user.py (get_user_data) ---
+c.execute("""
+    SELECT pos FROM (
+        SELECT user_id, 
+               RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as pos
+        FROM users
+    ) as ranking
+    WHERE user_id = %s
+""", (uid,))
+res_rank = c.fetchone()
+rank_display = res_rank[0] if res_rank else "---"
 
         c.close(); conn.close()
     except Exception as e:
