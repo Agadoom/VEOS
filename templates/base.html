@@ -320,43 +320,39 @@ function updateProfilUI(d) {
 
 
         // --- TES FONCTIONS JS (A relier à ton backend) ---
-        async function mine(tokenType, event) {
-    // 1. Visuel Bleu + Vibration (Ce que tu as déjà)
+       function mine(type, event) {
+    // 1. Retour Haptique
     tg.HapticFeedback.impactOccurred('medium');
-    showClickAnim(event); // Ta fonction pour l'onde bleue
 
-    // 2. L'ENVOI CRITIQUE
-    try {
-        const response = await fetch(`${BASE_URL}/api/mine`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                "uid": uid,           // On envoie les deux pour être sûr
-                "user_id": uid, 
-                "token_type": tokenType // "genesis", "unity", ou "veo"
-            })
-        });
+    // 2. Création de l'onde bleue (Ripple)
+    const coinContainer = document.querySelector('.coin-container');
+    const ripple = document.createElement('div');
+    ripple.className = 'mine-ripple';
+    
+    // Positionner au centre du clic ou de la pièce
+    const rect = coinContainer.getBoundingClientRect();
+    ripple.style.left = (event.clientX - rect.left - 25) + 'px';
+    ripple.style.top = (event.clientY - rect.top - 25) + 'px';
+    ripple.style.width = '50px';
+    ripple.style.height = '50px';
+    
+    coinContainer.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
 
-        const data = await response.json();
+    // 3. Affichage du texte flottant bleu
+    const reward = document.createElement('div');
+    reward.className = 'floating-reward';
+    reward.innerText = '+0.05'; // Tu peux dynamiser avec data.reward plus tard
+    reward.style.left = (event.clientX - rect.left) + 'px';
+    reward.style.top = (event.clientY - rect.top) + 'px';
+    
+    coinContainer.appendChild(reward);
+    setTimeout(() => reward.remove(), 800);
 
-        if (data.ok) {
-            // Mise à jour instantanée de l'écran avec les données du serveur
-            document.getElementById('tot').innerText = data.score.toLocaleString();
-            document.getElementById('e-f').style.width = data.new_energy + "%";
-            
-            // Mise à jour des compteurs spécifiques
-            if (tokenType === 'genesis') document.getElementById('gv').innerText = data.genesis;
-            if (tokenType === 'unity') document.getElementById('uv').innerText = data.unity;
-            if (tokenType === 'veo') document.getElementById('vv').innerText = data.veo;
-            
-        } else {
-            console.error("Refus du serveur:", data.error);
-            // Si l'erreur est "Too fast", on peut afficher un petit message
-        }
-    } catch (e) {
-        console.error("Erreur réseau minage:", e);
-    }
+    // 4. Appel API au serveur (ton mine.py)
+    sendMineRequest(type);
 }
+
 
 
 
