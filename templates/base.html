@@ -365,6 +365,8 @@ async function refresh() {
 
         console.log("🛰️ Sync Réussie | Rank:", d.rank);
 
+if(pageId === 'p-launcher') loadRecentTokens();
+
     } catch (error) {
         console.error("❌ Erreur de synchronisation:", error);
     }
