@@ -293,23 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-// --- 1. INITIALISATION PROPRE AU CHARGEMENT ---
-document.addEventListener('DOMContentLoaded', () => {
-    // Force la fermeture de toutes les pages sauf la Mine au démarrage
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-    const home = document.getElementById('p-mine');
-    if (home) {
-        home.style.display = 'block';
-        home.classList.add('active-page');
-    }
-
-    // Petit délai pour laisser Telegram injecter l'UID
-    setTimeout(() => {
-        refresh(); // Premier refresh global
-        loadRecentTokens(); // Charger la liste du launcher en arrière-plan
-        setInterval(refresh, 5000); // Boucle de sync toutes les 5 sec
-    }, 500);
-});
 
 
 
