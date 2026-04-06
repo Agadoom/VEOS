@@ -22,23 +22,33 @@ async def get_leaderboard():
     conn = database.get_db_conn()
     c = conn.cursor()
     try:
+        # On calcule le score total et on filtre ceux qui ont au moins quelque chose
         c.execute("""
-            SELECT name, (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total_score 
+            SELECT 
+                COALESCE(name, 'User_' || LEFT(user_id::text, 4)), 
+                (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) as total_score,
+                user_id
             FROM users 
-            WHERE name IS NOT NULL AND (p_genesis > 0 OR p_unity > 0 OR p_veo > 0)
+            WHERE (p_genesis > 0 OR p_unity > 0 OR p_veo > 0)
             ORDER BY total_score DESC 
-            LIMIT 10
+            LIMIT 50
         """)
+        
         leaders = []
         for i, r in enumerate(c.fetchall()):
             leaders.append({
                 "rank": i + 1,
-                "name": r[0] or "Unknown",
-                "score": round(r[1], 2)
+                "name": r[0],
+                "score": round(float(r[1]), 2),
+                "uid": r[2]
             })
         return leaders
+    except Exception as e:
+        print(f"❌ Leaderboard Error: {e}")
+        return []
     finally:
         c.close(); conn.close()
+
 
 # --- 2. DONNÉES UTILISATEUR (GET PROFILE & ASSETS) ---
 @router.get("/{uid}")
@@ -78,24 +88,23 @@ async def get_user_data(uid: int):
         usd_value = score_total * current_price
 
         # Rank Logic
-                # --- LOGIQUE DU RANK (Bloc Try/Except Propre) ---
+                        # --- LOGIQUE DU RANK (Version Ultra-Stable) ---
         try:
+            # On utilise une seule connexion pour tout le bloc
             c.execute("""
-                SELECT position FROM (
+                SELECT pos FROM (
                     SELECT user_id, 
-                           RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as position 
+                    RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as pos 
                     FROM users
                 ) AS ranking 
                 WHERE user_id = %s
             """, (uid,))
             res_rank = c.fetchone()
-            if res_rank: 
-                rank_display = res_rank[0]
-            else:
-                rank_display = "---"
+            rank_display = res_rank[0] if res_rank else "---"
         except Exception as e:
-            print(f"❌ Error calculating Rank: {e}")
+            print(f"❌ Rank Calculation Error: {e}")
             rank_display = "---"
+
         finally:
             # Très important pour éviter les fuites de connexion
             c.close()
