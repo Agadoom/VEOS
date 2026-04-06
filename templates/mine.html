@@ -27,6 +27,31 @@
             </div>
         </div>
     </div>
+  
+
+
+    <div style="display: grid; gap: 10px; margin-top: 10px;">
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
+            <div><b>Genesis <span style="color:var(--gold)">(WPT)</span></b><br><small id="gv">0.00</small></div>
+            <button class="btn" onclick="mine('genesis', event)">MINE</button>
+        </div>
+        
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px;">
+            <div><b>Unity Pool</b><br><small id="uv">0.00</small></div>
+            <button class="btn" style="background: #eee; color:#000;" onclick="mine('unity', event)">SYNC</button>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; padding: 12px 18px; border-color: rgba(162, 89, 255, 0.3);">
+            <div><b style="color:var(--purple);">Veo AI</b><br><small id="vv">0.00</small></div>
+            <button class="btn" style="background:var(--purple); color:#fff;" onclick="mine('veo', event)">COMPUTE</button>
+        </div>
+    </div>
+
+    <div class="coin-container" style="text-align:center; margin-top:35px; position: relative;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 140px; height: 140px; background: var(--gold); filter: blur(40px); opacity: 0.15; border-radius: 50%; pointer-events: none;"></div>
+        <img src="/static/genesis.png" class="main-coin" style="width:170px; height: 170px; cursor:pointer;" onclick="mine('genesis', event)">
+    </div>
+</div>>
 
 
 
