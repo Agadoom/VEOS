@@ -78,8 +78,7 @@ async def get_user_data(uid: int):
         usd_value = score_total * current_price
 
         # Rank Logic
-        # --- DANS user.py (get_user_data) ---
-c.execute("""
+        c.execute("""
     SELECT pos FROM (
         SELECT user_id, 
                RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as pos
