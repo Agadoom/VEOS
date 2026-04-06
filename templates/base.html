@@ -192,6 +192,14 @@
 
     <script>
         const tg = window.Telegram.WebApp;
+const userData = tg.initDataUnsafe.user;
+const uid = userData ? userData.id : 12345678; // 12345678 est pour tes tests PC
+
+// FORCE LE PREMIER REFRESH
+document.addEventListener('DOMContentLoaded', () => {
+    refresh(); 
+    setInterval(refresh, 5000); // Sync toutes les 5 sec
+});
         tg.expand();
         tg.enableClosingConfirmation();
         const BASE_URL = "https://veos-production-a2de.up.railway.app";
