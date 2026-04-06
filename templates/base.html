@@ -251,6 +251,33 @@
 }
 
 
+
+.rank-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    margin-bottom: 10px;
+    transition: 0.3s;
+}
+
+.rank-1 { border-color: var(--gold); background: linear-gradient(90deg, rgba(255,215,0,0.1), transparent); }
+.rank-2 { border-color: #C0C0C0; } /* Argent */
+.rank-3 { border-color: #CD7F32; } /* Bronze */
+
+.rank-number {
+    width: 30px;
+    font-weight: 900;
+    font-size: 18px;
+}
+
+.gold-text { color: var(--gold); text-shadow: 0 0 10px rgba(255,215,0,0.3); }
+
+
+
     </style>
 </head>
 <body>
@@ -675,20 +702,53 @@ async function loadRecentTokens() {
 
 
 async function loadLeaderboard() {
+    const container = document.getElementById('leaderboard-list');
+    if (!container) return;
+
     try {
-        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
-        const data = await r.json();
-        const container = document.getElementById('leaderboard-list');
-        if(!container) return;
-        
-        container.innerHTML = data.map(u => `
-            <div class="card" style="display:flex; justify-content:space-between; padding:10px;">
-                <span>#${u.rank} ${u.name}</span>
-                <b style="color:var(--gold);">${u.score.toLocaleString()} WPT</b>
-            </div>
-        `).join('');
-    } catch(e) { console.error("Leaderboard crash", e); }
+        const response = await fetch(`${BASE_URL}/api/user/leaderboard`);
+        const data = await response.json();
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="text-align:center; opacity:0.5;">No data available yet.</p>';
+            return;
+        }
+
+        container.innerHTML = ''; // On vide le spinner
+
+        data.forEach((u, index) => {
+            let rankClass = "";
+            let medal = u.rank;
+            
+            // Gestion du podium
+            if (u.rank === 1) { rankClass = "rank-1"; medal = "🥇"; }
+            else if (u.rank === 2) { rankClass = "rank-2"; medal = "🥈"; }
+            else if (u.rank === 3) { rankClass = "rank-3"; medal = "🥉"; }
+
+            container.innerHTML += `
+                <div class="rank-card ${rankClass}">
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <div class="rank-number">${medal}</div>
+                        <div>
+                            <b style="font-size:15px; color:#fff;">${u.name}</b><br>
+                            <small style="opacity:0.4; font-size:10px;">UID: ${u.uid ? u.uid.toString().slice(0,6) : '????'}...</small>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <b class="${u.rank === 1 ? 'gold-text' : ''}" style="font-size:14px;">
+                            ${u.score.toLocaleString()}
+                        </b>
+                        <small style="display:block; font-size:9px; color:var(--gold); font-weight:bold;">WPT</small>
+                    </div>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.error("❌ Erreur Leaderboard:", e);
+        container.innerHTML = '<p style="text-align:center; color:red;">Connection error.</p>';
+    }
 }
+
 
 
 
