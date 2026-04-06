@@ -226,6 +226,86 @@
 
 
 
+async function refresh() {
+    if (!uid) return; // Sécurité : on ne refresh pas sans ID
+    
+    try {
+        const response = await fetch(`${BASE_URL}/api/user/${uid}`);
+        if (!response.ok) throw new Error("Erreur Serveur");
+        
+        const d = await response.json();
+        
+        // --- IMPORTANT : On stocke les données pour les autres pages (Trade/Profil) ---
+        window.lastData = d; 
+
+        // 1. Mise à jour de la MINE (Page d'accueil)
+        if (document.getElementById('tot')) {
+            document.getElementById('tot').innerText = d.score.toLocaleString();
+        }
+        if (document.getElementById('header-usd')) {
+            document.getElementById('header-usd').innerText = d.usd_value.toFixed(2);
+        }
+        if (document.getElementById('prof-rank-val')) {
+            document.getElementById('prof-rank-val').innerText = d.rank;
+        }
+        if (document.getElementById('e-f')) {
+            document.getElementById('e-f').style.width = d.energy + "%";
+        }
+        if (document.getElementById('e-t')) {
+            document.getElementById('e-t').innerText = `Energy: ${d.energy}/100`;
+        }
+
+        // 2. Mise à jour des petits compteurs Genesis/Unity/Veo
+        if (document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toLocaleString();
+        if (document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toLocaleString();
+        if (document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toLocaleString();
+
+        // 3. Mise à jour du WALLET
+        if (document.getElementById('wallet-balance')) {
+            document.getElementById('wallet-balance').innerText = d.score.toLocaleString();
+        }
+
+        // 4. Mise à jour du PROFIL & ASSETS
+        updateProfilUI(d);
+
+        console.log("🛰️ Sync Réussie | Rank:", d.rank);
+
+    } catch (error) {
+        console.error("❌ Erreur de synchronisation:", error);
+    }
+}
+
+// Fonction pour injecter les assets dans le profil
+function updateProfilUI(d) {
+    const assetList = document.getElementById('asset-list');
+    if (!assetList || !d.assets) return;
+
+    assetList.innerHTML = ''; // On vide
+
+    d.assets.forEach(asset => {
+        const value = (asset.balance * asset.current_price).toFixed(2);
+        assetList.innerHTML += `
+            <div class="card-pro" onclick="openTradeSection('${asset.symbol}')" style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:15px; border-radius:15px; margin-bottom:10px; border:1px solid #1a1a1c;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <img src="${asset.icon}" style="width:35px; height:35px; border-radius:10px;">
+                    <div>
+                        <b style="display:block; font-size:14px;">${asset.name}</b>
+                        <small style="opacity:0.4;">${asset.balance.toLocaleString()} ${asset.symbol}</small>
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <b style="display:block;">$${value}</b>
+                    <small style="color:#00ff88; font-size:10px;">+${asset.change_24h}%</small>
+                </div>
+            </div>
+        `;
+    });
+
+    // Mise à jour des infos globales profil
+    if (document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
+    if (document.getElementById('prof-rank-big')) document.getElementById('prof-rank-big').innerText = "#" + d.rank;
+    if (document.getElementById('total-net-worth')) document.getElementById('total-net-worth').innerText = "$" + d.usd_value.toFixed(2);
+}
 
 
 
