@@ -298,28 +298,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-        // LOGIQUE DE NAVIGATION ENTRE LES PAGES
-        function showPage(pageId, navElement) {
-    // 1. On cache TOUTES les pages
+   // 1. INITIALISATION CORRIGÉE
+document.addEventListener('DOMContentLoaded', () => {
+    // Petit délai pour laisser Telegram initialiser l'ID
+    setTimeout(() => {
+        refresh(); 
+        loadRecentTokens(); // CHARGE LES TOKENS DIRECTEMENT AU DÉBUT
+        setInterval(refresh, 5000); 
+    }, 500);
+
+    // Force l'affichage de la mine au départ
+    const minePage = document.getElementById('p-mine');
+    if (minePage) minePage.style.display = 'block';
+});
+
+// 2. NAVIGATION CORRIGÉE (Pour charger les tokens au clic)
+function showPage(pageId, navElement) {
     document.querySelectorAll('.page').forEach(p => {
         p.style.display = 'none';
         p.classList.remove('active-page');
     });
 
-    // 2. On affiche LA page demandée
     const target = document.getElementById(pageId);
     if (target) {
         target.style.display = 'block';
         target.classList.add('active-page');
     }
 
-    // 3. Update visuel du menu en bas
+    // SI ON OUVRE LE LAUNCHER, ON RECHARGE LA LISTE
+    if (pageId === 'p-launcher') {
+        console.log("🚀 Chargement des tokens du Launcher...");
+        loadRecentTokens();
+    }
+
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     if (navElement) navElement.classList.add('active');
 
-    // 4. Vibration Telegram
     tg.HapticFeedback.selectionChanged();
 }
+
 
 
 
@@ -341,11 +358,15 @@ async function refresh() {
         window.lastData = d; 
 
         // A. MISE À JOUR DE LA MINE & RANK
-        // On vérifie le rank en priorité (si d.rank est null, on met ---)
-        const displayRank = (d.rank && d.rank !== "---") ? "#" + d.rank : "#---";
-        
-        if (document.getElementById('prof-rank-val')) document.getElementById('prof-rank-val').innerText = displayRank;
-        if (document.getElementById('prof-rank-big')) document.getElementById('prof-rank-big').innerText = displayRank;
+// On s'assure que rank est traité comme du texte
+let displayRank = "#---";
+if (d.rank !== undefined && d.rank !== null && d.rank !== "---") {
+    displayRank = "#" + d.rank;
+}
+
+if (document.getElementById('prof-rank-val')) document.getElementById('prof-rank-val').innerText = displayRank;
+if (document.getElementById('prof-rank-big')) document.getElementById('prof-rank-big').innerText = displayRank;
+
         
         if (document.getElementById('tot')) {
             // Utilisation de toLocaleString pour avoir les espaces (ex: 400 381)
