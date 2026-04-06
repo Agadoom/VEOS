@@ -341,37 +341,70 @@ function updateProfilUI(d) {
 
 
         // --- TES FONCTIONS JS (A relier à ton backend) ---
-       function mine(type, event) {
+       // MODIFICATION DE LA FONCTION MINE
+function mine(type, event) {
     // 1. Retour Haptique
     tg.HapticFeedback.impactOccurred('medium');
 
-    // 2. Création de l'onde bleue (Ripple)
+    // 2. Visuel (Ripple bleu)
     const coinContainer = document.querySelector('.coin-container');
-    const ripple = document.createElement('div');
-    ripple.className = 'mine-ripple';
-    
-    // Positionner au centre du clic ou de la pièce
-    const rect = coinContainer.getBoundingClientRect();
-    ripple.style.left = (event.clientX - rect.left - 25) + 'px';
-    ripple.style.top = (event.clientY - rect.top - 25) + 'px';
-    ripple.style.width = '50px';
-    ripple.style.height = '50px';
-    
-    coinContainer.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 600);
+    if (coinContainer) {
+        const ripple = document.createElement('div');
+        ripple.className = 'mine-ripple';
+        const rect = coinContainer.getBoundingClientRect();
+        ripple.style.left = (event.clientX - rect.left - 25) + 'px';
+        ripple.style.top = (event.clientY - rect.top - 25) + 'px';
+        ripple.style.width = '50px'; ripple.style.height = '50px';
+        coinContainer.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 600);
+    }
 
-    // 3. Affichage du texte flottant bleu
-    const reward = document.createElement('div');
-    reward.className = 'floating-reward';
-    reward.innerText = '+0.05'; // Tu peux dynamiser avec data.reward plus tard
-    reward.style.left = (event.clientX - rect.left) + 'px';
-    reward.style.top = (event.clientY - rect.top) + 'px';
-    
-    coinContainer.appendChild(reward);
-    setTimeout(() => reward.remove(), 800);
+    // 3. Texte flottant
+    const rewardEffect = document.createElement('div');
+    rewardEffect.className = 'floating-reward';
+    rewardEffect.innerText = '+0.05';
+    rewardEffect.style.left = event.clientX + 'px';
+    rewardEffect.style.top = event.clientY + 'px';
+    document.body.appendChild(rewardEffect);
+    setTimeout(() => rewardEffect.remove(), 800);
 
-    // 4. Appel API au serveur (ton mine.py)
+    // 4. L'APPEL MANQUANT (On définit la fonction juste en dessous)
     sendMineRequest(type);
+}
+
+// AJOUT DE LA FONCTION DE COMMUNICATION
+async function sendMineRequest(type) {
+    try {
+        const response = await fetch(`${BASE_URL}/api/mine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: uid, // Récupéré au début du script
+                token_type: type // 'genesis', 'unity' ou 'veo'
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            // Mise à jour immédiate de l'interface avec le retour de mine.py
+            if (document.getElementById('tot')) document.getElementById('tot').innerText = data.score.toLocaleString();
+            if (document.getElementById('e-f')) document.getElementById('e-f').style.width = data.new_energy + "%";
+            if (document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${data.new_energy}/100`;
+            
+            // Mise à jour des compteurs spécifiques
+            if (document.getElementById('gv')) document.getElementById('gv').innerText = data.genesis.toLocaleString();
+            if (document.getElementById('uv')) document.getElementById('uv').innerText = data.unity.toLocaleString();
+            if (document.getElementById('vv')) document.getElementById('vv').innerText = data.veo.toLocaleString();
+        } else {
+            console.error("Serveur erreur:", data.error);
+            if(data.error === "Low energy") {
+                tg.showAlert("Énergie insuffisante ! Attendez la recharge.");
+            }
+        }
+    } catch (e) {
+        console.error("Erreur réseau minage:", e);
+    }
 }
 
 
