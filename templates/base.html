@@ -412,6 +412,94 @@ async function sendMineRequest(type) {
 
 
 
+// 1. Fonction pour Créer un Token
+async function deployToken() {
+    const name = document.getElementById('tk-name').value;
+    const symbol = document.getElementById('tk-sym').value;
+    const desc = document.getElementById('tk-desc').value;
+    const btn = document.getElementById('btn-deploy');
+
+    if (!name || !symbol) {
+        tg.showAlert("⚠️ Le nom et le symbole sont obligatoires !");
+        return;
+    }
+
+    // Effet visuel sur le bouton
+    btn.innerText = "DÉPLOIEMENT EN COURS...";
+    btn.disabled = true;
+    tg.HapticFeedback.impactOccurred('heavy');
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/launcher/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: uid,
+                name: name,
+                symbol: symbol,
+                description: desc
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            tg.showAlert(`✅ Token ${symbol} créé avec succès !`);
+            document.getElementById('tk-name').value = '';
+            document.getElementById('tk-sym').value = '';
+            document.getElementById('tk-desc').value = '';
+            loadRecentTokens(); // Recharger la liste
+            refresh(); // Mettre à jour le solde (car ça coûte 5000 WPT)
+        } else {
+            tg.showAlert("❌ Erreur: " + data.error);
+        }
+    } catch (e) {
+        console.error("Erreur Launcher:", e);
+        tg.showAlert("❌ Serveur indisponible.");
+    } finally {
+        btn.innerText = "DÉPLOYER (5,000 WPT)";
+        btn.disabled = false;
+    }
+}
+
+// 2. Fonction pour charger les tokens récents
+async function loadRecentTokens() {
+    const list = document.getElementById('token-list');
+    if (!list) return;
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await response.json();
+
+        list.innerHTML = ''; // Vider la liste
+
+        tokens.forEach(t => {
+            list.innerHTML += `
+                <div class="card" style="background:rgba(255,255,255,0.02); border:1px solid #222; margin-bottom:10px; padding:15px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:40px; height:40px; background:linear-gradient(45deg, var(--gold), #ffaa00); border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:900; color:#000;">
+                            ${t.symbol[0]}
+                        </div>
+                        <div>
+                            <b style="font-size:14px;">${t.name}</b><br>
+                            <small style="color:var(--gold); font-size:10px;">$${t.symbol}</small>
+                        </div>
+                    </div>
+                    <button class="btn" style="height:30px; font-size:10px; padding:0 15px; background:#fff; color:#000;" onclick="openTradeSection('${t.symbol}')">VOIR</button>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.log("Erreur chargement tokens");
+    }
+}
+
+// Appeler le chargement quand on ouvre la page launcher
+// (À ajouter dans ta fonction showPage)
+
+
+
+
         function buyStarsPack(amount) {
             console.log("Achat stars :", amount);
             // Fonction déjà vue hier
