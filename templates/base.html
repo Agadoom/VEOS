@@ -176,12 +176,46 @@
             tg.HapticFeedback.selectionChanged();
         }
 
+
+
+
+
+
+
+
+
         // --- TES FONCTIONS JS (A relier à ton backend) ---
-        function mine(type, event) {
-            tg.HapticFeedback.impactOccurred('light');
-            console.log("Minage lancé :", type);
-            // Ici ton appel fetch vers Railway
+        async function mine(type, event) {
+    // 1. Retour haptique (vibration) pour confirmer le clic
+    if (window.Telegram && Telegram.WebApp) {
+        Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
+
+    // 2. Animation visuelle (+1 qui monte)
+    showClickAnim(event); 
+
+    try {
+        // 3. ENVOI AU SERVEUR RAILWAY
+        const r = await fetch(`${BASE_URL}/api/mine`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: uid, // Ton ID Telegram
+                mine_type: type 
+            })
+        });
+
+        if (r.ok) {
+            const data = await r.json();
+            // 4. MISE À JOUR LOCALE IMMEDIATE
+            document.getElementById('tot').innerText = parseFloat(data.new_score).toLocaleString();
+            document.getElementById('e-f').style.width = data.new_energy + "%";
         }
+    } catch (e) {
+        console.error("Erreur de minage:", e);
+    }
+}
+
 
         function buyStarsPack(amount) {
             console.log("Achat stars :", amount);
