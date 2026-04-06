@@ -185,36 +185,43 @@
 
 
         // --- TES FONCTIONS JS (A relier à ton backend) ---
-        async function mine(type, event) {
-    // 1. Retour haptique (vibration) pour confirmer le clic
-    if (window.Telegram && Telegram.WebApp) {
-        Telegram.WebApp.HapticFeedback.impactOccurred('light');
-    }
-
-    // 2. Animation visuelle (+1 qui monte)
-    showClickAnim(event); 
+        async function mine(tokenType, event) {
+    // Vibration
+    if (window.Telegram && Telegram.WebApp) Telegram.WebApp.HapticFeedback.impactOccurred('light');
 
     try {
-        // 3. ENVOI AU SERVEUR RAILWAY
-        const r = await fetch(`${BASE_URL}/api/mine`, {
+        const response = await fetch(`${BASE_URL}/api/mine`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                user_id: uid, // Ton ID Telegram
-                mine_type: type 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: uid,
+                token_type: tokenType // "genesis", "unity" ou "veo"
             })
         });
 
-        if (r.ok) {
-            const data = await r.json();
-            // 4. MISE À JOUR LOCALE IMMEDIATE
-            document.getElementById('tot').innerText = parseFloat(data.new_score).toLocaleString();
-            document.getElementById('e-f').style.width = data.new_energy + "%";
+        const data = await response.json();
+
+        if (data.ok) {
+            // MISE À JOUR DES COMPOSANTS
+            if (document.getElementById('tot')) document.getElementById('tot').innerText = data.score.toLocaleString();
+            if (document.getElementById('e-f')) document.getElementById('e-f').style.width = data.new_energy + "%";
+            if (document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${data.new_energy}/100`;
+            
+            // Mise à jour des petits compteurs
+            if (data.genesis && document.getElementById('gv')) document.getElementById('gv').innerText = data.genesis;
+            if (data.unity && document.getElementById('uv')) document.getElementById('uv').innerText = data.unity;
+            if (data.veo && document.getElementById('vv')) document.getElementById('vv').innerText = data.veo;
+
+            // Animation +1 (optionnel)
+            showClickAnim(event, `+${data.reward}`);
+        } else {
+            console.error("Erreur serveur:", data.error);
         }
     } catch (e) {
-        console.error("Erreur de minage:", e);
+        console.error("Erreur réseau:", e);
     }
 }
+
 
 
 
