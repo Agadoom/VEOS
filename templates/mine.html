@@ -49,48 +49,75 @@
 
 
 
-<div id="p-launcher" class="page" style="display:none;">
-    <h2 style="text-align:center; font-weight: 800; color: #fff;">🚀 LAUNCHPAD</h2>
+<div id="p-launcher" class="page" style="display:none; padding-bottom: 100px;">
     
-    <div class="card" style="flex-direction:column; align-items:stretch; gap:12px; background: linear-gradient(145deg, #0a0a0b, #121214); padding:20px;">
-        <div style="text-align:center;"><b style="color:var(--gold);">Create Ecosystem Token</b></div>
+    <div style="text-align:center; padding: 30px 20px;">
+        <div style="font-size: 40px; margin-bottom: 10px; animation: float 3s infinite ease-in-out;">🚀</div>
+        <h2 style="font-weight: 900; color: #fff; letter-spacing: 3px; margin: 0;">LAUNCHPAD</h2>
+        <small style="color: var(--gold); opacity: 0.8; font-weight: bold;">GENESIS ECOSYSTEM PROTOCOL</small>
+    </div>
+    
+    <div class="card launchpad-blueprint" style="flex-direction:column; align-items:stretch; gap:15px; padding:25px; margin: 0 15px;">
         
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <input type="text" id="tk-name" class="l-input" placeholder="Name">
-            <input type="text" id="tk-sym" class="l-input" placeholder="$SYM">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+            <div style="width: 10px; height: 10px; background: var(--gold); border-radius: 2px;"></div>
+            <b style="font-size: 12px; color: #fff; letter-spacing: 1px;">TOKEN INITIALIZATION</b>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="display:flex; flex-direction:column; gap:5px;">
+                <small style="font-size:9px; opacity:0.5; margin-left:5px;">TOKEN NAME</small>
+                <input type="text" id="tk-name" class="l-input" placeholder="e.g. Mars Coin" style="width:100%; border-radius:8px; padding:12px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:5px;">
+                <small style="font-size:9px; opacity:0.5; margin-left:5px;">TICKER SYMBOL</small>
+                <input type="text" id="tk-sym" class="l-input" placeholder="$MARS" style="width:100%; border-radius:8px; padding:12px;">
+            </div>
         </div>
         
-        <input type="url" id="tk-url" class="l-input" placeholder="Website URL (https://...)">
-        <input type="text" id="tk-x" class="l-input" placeholder="Twitter @username">
+        <div style="display:flex; flex-direction:column; gap:5px;">
+            <small style="font-size:9px; opacity:0.5; margin-left:5px;">OFFICIAL WEBSITE (OPTIONAL)</small>
+            <input type="url" id="tk-url" class="l-input" placeholder="https://..." style="width:100%; border-radius:8px; padding:12px;">
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:5px;">
+            <small style="font-size:9px; opacity:0.5; margin-left:5px;">PROJECT VISION</small>
+            <textarea id="tk-desc" class="l-input" style="height:80px; border-radius:8px; padding:12px; resize:none;" placeholder="Tell the world about your mission..."></textarea>
+        </div>
         
-        <textarea id="tk-desc" class="l-input" style="height:60px;" placeholder="Description..."></textarea>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-            <label class="upload-box" style="border: 1px dashed #444; padding:10px; border-radius:10px; text-align:center; font-size:11px; cursor:pointer;">
-                <span id="label-logo">🖼️ Logo</span>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top: 5px;">
+            <label class="upload-box" style="background: rgba(255,215,0,0.03); border: 1px dashed rgba(255,215,0,0.2); padding:15px; border-radius:12px; text-align:center; cursor:pointer; transition: 0.3s;">
+                <div style="font-size: 18px;">🖼️</div>
+                <span id="label-logo" style="font-size: 10px; font-weight:bold; color:var(--gold);">ID LOGO</span>
                 <input type="file" id="f-logo" hidden onchange="processFile('logo')">
             </label>
-            <label class="upload-box" style="border: 1px dashed #444; padding:10px; border-radius:10px; text-align:center; font-size:11px; cursor:pointer;">
-                <span id="label-banner">🌅 Banner</span>
+            <label class="upload-box" style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.1); padding:15px; border-radius:12px; text-align:center; cursor:pointer; transition: 0.3s;">
+                <div style="font-size: 18px;">🌅</div>
+                <span id="label-banner" style="font-size: 10px; font-weight:bold; opacity:0.7;">BANNER</span>
                 <input type="file" id="f-banner" hidden onchange="processFile('banner')">
             </label>
         </div>
-        <button class="btn" style="background:var(--gold); color:#000; width:100%; font-weight:900;" onclick="deployToken()">LAUNCH TOKEN (5,000 WPT)</button>
+
+        <button class="btn btn-launch" style="background:var(--gold); color:#000; width:100%; font-weight:900; height: 55px; border-radius: 12px; margin-top: 10px; box-shadow: 0 5px 20px rgba(255,215,0,0.2);" onclick="deployToken()">
+            <span style="font-size: 16px;">INITIATE LAUNCH</span>
+            <div style="font-size: 8px; opacity: 0.6; margin-top: 2px;">COST: 5,000 WPT</div>
+        </button>
     </div>
 
-      <div style="display: flex; gap: 10px; margin: 25px 0 15px 10px; overflow-x: auto; padding-right: 10px;">
-        <div onclick="setFilter('new', this)" class="tab-btn active-tab" style="padding: 8px 16px; background: var(--gold); color: #000; border-radius: 12px; font-size: 11px; font-weight: 900; cursor: pointer; white-space: nowrap; border: 1px solid var(--gold);">✨ NEW</div>
-        <div onclick="setFilter('hot', this)" class="tab-btn" style="padding: 8px 16px; background: #111; color: #fff; border-radius: 12px; font-size: 11px; font-weight: 900; cursor: pointer; white-space: nowrap; border: 1px solid #222;">🔥 HOT</div>
-        <div onclick="setFilter('my', this)" class="tab-btn" style="padding: 8px 16px; background: #111; color: #fff; border-radius: 12px; font-size: 11px; font-weight: 900; cursor: pointer; white-space: nowrap; border: 1px solid #222;">👤 MY TOKENS</div>
+    <div style="display: flex; gap: 10px; margin: 30px 15px 15px 15px; overflow-x: auto; padding-bottom: 5px;">
+        <div onclick="setFilter('new', this)" class="tab-btn active-tab" style="padding: 10px 20px; background: var(--gold); color: #000; border-radius: 30px; font-size: 11px; font-weight: 900; white-space: nowrap; transition: 0.3s;">✨ DISCOVER</div>
+        <div onclick="setFilter('hot', this)" class="tab-btn" style="padding: 10px 20px; background: #111; color: #fff; border-radius: 30px; font-size: 11px; font-weight: 900; white-space: nowrap; transition: 0.3s; border: 1px solid #222;">🔥 TRENDING</div>
+        <div onclick="setFilter('my', this)" class="tab-btn" style="padding: 10px 20px; background: #111; color: #fff; border-radius: 30px; font-size: 11px; font-weight: 900; white-space: nowrap; transition: 0.3s; border: 1px solid #222;">👤 MY FLEET</div>
     </div>
 
-    <div style="display: flex; align-items: center; margin: 10px 0 15px 10px;">
-        <span id="filter-emoji" style="font-size: 18px; margin-right: 8px;">✨</span>
-        <h3 id="filter-title" style="margin: 0; letter-spacing: 1px; font-size: 14px; text-transform: uppercase;">NEW LISTINGS</h3>
+    <div style="display: flex; align-items: center; margin: 10px 20px;">
+        <div style="width: 5px; height: 5px; background: var(--gold); border-radius: 50%; margin-right: 10px; animation: pulse 1.5s infinite;"></div>
+        <h3 id="filter-title" style="margin: 0; letter-spacing: 2px; font-size: 12px; text-transform: uppercase; opacity: 0.7;">LIVE LISTINGS</h3>
     </div>
     
-    <div id="token-list" style="padding-bottom: 20px;"></div>
+    <div id="token-list" style="padding: 0 15px 20px 15px;"></div>
 </div>
+
 
 
 
