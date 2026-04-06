@@ -117,6 +117,53 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+
+
+/* Animation de l'onde bleue au clic */
+.mine-ripple {
+    position: absolute;
+    border: 2px solid #00d2ff;
+    background: rgba(0, 210, 255, 0.2);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: scale(0);
+    animation: ripple-out 0.6s ease-out;
+    z-index: 99;
+}
+
+@keyframes ripple-out {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* Effet de lueur bleue sur la pièce au clic */
+.main-coin:active {
+    transform: scale(0.92);
+    filter: drop-shadow(0 0 30px #00d2ff) brightness(1.2);
+    transition: 0.1s;
+}
+
+/* Style des petits "+0.05" qui montent en bleu */
+.floating-reward {
+    position: absolute;
+    color: #00d2ff;
+    font-weight: 900;
+    font-size: 20px;
+    pointer-events: none;
+    animation: float-up 0.8s forwards;
+    text-shadow: 0 0 10px rgba(0, 210, 255, 0.8);
+    z-index: 100;
+}
+
+@keyframes float-up {
+    to {
+        transform: translateY(-100px) scale(1.2);
+        opacity: 0;
+    }
+}
+
     </style>
 </head>
 <body>
@@ -185,42 +232,39 @@
 
 
         // --- TES FONCTIONS JS (A relier à ton backend) ---
-        async function mine(tokenType, event) {
-    // Vibration
-    if (window.Telegram && Telegram.WebApp) Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        function mine(type, event) {
+    // 1. Retour Haptique
+    tg.HapticFeedback.impactOccurred('medium');
 
-    try {
-        const response = await fetch(`${BASE_URL}/api/mine`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: uid,
-                token_type: tokenType // "genesis", "unity" ou "veo"
-            })
-        });
+    // 2. Création de l'onde bleue (Ripple)
+    const coinContainer = document.querySelector('.coin-container');
+    const ripple = document.createElement('div');
+    ripple.className = 'mine-ripple';
+    
+    // Positionner au centre du clic ou de la pièce
+    const rect = coinContainer.getBoundingClientRect();
+    ripple.style.left = (event.clientX - rect.left - 25) + 'px';
+    ripple.style.top = (event.clientY - rect.top - 25) + 'px';
+    ripple.style.width = '50px';
+    ripple.style.height = '50px';
+    
+    coinContainer.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
 
-        const data = await response.json();
+    // 3. Affichage du texte flottant bleu
+    const reward = document.createElement('div');
+    reward.className = 'floating-reward';
+    reward.innerText = '+0.05'; // Tu peux dynamiser avec data.reward plus tard
+    reward.style.left = (event.clientX - rect.left) + 'px';
+    reward.style.top = (event.clientY - rect.top) + 'px';
+    
+    coinContainer.appendChild(reward);
+    setTimeout(() => reward.remove(), 800);
 
-        if (data.ok) {
-            // MISE À JOUR DES COMPOSANTS
-            if (document.getElementById('tot')) document.getElementById('tot').innerText = data.score.toLocaleString();
-            if (document.getElementById('e-f')) document.getElementById('e-f').style.width = data.new_energy + "%";
-            if (document.getElementById('e-t')) document.getElementById('e-t').innerText = `Energy: ${data.new_energy}/100`;
-            
-            // Mise à jour des petits compteurs
-            if (data.genesis && document.getElementById('gv')) document.getElementById('gv').innerText = data.genesis;
-            if (data.unity && document.getElementById('uv')) document.getElementById('uv').innerText = data.unity;
-            if (data.veo && document.getElementById('vv')) document.getElementById('vv').innerText = data.veo;
-
-            // Animation +1 (optionnel)
-            showClickAnim(event, `+${data.reward}`);
-        } else {
-            console.error("Erreur serveur:", data.error);
-        }
-    } catch (e) {
-        console.error("Erreur réseau:", e);
-    }
+    // 4. Appel API au serveur (ton mine.py)
+    sendMineRequest(type);
 }
+
 
 
 
