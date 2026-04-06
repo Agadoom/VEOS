@@ -651,6 +651,29 @@ async function loadRecentTokens() {
 
 
 
+
+async function loadLeaderboard() {
+    try {
+        const r = await fetch(`${BASE_URL}/api/user/leaderboard`);
+        const data = await r.json();
+        const container = document.getElementById('leaderboard-list');
+        if(!container) return;
+        
+        container.innerHTML = data.map(u => `
+            <div class="card" style="display:flex; justify-content:space-between; padding:10px;">
+                <span>#${u.rank} ${u.name}</span>
+                <b style="color:var(--gold);">${u.score.toLocaleString()} WPT</b>
+            </div>
+        `).join('');
+    } catch(e) { console.error("Leaderboard crash", e); }
+}
+
+
+
+
+
+
+
         function buyStarsPack(amount) {
             console.log("Achat stars :", amount);
             // Fonction déjà vue hier
