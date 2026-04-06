@@ -327,7 +327,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 async function refresh() {
-    if (!uid) return; // Sécurité : on ne refresh pas sans ID
+    if (!uid) {
+        console.log("🛰️ En attente de l'UID utilisateur...");
+        return;
+    }
     
     try {
         const response = await fetch(`${BASE_URL}/api/user/${uid}`);
@@ -335,19 +338,26 @@ async function refresh() {
         
         const d = await response.json();
         
-        // --- IMPORTANT : On stocke les données pour les autres pages (Trade/Profil) ---
+        // Stockage global pour les autres composants
         window.lastData = d; 
 
-        // 1. Mise à jour de la MINE (Page d'accueil)
+        // A. MISE À JOUR DE LA MINE & RANK
+        // On vérifie le rank en priorité (si d.rank est null, on met ---)
+        const displayRank = (d.rank && d.rank !== "---") ? "#" + d.rank : "#---";
+        
+        if (document.getElementById('prof-rank-val')) document.getElementById('prof-rank-val').innerText = displayRank;
+        if (document.getElementById('prof-rank-big')) document.getElementById('prof-rank-big').innerText = displayRank;
+        
         if (document.getElementById('tot')) {
-            document.getElementById('tot').innerText = d.score.toLocaleString();
+            // Utilisation de toLocaleString pour avoir les espaces (ex: 400 381)
+            document.getElementById('tot').innerText = d.score.toLocaleString('fr-FR', { minimumFractionDigits: 2 });
         }
+        
         if (document.getElementById('header-usd')) {
             document.getElementById('header-usd').innerText = d.usd_value.toFixed(2);
         }
-        if (document.getElementById('prof-rank-val')) {
-            document.getElementById('prof-rank-val').innerText = d.rank;
-        }
+
+        // B. ÉNERGIE (Barre et Texte)
         if (document.getElementById('e-f')) {
             document.getElementById('e-f').style.width = d.energy + "%";
         }
@@ -355,27 +365,31 @@ async function refresh() {
             document.getElementById('e-t').innerText = `Energy: ${d.energy}/100`;
         }
 
-        // 2. Mise à jour des petits compteurs Genesis/Unity/Veo
+        // C. COMPTEURS INDIVIDUELS (Genesis, Unity, Veo)
+        // On s'assure que les IDs correspondent bien à ton HTML
         if (document.getElementById('gv')) document.getElementById('gv').innerText = d.g.toLocaleString();
         if (document.getElementById('uv')) document.getElementById('uv').innerText = d.u.toLocaleString();
         if (document.getElementById('vv')) document.getElementById('vv').innerText = d.v.toLocaleString();
 
-        // 3. Mise à jour du WALLET
+        // D. WALLET
         if (document.getElementById('wallet-balance')) {
             document.getElementById('wallet-balance').innerText = d.score.toLocaleString();
         }
 
-        // 4. Mise à jour du PROFIL & ASSETS
+        // E. PROFIL & ASSETS
         updateProfilUI(d);
 
-        console.log("🛰️ Sync Réussie | Rank:", d.rank);
-
-if(pageId === 'p-launcher') loadRecentTokens();
+        console.log("🛰️ Sync OK | Rank:", displayRank, "| Score:", d.score);
 
     } catch (error) {
         console.error("❌ Erreur de synchronisation:", error);
     }
 }
+
+
+
+
+
 
 // Fonction pour injecter les assets dans le profil
 function updateProfilUI(d) {
@@ -570,6 +584,50 @@ async function loadRecentTokens() {
 // Appeler le chargement quand on ouvre la page launcher
 // (À ajouter dans ta fonction showPage)
 
+
+
+
+
+
+
+async function loadRecentTokens() {
+    const list = document.getElementById('token-list');
+    if (!list) return;
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/launcher/list`);
+        const tokens = await response.json();
+        
+        list.innerHTML = ''; // Nettoyage
+
+        if (tokens.length === 0) {
+            list.innerHTML = '<p style="text-align:center; opacity:0.3; padding:20px;">No tokens launched yet.</p>';
+            return;
+        }
+
+        tokens.forEach(t => {
+            // Ici, on dessine la carte du token (Blueprint style)
+            list.innerHTML += `
+                <div class="card" style="background:rgba(255,255,255,0.03); border:1px solid #222; margin-bottom:12px; padding:15px; border-radius:15px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div style="width:40px; height:40px; background:var(--gold); color:#000; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:900;">
+                                ${t.symbol ? t.symbol[0] : 'T'}
+                            </div>
+                            <div>
+                                <b style="font-size:14px; color:#fff;">${t.name}</b><br>
+                                <small style="color:var(--gold); font-size:10px;">$${t.symbol}</small>
+                            </div>
+                        </div>
+                        <button class="btn" style="padding:5px 15px; font-size:10px; background:#fff; color:#000;" onclick="showPage('p-trade')">TRADE</button>
+                    </div>
+                </div>
+            `;
+        });
+    } catch (e) {
+        console.error("❌ Erreur tokens:", e);
+    }
+}
 
 
 
