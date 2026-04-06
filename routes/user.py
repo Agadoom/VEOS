@@ -78,23 +78,34 @@ async def get_user_data(uid: int):
         usd_value = score_total * current_price
 
         # Rank Logic
-        c.execute("""
-    SELECT pos FROM (
-        SELECT user_id, 
-               RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as pos
-        FROM users
-    ) as ranking
-    WHERE user_id = %s
-""", (uid,))
-res_rank = c.fetchone()
-rank_display = res_rank[0] if res_rank else "---"
+                # --- LOGIQUE DU RANK (Bloc Try/Except Propre) ---
+        try:
+            c.execute("""
+                SELECT position FROM (
+                    SELECT user_id, 
+                           RANK() OVER (ORDER BY (COALESCE(p_genesis,0) + COALESCE(p_unity,0) + COALESCE(p_veo,0)) DESC) as position 
+                    FROM users
+                ) AS ranking 
+                WHERE user_id = %s
+            """, (uid,))
+            res_rank = c.fetchone()
+            if res_rank: 
+                rank_display = res_rank[0]
+            else:
+                rank_display = "---"
+        except Exception as e:
+            print(f"❌ Error calculating Rank: {e}")
+            rank_display = "---"
+        finally:
+            # Très important pour éviter les fuites de connexion
+            c.close()
+            conn.close()
 
-        c.close(); conn.close()
     except Exception as e:
-        print(f"❌ Error: {e}")
-        current_price = 0.0001
+        print(f"❌ Critical User Data Error: {e}")
+        # On s'assure que score_total et usd_value ont au moins des valeurs par défaut
         score_total = (float(p_gen or 0) + float(p_uni or 0) + float(p_veo or 0))
-        usd_value = score_total * current_price
+        usd_value = score_total * 0.0001
 
     # Énergie Dynamique
     l_upd = int(last_upd) if last_upd else now_ts
