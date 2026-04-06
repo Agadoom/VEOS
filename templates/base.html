@@ -185,6 +185,72 @@
 }
 
 
+
+
+/* Effet de lueur sur le container */
+.launchpad-blueprint {
+    position: relative;
+    background: radial-gradient(circle at top right, rgba(255,215,0,0.05), transparent);
+    border: 1px solid rgba(255, 215, 0, 0.1);
+    overflow: hidden;
+}
+
+/* Animation des coins du dessin technique */
+.launchpad-blueprint::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; width: 20px; height: 20px;
+    border-top: 2px solid var(--gold); border-left: 2px solid var(--gold);
+}
+
+.launchpad-blueprint::after {
+    content: "";
+    position: absolute;
+    bottom: 0; right: 0; width: 20px; height: 20px;
+    border-bottom: 2px solid var(--gold); border-right: 2px solid var(--gold);
+}
+
+/* Style des inputs futuristes */
+.l-input {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    transition: 0.3s;
+    font-size: 13px;
+}
+
+.l-input:focus {
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);
+}
+
+/* Bouton de lancement animé */
+.btn-launch {
+    position: relative;
+    overflow: hidden;
+    transition: 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.btn-launch:active {
+    transform: scale(0.98);
+}
+
+.btn-launch::after {
+    content: "";
+    position: absolute;
+    top: -50%; left: -50%; width: 200%; height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.2), transparent);
+    transform: rotate(45deg);
+    animation: shine-launch 3s infinite;
+}
+
+@keyframes shine-launch {
+    0% { left: -150%; }
+    100% { left: 150%; }
+}
+
+
     </style>
 </head>
 <body>
