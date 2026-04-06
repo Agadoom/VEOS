@@ -397,7 +397,7 @@ if (document.getElementById('prof-rank-big')) document.getElementById('prof-rank
         }
 
         // E. PROFIL & ASSETS
-        loadLeaderboard();
+        updateProfilUI(d);
 
         console.log("🛰️ Sync OK | Rank:", displayRank, "| Score:", d.score);
 
@@ -416,31 +416,46 @@ function updateProfilUI(d) {
     const assetList = document.getElementById('asset-list');
     if (!assetList || !d.assets) return;
 
-    assetList.innerHTML = ''; // On vide
+    assetList.innerHTML = ''; 
 
     d.assets.forEach(asset => {
-        const value = (asset.balance * asset.current_price).toFixed(2);
+        // Sécurité : s'assurer que balance et price sont des nombres
+        const balance = parseFloat(asset.balance) || 0;
+        const price = parseFloat(asset.current_price) || 0;
+        const value = (balance * price).toFixed(2);
+        
         assetList.innerHTML += `
             <div class="card-pro" onclick="openTradeSection('${asset.symbol}')" style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:15px; border-radius:15px; margin-bottom:10px; border:1px solid #1a1a1c;">
                 <div style="display:flex; align-items:center; gap:12px;">
-                    <img src="${asset.icon}" style="width:35px; height:35px; border-radius:10px;">
+                    <img src="${asset.icon}" style="width:35px; height:35px; border-radius:10px;" onerror="this.src='/static/genesis.png'">
                     <div>
                         <b style="display:block; font-size:14px;">${asset.name}</b>
-                        <small style="opacity:0.4;">${asset.balance.toLocaleString()} ${asset.symbol}</small>
+                        <small style="opacity:0.4;">${balance.toLocaleString()} ${asset.symbol}</small>
                     </div>
                 </div>
                 <div style="text-align:right;">
                     <b style="display:block;">$${value}</b>
-                    <small style="color:#00ff88; font-size:10px;">+${asset.change_24h}%</small>
+                    <small style="color:${asset.change_24h >= 0 ? '#00ff88' : '#ff4444'}; font-size:10px;">
+                        ${asset.change_24h >= 0 ? '+' : ''}${asset.change_24h}%
+                    </small>
                 </div>
             </div>
         `;
     });
 
-    // Mise à jour des infos globales profil
-    if (document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name;
-    if (document.getElementById('prof-rank-big')) document.getElementById('prof-rank-big').innerText = "#" + d.rank;
-    if (document.getElementById('total-net-worth')) document.getElementById('total-net-worth').innerText = "$" + d.usd_value.toFixed(2);
+    // --- FIX RANK & NET WORTH ---
+    if (document.getElementById('prof-name')) document.getElementById('prof-name').innerText = d.name || "Citizen";
+    
+    const rankEl = document.getElementById('prof-rank-big');
+    if (rankEl) {
+        // On évite le double ## si d.rank contient déjà un # ou est vide
+        const finalRank = (d.rank && d.rank !== "---") ? "#" + d.rank : "#---";
+        rankEl.innerText = finalRank;
+    }
+
+    if (document.getElementById('total-net-worth')) {
+        document.getElementById('total-net-worth').innerText = "$" + (parseFloat(d.usd_value) || 0).toFixed(2);
+    }
 }
 
 
