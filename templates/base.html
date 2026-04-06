@@ -2,203 +2,182 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>One World Peace Coins</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
-
     <style>
         :root {
-    --gold: #FFD700;
-    --purple: #A259FF;
-    --dark-card: #0a0a0b;
-    --border: rgba(255, 255, 255, 0.08);
-}
+            --gold: #FFD700;
+            --purple: #A259FF;
+            --bg: #000000;
+            --card-bg: #0a0a0b;
+            --text: #ffffff;
+        }
 
-body { background: #000; color: #fff; font-family: 'Inter', sans-serif; margin: 0; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+            -webkit-user-select: none;
+        }
 
-/* Menu de Navigation en bas */
-.nav-bar {
-    position: fixed; bottom: 0; width: 100%; height: 70px;
-    background: rgba(10, 10, 11, 0.8); backdrop-filter: blur(20px);
-    display: flex; justify-content: space-around; align-items: center;
-    border-top: 1px solid var(--border); z-index: 100;
-}
+        /* --- STYLES GENERAUX --- */
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .active-page { display: block; }
 
-/* Sections de l'App */
-.page { display: none; padding: 20px; padding-bottom: 100px; min-height: 100vh; box-sizing: border-box; }
-.active-page { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid #1a1a1c;
+            border-radius: 15px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
 
-/* Cards de Minage & Assets */
-.card-pro {
-    background: var(--dark-card); border: 1px solid var(--border);
-    border-radius: 20px; padding: 15px; margin-bottom: 12px;
-    display: flex; align-items: center; justify-content: space-between;
-}
+        .btn {
+            border: none;
+            padding: 8px 20px;
+            border-radius: 10px;
+            font-weight: 900;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
 
-.btn-main {
-    background: var(--gold); color: #000; border: none;
-    padding: 10px 20px; border-radius: 12px; font-weight: 900;
-    cursor: pointer; transition: 0.2s;
-}
+        .l-input {
+            background: #111;
+            border: 1px solid #333;
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            outline: none;
+        }
 
-.btn-main:active { transform: scale(0.95); }
+        /* --- NAVIGATION BASSE --- */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 70px;
+            background: rgba(10, 10, 11, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid #1a1a1c;
+            z-index: 1000;
+        }
 
-/* Progress Bars */
-.bar-container { background: #1a1a1c; height: 8px; border-radius: 10px; overflow: hidden; margin: 10px 0; }
-.bar-fill { background: var(--gold); height: 100%; transition: 0.4s; }
+        .nav-item {
+            text-align: center;
+            opacity: 0.5;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+        .nav-item.active {
+            opacity: 1;
+            color: var(--gold);
+        }
+        .nav-item span { font-size: 20px; display: block; }
+        .nav-item small { font-size: 10px; font-weight: 700; text-transform: uppercase; }
 
-/* Launcher Drawer */
-.drawer {
-    position: fixed; bottom: -100%; left: 0; width: 100%; height: 85vh;
-    background: #0a0a0b; border-radius: 30px 30px 0 0;
-    border-top: 2px solid var(--gold); z-index: 1000;
-    transition: 0.5s cubic-bezier(0.32, 0.72, 0, 1);
-    padding: 25px; box-sizing: border-box;
-}
-.drawer.active { bottom: 0; }
+        /* --- ANIMATIONS --- */
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(162, 89, 255, 0.4); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(162, 89, 255, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(162, 89, 255, 0); }
+        }
 
-/* Floating Button */
-#fab-launcher {
-    position: fixed; bottom: 90px; right: 20px; width: 60px; height: 60px;
-    background: var(--gold); border-radius: 50%; display: flex;
-    align-items: center; justify-content: center; font-size: 24px;
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); z-index: 99;
-}
+        .main-coin {
+            transition: transform 0.1s;
+        }
+        .main-coin:active { transform: scale(0.9); }
 
+        .spinner {
+            width: 30px; height: 30px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid var(--gold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
     </style>
 </head>
 <body>
-    <div class="ticker">🏆 NETWORK ACTIVE ● TRADING ENABLED ● MINE WPT</div>
 
-    <div class="container">
+    <div id="app-content" style="padding-bottom: 90px;">
         {% block content %}{% endblock %}
     </div>
 
-    <nav class="nav">
-        <div onclick="showPage('p-mine')" id="n-mine" class="n-i active">🏠</div>
-        <div onclick="showPage('p-launcher')" id="n-launcher" class="n-i">🚀</div>
-        <div onclick="showPage('p-lottery')" id="n-lottery" class="n-i">🎰</div>
-        <div onclick="showPage('p-wallet')" id="n-wallet" class="n-i">💼</div>
-        <div onclick="showPage('p-profil')" id="n-profil" class="n-i">👤</div>
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="showPage('p-mine', this)">
+            <span>⛏️</span><small>Mine</small>
+        </div>
+        <div class="nav-item" onclick="showPage('p-launcher', this)">
+            <span>🚀</span><small>Launcher</small>
+        </div>
+        <div class="nav-item" onclick="showPage('p-trade', this)">
+            <span>📈</span><small>Trade</small>
+        </div>
+        <div class="nav-item" onclick="showPage('p-wallet', this)">
+            <span>💼</span><small>Wallet</small>
+        </div>
+        <div class="nav-item" onclick="showPage('p-profil', this)">
+            <span>👤</span><small>Profil</small>
+        </div>
     </nav>
 
     <script>
-    const tg = window.Telegram.WebApp;
-    // CRITIQUE : Récupérer l'ID réel de l'utilisateur Telegram
-    const uid = tg.initDataUnsafe?.user?.id || 12345; 
-    // REMPLACE PAR TON URL RÉELLE RAILWAY
-const BASE_URL = window.location.origin; 
-// OU SI TEST LOCAL :
-// const BASE_URL = "https://ton-app.railway.app"; 
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.enableClosingConfirmation();
 
+        // LOGIQUE DE NAVIGATION ENTRE LES PAGES
+        function showPage(pageId, navElement) {
+            // Cacher toutes les pages
+            document.querySelectorAll('.page').forEach(p => {
+                p.classList.remove('active-page');
+            });
+            // Afficher la page sélectionnée
+            document.getElementById(pageId).classList.add('active-page');
 
+            // Gérer l'état actif de la navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            navElement.classList.add('active');
 
+            // Petit retour haptique Telegram
+            tg.HapticFeedback.selectionChanged();
+        }
 
-// --- GESTION DES PAGES ---
-function showPage(id) {
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-    const target = document.getElementById(id);
-    if (target) {
-        target.style.display = 'block';
-        tg.HapticFeedback.impactOccurred('medium');
-    }
-}
+        // --- TES FONCTIONS JS (A relier à ton backend) ---
+        function mine(type, event) {
+            tg.HapticFeedback.impactOccurred('light');
+            console.log("Minage lancé :", type);
+            // Ici ton appel fetch vers Railway
+        }
 
-// --- GESTION DU LAUNCHER (Drawer) ---
-function toggleLauncher() {
-    const drawer = document.getElementById('launcher-drawer');
-    drawer.classList.toggle('active');
-    tg.HapticFeedback.selectionChanged();
-}
-
-// --- SYSTÈME DE TRADE DYNAMIQUE ---
-function openTrade(symbol) {
-    const asset = window.lastData.assets.find(a => a.symbol === symbol);
-    if (!asset) return;
-
-    // Remplissage des données
-    document.getElementById('tr-name').innerText = asset.name;
-    document.getElementById('tr-icon').src = asset.icon;
-    document.getElementById('tr-price').innerText = `$${parseFloat(asset.current_price).toFixed(8)}`;
-    
-    showPage('p-trade');
-    
-    // Injection du Chart
-    const chartContainer = document.getElementById('tr-chart-container');
-    if (symbol === 'GWPC') {
-        chartContainer.innerHTML = `<iframe src="https://dexscreener.com/ton/EQB6KPJ3W155V6iQH4ERfhfWtngZYTNvhMmpOkXea66hWhO6?embed=1&theme=dark" style="width:100%; height:100%; border:none;"></iframe>`;
-    } else {
-        chartContainer.innerHTML = `<div class="chart-placeholder">Chart Coming Soon</div>`;
-    }
-}
-
-// --- SYSTÈME DE REFRESH GLOBAL ---
-// Variable pour éviter les erreurs de undefined
-// GLOBAL SYNC DATA
-window.lastData = null;
-
-// REFRESH ENGINE
-async function refresh() {
-    try {
-        const response = await fetch(`${BASE_URL}/api/user/${uid}`);
-        const data = await response.json();
-        window.lastData = data;
-
-        // UI SYNC - MINE
-        document.getElementById('tot').innerText = parseFloat(data.score).toLocaleString();
-        document.getElementById('prof-rank-val').innerText = data.rank;
-        document.getElementById('header-usd').innerText = parseFloat(data.usd_value).toFixed(2);
-        document.getElementById('e-f').style.width = data.energy + "%";
-
-        // UI SYNC - WALLET & PROFIL
-        document.getElementById('wallet-balance').innerText = parseFloat(data.score).toLocaleString();
-        document.getElementById('prof-name').innerText = data.name || "CITIZEN";
-        document.getElementById('prof-rank-big').innerText = "#" + data.rank;
-        document.getElementById('total-net-worth').innerText = "$" + parseFloat(data.usd_value).toFixed(2);
-
-        updateAssets(data.assets);
-    } catch (e) { console.error("Sync Error:", e); }
-}
-
-// ASSET RENDERER
-function updateAssets(assets) {
-    const container = document.getElementById('asset-list');
-    if (!container) return;
-    container.innerHTML = assets.map(a => `
-        <div class="asset-row" onclick="openTrade('${a.symbol}')">
-            <img src="${a.icon}" class="a-icon">
-            <div class="a-info">
-                <b>${a.name}</b>
-                <small>${parseFloat(a.balance).toFixed(2)} ${a.symbol}</small>
-            </div>
-            <div class="a-price">$${(a.balance * a.current_price).toFixed(2)}</div>
-        </div>
-    `).join('');
-}
-
-// DRAWER CONTROLS
-function toggleLauncher() {
-    document.getElementById('launcher-drawer').classList.toggle('active');
-    tg.HapticFeedback.impactOccurred('medium');
-}
-
-function toggleLottery() {
-    const lot = document.getElementById('sub-lottery');
-    lot.style.display = lot.style.display === 'none' ? 'block' : 'none';
-}
-
-// START ENGINE
-setInterval(refresh, 5000);
-refresh();
-
-
-
-
-</script>
-
+        function buyStarsPack(amount) {
+            console.log("Achat stars :", amount);
+            // Fonction déjà vue hier
+        }
+    </script>
 </body>
 </html>
