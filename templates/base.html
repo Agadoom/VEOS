@@ -301,22 +301,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // LOGIQUE DE NAVIGATION ENTRE LES PAGES
         function showPage(pageId, navElement) {
-            // Cacher toutes les pages
-            document.querySelectorAll('.page').forEach(p => {
-                p.classList.remove('active-page');
-            });
-            // Afficher la page sélectionnée
-            document.getElementById(pageId).classList.add('active-page');
+    // 1. On cache TOUTES les pages
+    document.querySelectorAll('.page').forEach(p => {
+        p.style.display = 'none';
+        p.classList.remove('active-page');
+    });
 
-            // Gérer l'état actif de la navigation
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            navElement.classList.add('active');
+    // 2. On affiche LA page demandée
+    const target = document.getElementById(pageId);
+    if (target) {
+        target.style.display = 'block';
+        target.classList.add('active-page');
+    }
 
-            // Petit retour haptique Telegram
-            tg.HapticFeedback.selectionChanged();
-        }
+    // 3. Update visuel du menu en bas
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    if (navElement) navElement.classList.add('active');
+
+    // 4. Vibration Telegram
+    tg.HapticFeedback.selectionChanged();
+}
+
 
 
 
