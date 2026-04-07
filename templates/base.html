@@ -710,28 +710,63 @@ async function loadRecentTokens() {
 
 async function loadLeaderboard() {
     const container = document.getElementById('leaderboard-list');
-    try {
-        const response = await fetch(`${BASE_URL}/api/user/leaderboard`);
-        const data = await response.json();
-        
-        console.log("Données reçues :", data); // <--- REGARDE ICI DANS TA CONSOLE
+    if (!container) return;
 
-        if (data && data.length > 0) {
-            container.innerHTML = ''; // C'est ici qu'on supprime le message "Scanning..."
-            data.forEach(u => {
-                container.innerHTML += `
-                    <div class="rank-card">
-                        <span>#${u.rank} ${u.name}</span>
-                        <b>${u.score.toLocaleString()} WPT</b>
-                    </div>`;
-            });
-        } else {
-            container.innerHTML = "<p>Aucun citoyen détecté.</p>";
+    // 1. On s'assure que le container est prêt
+    console.log("🛰️ Tentative de connexion au Leaderboard...");
+
+    try {
+        // CORRECTION DE L'URL ICI : Ajout de /user/
+        const response = await fetch(`${BASE_URL}/api/user/leaderboard`);
+        
+        if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
         }
+
+        const data = await response.json();
+        console.log("🏆 Données Leaderboard reçues :", data);
+
+        // 2. On VIDE le message "Scanning Blockchain..."
+        container.innerHTML = ''; 
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="text-align:center; opacity:0.5; padding:20px;">Aucun citoyen dans le protocole.</p>';
+            return;
+        }
+
+        // 3. On injecte la liste
+        data.forEach((u) => {
+            let medal = u.rank;
+            let goldClass = u.rank === 1 ? "gold-text" : "";
+            if (u.rank === 1) medal = "🥇";
+            if (u.rank === 2) medal = "🥈";
+            if (u.rank === 3) medal = "🥉";
+
+            container.innerHTML += `
+                <div class="rank-card ${u.rank <= 3 ? 'rank-' + u.rank : ''}">
+                    <div style="display:flex; align-items:center; gap:15px;">
+                        <div class="rank-number">${medal}</div>
+                        <div>
+                            <b style="font-size:14px; color:#fff;">${u.name || 'Citizen'}</b><br>
+                            <small style="opacity:0.4; font-size:9px;">ID: ${u.uid ? u.uid.toString().slice(0,6) : '???'}</small>
+                        </div>
+                    </div>
+                    <div style="text-align:right;">
+                        <b class="${goldClass}" style="font-size:14px;">${u.score.toLocaleString()}</b>
+                        <small style="display:block; font-size:8px; color:var(--gold);">WPT</small>
+                    </div>
+                </div>
+            `;
+        });
+
     } catch (e) {
-        container.innerHTML = "<p>Erreur de connexion au protocole.</p>";
+        console.error("❌ Crash Leaderboard :", e);
+        container.innerHTML = `<p style="text-align:center; color:#ff4444; font-size:12px;">
+            Échec de la synchronisation.<br><small>${e.message}</small>
+        </p>`;
     }
 }
+
 
 
 
