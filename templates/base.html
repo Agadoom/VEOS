@@ -654,7 +654,13 @@ async function loadRecentTokens() {
                             <small style="color:var(--gold); font-size:10px;">$${t.symbol}</small>
                         </div>
                     </div>
-                    <button class="btn" style="height:30px; font-size:10px; padding:0 15px; background:#fff; color:#000;" onclick="openTradeSection('${t.symbol}')">VOIR</button>
+                    // REMPLACE TON ANCIEN BOUTON PAR CELUI-CI :
+<button class="btn" 
+    style="padding:5px 15px; font-size:10px; background:#fff; color:#000;" 
+    onclick="prepareTrade('${t.symbol}', '${t.name}', ${t.price || 0})">
+    TRADE
+</button>
+
                 </div>
             `;
         });
@@ -666,6 +672,30 @@ async function loadRecentTokens() {
 // Appeler le chargement quand on ouvre la page launcher
 // (À ajouter dans ta fonction showPage)
 
+
+
+
+
+function prepareTrade(symbol, name, price) {
+    // 1. On met à jour les textes dans la page p-trade
+    if (document.getElementById('trade-token-name')) 
+        document.getElementById('trade-token-name').innerText = name;
+    
+    if (document.getElementById('trade-token-symbol')) 
+        document.getElementById('trade-token-symbol').innerText = "$" + symbol;
+
+    if (document.getElementById('trade-token-price')) 
+        document.getElementById('trade-token-price').innerText = "$" + parseFloat(price).toFixed(6);
+
+    // 2. On stocke le token actuel globalement pour les fonctions Buy/Sell
+    window.currentTradeToken = symbol;
+
+    // 3. On ouvre enfin la page
+    showPage('p-trade');
+    
+    // 4. (Optionnel) Recharger le graphique spécifique si tu as un graph
+    // loadChart(symbol); 
+}
 
 
 
