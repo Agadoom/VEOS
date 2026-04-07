@@ -133,58 +133,22 @@
 
 
 
-<div id="p-trade" class="page" style="display:none; background: #000; min-height: 100vh; padding-bottom: 100px;">
-    <div style="padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1a1a1c;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <img id="tr-icon" src="media/logo_genesis.png" style="width: 45px; height: 45px; border-radius: 12px; border: 1px solid var(--gold);">
-            <div>
-                <h2 id="tr-name" style="margin: 0; font-size: 18px;">Genesis World</h2>
-                <span id="tr-price" style="color: #00ff88; font-weight: 900; font-family: monospace;">$0.0000000411</span>
-            </div>
+<div id="p-trade" class="page" style="display:none;">
+    <div style="padding:20px; text-align:center;">
+        <h2 id="trade-token-name">Token Name</h2>
+        <small id="trade-token-symbol" style="color:var(--gold);">$SYMBOL</small>
+        
+        <div style="margin: 20px 0;">
+            <span style="font-size:24px; font-weight:bold;" id="trade-token-price">$0.000000</span>
         </div>
-        <div style="text-align: right;">
-            <div id="tr-change" style="background: rgba(0, 255, 136, 0.1); color: #00ff88; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 900;">+5.4%</div>
-        </div>
-    </div>
 
-    <div id="tr-chart-container" style="width: 100%; height: 320px; background: #050505; position: relative;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; opacity: 0.3;">
-            <div class="spinner">🛰️</div>
-            <small>Loading Live Market Data...</small>
-        </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #1a1a1c; border-top: 1px solid #1a1a1c; border-bottom: 1px solid #1a1a1c;">
-        <div style="background: #000; padding: 15px; text-align: center;">
-            <small style="opacity: 0.5; font-size: 8px; display: block;">MARKET CAP</small>
-            <b id="tr-mcap" style="font-size: 11px;">$411K</b>
-        </div>
-        <div style="background: #000; padding: 15px; text-align: center;">
-            <small style="opacity: 0.5; font-size: 8px; display: block;">LIQUIDITY</small>
-            <b id="tr-liq" style="font-size: 11px;">$328K</b>
-        </div>
-        <div style="background: #000; padding: 15px; text-align: center;">
-            <small style="opacity: 0.5; font-size: 8px; display: block;">VOL 24H</small>
-            <b id="tr-vol" style="font-size: 11px;">$12K</b>
-        </div>
-    </div>
-
-    <div style="padding: 20px;">
-        <div style="background: #0a0a0b; border-radius: 16px; border: 1px solid #222; padding: 20px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-                <b style="font-size: 12px; opacity: 0.6;">QUICK SWAP</b>
-                <span id="tr-balance" style="font-size: 10px; color: var(--gold);">Bal: 0.00</span>
-            </div>
-            
-            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                <button onclick="setSwapMode('buy')" id="btn-buy-mode" style="flex: 1; padding: 12px; border-radius: 10px; background: #00ff88; color: #000; border: none; font-weight: 900;">BUY</button>
-                <button onclick="setSwapMode('sell')" id="btn-sell-mode" style="flex: 1; padding: 12px; border-radius: 10px; background: #1a1a1c; color: #fff; border: 1px solid #333; font-weight: 900;">SELL</button>
-            </div>
-
-            <button class="btn" style="width: 100%; padding: 16px; border-radius: 12px; font-size: 14px; letter-spacing: 1px;" onclick="executeTrade()">EXECUTE TRANSACTION</button>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+            <button class="btn" style="background:#00ff88; color:#000;">BUY</button>
+            <button class="btn" style="background:#ff4444; color:#fff;">SELL</button>
         </div>
     </div>
 </div>
+
 
 
 
