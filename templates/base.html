@@ -349,23 +349,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 2. NAVIGATION CORRIGÉE (Pour charger les tokens au clic)
 function showPage(pageId, navElement) {
+    // 1. On cache TOUTES les pages
     document.querySelectorAll('.page').forEach(p => {
         p.style.display = 'none';
         p.classList.remove('active-page');
     });
 
+    // 2. On affiche LA page demandée
     const target = document.getElementById(pageId);
     if (target) {
         target.style.display = 'block';
         target.classList.add('active-page');
     }
 
-    // SI ON OUVRE LE LAUNCHER, ON RECHARGE LA LISTE
+    // --- LA CLÉ EST ICI ---
+    if (pageId === 'p-leaderboard') {
+        console.log("🏆 Ouverture du Leaderboard...");
+        loadLeaderboard(); // On force l'appel API
+    }
     if (pageId === 'p-launcher') {
-        console.log("🚀 Chargement des tokens du Launcher...");
         loadRecentTokens();
     }
 
+    // 3. Update visuel du menu en bas
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     if (navElement) navElement.classList.add('active');
 
