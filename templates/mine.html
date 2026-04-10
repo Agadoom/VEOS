@@ -133,51 +133,83 @@
 
 
 
-<div id="p-trade" class="page" style="display:none; padding-bottom: 80px;">
-    <div style="padding:15px; text-align:center; border-bottom: 1px solid #333;">
-        <h2 id="trade-token-name" style="margin:0; font-size:20px;">Token Name</h2>
-        <small id="trade-token-symbol" style="color:var(--gold); font-weight:bold;">$SYMBOL</small>
-        <div style="font-size:26px; font-weight:900; margin-top:10px;" id="trade-token-price">$0.000000</div>
-    </div>
+let myChart = null; // Variable globale pour le graphique
 
-    <div style="display:flex; justify-content:space-around; background:#1a1a1a; padding:10px 0; border-bottom:1px solid #333;">
-        <div onclick="switchTradeTab('chart')" class="trade-tab active" id="tab-chart-btn">CHART</div>
-        <div onclick="switchTradeTab('about')" class="trade-tab" id="tab-about-btn">ABOUT</div>
-    </div>
+function prepareTrade(symbol, name, price) {
+    console.log("🚀 Lancement du Trade pour:", name);
 
-    <div id="trade-content-chart" class="trade-pane" style="padding:10px;">
-        <div style="width:100%; height:250px; background:#111; border-radius:10px; display:flex; align-items:center; justify-content:center; border:1px dashed #444;">
-            <canvas id="tradeChart"></canvas> 
-            </div>
-        
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
-            <div class="stat-card">
-                <small>24h High</small>
-                <div id="trade-high" style="color:#00ff88;">$0.00...</div>
-            </div>
-            <div class="stat-card">
-                <small>Market Cap</small>
-                <div id="trade-mcap">$0.00...</div>
-            </div>
-        </div>
-    </div>
+    // 1. Mise à jour immédiate des textes
+    document.getElementById('trade-token-name-main').innerText = name;
+    document.getElementById('trade-token-symbol-main').innerText = "$" + symbol;
+    document.getElementById('trade-token-price-main').innerText = "$" + parseFloat(price).toFixed(6);
+    
+    // 2. Remplissage de la section ABOUT
+    document.getElementById('trade-description').innerText = 
+        `Le jeton ${name} (${symbol}) est listé sur One World Peace. Détails techniques et sécurité vérifiés sur la blockchain.`;
+    
+    document.getElementById('trade-links').innerHTML = `
+        <button class="btn" style="padding:6px 12px; font-size:11px;" onclick="window.open('https://t.me/yourgroup')">Telegram</button>
+        <button class="btn" style="padding:6px 12px; font-size:11px;" onclick="window.open('https://yourwebsite.com')">Website</button>
+    `;
 
-    <div id="trade-content-about" class="trade-pane" style="padding:20px; display:none;">
-        <h4 style="color:var(--gold); margin-bottom:10px;">Description</h4>
-        <p id="trade-description" style="font-size:13px; color:#ccc; line-height:1.5;">
-            Aucune description disponible pour ce token.
-        </p>
-        
-        <h4 style="color:var(--gold); margin-top:20px; margin-bottom:10px;">Links</h4>
-        <div id="trade-links" style="display:flex; gap:10px; flex-wrap:wrap;">
-            </div>
-    </div>
+    // 3. Stats bidon pour le style
+    document.getElementById('t-high').innerText = "$" + (parseFloat(price) * 1.05).toFixed(6);
+    document.getElementById('t-mcap').innerText = (Math.random() * 10).toFixed(2) + "M $";
 
-    <div style="position:fixed; bottom:70px; left:0; width:100%; background:#000; padding:15px; display:grid; grid-template-columns: 1fr 1fr; gap:10px; border-top:1px solid #333;">
-        <button class="btn" style="background:#00ff88; color:#000; font-weight:bold; height:50px;" onclick="openOrder('buy')">BUY</button>
-        <button class="btn" style="background:#ff4444; color:#fff; font-weight:bold; height:50px;" onclick="openOrder('sell')">SELL</button>
-    </div>
-</div>
+    // 4. Initialisation du Graphique Chart.js
+    initTradeChart();
+
+    // 5. Affichage de la page
+    switchTradeTab('chart');
+    showPage('p-trade');
+    
+    if(window.Telegram && Telegram.WebApp) Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+}
+
+function initTradeChart() {
+    const ctx = document.getElementById('tradeChartCanvas').getContext('2d');
+    
+    // Si un graphique existe déjà, on le détruit pour le recréer proprement
+    if (myChart) myChart.destroy();
+
+    // Génération de données aléatoires pour la courbe
+    const labels = ['', '', '', '', '', '', '', '', '', ''];
+    const dataPoints = Array.from({length: 10}, () => Math.random() * 100);
+
+    myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Price',
+                data: dataPoints,
+                borderColor: '#00ff88',
+                borderWidth: 3,
+                pointRadius: 0,
+                tension: 0.4, // Pour l'effet courbe lisse
+                fill: true,
+                backgroundColor: 'rgba(0, 255, 136, 0.1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: { display: false }
+            }
+        }
+    });
+}
+
+function switchTradeTab(tab) {
+    document.getElementById('trade-content-chart').style.display = (tab === 'chart') ? 'block' : 'none';
+    document.getElementById('trade-content-about').style.display = (tab === 'about') ? 'block' : 'none';
+    
+    document.getElementById('tab-chart-btn').className = 'trade-tab' + (tab === 'chart' ? ' active' : '');
+    document.getElementById('tab-about-btn').className = 'trade-tab' + (tab === 'about' ? ' active' : '');
+}
 
 
 
