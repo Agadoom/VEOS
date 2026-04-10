@@ -301,6 +301,35 @@
 .stat-card small { color: #777; font-size: 10px; }
 
 
+
+
+
+.stars-pack {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #222;
+    border-radius: 18px;
+    padding: 20px 10px;
+    text-align: center;
+    transition: 0.3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.stars-pack:active { transform: scale(0.95); background: rgba(255, 215, 0, 0.05); }
+
+.btn-stars {
+    margin-top: 12px;
+    background: #fff;
+    color: #000;
+    border: none;
+    padding: 6px 15px;
+    border-radius: 20px;
+    font-weight: 900;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+
     </style>
 </head>
 <body>
@@ -912,10 +941,47 @@ async function loadLeaderboard() {
 
 
 
-        function buyStarsPack(amount) {
-            console.log("Achat stars :", amount);
-            // Fonction déjà vue hier
+        async function buyStars(starsAmount, wptAmount) {
+    tg.HapticFeedback.impactOccurred('medium');
+    
+    // On affiche un petit loading
+    const btn = event.currentTarget.querySelector('.btn-stars');
+    const originalText = btn.innerText;
+    btn.innerText = "⏳...";
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/stars/create-invoice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: uid,
+                stars: starsAmount
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.invoice_link) {
+            // Ouvrir la facture Telegram
+            tg.openInvoice(data.invoice_link, function(status) {
+                if (status === 'paid') {
+                    tg.showAlert(`🚀 BRAVO ! Tu as reçu ${wptAmount.toLocaleString()} WPT !`);
+                    refresh(); // Recharge le solde
+                } else {
+                    tg.showAlert("❌ Paiement non complété.");
+                }
+            });
+        } else {
+            tg.showAlert("❌ Erreur serveur: " + (data.error || "Inconnu"));
         }
+    } catch (e) {
+        console.error("Crash Stars JS:", e);
+        tg.showAlert("❌ Serveur injoignable.");
+    } finally {
+        btn.innerText = originalText;
+    }
+}
+
     </script>
 </body>
 </html>
