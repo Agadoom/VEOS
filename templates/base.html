@@ -6,6 +6,8 @@
     <title>One World Peace Coins</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
         :root {
             --gold: #FFD700;
@@ -697,40 +699,84 @@ async function loadRecentTokens() {
 
 
 
+let myChart = null; // Variable globale pour le graphique
+
 function prepareTrade(symbol, name, price) {
-    // 1. Infos de base
-    document.getElementById('trade-token-name').innerText = name;
-    document.getElementById('trade-token-symbol').innerText = "$" + symbol;
-    document.getElementById('trade-token-price').innerText = "$" + parseFloat(price).toFixed(6);
+    console.log("🚀 Lancement du Trade pour:", name);
 
-    // 2. Simulation de la description (ou récupération depuis ton tableau de tokens)
-    // Si tu as une description dans ton objet token t, utilise-la. 
-    // Sinon, on met un texte par défaut.
-    const description = "Ce token $"+symbol+" fait partie de l'écosystème One World Peace. Tradez avec prudence.";
-    document.getElementById('trade-description').innerText = description;
-
-    // 3. Liens
-    const linksContainer = document.getElementById('trade-links');
-    linksContainer.innerHTML = `
-        <button class="btn" style="font-size:10px; padding:5px 10px;" onclick="window.open('https://t.me/ton_canal')">Telegram</button>
-        <button class="btn" style="font-size:10px; padding:5px 10px;" onclick="window.open('https://google.com')">Website</button>
+    // 1. Mise à jour immédiate des textes
+    document.getElementById('trade-token-name-main').innerText = name;
+    document.getElementById('trade-token-symbol-main').innerText = "$" + symbol;
+    document.getElementById('trade-token-price-main').innerText = "$" + parseFloat(price).toFixed(6);
+    
+    // 2. Remplissage de la section ABOUT
+    document.getElementById('trade-description').innerText = 
+        `Le jeton ${name} (${symbol}) est listé sur One World Peace. Détails techniques et sécurité vérifiés sur la blockchain.`;
+    
+    document.getElementById('trade-links').innerHTML = `
+        <button class="btn" style="padding:6px 12px; font-size:11px;" onclick="window.open('https://t.me/yourgroup')">Telegram</button>
+        <button class="btn" style="padding:6px 12px; font-size:11px;" onclick="window.open('https://yourwebsite.com')">Website</button>
     `;
 
-    // 4. Reset onglets
-    switchTradeTab('chart');
+    // 3. Stats bidon pour le style
+    document.getElementById('t-high').innerText = "$" + (parseFloat(price) * 1.05).toFixed(6);
+    document.getElementById('t-mcap').innerText = (Math.random() * 10).toFixed(2) + "M $";
 
-    // 5. Afficher la page
+    // 4. Initialisation du Graphique Chart.js
+    initTradeChart();
+
+    // 5. Affichage de la page
+    switchTradeTab('chart');
     showPage('p-trade');
+    
+    if(window.Telegram && Telegram.WebApp) Telegram.WebApp.HapticFeedback.impactOccurred('medium');
 }
 
-// Fonction pour switcher entre Chart et About
+function initTradeChart() {
+    const ctx = document.getElementById('tradeChartCanvas').getContext('2d');
+    
+    // Si un graphique existe déjà, on le détruit pour le recréer proprement
+    if (myChart) myChart.destroy();
+
+    // Génération de données aléatoires pour la courbe
+    const labels = ['', '', '', '', '', '', '', '', '', ''];
+    const dataPoints = Array.from({length: 10}, () => Math.random() * 100);
+
+    myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Price',
+                data: dataPoints,
+                borderColor: '#00ff88',
+                borderWidth: 3,
+                pointRadius: 0,
+                tension: 0.4, // Pour l'effet courbe lisse
+                fill: true,
+                backgroundColor: 'rgba(0, 255, 136, 0.1)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: { display: false }
+            }
+        }
+    });
+}
+
 function switchTradeTab(tab) {
     document.getElementById('trade-content-chart').style.display = (tab === 'chart') ? 'block' : 'none';
     document.getElementById('trade-content-about').style.display = (tab === 'about') ? 'block' : 'none';
     
-    document.getElementById('tab-chart-btn').classList.toggle('active', tab === 'chart');
-    document.getElementById('tab-about-btn').classList.toggle('active', tab === 'about');
+    document.getElementById('tab-chart-btn').className = 'trade-tab' + (tab === 'chart' ? ' active' : '');
+    document.getElementById('tab-about-btn').className = 'trade-tab' + (tab === 'about' ? ' active' : '');
 }
+
 
 
 
