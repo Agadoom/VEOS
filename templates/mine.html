@@ -133,19 +133,49 @@
 
 
 
-<div id="p-trade" class="page" style="display:none;">
-    <div style="padding:20px; text-align:center;">
-        <h2 id="trade-token-name">Token Name</h2>
-        <small id="trade-token-symbol" style="color:var(--gold);">$SYMBOL</small>
-        
-        <div style="margin: 20px 0;">
-            <span style="font-size:24px; font-weight:bold;" id="trade-token-price">$0.000000</span>
-        </div>
+<div id="p-trade" class="page" style="display:none; padding-bottom: 80px;">
+    <div style="padding:15px; text-align:center; border-bottom: 1px solid #333;">
+        <h2 id="trade-token-name" style="margin:0; font-size:20px;">Token Name</h2>
+        <small id="trade-token-symbol" style="color:var(--gold); font-weight:bold;">$SYMBOL</small>
+        <div style="font-size:26px; font-weight:900; margin-top:10px;" id="trade-token-price">$0.000000</div>
+    </div>
 
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-            <button class="btn" style="background:#00ff88; color:#000;">BUY</button>
-            <button class="btn" style="background:#ff4444; color:#fff;">SELL</button>
+    <div style="display:flex; justify-content:space-around; background:#1a1a1a; padding:10px 0; border-bottom:1px solid #333;">
+        <div onclick="switchTradeTab('chart')" class="trade-tab active" id="tab-chart-btn">CHART</div>
+        <div onclick="switchTradeTab('about')" class="trade-tab" id="tab-about-btn">ABOUT</div>
+    </div>
+
+    <div id="trade-content-chart" class="trade-pane" style="padding:10px;">
+        <div style="width:100%; height:250px; background:#111; border-radius:10px; display:flex; align-items:center; justify-content:center; border:1px dashed #444;">
+            <canvas id="tradeChart"></canvas> 
+            </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
+            <div class="stat-card">
+                <small>24h High</small>
+                <div id="trade-high" style="color:#00ff88;">$0.00...</div>
+            </div>
+            <div class="stat-card">
+                <small>Market Cap</small>
+                <div id="trade-mcap">$0.00...</div>
+            </div>
         </div>
+    </div>
+
+    <div id="trade-content-about" class="trade-pane" style="padding:20px; display:none;">
+        <h4 style="color:var(--gold); margin-bottom:10px;">Description</h4>
+        <p id="trade-description" style="font-size:13px; color:#ccc; line-height:1.5;">
+            Aucune description disponible pour ce token.
+        </p>
+        
+        <h4 style="color:var(--gold); margin-top:20px; margin-bottom:10px;">Links</h4>
+        <div id="trade-links" style="display:flex; gap:10px; flex-wrap:wrap;">
+            </div>
+    </div>
+
+    <div style="position:fixed; bottom:70px; left:0; width:100%; background:#000; padding:15px; display:grid; grid-template-columns: 1fr 1fr; gap:10px; border-top:1px solid #333;">
+        <button class="btn" style="background:#00ff88; color:#000; font-weight:bold; height:50px;" onclick="openOrder('buy')">BUY</button>
+        <button class="btn" style="background:#ff4444; color:#fff; font-weight:bold; height:50px;" onclick="openOrder('sell')">SELL</button>
     </div>
 </div>
 
