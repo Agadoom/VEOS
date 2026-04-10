@@ -278,6 +278,27 @@
 
 
 
+
+.trade-tab {
+    font-size: 12px;
+    font-weight: bold;
+    color: #666;
+    padding: 5px 15px;
+    cursor: pointer;
+}
+.trade-tab.active {
+    color: var(--gold);
+    border-bottom: 2px solid var(--gold);
+}
+.stat-card {
+    background: #1a1a1a;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+}
+.stat-card small { color: #777; font-size: 10px; }
+
+
     </style>
 </head>
 <body>
@@ -677,25 +698,40 @@ async function loadRecentTokens() {
 
 
 function prepareTrade(symbol, name, price) {
-    // 1. On met à jour les textes dans la page p-trade
-    if (document.getElementById('trade-token-name')) 
-        document.getElementById('trade-token-name').innerText = name;
-    
-    if (document.getElementById('trade-token-symbol')) 
-        document.getElementById('trade-token-symbol').innerText = "$" + symbol;
+    // 1. Infos de base
+    document.getElementById('trade-token-name').innerText = name;
+    document.getElementById('trade-token-symbol').innerText = "$" + symbol;
+    document.getElementById('trade-token-price').innerText = "$" + parseFloat(price).toFixed(6);
 
-    if (document.getElementById('trade-token-price')) 
-        document.getElementById('trade-token-price').innerText = "$" + parseFloat(price).toFixed(6);
+    // 2. Simulation de la description (ou récupération depuis ton tableau de tokens)
+    // Si tu as une description dans ton objet token t, utilise-la. 
+    // Sinon, on met un texte par défaut.
+    const description = "Ce token $"+symbol+" fait partie de l'écosystème One World Peace. Tradez avec prudence.";
+    document.getElementById('trade-description').innerText = description;
 
-    // 2. On stocke le token actuel globalement pour les fonctions Buy/Sell
-    window.currentTradeToken = symbol;
+    // 3. Liens
+    const linksContainer = document.getElementById('trade-links');
+    linksContainer.innerHTML = `
+        <button class="btn" style="font-size:10px; padding:5px 10px;" onclick="window.open('https://t.me/ton_canal')">Telegram</button>
+        <button class="btn" style="font-size:10px; padding:5px 10px;" onclick="window.open('https://google.com')">Website</button>
+    `;
 
-    // 3. On ouvre enfin la page
+    // 4. Reset onglets
+    switchTradeTab('chart');
+
+    // 5. Afficher la page
     showPage('p-trade');
-    
-    // 4. (Optionnel) Recharger le graphique spécifique si tu as un graph
-    // loadChart(symbol); 
 }
+
+// Fonction pour switcher entre Chart et About
+function switchTradeTab(tab) {
+    document.getElementById('trade-content-chart').style.display = (tab === 'chart') ? 'block' : 'none';
+    document.getElementById('trade-content-about').style.display = (tab === 'about') ? 'block' : 'none';
+    
+    document.getElementById('tab-chart-btn').classList.toggle('active', tab === 'chart');
+    document.getElementById('tab-about-btn').classList.toggle('active', tab === 'about');
+}
+
 
 
 
