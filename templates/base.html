@@ -332,6 +332,36 @@
 
     </style>
 </head>
+
+
+
+
+<div id="order-drawer" class="drawer">
+    <div style="width: 50px; height: 5px; background: #333; margin: 0 auto 20px; border-radius: 10px;"></div>
+    <h2 id="order-title" style="text-align: center; text-transform: uppercase;">BUY</h2>
+    
+    <div style="padding: 20px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span>Price:</span>
+            <b id="order-price" style="color: var(--gold);">$0.00</b>
+        </div>
+        
+        <label style="font-size: 12px; opacity: 0.6;">Amount to spend (WPT):</label>
+        <input type="number" id="order-input" class="l-input" style="width: 100%; margin-top: 10px; font-size: 20px;" placeholder="0.00">
+        
+        <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="btn" onclick="closeOrder()" style="background: #222; color: #fff;">CANCEL</button>
+            <button id="order-confirm-btn" class="btn" style="background: var(--gold); color: #000;" onclick="executeOrder()">CONFIRM</button>
+        </div>
+    </div>
+</div>
+
+<div id="drawer-overlay" onclick="closeOrder()" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:999;"></div>
+
+
+
+
+
 <body>
 
     <div id="app-content" style="padding-bottom: 90px;">
@@ -981,6 +1011,54 @@ async function loadLeaderboard() {
         btn.innerText = originalText;
     }
 }
+
+
+
+
+let currentOrderType = 'buy';
+
+function openOrder(type) {
+    currentOrderType = type;
+    const price = document.getElementById('trade-token-price-main').innerText;
+    
+    document.getElementById('order-title').innerText = type + " " + document.getElementById('trade-token-symbol-main').innerText;
+    document.getElementById('order-title').style.color = (type === 'buy') ? '#00ff88' : '#ff4444';
+    document.getElementById('order-price').innerText = price;
+    document.getElementById('order-confirm-btn').innerText = "CONFIRM " + type.toUpperCase();
+    document.getElementById('order-confirm-btn').style.background = (type === 'buy') ? '#00ff88' : '#ff4444';
+
+    document.getElementById('order-drawer').classList.add('active');
+    document.getElementById('drawer-overlay').style.display = 'block';
+    tg.HapticFeedback.impactOccurred('medium');
+}
+
+function closeOrder() {
+    document.getElementById('order-drawer').classList.remove('active');
+    document.getElementById('drawer-overlay').style.display = 'none';
+}
+
+async function executeOrder() {
+    const amount = document.getElementById('order-input').value;
+    const symbol = document.getElementById('trade-token-symbol-main').innerText.replace('$', '');
+    
+    if (!amount || amount <= 0) {
+        tg.showAlert("Please enter a valid amount.");
+        return;
+    }
+
+    // Ici on enverra l'ordre au backend plus tard
+    tg.showConfirm(`Confirm ${currentOrderType} of ${amount} WPT worth of ${symbol}?`, (yes) => {
+        if (yes) {
+            tg.showAlert("Order executed successfully! (Simulated)");
+            closeOrder();
+            refresh(); // Pour mettre à jour le solde
+        }
+    });
+}
+
+
+
+
 
     </script>
 </body>
