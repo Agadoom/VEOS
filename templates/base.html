@@ -327,6 +327,28 @@
 }
 
 
+
+
+
+.filter-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #333;
+    color: #fff;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.filter-btn.active {
+    background: var(--gold);
+    color: #000;
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
     </style>
 </head>
 
@@ -838,61 +860,81 @@ function switchTradeTab(tab) {
 
 
 
+let allTokens = []; // Variable pour stocker les tokens chargés
+
 async function loadRecentTokens() {
+    try {
+        const response = await fetch(`${BASE_URL}/api/launcher/list`);
+        allTokens = await response.json();
+        filterTokens('discover'); // Par défaut, on affiche tout
+    } catch (e) {
+        console.error("Erreur chargement:", e);
+    }
+}
+
+function filterTokens(type, element) {
     const list = document.getElementById('token-list');
     if (!list) return;
 
-    // Petit message de chargement
-    list.innerHTML = '<div class="spinner"></div>';
-
-    try {
-        const response = await fetch(`${BASE_URL}/api/launcher/list`);
-        const tokens = await response.json();
-        
-        list.innerHTML = ''; // Nettoyage du spinner
-
-        if (!tokens || tokens.length === 0) {
-            list.innerHTML = '<p style="text-align:center; opacity:0.3; padding:20px; font-size:12px;">No tokens detected on the grid.</p>';
-            return;
-        }
-
-        tokens.forEach(t => {
-            // Sécurité pour le prix
-            const price = t.price ? parseFloat(t.price) : 0.000001;
-            
-            list.innerHTML += `
-                <div class="card launchpad-blueprint" style="margin-bottom:12px; padding:15px; border-radius:15px; background:rgba(255,255,255,0.02);">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <div style="width:42px; height:42px; background:var(--gold); color:#000; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:18px; box-shadow: 0 0 15px rgba(255,215,0,0.2);">
-                                ${t.symbol ? t.symbol[0].toUpperCase() : '?'}
-                            </div>
-                            <div>
-                                <b style="font-size:15px; color:#fff; display:block;">${t.name}</b>
-                                <div style="display:flex; align-items:center; gap:5px;">
-                                    <small style="color:var(--gold); font-weight:bold; font-size:10px;">$${t.symbol}</small>
-                                    <span style="width:3px; height:3px; background:#444; border-radius:50%;"></span>
-                                    <small style="color:#00ff88; font-size:10px;">$${price.toFixed(6)}</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button class="btn" 
-                            style="padding:8px 18px; font-size:11px; background:#fff; color:#000; border-radius:8px; box-shadow: 0 4px 10px rgba(255,255,255,0.1);" 
-                            onclick="prepareTrade('${t.symbol}', '${t.name.replace(/'/g, "\\'")}', ${price})">
-                            TRADE
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
-
-        console.log("🛰️ Liste des tokens synchronisée.");
-    } catch (e) {
-        console.error("❌ Erreur API Launcher:", e);
-        list.innerHTML = '<p style="text-align:center; color:#ff4444; font-size:11px;">Sync Error. Retrying...</p>';
+    // 1. Gérer l'UI des boutons
+    if (element) {
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
     }
+
+    // 2. Filtrer la donnée
+    let filtered = [];
+    if (type === 'discover') {
+        filtered = allTokens;
+    } 
+    else if (type === 'trending') {
+        // Simulation : On trie par prix ou on en prend 3 au hasard
+        filtered = [...allTokens].sort((a, b) => (b.price || 0) - (a.price || 0)).slice(0, 5);
+    } 
+    else if (type === 'my-fleet') {
+        // On filtre par l'ID de l'utilisateur actuel
+        filtered = allTokens.filter(t => t.creator_id == uid || t.owner_id == uid);
+    }
+
+    // 3. Afficher le résultat
+    renderTokenList(filtered);
+    tg.HapticFeedback.impactOccurred('light');
 }
+
+// Fonction helper pour dessiner la liste
+function renderTokenList(tokens) {
+    const list = document.getElementById('token-list');
+    list.innerHTML = '';
+
+    if (tokens.length === 0) {
+        list.innerHTML = '<p style="text-align:center; opacity:0.3; padding:20px;">No tokens found in this sector.</p>';
+        return;
+    }
+
+    tokens.forEach(t => {
+        const price = t.price ? parseFloat(t.price) : 0.000001;
+        list.innerHTML += `
+            <div class="card launchpad-blueprint" style="margin-bottom:12px; padding:15px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:40px; height:40px; background:var(--gold); color:#000; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:900;">
+                            ${t.symbol[0].toUpperCase()}
+                        </div>
+                        <div>
+                            <b style="font-size:14px; color:#fff;">${t.name}</b><br>
+                            <small style="color:var(--gold); font-size:10px;">$${t.symbol} • ${price.toFixed(6)}</small>
+                        </div>
+                    </div>
+                    <button class="btn" style="padding:5px 15px; font-size:10px; background:#fff; color:#000;" 
+                        onclick="prepareTrade('${t.symbol}', '${t.name.replace(/'/g, "\\'")}', ${price})">
+                        TRADE
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+}
+
 
 
 
