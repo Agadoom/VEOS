@@ -846,32 +846,63 @@ async function loadRecentTokens() {
 
 
 
-let myChart = null; // Variable globale pour le graphique
+let myChart = null; // Variable globale indispensable
 
-async function prepareTrade(symbol, name, price) {
-    console.log("Tentative d'ouverture de trade pour:", symbol); // Log de test
-    
-    try {
-        // Remplissage des infos de base
-        document.getElementById('trade-token-name-main').innerText = name;
-        document.getElementById('trade-token-symbol-main').innerText = "$" + symbol;
-        document.getElementById('trade-token-price-main').innerText = "$" + price.toFixed(6);
-
-        // Affichage de la page (DOIT ETRE FAIT AVANT LE GRAPH POUR EVITER LES BUGS DE TAILLE)
-        showPage('p-trade'); 
-        
-        // Initialisation du graphique
-        if (typeof initTradeChart === 'function') {
-            initTradeChart();
-        }
-
-        tg.HapticFeedback.impactOccurred('medium');
-    } catch (e) {
-        console.error("Erreur dans prepareTrade:", e);
-        // Si ça plante, on force quand même l'affichage pour ne pas bloquer l'utilisateur
-        showPage('p-trade');
+function initTradeChart() {
+    const ctx = document.getElementById('tradeChartCanvas');
+    if (!ctx) {
+        console.error("Canvas non trouvé dans le DOM");
+        return;
     }
+
+    // 1. Détruire l'instance précédente si elle existe
+    if (myChart) {
+        myChart.destroy();
+    }
+
+    // 2. Générer des données de simulation (Prix qui monte et descend)
+    const dataPoints = [];
+    let basePrice = 50;
+    for (let i = 0; i < 20; i++) {
+        basePrice += (Math.random() - 0.5) * 10;
+        dataPoints.push(basePrice);
+    }
+
+    // 3. Création du graphique
+    myChart = new Chart(ctx.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: dataPoints.map(() => ''), // Pas de texte en bas
+            datasets: [{
+                data: dataPoints,
+                borderColor: '#00ff88', // Vert néon
+                borderWidth: 3,
+                pointRadius: 0, // Pas de points
+                tension: 0.4,   // Courbe lisse
+                fill: true,
+                backgroundColor: 'rgba(0, 255, 136, 0.1)' // Dégradé léger
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 1000 // Animation fluide à l'ouverture
+            },
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: { display: false },
+                y: { 
+                    display: false,
+                    grid: { display: false }
+                }
+            }
+        }
+    });
 }
+
 
 
 
@@ -1002,7 +1033,8 @@ function renderTokenList(tokens) {
 
 
 function goToTrade(symbol) {
-    const token = allTokens.find(t => t.symbol === symbol);
+   showPage('p-trade');
+ const token = allTokens.find(t => t.symbol === symbol);
     if (!token) return;
 
     // 1. Remplir les textes
