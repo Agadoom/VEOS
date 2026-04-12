@@ -167,20 +167,39 @@
 }
 
 
+/* Le tiroir qui remonte */
 .drawer {
     position: fixed;
-    bottom: -100%;
+    bottom: -100%; /* Caché au début */
     left: 0;
     width: 100%;
     background: #0a0a0b;
     border-top: 2px solid var(--gold);
-    border-radius: 30px 30px 0 0;
+    border-radius: 25px 25px 0 0;
     transition: 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-    z-index: 1000;
+    z-index: 10001; /* Doit être PLUS HAUT que la nav (qui est à 1000) */
     padding: 20px;
+    padding-bottom: 40px; /* Ajoute de l'espace en bas pour les boutons */
     box-sizing: border-box;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.8);
 }
-.drawer.active { bottom: 0; }
+
+.drawer.active {
+    bottom: 0; /* Remonte tout en bas, mais attention à la barre Telegram */
+}
+
+/* L'overlay (fond noir derrière le tiroir) */
+#drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    z-index: 10000;
+}
+
 
 
 
@@ -983,36 +1002,50 @@ function renderTokenList(tokens) {
 
 
 function goToTrade(symbol) {
-    console.log("Recherche du token:", symbol);
-    
-    // Trouver les infos du token dans notre variable globale
     const token = allTokens.find(t => t.symbol === symbol);
-    
-    if (!token) {
-        console.error("Token non trouvé dans la liste locale");
-        return;
-    }
+    if (!token) return;
 
-    // Remplir la page Trade
+    // 1. Remplir les textes
     document.getElementById('trade-token-name-main').innerText = token.name;
     document.getElementById('trade-token-symbol-main').innerText = "$" + token.symbol;
-    document.getElementById('trade-token-price-main').innerText = "$" + parseFloat(token.price || 0.0001).toFixed(6);
-    
-    // Optionnel : remplir les stats si elles existent
-    if(document.getElementById('t-mcap')) {
-        document.getElementById('t-mcap').innerText = "$" + (parseFloat(token.price || 0) * 1000000000).toLocaleString();
-    }
+    document.getElementById('trade-token-price-main').innerText = "$" + parseFloat(token.price).toFixed(6);
 
-    // Afficher la page
+    // 2. AFFICHER LA PAGE D'ABORD (Crucial pour Chart.js)
     showPage('p-trade');
-    
-    // Lancer le graphique après un court délai pour être sûr que la page est affichée
+
+    // 3. Dessiner la courbe après un petit délai
     setTimeout(() => {
-        if (typeof initTradeChart === 'function') initTradeChart();
-    }, 100);
+        const canvas = document.getElementById('tradeChartCanvas');
+        if (canvas) {
+            initTradeChart(); // On lance le dessin
+        } else {
+            console.error("Canvas introuvable !");
+        }
+    }, 200); 
 
     tg.HapticFeedback.impactOccurred('medium');
 }
+
+function openOrder(type) {
+    const drawer = document.getElementById('order-drawer');
+    const overlay = document.getElementById('drawer-overlay');
+    
+    // Configurer le contenu selon BUY ou SELL
+    document.getElementById('order-title').innerText = type.toUpperCase() + " " + document.getElementById('trade-token-symbol-main').innerText;
+    document.getElementById('order-confirm-btn').style.background = (type === 'buy') ? '#00ff88' : '#ff4444';
+    
+    // Afficher
+    overlay.style.display = 'block';
+    drawer.classList.add('active');
+    
+    tg.HapticFeedback.impactOccurred('light');
+}
+
+function closeOrder() {
+    document.getElementById('order-drawer').classList.remove('active');
+    document.getElementById('drawer-overlay').style.display = 'none';
+}
+
 
 
 
