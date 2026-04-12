@@ -356,6 +356,19 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar {
 }
 
 
+/* Pour que le menu horizontal soit beau */
+.filter-btn {
+    min-width: 100px;
+    text-align: center;
+    flex-shrink: 0; /* Empêche les boutons de rétrécir */
+}
+
+/* Cache la barre de défilement mais permet de scroller horizontalement */
+div[style*="overflow-x: auto"] {
+    -webkit-overflow-scrolling: touch;
+}
+
+
     </style>
 </head>
 
