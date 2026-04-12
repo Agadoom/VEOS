@@ -102,7 +102,7 @@ async def deploy_token(req: DeployRequest):
         c.execute("""
             INSERT INTO community_tokens (name, symbol, description, website_url, twitter_url, logo, banner, price, creator_id) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, 0.0001, %s) RETURNING id
-        """, (req.name, req.symbol, req.description, req.website_url, req.twitter_url, req.logo_b64, req.banner_b64, req.user_id))
+        """, (req.name, req.symbol, req.description, req.website_url, req.twitter_url, req.logo, req.banner, req.user_id))
         tid = c.fetchone()[0]
         c.execute("UPDATE users SET p_genesis = p_genesis - 5000 WHERE user_id = %s", (req.user_id,))
         conn.commit()
