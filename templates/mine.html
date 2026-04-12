@@ -127,42 +127,58 @@
 
 
 
-<div id="p-trade" class="page" style="display:none; padding-bottom: 100px;">
-    <div style="padding:15px; text-align:center; border-bottom: 1px solid #222;">
-        <h2 id="trade-token-name-main" style="margin:0; font-size:22px; color:#fff;">---</h2>
-        <small id="trade-token-symbol-main" style="color:var(--gold); font-weight:bold; letter-spacing:1px;">$---</small>
-        <div style="font-size:28px; font-weight:900; margin-top:10px; font-family:monospace;" id="trade-token-price-main">$0.000000</div>
+<div id="p-trade" class="page" style="display:none; padding-bottom: 160px; background: #000;">
+    <div style="padding:20px 15px; text-align:center; background: linear-gradient(180deg, rgba(255,215,0,0.05) 0%, transparent 100%);">
+        <h2 id="trade-token-name-main" style="margin:0; font-size:20px; letter-spacing:1px;">---</h2>
+        <small id="trade-token-symbol-main" style="color:var(--gold); font-weight:900;">$---</small>
+        <div style="font-size:32px; font-weight:900; margin:10px 0; font-family:monospace; color:#fff;" id="trade-token-price-main">$0.000000</div>
+        <div id="trade-price-change" style="font-size:12px; color:#00ff88; font-weight:bold;">+0.00% (24h)</div>
     </div>
 
-    <div style="display:flex; justify-content:space-around; background:#111; padding:10px 0;">
-        <div onclick="switchTradeTab('chart')" class="trade-tab active" id="tab-chart-btn">CHART</div>
-        <div onclick="switchTradeTab('about')" class="trade-tab" id="tab-about-btn">ABOUT</div>
+    <div style="display:flex; justify-content:space-around; background:#0a0a0b; border-bottom:1px solid #1a1a1c;">
+        <div onclick="switchTradeTab('chart')" class="trade-tab active" id="tab-chart-btn" style="flex:1; text-align:center; padding:15px;">CHART</div>
+        <div onclick="switchTradeTab('about')" class="trade-tab" id="tab-about-btn" style="flex:1; text-align:center; padding:15px;">INFO</div>
     </div>
 
-    <div id="trade-content-chart" class="trade-pane" style="padding:10px;">
-        <div style="width:100%; height:220px; background:rgba(255,255,255,0.03); border-radius:12px; padding:10px; box-sizing:border-box;">
+    <div id="trade-content-chart" class="trade-pane" style="padding:15px;">
+        <div style="width:100%; height:240px; background:rgba(255,255,255,0.02); border-radius:15px; padding:10px; box-sizing:border-box; border:1px solid #111;">
             <canvas id="tradeChartCanvas"></canvas>
         </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
-            <div class="stat-card"><small>24H HIGH</small><div id="t-high" style="color:#00ff88;">$0.00</div></div>
-            <div class="stat-card"><small>MARKET CAP</small><div id="t-mcap">---</div></div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">
+            <div class="stat-card">
+                <small>MARKET CAP</small>
+                <div id="t-mcap" style="font-weight:900; color:#fff;">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <small>HOLDERS</small>
+                <div id="t-holders" style="font-weight:900; color:var(--gold);">0</div>
+            </div>
+            <div class="stat-card">
+                <small>24H HIGH</small>
+                <div id="t-high" style="font-weight:900; color:#00ff88;">$0.00</div>
+            </div>
+            <div class="stat-card">
+                <small>VOL (24H)</small>
+                <div id="t-vol" style="font-weight:900; color:#fff;">$0.00</div>
+            </div>
         </div>
     </div>
 
     <div id="trade-content-about" class="trade-pane" style="padding:20px; display:none;">
-        <h4 style="color:var(--gold); margin-bottom:10px; font-size:14px;">📝 DESCRIPTION</h4>
-        <p id="trade-description" style="font-size:13px; color:#aaa; line-height:1.6;"></p>
-        <h4 style="color:var(--gold); margin-top:20px; margin-bottom:10px; font-size:14px;">🔗 LINKS</h4>
+        <h4 style="color:var(--gold); margin-bottom:10px; font-size:13px; letter-spacing:1px;">📝 PROTOCOL DESCRIPTION</h4>
+        <p id="trade-description" style="font-size:13px; color:#888; line-height:1.6; background:#0a0a0b; padding:15px; border-radius:12px;"></p>
+        
+        <h4 style="color:var(--gold); margin-top:25px; margin-bottom:10px; font-size:13px;">🔗 EXTERNAL LINKS</h4>
         <div id="trade-links" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
     </div>
 
-    <div style="position:fixed; bottom:70px; left:0; width:100%; background:rgba(0,0,0,0.9); padding:15px; display:grid; grid-template-columns: 1fr 1fr; gap:12px; border-top:1px solid #222; backdrop-filter:blur(10px); box-sizing:border-box; z-index:100;">
-        <button class="btn" style="background:#00ff88; color:#000;" onclick="openOrder('buy')">BUY</button>
-<button class="btn" style="background:#ff4444; color:#fff;" onclick="openOrder('sell')">SELL</button>
-
+    <div style="position:fixed; bottom:75px; left:0; width:100%; background:rgba(0,0,0,0.95); padding:20px; display:grid; grid-template-columns: 1fr 1fr; gap:15px; border-top:1px solid #222; backdrop-filter:blur(15px); box-sizing:border-box; z-index:9999;">
+        <button class="btn" style="background:#00ff88; color:#000; font-weight:900; height:55px; border-radius:15px; font-size:16px; box-shadow: 0 4px 15px rgba(0,255,136,0.2);" onclick="openOrder('buy')">BUY</button>
+        <button class="btn" style="background:#ff4444; color:#fff; font-weight:900; height:55px; border-radius:15px; font-size:16px; box-shadow: 0 4px 15px rgba(255,68,68,0.2);" onclick="openOrder('sell')">SELL</button>
     </div>
 </div>
-</div>
+
 
 
 
