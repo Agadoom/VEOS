@@ -881,43 +881,46 @@ function switchTradeTab(tab) {
 
 
 
+let allTokens = []; // Stockage global des tokens
+
 async function loadRecentTokens() {
     try {
-        // On charge d'abord la liste globale (Discover)
         const response = await fetch(`${BASE_URL}/api/launcher/list`);
         allTokens = await response.json();
-        
-        // On affiche par défaut
-        filterTokens('discover');
+        renderTokenList(allTokens); // Affiche la liste initiale
     } catch (e) {
-        console.error("Erreur chargement:", e);
+        console.error("Erreur de chargement initial");
     }
 }
 
 async function filterTokens(type, element) {
     const list = document.getElementById('token-list');
-    const title = document.getElementById('filter-title');
-    
-    // UI Update
+    if (!list) return;
+
+    // Gestion visuelle des boutons
     if (element) {
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         element.classList.add('active');
     }
 
+    list.innerHTML = '<div class="spinner"></div>';
+
     if (type === 'my-fleet') {
-        title.innerText = "MY FLEET COMMAND";
-        list.innerHTML = '<div class="spinner"></div>';
-        
-        // CORRECTION : On envoie filter=my (comme attendu par ton launcher.py)
-        const response = await fetch(`${BASE_URL}/api/launcher/list?filter=my&uid=${uid}`);
-        const data = await response.json();
-        renderTokenList(data);
+        try {
+            // Ton log Railway montre que cette URL est appelée :
+            const response = await fetch(`${BASE_URL}/api/launcher/list?filter=my&uid=${uid}`);
+            const data = await response.json();
+            console.log("Données My Fleet reçues:", data); // Check ta console navigateur !
+            renderTokenList(data);
+        } catch (e) {
+            list.innerHTML = "Erreur de chargement.";
+        }
     } else {
-        title.innerText = type === 'trending' ? "HOT RADAR" : "LIVE LISTINGS";
-        // ... reste du code pour Discover/Trending ...
-        renderTokenList(allTokens); 
+        // Pour Discover et Trending, on utilise la liste déjà chargée
+        renderTokenList(allTokens);
     }
 }
+
 
 
 
