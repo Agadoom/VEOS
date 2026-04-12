@@ -3,7 +3,14 @@
 {% block content %}
 
 <div id="p-mine" class="page active-page">
-    <div class="prof-header" style="background: linear-gradient(180deg, rgba(255,204,0,0.05) 0%, transparent 100%); padding: 20px 0; text-align: center;">
+    <div class="prof-header" style="
+    background: linear-gradient(180deg, rgba(255,204,0,0.1) 0%, transparent 100%); 
+    padding: 10px 0 20px 0; /* Réduit le padding du haut */
+    margin-top: 0; 
+    border-top: none;
+    text-align: center;
+">
+
         <small id="prof-rank-val" style="color:var(--gold); font-weight:900; letter-spacing: 1px;">RANK: #---</small>
         
         <h1 id="tot" style="font-size:48px; margin:5px 0; font-family: 'monospace'; font-weight: 800; text-shadow: 0 0 15px rgba(255,255,255,0.1);">0.00</h1>
