@@ -864,75 +864,46 @@ let allTokens = []; // Variable pour stocker les tokens chargés
 
 async function loadRecentTokens() {
     try {
+        // On charge d'abord la liste globale (Discover)
         const response = await fetch(`${BASE_URL}/api/launcher/list`);
         allTokens = await response.json();
-        filterTokens('discover'); // Par défaut, on affiche tout
+        
+        // On affiche par défaut
+        filterTokens('discover');
     } catch (e) {
         console.error("Erreur chargement:", e);
     }
 }
 
-function filterTokens(type, element) {
+async function filterTokens(type, element) {
     const list = document.getElementById('token-list');
     if (!list) return;
 
-    // 1. Gérer l'UI des boutons
+    // UI : Boutons actifs
     if (element) {
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         element.classList.add('active');
     }
 
-    // 2. Filtrer la donnée
-    let filtered = [];
-    if (type === 'discover') {
-        filtered = allTokens;
-    } 
-    else if (type === 'trending') {
-        // Simulation : On trie par prix ou on en prend 3 au hasard
-        filtered = [...allTokens].sort((a, b) => (b.price || 0) - (a.price || 0)).slice(0, 5);
-    } 
-    else if (type === 'my-fleet') {
-        // On filtre par l'ID de l'utilisateur actuel
-        filtered = allTokens.filter(t => t.creator_id == uid || t.owner_id == uid);
+    if (type === 'my-fleet') {
+        list.innerHTML = '<div class="spinner"></div>';
+        try {
+            // APPEL SPÉCIFIQUE : On demande au Python de filtrer par notre UID
+            const response = await fetch(`${BASE_URL}/api/launcher/list?filter=my&uid=${uid}`);
+            const myTokens = await response.json();
+            renderTokenList(myTokens);
+        } catch (e) {
+            list.innerHTML = "Error loading your fleet.";
+        }
+    } else if (type === 'trending') {
+        // On prend les tokens avec le prix le plus haut dans notre liste locale
+        let trending = [...allTokens].sort((a, b) => b.price - a.price).slice(0, 5);
+        renderTokenList(trending);
+    } else {
+        // Discover : Liste complète
+        renderTokenList(allTokens);
     }
-
-    // 3. Afficher le résultat
-    renderTokenList(filtered);
     tg.HapticFeedback.impactOccurred('light');
-}
-
-// Fonction helper pour dessiner la liste
-function renderTokenList(tokens) {
-    const list = document.getElementById('token-list');
-    list.innerHTML = '';
-
-    if (tokens.length === 0) {
-        list.innerHTML = '<p style="text-align:center; opacity:0.3; padding:20px;">No tokens found in this sector.</p>';
-        return;
-    }
-
-    tokens.forEach(t => {
-        const price = t.price ? parseFloat(t.price) : 0.000001;
-        list.innerHTML += `
-            <div class="card launchpad-blueprint" style="margin-bottom:12px; padding:15px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <div style="width:40px; height:40px; background:var(--gold); color:#000; border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:900;">
-                            ${t.symbol[0].toUpperCase()}
-                        </div>
-                        <div>
-                            <b style="font-size:14px; color:#fff;">${t.name}</b><br>
-                            <small style="color:var(--gold); font-size:10px;">$${t.symbol} • ${price.toFixed(6)}</small>
-                        </div>
-                    </div>
-                    <button class="btn" style="padding:5px 15px; font-size:10px; background:#fff; color:#000;" 
-                        onclick="prepareTrade('${t.symbol}', '${t.name.replace(/'/g, "\\'")}', ${price})">
-                        TRADE
-                    </button>
-                </div>
-            </div>
-        `;
-    });
 }
 
 
