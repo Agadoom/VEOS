@@ -121,15 +121,19 @@
     
 
 
- <div style="display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none;">
-        <button class="filter-btn active" onclick="filterTokens('discover', this)">🌍 Discover</button>
-        <button class="filter-btn" onclick="filterTokens('trending', this)">🔥 Trending</button>
-        <button class="filter-btn" onclick="filterTokens('my-fleet', this)">🛸 My Fleet</button>
-    </div>
+ <div style="display: flex; gap: 10px; margin: 15px 20px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; -ms-overflow-style: none;">
+    <button class="filter-btn active" onclick="filterTokens('discover', this)">🌍 Discover</button>
+    <button class="filter-btn" onclick="filterTokens('trending', this)">🔥 Trending</button>
+    <button class="filter-btn" onclick="filterTokens('my-fleet', this)">🛸 My Fleet</button>
+</div>
+
+<div id="token-list" style="padding: 0 15px;">
+    <div class="spinner"></div>
+</div>
+
+<hr style="border: 0; border-top: 1px solid #222; margin: 30px 20px;">
 
 
-    <div id="token-list">
-        <div class="spinner"></div> </div>
 
 
 
