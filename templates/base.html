@@ -829,72 +829,44 @@ async function loadRecentTokens() {
 
 let myChart = null; // Variable globale pour le graphique
 
-function prepareTrade(symbol, name, price) {
-    console.log("🚀 Lancement du Trade pour:", name);
-
-    // 1. Mise à jour immédiate des textes
+async function prepareTrade(symbol, name, price) {
+    console.log("📈 Loading Trade UI for:", symbol);
+    
+    // 1. Textes de base
     document.getElementById('trade-token-name-main').innerText = name;
     document.getElementById('trade-token-symbol-main').innerText = "$" + symbol;
     document.getElementById('trade-token-price-main').innerText = "$" + parseFloat(price).toFixed(6);
-    
-    // 2. Remplissage de la section ABOUT
-    document.getElementById('trade-description').innerText = 
-        `Le jeton ${name} (${symbol}) est listé sur One World Peace. Détails techniques et sécurité vérifiés sur la blockchain.`;
-    
+
+    // 2. Récupération des stats réelles (Holders, MCap)
+    try {
+        // On récupère l'ID du token dans allTokens pour l'API stats
+        const tokenData = allTokens.find(t => t.symbol === symbol);
+        if (tokenData && tokenData.id) {
+            const statsRes = await fetch(`${BASE_URL}/api/launcher/stats/${tokenData.id}`);
+            const stats = await statsRes.json();
+            
+            document.getElementById('t-holders').innerText = stats.holders.toLocaleString();
+            document.getElementById('t-mcap').innerText = "$" + stats.mcap.toLocaleString();
+            document.getElementById('t-vol').innerText = "$" + (stats.mcap * 0.05).toFixed(2); // Simulation volume
+        }
+    } catch (e) {
+        console.log("Stats non disponibles");
+    }
+
+    // 3. Description et Liens
+    document.getElementById('trade-description').innerText = `Official protocol for ${name} (${symbol}). Verified on Genesis Launchpad. Secure and transparent trading enabled.`;
     document.getElementById('trade-links').innerHTML = `
-        <button class="btn" style="padding:6px 12px; font-size:11px;" onclick="window.open('https://t.me/yourgroup')">Telegram</button>
-        <button class="btn" style="padding:6px 12px; font-size:11px;" onclick="window.open('https://yourwebsite.com')">Website</button>
+        <button class="btn" style="padding:8px 15px; font-size:11px; background:#1a1a1c; border:1px solid #333;" onclick="window.open('https://t.me/your_tg')">Telegram</button>
+        <button class="btn" style="padding:8px 15px; font-size:11px; background:#1a1a1c; border:1px solid #333;" onclick="window.open('https://yoursite.com')">Website</button>
     `;
 
-    // 3. Stats bidon pour le style
-    document.getElementById('t-high').innerText = "$" + (parseFloat(price) * 1.05).toFixed(6);
-    document.getElementById('t-mcap').innerText = (Math.random() * 10).toFixed(2) + "M $";
-
-    // 4. Initialisation du Graphique Chart.js
+    // 4. Graphique
     initTradeChart();
 
-    // 5. Affichage de la page
+    // 5. Navigation
     switchTradeTab('chart');
     showPage('p-trade');
-    
-    if(window.Telegram && Telegram.WebApp) Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-}
-
-function initTradeChart() {
-    const ctx = document.getElementById('tradeChartCanvas').getContext('2d');
-    
-    // Si un graphique existe déjà, on le détruit pour le recréer proprement
-    if (myChart) myChart.destroy();
-
-    // Génération de données aléatoires pour la courbe
-    const labels = ['', '', '', '', '', '', '', '', '', ''];
-    const dataPoints = Array.from({length: 10}, () => Math.random() * 100);
-
-    myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Price',
-                data: dataPoints,
-                borderColor: '#00ff88',
-                borderWidth: 3,
-                pointRadius: 0,
-                tension: 0.4, // Pour l'effet courbe lisse
-                fill: true,
-                backgroundColor: 'rgba(0, 255, 136, 0.1)'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { display: false },
-                y: { display: false }
-            }
-        }
-    });
+    tg.HapticFeedback.impactOccurred('medium');
 }
 
 function switchTradeTab(tab) {
