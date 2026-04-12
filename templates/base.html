@@ -1033,42 +1033,47 @@ function renderTokenList(tokens) {
 
 
 async function goToTrade(symbol) {
+    // 1. On cherche le token dans la liste chargée au début
     const token = allTokens.find(t => t.symbol === symbol);
     if (!token) return;
 
-    // 1. Infos de base
+    // 2. Remplissage immédiat (Nom, Prix)
     document.getElementById('trade-token-name-main').innerText = token.name;
     document.getElementById('trade-token-symbol-main').innerText = "$" + token.symbol;
-    const price = parseFloat(token.price || 0.0001);
-    document.getElementById('trade-token-price-main').innerText = "$" + price.toFixed(6);
+    const currentPrice = parseFloat(token.price || 0.0001);
+    document.getElementById('trade-token-price-main').innerText = "$" + currentPrice.toFixed(6);
 
-    // 2. CALCUL DES STATS (On remplit les 0.00)
-    
-    // Market Cap = Prix * Supply (on simule 1 milliard de tokens pour l'exemple)
-    const mcap = price * 1000000000;
-    document.getElementById('t-mcap').innerText = "$" + mcap.toLocaleString('en-US', {maximumFractionDigits: 0});
-
-    // 24h High (On simule un pic à +5%)
-    const high = price * 1.05;
-    document.getElementById('t-high').innerText = "$" + high.toFixed(6);
-
-    // Volume (Simulé par rapport au MCAP pour faire vivant)
-    const vol = mcap * 0.02;
-    document.getElementById('t-vol').innerText = "$" + vol.toLocaleString('en-US', {maximumFractionDigits: 0});
-
-    // Holders (On peut faire un appel API ou simuler un nombre aléatoire entre 100 et 5000)
-    // Si tu as l'info dans ton token : t.holders, sinon :
-    const fakeHolders = Math.floor(Math.random() * (5000 - 100) + 100);
-    document.getElementById('t-holders').innerText = fakeHolders;
-
-    // 3. Affichage et Courbe
+    // 3. Affichage de la page
     showPage('p-trade');
+
+    // 4. RÉCUPÉRATION DES STATS RÉELLES (Depuis ton launcher.py)
+    try {
+        const response = await fetch(`${BASE_URL}/api/launcher/stats/${token.id}`);
+        const stats = await response.json();
+
+        // On remplit les cases avec les données de ton Python
+        document.getElementById('t-holders').innerText = stats.holders.toLocaleString();
+        document.getElementById('t-mcap').innerText = "$" + stats.mcap.toLocaleString('en-US', {minimumFractionDigits: 2});
+        
+        // Simulation pour le High et le Vol (car pas encore en base de données)
+        document.getElementById('t-high').innerText = "$" + (currentPrice * 1.05).toFixed(6);
+        document.getElementById('t-vol').innerText = "$" + (stats.mcap * 0.1).toLocaleString('en-US', {maximumFractionDigits: 0});
+        
+    } catch (e) {
+        console.error("❌ Erreur lors du chargement des stats:", e);
+        // Fallback si l'API échoue
+        document.getElementById('t-holders').innerText = "1";
+        document.getElementById('t-mcap').innerText = "$0.00";
+    }
+
+    // 5. Lancement de la courbe
     setTimeout(() => {
         initTradeChart();
     }, 300);
 
     tg.HapticFeedback.impactOccurred('medium');
 }
+
 
 
 
