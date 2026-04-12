@@ -100,7 +100,7 @@ async def deploy_token(req: DeployRequest):
             return JSONResponse(status_code=400, content={"ok": False, "error": "5000 WPT required"})
         
         c.execute("""
-            INSERT INTO community_tokens (name, symbol, description, website_url, twitter_url, logo, banner, price, creator_id) 
+            INSERT INTO community_tokens (name, symbol, description, website_url, twitter_url, logo_b64, banner_b64, price, creator_id) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, 0.0001, %s) RETURNING id
         """, (req.name, req.symbol, req.description, req.website_url, req.twitter_url, req.logo, req.banner, req.user_id))
         tid = c.fetchone()[0]
