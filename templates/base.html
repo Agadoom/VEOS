@@ -878,6 +878,8 @@ function switchTradeTab(tab) {
 let allTokens = []; // Stockage global des tokens
 
 async function loadRecentTokens() {
+console.log("Tentative de récupération des tokens...");
+
     try {
         const response = await fetch(`${BASE_URL}/api/launcher/list`);
         allTokens = await response.json();
@@ -944,24 +946,30 @@ function renderTokenList(tokens) {
     if (!list) return;
     list.innerHTML = '';
 
+    if (!tokens || tokens.length === 0) {
+        list.innerHTML = '<p style="text-align:center; opacity:0.5; padding:20px;">No tokens found.</p>';
+        return;
+    }
+
     tokens.forEach(t => {
-        // Sécurisation du nom pour éviter de casser le onclick avec des apostrophes
-        const safeName = t.name.replace(/'/g, "\\'");
-        const logo = t.logo || 'https://via.placeholder.com/40';
+        // Sécurisation totale des variables
+        const symbol = t.symbol ? t.symbol.replace(/'/g, "") : "???";
+        const name = t.name ? t.name.replace(/'/g, " ") : "Unknown";
         const price = parseFloat(t.price || 0.0001);
+        const logo = t.logo || 'https://via.placeholder.com/40';
 
         list.innerHTML += `
             <div class="card launchpad-blueprint" style="margin-bottom:12px; padding:15px; border-radius:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:12px;">
-                        <img src="${logo}" style="width:40px; height:40px; border-radius:8px;">
+                        <img src="${logo}" style="width:40px; height:40px; border-radius:8px; object-fit:cover;">
                         <div>
-                            <b style="font-size:14px; color:#fff;">${t.name}</b><br>
-                            <small style="color:var(--gold); font-size:10px;">$${t.symbol} • $${price.toFixed(6)}</small>
+                            <b style="font-size:14px; color:#fff;">${name}</b><br>
+                            <small style="color:var(--gold); font-size:10px;">$${symbol} • $${price.toFixed(6)}</small>
                         </div>
                     </div>
                     <button class="btn" style="padding:6px 15px; font-size:10px; background:#fff; color:#000; font-weight:900;" 
-                        onclick="prepareTrade('${t.symbol}', '${safeName}', ${price})">
+                        onclick="goToTrade('${symbol}')">
                         TRADE
                     </button>
                 </div>
@@ -969,6 +977,45 @@ function renderTokenList(tokens) {
         `;
     });
 }
+
+
+
+
+
+function goToTrade(symbol) {
+    console.log("Recherche du token:", symbol);
+    
+    // Trouver les infos du token dans notre variable globale
+    const token = allTokens.find(t => t.symbol === symbol);
+    
+    if (!token) {
+        console.error("Token non trouvé dans la liste locale");
+        return;
+    }
+
+    // Remplir la page Trade
+    document.getElementById('trade-token-name-main').innerText = token.name;
+    document.getElementById('trade-token-symbol-main').innerText = "$" + token.symbol;
+    document.getElementById('trade-token-price-main').innerText = "$" + parseFloat(token.price || 0.0001).toFixed(6);
+    
+    // Optionnel : remplir les stats si elles existent
+    if(document.getElementById('t-mcap')) {
+        document.getElementById('t-mcap').innerText = "$" + (parseFloat(token.price || 0) * 1000000000).toLocaleString();
+    }
+
+    // Afficher la page
+    showPage('p-trade');
+    
+    // Lancer le graphique après un court délai pour être sûr que la page est affichée
+    setTimeout(() => {
+        if (typeof initTradeChart === 'function') initTradeChart();
+    }, 100);
+
+    tg.HapticFeedback.impactOccurred('medium');
+}
+
+
+
 
 
 
