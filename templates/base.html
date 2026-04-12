@@ -897,32 +897,82 @@ async function filterTokens(type, element) {
     const list = document.getElementById('token-list');
     if (!list) return;
 
-    // Gestion visuelle des boutons
+    // UI Feedback
     if (element) {
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         element.classList.add('active');
+        tg.HapticFeedback.selectionChanged();
     }
 
     list.innerHTML = '<div class="spinner"></div>';
 
-    if (type === 'my-fleet') {
-        try {
-            // Ton log Railway montre que cette URL est appelée :
-            const response = await fetch(`${BASE_URL}/api/launcher/list?filter=my&uid=${uid}`);
-            const data = await response.json();
-            console.log("Données My Fleet reçues:", data); // Check ta console navigateur !
-            renderTokenList(data);
-        } catch (e) {
-            list.innerHTML = "Erreur de chargement.";
+    try {
+        let url = `${BASE_URL}/api/launcher/list`;
+        
+        // Fix critique : On s'assure que l'uid est présent pour "My Fleet"
+        if (type === 'my-fleet') {
+            const currentUid = window.uid || (userData ? userData.id : null);
+            if (!currentUid) throw new Error("User ID not synced");
+            url += `?filter=my&uid=${currentUid}`;
+        } else if (type === 'trending') {
+            url += `?filter=hot`;
         }
-    } else {
-        // Pour Discover et Trending, on utilise la liste déjà chargée
-        renderTokenList(allTokens);
+
+        const response = await fetch(url);
+        const tokens = await response.json();
+
+        // GESTION DU BUG 0 TOKEN
+        if (!tokens || tokens.length === 0) {
+            list.innerHTML = `
+                <div style="text-align:center; padding: 40px 20px; opacity: 0.5; border: 1px dashed #222; border-radius: 15px;">
+                    <div style="font-size: 30px; margin-bottom: 10px;">📡</div>
+                    <p style="font-size: 12px; margin: 0;">No signatures detected in this sector.</p>
+                    <small style="font-size: 10px; color: var(--gold);">Waiting for next launch...</small>
+                </div>`;
+            return;
+        }
+
+        renderTokenList(tokens);
+
+    } catch (e) {
+        console.error("🚀 Launcher Error:", e);
+        list.innerHTML = `<p style="text-align:center; color:#ff4444; font-size:11px;">Protocol Interrupted: ${e.message}</p>`;
     }
 }
 
 
 
+
+
+
+function renderTokenList(tokens) {
+    const list = document.getElementById('token-list');
+    list.innerHTML = '';
+
+    tokens.forEach(t => {
+        // Fallback pour les images et le prix
+        const logo = t.logo || 'https://via.placeholder.com/40/000000/FFD700?text=' + t.symbol[0];
+        const price = parseFloat(t.price || 0.0001).toFixed(6);
+        
+        list.innerHTML += `
+            <div class="card launchpad-blueprint" style="margin-bottom:12px; padding:15px; border-radius:12px; animation: fadeIn 0.4s ease;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <img src="${logo}" style="width:40px; height:40px; border-radius:8px; border: 1px solid rgba(255,215,0,0.2);">
+                        <div>
+                            <b style="font-size:14px; color:#fff;">${t.name}</b><br>
+                            <small style="color:var(--gold); font-weight:bold; font-size:10px;">$${t.symbol} • <span style="color:#00ff88;">$${price}</span></small>
+                        </div>
+                    </div>
+                    <button class="btn" style="padding:6px 15px; font-size:10px; background:#fff; color:#000; font-weight:900;" 
+                        onclick="prepareTrade('${t.symbol}', '${t.name.replace(/'/g, "\\'")}', ${price})">
+                        TRADE
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+}
 
 
 
