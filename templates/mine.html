@@ -112,17 +112,28 @@
         </button>
     </div>
 
-    <div style="display: flex; gap: 10px; margin: 30px 15px 15px 15px; overflow-x: auto; padding-bottom: 5px;">
-        <div onclick="setFilter('new', this)" class="tab-btn active-tab" style="padding: 10px 20px; background: var(--gold); color: #000; border-radius: 30px; font-size: 11px; font-weight: 900; white-space: nowrap; transition: 0.3s;">✨ DISCOVER</div>
-        <div onclick="setFilter('hot', this)" class="tab-btn" style="padding: 10px 20px; background: #111; color: #fff; border-radius: 30px; font-size: 11px; font-weight: 900; white-space: nowrap; transition: 0.3s; border: 1px solid #222;">🔥 TRENDING</div>
-        <div onclick="setFilter('my', this)" class="tab-btn" style="padding: 10px 20px; background: #111; color: #fff; border-radius: 30px; font-size: 11px; font-weight: 900; white-space: nowrap; transition: 0.3s; border: 1px solid #222;">👤 MY FLEET</div>
-    </div>
+    
 
     <div style="display: flex; align-items: center; margin: 10px 20px;">
         <div style="width: 5px; height: 5px; background: var(--gold); border-radius: 50%; margin-right: 10px; animation: pulse 1.5s infinite;"></div>
         <h3 id="filter-title" style="margin: 0; letter-spacing: 2px; font-size: 12px; text-transform: uppercase; opacity: 0.7;">LIVE LISTINGS</h3>
     </div>
     
+
+
+<div style="display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 5px;">
+    <button class="filter-btn active" onclick="filterTokens('discover', this)">🌍 Discover</button>
+    <button class="filter-btn" onclick="filterTokens('trending', this)">🔥 Trending</button>
+    <button class="filter-btn" onclick="filterTokens('my-fleet', this)">🛸 My Fleet</button>
+</div>
+
+<div id="token-list">
+    </div>
+
+
+
+
+
     <div id="token-list" style="padding: 0 15px 20px 15px; min-height: 50px;">
     <p style="text-align:center; opacity:0.3; font-size:12px;">Chargement des protocoles...</p>
 </div>
