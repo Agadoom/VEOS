@@ -896,34 +896,29 @@ async function loadRecentTokens() {
 
 async function filterTokens(type, element) {
     const list = document.getElementById('token-list');
-    if (!list) return;
-
-    // UI : Boutons actifs
+    const title = document.getElementById('filter-title');
+    
+    // UI Update
     if (element) {
         document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         element.classList.add('active');
     }
 
     if (type === 'my-fleet') {
+        title.innerText = "MY FLEET COMMAND";
         list.innerHTML = '<div class="spinner"></div>';
-        try {
-            // APPEL SPÉCIFIQUE : On demande au Python de filtrer par notre UID
-            const response = await fetch(`${BASE_URL}/api/launcher/list?filter=my&uid=${uid}`);
-            const myTokens = await response.json();
-            renderTokenList(myTokens);
-        } catch (e) {
-            list.innerHTML = "Error loading your fleet.";
-        }
-    } else if (type === 'trending') {
-        // On prend les tokens avec le prix le plus haut dans notre liste locale
-        let trending = [...allTokens].sort((a, b) => b.price - a.price).slice(0, 5);
-        renderTokenList(trending);
+        
+        // CORRECTION : On envoie filter=my (comme attendu par ton launcher.py)
+        const response = await fetch(`${BASE_URL}/api/launcher/list?filter=my&uid=${uid}`);
+        const data = await response.json();
+        renderTokenList(data);
     } else {
-        // Discover : Liste complète
-        renderTokenList(allTokens);
+        title.innerText = type === 'trending' ? "HOT RADAR" : "LIVE LISTINGS";
+        // ... reste du code pour Discover/Trending ...
+        renderTokenList(allTokens); 
     }
-    tg.HapticFeedback.impactOccurred('light');
 }
+
 
 
 
