@@ -1066,6 +1066,26 @@ async function goToTrade(symbol) {
         document.getElementById('t-mcap').innerText = "$0.00";
     }
 
+
+  // --- FIX INFO TAB ---
+    // On injecte la description
+    const descEl = document.getElementById('trade-description');
+    if (descEl) descEl.innerText = token.description || "No mission protocol described for this sector.";
+
+    // On injecte les liens dynamiquement
+    const linksEl = document.getElementById('trade-links');
+    if (linksEl) {
+        linksEl.innerHTML = ""; // On vide d'abord
+        if (token.website_url) {
+            linksEl.innerHTML += `<button class="btn" style="padding:8px 15px; font-size:11px; background:#1a1a1c; border:1px solid #333;" onclick="window.open('${token.website_url}')">Website</button>`;
+        }
+        if (token.twitter_url) {
+            linksEl.innerHTML += `<button class="btn" style="padding:8px 15px; font-size:11px; background:#1a1a1c; border:1px solid #333;" onclick="window.open('${token.twitter_url}')">Twitter</button>`;
+        }
+    }
+    
+    showPage('p-trade');
+
     // 5. Lancement de la courbe
     setTimeout(() => {
         initTradeChart();
