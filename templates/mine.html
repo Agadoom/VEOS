@@ -57,87 +57,71 @@
 
 
 
-<div id="p-launcher" class="page active-page" style="display:block;">
+<div id="p-launcher" class="page active-page" style="display:block; padding-bottom: 100px;">
     
-    <div style="text-align:center; padding: 30px 20px;">
-        <div style="font-size: 40px; margin-bottom: 10px; animation: float 3s infinite ease-in-out;">🚀</div>
-        <h2 style="font-weight: 900; color: #fff; letter-spacing: 3px; margin: 0;">LAUNCHPAD</h2>
-        <small style="color: var(--gold); opacity: 0.8; font-weight: bold;">GENESIS ECOSYSTEM PROTOCOL</small>
+    <div style="text-align:center; padding: 30px 20px; background: radial-gradient(circle at center, rgba(255,215,0,0.05) 0%, transparent 70%);">
+        <div style="font-size: 45px; margin-bottom: 10px; filter: drop-shadow(0 0 10px var(--gold)); animation: float 3s infinite ease-in-out;">🚀</div>
+        <h2 style="font-weight: 900; color: #fff; letter-spacing: 4px; margin: 0; text-shadow: 0 0 15px rgba(255,255,255,0.2);">LAUNCHPAD</h2>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 5px;">
+            <span style="width: 30px; height: 1px; background: var(--gold); opacity: 0.5;"></span>
+            <small style="color: var(--gold); text-transform: uppercase; font-size: 9px; letter-spacing: 2px; font-weight: 900;">Genesis Protocol v3.0</small>
+            <span style="width: 30px; height: 1px; background: var(--gold); opacity: 0.5;"></span>
+        </div>
     </div>
     
-    <div class="card launchpad-blueprint" style="flex-direction:column; align-items:stretch; gap:15px; padding:25px; margin: 0 15px;">
+    <div class="card launchpad-blueprint" style="flex-direction:column; align-items:stretch; gap:15px; padding:25px; margin: 0 15px; border: 1px solid rgba(255,215,0,0.15); box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
         
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
-            <div style="width: 10px; height: 10px; background: var(--gold); border-radius: 2px;"></div>
-            <b style="font-size: 12px; color: #fff; letter-spacing: 1px;">TOKEN INITIALIZATION</b>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 8px; height: 8px; background: var(--gold); border-radius: 1px; box-shadow: 0 0 8px var(--gold);"></div>
+                <b style="font-size: 11px; color: #fff; letter-spacing: 1px; text-transform: uppercase;">Token Initialization</b>
+            </div>
+            <small style="font-size: 10px; color: var(--gold); font-weight: 900;">5,000 WPT</small>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="display:flex; flex-direction:column; gap:5px;">
-                <small style="font-size:9px; opacity:0.5; margin-left:5px;">TOKEN NAME</small>
-                <input type="text" id="tk-name" class="l-input" placeholder="e.g. Mars Coin" style="width:100%; border-radius:8px; padding:12px;">
-            </div>
-            <div style="display:flex; flex-direction:column; gap:5px;">
-                <small style="font-size:9px; opacity:0.5; margin-left:5px;">TICKER SYMBOL</small>
-                <input type="text" id="tk-sym" class="l-input" placeholder="$MARS" style="width:100%; border-radius:8px; padding:12px;">
-            </div>
+            <input type="text" id="tk-name" class="l-input" placeholder="Token Name">
+            <input type="text" id="tk-sym" class="l-input" placeholder="$SYMBOL">
         </div>
         
-        <div style="display:flex; flex-direction:column; gap:5px;">
-            <small style="font-size:9px; opacity:0.5; margin-left:5px;">OFFICIAL WEBSITE (OPTIONAL)</small>
-            <input type="url" id="tk-url" class="l-input" placeholder="https://..." style="width:100%; border-radius:8px; padding:12px;">
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:5px;">
-            <small style="font-size:9px; opacity:0.5; margin-left:5px;">PROJECT VISION</small>
-            <textarea id="tk-desc" class="l-input" style="height:80px; border-radius:8px; padding:12px; resize:none;" placeholder="Tell the world about your mission..."></textarea>
-        </div>
+        <input type="url" id="tk-url" class="l-input" placeholder="Official Website (https://...)">
+        <textarea id="tk-desc" class="l-input" style="height:70px; resize:none;" placeholder="Project Mission & Vision..."></textarea>
         
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top: 5px;">
-            <label class="upload-box" style="background: rgba(255,215,0,0.03); border: 1px dashed rgba(255,215,0,0.2); padding:15px; border-radius:12px; text-align:center; cursor:pointer; transition: 0.3s;">
-                <div style="font-size: 18px;">🖼️</div>
-                <span id="label-logo" style="font-size: 10px; font-weight:bold; color:var(--gold);">ID LOGO</span>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <label class="upload-box" onclick="tg.HapticFeedback.impactOccurred('light')">
                 <input type="file" id="f-logo" hidden onchange="processFile('logo')">
+                <span id="label-logo">🖼️ LOGO</span>
             </label>
-            <label class="upload-box" style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.1); padding:15px; border-radius:12px; text-align:center; cursor:pointer; transition: 0.3s;">
-                <div style="font-size: 18px;">🌅</div>
-                <span id="label-banner" style="font-size: 10px; font-weight:bold; opacity:0.7;">BANNER</span>
+            <label class="upload-box" onclick="tg.HapticFeedback.impactOccurred('light')">
                 <input type="file" id="f-banner" hidden onchange="processFile('banner')">
+                <span id="label-banner">🌅 BANNER</span>
             </label>
         </div>
 
-        <button class="btn btn-launch" style="background:var(--gold); color:#000; width:100%; font-weight:900; height: 55px; border-radius: 12px; margin-top: 10px; box-shadow: 0 5px 20px rgba(255,215,0,0.2);" onclick="deployToken()">
-            <span style="font-size: 16px;">INITIATE LAUNCH</span>
-            <div style="font-size: 8px; opacity: 0.6; margin-top: 2px;">COST: 5,000 WPT</div>
+        <button class="btn btn-launch" style="background:var(--gold); color:#000; font-weight:900; height: 50px; border-radius: 10px; margin-top: 5px;" onclick="deployToken()">
+            LAUNCH MISSION
         </button>
     </div>
 
-    
+    <div style="margin: 30px 20px 15px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+            <div style="width: 5px; height: 5px; background: var(--gold); border-radius: 50%; animation: pulse 1.5s infinite;"></div>
+            <h3 id="filter-title" style="margin: 0; letter-spacing: 2px; font-size: 11px; text-transform: uppercase; color: #fff;">Sector Discovery</h3>
+        </div>
 
-    <div style="display: flex; align-items: center; margin: 10px 20px;">
-        <div style="width: 5px; height: 5px; background: var(--gold); border-radius: 50%; margin-right: 10px; animation: pulse 1.5s infinite;"></div>
-        <h3 id="filter-title" style="margin: 0; letter-spacing: 2px; font-size: 12px; text-transform: uppercase; opacity: 0.7;">LIVE LISTINGS</h3>
+        <div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; -ms-overflow-style: none;">
+            <button class="filter-btn active" onclick="filterTokens('discover', this)">🌍 DISCOVER</button>
+            <button class="filter-btn" onclick="filterTokens('trending', this)">🔥 TRENDING</button>
+            <button class="filter-btn" onclick="filterTokens('my-fleet', this)">🛸 MY FLEET</button>
+        </div>
     </div>
-    
 
-
- <div style="display: flex; gap: 10px; margin: 15px 20px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; -ms-overflow-style: none;">
-    <button class="filter-btn active" onclick="filterTokens('discover', this)">🌍 Discover</button>
-    <button class="filter-btn" onclick="filterTokens('trending', this)">🔥 Trending</button>
-    <button class="filter-btn" onclick="filterTokens('my-fleet', this)">🛸 My Fleet</button>
-</div>
-
-<div id="token-list" style="padding: 0 15px;">
-    <div class="spinner"></div>
-</div>
-
-<hr style="border: 0; border-top: 1px solid #222; margin: 30px 20px;">
-
-
-
-
+    <div id="token-list" style="padding: 0 15px; min-height: 200px;">
+        <div class="spinner"></div>
+    </div>
 
 </div>
+
 
 
 
