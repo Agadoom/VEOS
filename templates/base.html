@@ -1107,24 +1107,51 @@ async function goToTrade(symbol) {
 
 
 
-function openOrder(type) {
-    const drawer = document.getElementById('order-drawer');
-    const overlay = document.getElementById('drawer-overlay');
+async function executeOrder() {
+    const amount = document.getElementById('order-input').value;
+    const tokenSymbol = document.getElementById('trade-token-symbol-main').innerText.replace('$', '');
     
-    // Configurer le contenu selon BUY ou SELL
-    document.getElementById('order-title').innerText = type.toUpperCase() + " " + document.getElementById('trade-token-symbol-main').innerText;
-    document.getElementById('order-confirm-btn').style.background = (type === 'buy') ? '#00ff88' : '#ff4444';
-    
-    // Afficher
-    overlay.style.display = 'block';
-    drawer.classList.add('active');
-    
-    tg.HapticFeedback.impactOccurred('light');
-}
+    // Trouver l'ID du token dans la liste globale
+    const token = allTokens.find(t => t.symbol === tokenSymbol);
 
-function closeOrder() {
-    document.getElementById('order-drawer').classList.remove('active');
-    document.getElementById('drawer-overlay').style.display = 'none';
+    if (!amount || amount <= 0) {
+        tg.showAlert("❌ Enter a valid amount.");
+        return;
+    }
+
+    if (!token) {
+        tg.showAlert("❌ Token error.");
+        return;
+    }
+
+    // Choisir la bonne route (Swap ou Sell)
+    const endpoint = (currentOrderType === 'buy') ? '/api/launcher/swap' : '/api/launcher/sell';
+
+    try {
+        const response = await fetch(`${BASE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: uid,
+                token_id: token.id,
+                amount: parseFloat(amount)
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            tg.showAlert(`✅ Order Executed!\nReceived: ${result.received.toFixed(2)} units.`);
+            closeOrder();
+            // Rafraîchir les données utilisateur (solde WPT)
+            if (typeof refresh === 'function') refresh(); 
+        } else {
+            tg.showAlert("⚠️ Error: " + result.error);
+        }
+    } catch (e) {
+        console.error(e);
+        tg.showAlert("📡 Connection failed with the server.");
+    }
 }
 
 
